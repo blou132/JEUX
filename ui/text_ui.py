@@ -37,3 +37,18 @@ def format_stats_line(tick: int, stats: Dict[str, float | int]) -> str:
         f"{float(stats['avg_speed']):9.3f} | "
         f"{float(stats['avg_metabolism']):13.3f}"
     )
+
+
+def format_generation_distribution(distribution: Dict[int, int], max_bins: int = 8) -> str:
+    if max_bins <= 0:
+        raise ValueError("max_bins must be > 0")
+    if not distribution:
+        return "generations: (none)"
+
+    ordered = sorted(distribution.items())
+    visible = ordered[:max_bins]
+    parts = [f"g{generation}:{count}" for generation, count in visible]
+
+    hidden = len(ordered) - len(visible)
+    suffix = "" if hidden <= 0 else f" ... (+{hidden} bins)"
+    return "generations: " + " ".join(parts) + suffix

@@ -9,7 +9,7 @@ from creatures import create_initial_population
 from debug_tools import build_generation_distribution, build_population_stats
 from player import PlayerRunConfig
 from simulation import HungerSimulation
-from ui import format_stats_line, print_run_header
+from ui import format_generation_distribution, format_stats_line, print_run_header
 from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
@@ -25,16 +25,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--creatures", type=int, default=20)
     parser.add_argument("--initial-food", type=int, default=50)
-    parser.add_argument("--min-food", type=int, default=25)
+    parser.add_argument("--min-food", type=int, default=30)
 
     parser.add_argument("--energy-drain-rate", type=float, default=1.2)
     parser.add_argument("--movement-speed", type=float, default=1.0)
     parser.add_argument("--eat-rate", type=float, default=24.0)
     parser.add_argument("--hunger-threshold", type=float, default=0.6)
 
-    parser.add_argument("--reproduction-threshold", type=float, default=65.0)
-    parser.add_argument("--reproduction-cost", type=float, default=18.0)
-    parser.add_argument("--reproduction-distance", type=float, default=6.0)
+    parser.add_argument("--reproduction-threshold", type=float, default=58.0)
+    parser.add_argument("--reproduction-cost", type=float, default=12.0)
+    parser.add_argument("--reproduction-distance", type=float, default=15.0)
     parser.add_argument("--mutation-variation", type=float, default=0.1)
 
     return parser
@@ -114,7 +114,9 @@ def main() -> None:
 
         if tick == 1 or tick % run_config.log_interval == 0:
             stats = build_population_stats(simulation)
+            generations = build_generation_distribution(simulation)
             print(format_stats_line(tick, stats))
+            print("     " + format_generation_distribution(generations, max_bins=10))
 
         if simulation.get_alive_count() == 0:
             print(f"All creatures are dead at tick {tick}.")
@@ -143,7 +145,7 @@ def main() -> None:
             avg_metabolism=float(final_stats["avg_metabolism"]),
         )
     )
-    print("generation_distribution=", dict(sorted(generations.items())))
+    print(format_generation_distribution(generations, max_bins=30))
 
 
 if __name__ == "__main__":
