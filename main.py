@@ -135,9 +135,10 @@ def main() -> None:
         )
     )
     print(
-        "avg_energy={avg_energy:.2f} avg_age={avg_age:.2f} avg_speed={avg_speed:.3f} avg_metabolism={avg_metabolism:.3f}".format(
+        "avg_energy={avg_energy:.2f} avg_age={avg_age:.2f} avg_generation={avg_generation:.2f} avg_speed={avg_speed:.3f} avg_metabolism={avg_metabolism:.3f}".format(
             avg_energy=float(final_stats["avg_energy"]),
             avg_age=float(final_stats["avg_age"]),
+            avg_generation=float(final_stats["avg_generation"]),
             avg_speed=float(final_stats["avg_speed"]),
             avg_metabolism=float(final_stats["avg_metabolism"]),
         )

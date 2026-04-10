@@ -19,6 +19,7 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | in
             "food_remaining": 0.0,
             "avg_energy": 0.0,
             "avg_age": 0.0,
+            "avg_generation": 0.0,
             "avg_speed": 0.0,
             "avg_metabolism": 0.0,
             "births_last_tick": simulation.births_last_tick,
@@ -29,6 +30,7 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | in
 
     avg_energy = sum(c.energy for c in simulation.creatures) / total
     avg_age = sum(c.age for c in simulation.creatures) / total
+    avg_generation = sum(c.generation for c in simulation.creatures) / total
     avg_speed = sum(c.traits.speed for c in simulation.creatures) / total
     avg_metabolism = sum(c.traits.metabolism for c in simulation.creatures) / total
 
@@ -40,6 +42,7 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | in
         "food_remaining": simulation.food_field.get_total_food_energy(),
         "avg_energy": avg_energy,
         "avg_age": avg_age,
+        "avg_generation": avg_generation,
         "avg_speed": avg_speed,
         "avg_metabolism": avg_metabolism,
         "births_last_tick": simulation.births_last_tick,

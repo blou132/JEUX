@@ -41,6 +41,7 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("food_remaining", stats)
         self.assertIn("avg_energy", stats)
         self.assertIn("avg_age", stats)
+        self.assertIn("avg_generation", stats)
         self.assertIn("total_deaths", stats)
         self.assertIn("total_births", stats)
         self.assertIn("avg_speed", stats)

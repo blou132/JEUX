@@ -91,7 +91,7 @@ class HungerSimulation:
             if intent.action == "move_to_food" and intent.target_food_id is not None:
                 target = self.food_field.get_food(intent.target_food_id)
                 if target is None:
-                    self._wander(creature, dt)
+                    self._wander(creature, dt, activity=1.0)
                     continue
 
                 reached = creature.move_towards(
@@ -105,8 +105,13 @@ class HungerSimulation:
                     creature.add_energy(eaten)
                 continue
 
-            if intent.action in ("search_food", "wander"):
-                self._wander(creature, dt)
+            if intent.action == "search_food":
+                # Search mode: more active movement than idle wandering.
+                self._wander(creature, dt, activity=1.0)
+                continue
+
+            if intent.action == "wander":
+                self._wander(creature, dt, activity=0.5)
 
         # 4) Reproduction with simple inheritance + mutation.
         self._process_reproduction(intents)
@@ -183,8 +188,11 @@ class HungerSimulation:
             self.births_last_tick = len(newborns)
             self.total_births += len(newborns)
 
-    def _wander(self, creature: Creature, dt: float) -> None:
-        distance = self.movement_speed * 0.5 * creature.traits.speed * dt
+    def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
+        if activity < 0:
+            raise ValueError("activity must be >= 0")
+
+        distance = self.movement_speed * activity * creature.traits.speed * dt
         if distance <= 0:
             return
 
