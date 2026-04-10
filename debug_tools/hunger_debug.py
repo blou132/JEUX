@@ -13,6 +13,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
             {
                 "id": creature.creature_id,
                 "alive": creature.alive,
+                "age": round(creature.age, 2),
                 "energy": round(creature.energy, 3),
                 "hunger": round(creature.hunger, 3),
                 "generation": creature.generation,
@@ -27,6 +28,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
 
     return {
         "alive_count": simulation.get_alive_count(),
+        "dead_count": simulation.get_dead_count(),
+        "births_last_tick": simulation.births_last_tick,
+        "deaths_last_tick": simulation.deaths_last_tick,
+        "total_births": simulation.total_births,
+        "total_deaths": simulation.total_deaths,
         "creatures": creatures,
         "food_sources_count": simulation.food_field.get_food_count(),
+        "food_remaining": round(simulation.food_field.get_total_food_energy(), 3),
     }

@@ -54,3 +54,6 @@ class FoodField:
 
     def get_food_count(self) -> int:
         return len(self._sources)
+
+    def get_total_food_energy(self) -> float:
+        return sum(source.energy_value for source in self._sources.values() if source.energy_value > 0)

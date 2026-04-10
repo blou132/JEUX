@@ -20,7 +20,7 @@ class HungerSystemTests(unittest.TestCase):
         self.assertAlmostEqual(creature.energy, 7.0)
         self.assertTrue(creature.alive)
 
-    def test_hungry_creature_seeks_food(self) -> None:
+    def test_hungry_creature_targets_food(self) -> None:
         creature = Creature(creature_id="c1", x=0, y=0, energy=20, max_energy=100)
         food = FoodField()
         food.add_food(FoodSource(food_id="f1", x=10, y=0, energy_value=30))
@@ -33,7 +33,7 @@ class HungerSystemTests(unittest.TestCase):
         )
 
         sim.tick(dt=1.0)
-        self.assertEqual(sim.last_intents["c1"].action, "seek_food")
+        self.assertEqual(sim.last_intents["c1"].action, "move_to_food")
 
     def test_creature_dies_at_zero_energy(self) -> None:
         creature = Creature(creature_id="c1", x=0, y=0, energy=1, max_energy=10)

@@ -17,6 +17,7 @@ class Creature:
     alive: bool = True
     traits: GeneticTraits = field(default_factory=GeneticTraits)
     generation: int = 0
+    age: float = 0.0
     parent_ids: Optional[Tuple[str, str]] = None
 
     def __post_init__(self) -> None:
@@ -36,6 +37,12 @@ class Creature:
         if not self.alive or self.max_energy <= 0:
             return 1.0
         return max(0.0, min(1.0, 1.0 - (self.energy / self.max_energy)))
+
+    def grow_older(self, dt: float) -> None:
+        if dt < 0:
+            raise ValueError("dt must be >= 0")
+        if self.alive:
+            self.age += dt
 
     def drain_energy(self, dt: float, drain_rate: float) -> None:
         if not self.alive:

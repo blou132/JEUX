@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, Iterable
+from math import cos, pi, sin
+from typing import Dict, Iterable, Set
 
 from ai import CreatureIntent, HungerAI
 from creatures import Creature
 from genetics import inherit_traits
-from world import FoodField
+from world import FoodField, SimpleMap
 
 
 class HungerSimulation:
@@ -23,6 +24,7 @@ class HungerSimulation:
         reproduction_distance: float = 1.5,
         mutation_variation: float = 0.1,
         random_source: random.Random | None = None,
+        world_map: SimpleMap | None = None,
     ) -> None:
         if (
             energy_drain_rate < 0
@@ -46,54 +48,100 @@ class HungerSimulation:
         self.reproduction_distance = reproduction_distance
         self.mutation_variation = mutation_variation
         self.random_source = random_source or random.Random()
+        self.world_map = world_map
+
         self.last_intents: Dict[str, CreatureIntent] = {}
         self._child_counter = 0
+
+        self.births_last_tick = 0
+        self.total_births = 0
+        self.deaths_last_tick = 0
+        self.total_deaths = 0
 
     def tick(self, dt: float) -> None:
         if dt < 0:
             raise ValueError("dt must be >= 0")
 
-        # 1) Passive energy loss.
+        self.births_last_tick = 0
+        self.deaths_last_tick = 0
+        dead_before = self.get_dead_count()
+
+        # 1) Passive aging and energy loss.
         for creature in self.creatures:
+            creature.grow_older(dt)
             creature.drain_energy(dt=dt, drain_rate=self.energy_drain_rate)
 
-        # 2) Decide behavior for alive creatures.
+        # 2) Decide behavior for each creature.
+        reproduction_candidates = self._build_reproduction_candidates()
         intents: Dict[str, CreatureIntent] = {}
         for creature in self.creatures:
-            intents[creature.creature_id] = self.ai_system.decide(creature, self.food_field)
+            intents[creature.creature_id] = self.ai_system.decide(
+                creature,
+                self.food_field,
+                can_reproduce=(creature.creature_id in reproduction_candidates),
+            )
         self.last_intents = intents
 
-        # 3) Execute simple seek-food behavior.
+        # 3) Execute movement and feeding behavior.
         for creature in self.creatures:
+            if not creature.alive:
+                continue
+
             intent = intents[creature.creature_id]
-            if intent.action != "seek_food" or not creature.alive or intent.target_food_id is None:
+            if intent.action == "move_to_food" and intent.target_food_id is not None:
+                target = self.food_field.get_food(intent.target_food_id)
+                if target is None:
+                    self._wander(creature, dt)
+                    continue
+
+                reached = creature.move_towards(
+                    target_x=target.x,
+                    target_y=target.y,
+                    max_distance=self.movement_speed * creature.traits.speed * dt,
+                )
+                self._clamp_creature_position(creature)
+                if reached:
+                    eaten = self.food_field.consume(target.food_id, self.eat_rate * dt)
+                    creature.add_energy(eaten)
                 continue
 
-            target = self.food_field.get_food(intent.target_food_id)
-            if target is None:
-                continue
-
-            reached = creature.move_towards(
-                target_x=target.x,
-                target_y=target.y,
-                max_distance=self.movement_speed * creature.traits.speed * dt,
-            )
-            if reached:
-                eaten = self.food_field.consume(target.food_id, self.eat_rate * dt)
-                creature.add_energy(eaten)
+            if intent.action in ("search_food", "wander"):
+                self._wander(creature, dt)
 
         # 4) Reproduction with simple inheritance + mutation.
+        self._process_reproduction(intents)
+
+        dead_after = self.get_dead_count()
+        self.deaths_last_tick = max(0, dead_after - dead_before)
+        self.total_deaths += self.deaths_last_tick
+
+    def _build_reproduction_candidates(self) -> Set[str]:
+        eligible = [c for c in self.creatures if c.alive and c.energy >= self.reproduction_energy_threshold]
+        candidates: Set[str] = set()
+
+        for idx, parent_a in enumerate(eligible):
+            for parent_b in eligible[idx + 1 :]:
+                if parent_a.distance_to(parent_b.x, parent_b.y) <= self.reproduction_distance:
+                    candidates.add(parent_a.creature_id)
+                    candidates.add(parent_b.creature_id)
+
+        return candidates
+
+    def _process_reproduction(self, intents: Dict[str, CreatureIntent]) -> None:
         newborns: list[Creature] = []
         used_ids: set[str] = set()
         candidates = [
             c
             for c in self.creatures
-            if c.alive and c.energy >= self.reproduction_energy_threshold and c.creature_id not in used_ids
+            if c.alive
+            and c.energy >= self.reproduction_energy_threshold
+            and intents[c.creature_id].action == "reproduce"
         ]
 
         for idx, parent_a in enumerate(candidates):
             if parent_a.creature_id in used_ids:
                 continue
+
             for parent_b in candidates[idx + 1 :]:
                 if parent_b.creature_id in used_ids:
                     continue
@@ -106,10 +154,16 @@ class HungerSimulation:
                     mutation_variation=self.mutation_variation,
                     rng=self.random_source,
                 )
+
+                child_x = (parent_a.x + parent_b.x) / 2.0
+                child_y = (parent_a.y + parent_b.y) / 2.0
+                if self.world_map is not None:
+                    child_x, child_y = self.world_map.clamp(child_x, child_y)
+
                 child = Creature(
                     creature_id=f"child_{self._child_counter}",
-                    x=(parent_a.x + parent_b.x) / 2.0,
-                    y=(parent_a.y + parent_b.y) / 2.0,
+                    x=child_x,
+                    y=child_y,
                     energy=child_traits.max_energy * 0.5,
                     traits=child_traits,
                     generation=max(parent_a.generation, parent_b.generation) + 1,
@@ -126,6 +180,29 @@ class HungerSimulation:
 
         if newborns:
             self.creatures.extend(newborns)
+            self.births_last_tick = len(newborns)
+            self.total_births += len(newborns)
+
+    def _wander(self, creature: Creature, dt: float) -> None:
+        distance = self.movement_speed * 0.5 * creature.traits.speed * dt
+        if distance <= 0:
+            return
+
+        angle = self.random_source.uniform(0.0, 2.0 * pi)
+        target_x = creature.x + cos(angle) * distance
+        target_y = creature.y + sin(angle) * distance
+        creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
+        self._clamp_creature_position(creature)
+
+    def _clamp_creature_position(self, creature: Creature) -> None:
+        if self.world_map is not None:
+            creature.x, creature.y = self.world_map.clamp(creature.x, creature.y)
 
     def get_alive_count(self) -> int:
         return sum(1 for creature in self.creatures if creature.alive)
+
+    def get_dead_count(self) -> int:
+        return sum(1 for creature in self.creatures if not creature.alive)
+
+    def get_total_count(self) -> int:
+        return len(self.creatures)
