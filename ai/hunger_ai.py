@@ -59,17 +59,17 @@ class HungerAI:
             return CreatureIntent(action=self.ACTION_FLEE, target_creature_id=nearest_threat.creature_id)
 
         nearest_food = food_field.get_nearest_food(creature.x, creature.y)
-        is_hungry = creature.hunger >= self.hunger_seek_threshold
 
-        # Priority 1: high hunger means active food seeking.
+        hunger_threshold = self._effective_hunger_seek_threshold(creature)
+        is_hungry = creature.hunger >= hunger_threshold
         if is_hungry:
             return self._food_seeking_intent(creature, nearest_food)
 
-        # Priority 2: reproduction when pairing/energy conditions are met.
-        if can_reproduce:
+        # Reproduction willingness differs slightly across individuals.
+        reproduction_hunger_limit = self._effective_reproduction_hunger_limit(creature, hunger_threshold)
+        if can_reproduce and creature.hunger <= reproduction_hunger_limit:
             return CreatureIntent(action=self.ACTION_REPRODUCE)
 
-        # Fallback behavior.
         return CreatureIntent(action=self.ACTION_WANDER)
 
     def _food_seeking_intent(self, creature: Creature, nearest_food: Optional[FoodSource]) -> CreatureIntent:
@@ -120,12 +120,26 @@ class HungerAI:
 
     # THREAT/FLEE: simple threat model based on hunger and power ratio.
     def _is_threat(self, creature: Creature, other: Creature) -> bool:
-        # A threat is a stronger nearby creature that is itself in active hunger.
         if other.hunger < self.hunger_seek_threshold:
             return False
 
         creature_power = creature.traits.speed * creature.traits.max_energy
         other_power = other.traits.speed * other.traits.max_energy
-        return other_power >= creature_power * self.threat_strength_ratio
 
+        behavior_bias = 0.25 * (creature.traits.dominance - creature.traits.prudence)
+        effective_ratio = max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias))
+        return other_power >= creature_power * effective_ratio
 
+    def _effective_hunger_seek_threshold(self, creature: Creature) -> float:
+        threshold = self.hunger_seek_threshold
+        threshold -= 0.05 * (creature.traits.prudence - 1.0)
+        threshold += 0.03 * (creature.traits.dominance - 1.0)
+        return max(0.0, min(1.0, threshold))
+
+    def _effective_reproduction_hunger_limit(
+        self, creature: Creature, hunger_threshold: float
+    ) -> float:
+        limit = hunger_threshold
+        limit *= 1.0 + (0.25 * (creature.traits.repro_drive - 1.0))
+        limit -= 0.02 * (creature.traits.prudence - 1.0)
+        return max(0.0, min(1.0, limit))

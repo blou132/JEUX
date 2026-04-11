@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from random import Random
 from typing import List
@@ -20,6 +20,9 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             speed=random_source.uniform(0.8, 1.2),
             metabolism=random_source.uniform(0.9, 1.1),
             max_energy=random_source.uniform(90.0, 110.0),
+            prudence=random_source.uniform(0.8, 1.2),
+            dominance=random_source.uniform(0.8, 1.2),
+            repro_drive=random_source.uniform(0.8, 1.2),
         ).clamp()
 
         creature = Creature(
@@ -33,3 +36,4 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
         population.append(creature)
 
     return population
+

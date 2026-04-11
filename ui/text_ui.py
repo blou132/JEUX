@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | repro_moy"
     )
 
 
@@ -36,7 +36,10 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{births_block:16s} | "
         f"{deaths_block:12s} | "
         f"{float(stats['avg_speed']):11.3f} | "
-        f"{float(stats['avg_metabolism']):15.3f}"
+        f"{float(stats['avg_metabolism']):15.3f} | "
+        f"{float(stats['avg_prudence']):12.3f} | "
+        f"{float(stats['avg_dominance']):13.3f} | "
+        f"{float(stats['avg_repro_drive']):9.3f}"
     )
 
 
@@ -97,6 +100,10 @@ def format_population_dynamics(
     fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
     avg_flee_threat_distance_tick = float(stats.get("avg_flee_threat_distance_last_tick", 0.0))
 
+    avg_prudence = float(stats.get("avg_prudence", 0.0))
+    avg_dominance = float(stats.get("avg_dominance", 0.0))
+    avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
+
     alive_delta = 0
     births_log = births_tick
     deaths_log = deaths_tick
@@ -154,6 +161,7 @@ def format_population_dynamics(
         f"fuites_tick:{flees_tick} "
         f"fuyards_tick:{fleeing_block} "
         f"dist_menace_moy_tick:{threat_distance_block} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
@@ -250,4 +258,3 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
-

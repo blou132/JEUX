@@ -22,6 +22,9 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
             "avg_generation": 0.0,
             "avg_speed": 0.0,
             "avg_metabolism": 0.0,
+            "avg_prudence": 0.0,
+            "avg_dominance": 0.0,
+            "avg_repro_drive": 0.0,
             "births_last_tick": simulation.births_last_tick,
             "total_births": simulation.total_births,
             "deaths_last_tick": simulation.deaths_last_tick,
@@ -39,6 +42,9 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
     avg_generation = sum(c.generation for c in simulation.creatures) / total
     avg_speed = sum(c.traits.speed for c in simulation.creatures) / total
     avg_metabolism = sum(c.traits.metabolism for c in simulation.creatures) / total
+    avg_prudence = sum(c.traits.prudence for c in simulation.creatures) / total
+    avg_dominance = sum(c.traits.dominance for c in simulation.creatures) / total
+    avg_repro_drive = sum(c.traits.repro_drive for c in simulation.creatures) / total
 
     return {
         "population": total,
@@ -51,6 +57,9 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
         "avg_generation": avg_generation,
         "avg_speed": avg_speed,
         "avg_metabolism": avg_metabolism,
+        "avg_prudence": avg_prudence,
+        "avg_dominance": avg_dominance,
+        "avg_repro_drive": avg_repro_drive,
         "births_last_tick": simulation.births_last_tick,
         "total_births": simulation.total_births,
         "deaths_last_tick": simulation.deaths_last_tick,
@@ -69,4 +78,3 @@ def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int
     for creature in simulation.creatures:
         distribution[creature.generation] = distribution.get(creature.generation, 0) + 1
     return distribution
-

@@ -16,7 +16,14 @@ class DebugStatsTests(unittest.TestCase):
                 x=0.0,
                 y=0.0,
                 energy=50.0,
-                traits=GeneticTraits(speed=1.2, metabolism=0.9, max_energy=100.0),
+                traits=GeneticTraits(
+                    speed=1.2,
+                    metabolism=0.9,
+                    max_energy=100.0,
+                    prudence=1.1,
+                    dominance=0.9,
+                    repro_drive=1.2,
+                ),
                 age=5.0,
             ),
             Creature(
@@ -24,7 +31,14 @@ class DebugStatsTests(unittest.TestCase):
                 x=1.0,
                 y=0.0,
                 energy=20.0,
-                traits=GeneticTraits(speed=0.8, metabolism=1.1, max_energy=100.0),
+                traits=GeneticTraits(
+                    speed=0.8,
+                    metabolism=1.1,
+                    max_energy=100.0,
+                    prudence=0.9,
+                    dominance=1.1,
+                    repro_drive=0.8,
+                ),
                 age=3.0,
             ),
         ]
@@ -46,6 +60,9 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("total_births", stats)
         self.assertIn("avg_speed", stats)
         self.assertIn("avg_metabolism", stats)
+        self.assertIn("avg_prudence", stats)
+        self.assertIn("avg_dominance", stats)
+        self.assertIn("avg_repro_drive", stats)
         self.assertIn("death_causes_last_tick", stats)
         self.assertIn("death_causes_total", stats)
         self.assertIn("flees_last_tick", stats)
@@ -77,4 +94,3 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
