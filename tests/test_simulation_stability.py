@@ -24,7 +24,7 @@ class SimulationStabilityTests(unittest.TestCase):
             ai_system=HungerAI(hunger_seek_threshold=0.6),
             energy_drain_rate=1.2,
             movement_speed=1.0,
-            eat_rate=24.0,
+            eat_rate=26.0,
             reproduction_energy_threshold=58.0,
             reproduction_cost=12.0,
             reproduction_distance=15.0,

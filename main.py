@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--energy-drain-rate", type=float, default=1.2)
     parser.add_argument("--movement-speed", type=float, default=1.0)
-    parser.add_argument("--eat-rate", type=float, default=24.0)
+    parser.add_argument("--eat-rate", type=float, default=26.0)
     parser.add_argument("--hunger-threshold", type=float, default=0.6)
 
     parser.add_argument("--reproduction-threshold", type=float, default=58.0)
