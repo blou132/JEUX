@@ -84,41 +84,76 @@ def format_population_dynamics(
 ) -> str:
     births_tick = int(stats.get("births_last_tick", 0))
     deaths_tick = int(stats.get("deaths_last_tick", 0))
+    net_tick = births_tick - deaths_tick
+
     alive = int(stats.get("alive", 0))
     food_remaining = float(stats.get("food_remaining", 0.0))
     avg_energy = float(stats.get("avg_energy", 0.0))
 
-    net_tick = births_tick - deaths_tick
-    alive_delta = 0
-    if previous_stats is not None:
-        alive_delta = alive - int(previous_stats.get("alive", alive))
+    current_total_births = int(stats.get("total_births", 0))
+    current_total_deaths = int(stats.get("total_deaths", 0))
 
-    if net_tick > 0 or alive_delta > 0:
-        dynamic = "croissance"
-    elif net_tick < 0 or alive_delta < 0:
-        dynamic = "declin"
-    else:
-        dynamic = "stagnation"
+    alive_delta = 0
+    births_log = births_tick
+    deaths_log = deaths_tick
+
+    if previous_stats is not None:
+        previous_alive = int(previous_stats.get("alive", alive))
+        previous_total_births = int(previous_stats.get("total_births", current_total_births))
+        previous_total_deaths = int(previous_stats.get("total_deaths", current_total_deaths))
+
+        alive_delta = alive - previous_alive
+        births_log = max(0, current_total_births - previous_total_births)
+        deaths_log = max(0, current_total_deaths - previous_total_deaths)
+
+    net_log = births_log - deaths_log
+    dynamic_log = _classify_trend(primary=alive_delta, secondary=net_log)
+    dynamic_tick = _classify_trend(primary=net_tick, secondary=net_tick)
 
     food_pressure = _classify_food_pressure(alive, food_remaining)
+    food_per_alive = _format_food_per_alive(alive, food_remaining)
     energy_state = _classify_energy(avg_energy)
 
-    causes = _read_cause_counts(stats.get("death_causes_last_tick"))
-    dominant_cause = _dominant_death_cause(causes)
+    causes_tick = _read_cause_counts(stats.get("death_causes_last_tick"))
+    causes_log = causes_tick
+    if previous_stats is not None:
+        current_total_causes = _read_cause_counts(stats.get("death_causes_total"))
+        previous_total_causes = _read_cause_counts(previous_stats.get("death_causes_total"))
+        causes_log = _delta_cause_counts(current_total_causes, previous_total_causes)
+
+    dominant_tick = _dominant_death_cause(causes_tick)
+    dominant_log = _dominant_death_cause(causes_log)
 
     if deaths_tick <= 0:
-        mortality = "mortalite_tick:nulle"
+        mortality_tick = "mortalite_tick:nulle"
     else:
-        mortality = f"mortalite_tick:{deaths_tick} dominante:{dominant_cause}"
+        mortality_tick = f"mortalite_tick:{deaths_tick} dominante_tick:{dominant_tick}"
+
+    if deaths_log <= 0:
+        mortality_log = "mortalite_log:nulle"
+    else:
+        mortality_log = f"mortalite_log:{deaths_log} dominante_log:{dominant_log}"
 
     return (
-        f"dynamique:{dynamic} "
+        f"dynamique_log:{dynamic_log} "
+        f"dynamique_tick:{dynamic_tick} "
         f"delta_log_vivants:{alive_delta:+d} "
+        f"net_log_naissances_deces:{net_log:+d} "
         f"net_tick_naissances_deces:{net_tick:+d} "
+        f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
-        f"{mortality}"
+        f"{mortality_log} "
+        f"{mortality_tick}"
     )
+
+
+def _classify_trend(primary: int, secondary: int) -> str:
+    if primary > 0 or secondary > 0:
+        return "croissance"
+    if primary < 0 or secondary < 0:
+        return "declin"
+    return "stagnation"
 
 
 def _classify_food_pressure(alive: int, food_remaining: float) -> str:
@@ -131,6 +166,12 @@ def _classify_food_pressure(alive: int, food_remaining: float) -> str:
     if food_per_alive < 35.0:
         return "moderee"
     return "faible"
+
+
+def _format_food_per_alive(alive: int, food_remaining: float) -> str:
+    if alive <= 0:
+        return "n/a"
+    return f"{(food_remaining / alive):.1f}"
 
 
 def _classify_energy(avg_energy: float) -> str:
@@ -148,6 +189,14 @@ def _read_cause_counts(raw: object) -> Dict[str, int]:
         "starvation": int(raw.get("starvation", 0)),
         "exhaustion": int(raw.get("exhaustion", 0)),
         "unknown": int(raw.get("unknown", 0)),
+    }
+
+
+def _delta_cause_counts(current: Dict[str, int], previous: Dict[str, int]) -> Dict[str, int]:
+    return {
+        "starvation": max(0, current["starvation"] - previous["starvation"]),
+        "exhaustion": max(0, current["exhaustion"] - previous["exhaustion"]),
+        "unknown": max(0, current["unknown"] - previous["unknown"]),
     }
 
 

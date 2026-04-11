@@ -9,8 +9,8 @@ from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
 class SimulationStabilityTests(unittest.TestCase):
-    def test_short_run_keeps_core_invariants(self) -> None:
-        rng = random.Random(42)
+    def _build_default_simulation(self, seed: int) -> tuple[SimpleWorld, HungerSimulation]:
+        rng = random.Random(seed)
         world_map = SimpleMap(60.0, 40.0)
         world = SimpleWorld(
             world_map=world_map,
@@ -32,6 +32,10 @@ class SimulationStabilityTests(unittest.TestCase):
             random_source=rng,
             world_map=world_map,
         )
+        return world, simulation
+
+    def test_short_run_keeps_core_invariants(self) -> None:
+        world, simulation = self._build_default_simulation(seed=42)
 
         for _ in range(200):
             world.tick()
@@ -45,6 +49,30 @@ class SimulationStabilityTests(unittest.TestCase):
 
             if simulation.get_alive_count() == 0:
                 break
+
+    def test_multiple_seeds_do_not_show_systematic_early_extinction(self) -> None:
+        survived_runs = 0
+        reached_generation_3 = 0
+
+        for seed in range(5):
+            world, simulation = self._build_default_simulation(seed=seed)
+
+            for _ in range(120):
+                world.tick()
+                simulation.tick(1.0)
+                if simulation.get_alive_count() == 0:
+                    break
+
+            if simulation.get_alive_count() > 0:
+                survived_runs += 1
+
+            max_generation = max((c.generation for c in simulation.creatures), default=0)
+            if max_generation >= 3:
+                reached_generation_3 += 1
+
+        # MVP should not collapse immediately for most deterministic seeds.
+        self.assertGreaterEqual(survived_runs, 4)
+        self.assertGreaterEqual(reached_generation_3, 3)
 
 
 if __name__ == "__main__":
