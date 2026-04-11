@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Dict
 
@@ -84,6 +84,7 @@ def format_population_dynamics(
 ) -> str:
     births_tick = int(stats.get("births_last_tick", 0))
     deaths_tick = int(stats.get("deaths_last_tick", 0))
+    flees_tick = int(stats.get("flees_last_tick", 0))
     net_tick = births_tick - deaths_tick
 
     alive = int(stats.get("alive", 0))
@@ -92,19 +93,23 @@ def format_population_dynamics(
 
     current_total_births = int(stats.get("total_births", 0))
     current_total_deaths = int(stats.get("total_deaths", 0))
+    current_total_flees = int(stats.get("total_flees", 0))
 
     alive_delta = 0
     births_log = births_tick
     deaths_log = deaths_tick
+    flees_log = flees_tick
 
     if previous_stats is not None:
         previous_alive = int(previous_stats.get("alive", alive))
         previous_total_births = int(previous_stats.get("total_births", current_total_births))
         previous_total_deaths = int(previous_stats.get("total_deaths", current_total_deaths))
+        previous_total_flees = int(previous_stats.get("total_flees", current_total_flees))
 
         alive_delta = alive - previous_alive
         births_log = max(0, current_total_births - previous_total_births)
         deaths_log = max(0, current_total_deaths - previous_total_deaths)
+        flees_log = max(0, current_total_flees - previous_total_flees)
 
     net_log = births_log - deaths_log
     dynamic_log = _classify_trend(primary=alive_delta, secondary=net_log)
@@ -140,6 +145,8 @@ def format_population_dynamics(
         f"delta_log_vivants:{alive_delta:+d} "
         f"net_log_naissances_deces:{net_log:+d} "
         f"net_tick_naissances_deces:{net_tick:+d} "
+        f"fuites_log:{flees_log} "
+        f"fuites_tick:{flees_tick} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "

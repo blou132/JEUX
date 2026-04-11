@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Dict, List
 
@@ -31,8 +31,10 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "dead_count": simulation.get_dead_count(),
         "births_last_tick": simulation.births_last_tick,
         "deaths_last_tick": simulation.deaths_last_tick,
+        "flees_last_tick": simulation.flees_last_tick,
         "total_births": simulation.total_births,
         "total_deaths": simulation.total_deaths,
+        "total_flees": simulation.total_flees,
         "creatures": creatures,
         "food_sources_count": simulation.food_field.get_food_count(),
         "food_remaining": round(simulation.food_field.get_total_food_energy(), 3),

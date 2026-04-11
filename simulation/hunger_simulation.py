@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import random
 from math import cos, pi, sin
@@ -64,6 +64,8 @@ class HungerSimulation:
         self.total_births = 0
         self.deaths_last_tick = 0
         self.total_deaths = 0
+        self.flees_last_tick = 0
+        self.total_flees = 0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -82,6 +84,7 @@ class HungerSimulation:
 
         self.births_last_tick = 0
         self.deaths_last_tick = 0
+        self.flees_last_tick = 0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -111,15 +114,32 @@ class HungerSimulation:
                 creature,
                 self.food_field,
                 can_reproduce=(creature.creature_id in reproduction_candidates),
+                nearby_creatures=self.creatures,
             )
         self.last_intents = intents
 
         # 3) Execute movement and feeding behavior.
+        creatures_by_id = {creature.creature_id: creature for creature in self.creatures}
+
         for creature in self.creatures:
             if not creature.alive:
                 continue
 
             intent = intents[creature.creature_id]
+            if intent.action == HungerAI.ACTION_FLEE:
+                threat = None
+                if intent.target_creature_id is not None:
+                    threat = creatures_by_id.get(intent.target_creature_id)
+
+                if threat is None or not threat.alive:
+                    self._wander(creature, dt, activity=1.0)
+                else:
+                    self._flee_from(creature, threat, dt)
+
+                self.flees_last_tick += 1
+                self.total_flees += 1
+                continue
+
             if intent.action == "move_to_food" and intent.target_food_id is not None:
                 target = self.food_field.get_food(intent.target_food_id)
                 if target is None:
@@ -260,6 +280,23 @@ class HungerSimulation:
         target_x = creature.x + cos(angle) * distance
         target_y = creature.y + sin(angle) * distance
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
+        self._clamp_creature_position(creature)
+
+    def _flee_from(self, creature: Creature, threat: Creature, dt: float) -> None:
+        flee_distance = self.movement_speed * creature.traits.speed * dt * 1.2
+        if flee_distance <= 0:
+            return
+
+        dx = creature.x - threat.x
+        dy = creature.y - threat.y
+
+        if dx == 0.0 and dy == 0.0:
+            self._wander(creature, dt, activity=1.2)
+            return
+
+        target_x = creature.x + dx
+        target_y = creature.y + dy
+        creature.move_towards(target_x=target_x, target_y=target_y, max_distance=flee_distance)
         self._clamp_creature_position(creature)
 
     def _clamp_creature_position(self, creature: Creature) -> None:

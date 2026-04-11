@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Dict
 
@@ -26,6 +26,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
             "total_births": simulation.total_births,
             "deaths_last_tick": simulation.deaths_last_tick,
             "total_deaths": simulation.total_deaths,
+            "flees_last_tick": simulation.flees_last_tick,
+            "total_flees": simulation.total_flees,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -51,6 +53,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
         "total_births": simulation.total_births,
         "deaths_last_tick": simulation.deaths_last_tick,
         "total_deaths": simulation.total_deaths,
+        "flees_last_tick": simulation.flees_last_tick,
+        "total_flees": simulation.total_flees,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
