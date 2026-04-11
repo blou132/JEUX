@@ -67,6 +67,8 @@ class HungerSimulation:
         self.flees_last_tick = 0
         self.total_flees = 0
         self.fleeing_creatures_last_tick: list[str] = []
+        self.flee_threat_distance_last_tick: Dict[str, float] = {}
+        self.avg_flee_threat_distance_last_tick = 0.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -87,6 +89,8 @@ class HungerSimulation:
         self.deaths_last_tick = 0
         self.flees_last_tick = 0
         self.fleeing_creatures_last_tick = []
+        self.flee_threat_distance_last_tick = {}
+        self.avg_flee_threat_distance_last_tick = 0.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -136,12 +140,15 @@ class HungerSimulation:
 
                 if threat is None or not threat.alive:
                     self._wander(creature, dt, activity=1.0)
-                else:
-                    self._flee_from(creature, threat, dt)
+                    continue
+
+                threat_distance = creature.distance_to(threat.x, threat.y)
+                self._flee_from(creature, threat, dt)
 
                 self.flees_last_tick += 1
                 self.total_flees += 1
                 self.fleeing_creatures_last_tick.append(creature.creature_id)
+                self.flee_threat_distance_last_tick[creature.creature_id] = threat_distance
                 continue
 
             if intent.action == "move_to_food" and intent.target_food_id is not None:
@@ -168,6 +175,14 @@ class HungerSimulation:
 
             if intent.action == "wander":
                 self._wander(creature, dt, activity=0.5)
+
+        if self.flee_threat_distance_last_tick:
+            self.avg_flee_threat_distance_last_tick = (
+                sum(self.flee_threat_distance_last_tick.values())
+                / len(self.flee_threat_distance_last_tick)
+            )
+        else:
+            self.avg_flee_threat_distance_last_tick = 0.0
 
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
@@ -316,6 +331,7 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
 
 
 

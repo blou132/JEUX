@@ -29,6 +29,7 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
             "flees_last_tick": simulation.flees_last_tick,
             "total_flees": simulation.total_flees,
             "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
+            "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -57,6 +58,7 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
         "flees_last_tick": simulation.flees_last_tick,
         "total_flees": simulation.total_flees,
         "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
+        "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -67,3 +69,4 @@ def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int
     for creature in simulation.creatures:
         distribution[creature.generation] = distribution.get(creature.generation, 0) + 1
     return distribution
+

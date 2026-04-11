@@ -95,6 +95,7 @@ def format_population_dynamics(
     current_total_deaths = int(stats.get("total_deaths", 0))
     current_total_flees = int(stats.get("total_flees", 0))
     fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
+    avg_flee_threat_distance_tick = float(stats.get("avg_flee_threat_distance_last_tick", 0.0))
 
     alive_delta = 0
     births_log = births_tick
@@ -141,6 +142,7 @@ def format_population_dynamics(
         mortality_log = f"mortalite_log:{deaths_log} dominante_log:{dominant_log}"
 
     fleeing_block = _format_fleeing_ids(fleeing_creatures_tick, max_ids=6)
+    threat_distance_block = "n/a" if flees_tick <= 0 else f"{avg_flee_threat_distance_tick:.2f}"
 
     return (
         f"dynamique_log:{dynamic_log} "
@@ -151,6 +153,7 @@ def format_population_dynamics(
         f"fuites_log:{flees_log} "
         f"fuites_tick:{flees_tick} "
         f"fuyards_tick:{fleeing_block} "
+        f"dist_menace_moy_tick:{threat_distance_block} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
@@ -247,3 +250,4 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+

@@ -2,6 +2,7 @@
 
 from typing import Dict, List
 
+from ai import CreatureIntent, HungerAI
 from simulation import HungerSimulation
 
 
@@ -9,6 +10,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     creatures: List[Dict[str, object]] = []
     for creature in simulation.creatures:
         intent = simulation.last_intents.get(creature.creature_id)
+        flee_distance = simulation.flee_threat_distance_last_tick.get(creature.creature_id)
         creatures.append(
             {
                 "id": creature.creature_id,
@@ -23,11 +25,13 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "max_energy": round(creature.traits.max_energy, 3),
                 },
                 "intent": None if intent is None else intent.action,
+                "action_reason": _intent_reason(intent),
                 "threat_target_id": (
                     None
-                    if intent is None or intent.action != "flee"
+                    if intent is None or intent.action != HungerAI.ACTION_FLEE
                     else intent.target_creature_id
                 ),
+                "threat_distance": None if flee_distance is None else round(flee_distance, 3),
             }
         )
 
@@ -38,6 +42,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "deaths_last_tick": simulation.deaths_last_tick,
         "flees_last_tick": simulation.flees_last_tick,
         "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
+        "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
         "total_births": simulation.total_births,
         "total_deaths": simulation.total_deaths,
         "total_flees": simulation.total_flees,
@@ -45,3 +50,19 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "food_sources_count": simulation.food_field.get_food_count(),
         "food_remaining": round(simulation.food_field.get_total_food_energy(), 3),
     }
+
+
+def _intent_reason(intent: CreatureIntent | None) -> str | None:
+    if intent is None:
+        return None
+    if intent.action == HungerAI.ACTION_DEAD:
+        return "dead"
+    if intent.action == HungerAI.ACTION_FLEE:
+        return "threat_detected"
+    if intent.action in (HungerAI.ACTION_SEARCH_FOOD, HungerAI.ACTION_MOVE_TO_FOOD):
+        return "hunger"
+    if intent.action == HungerAI.ACTION_REPRODUCE:
+        return "reproduction_ready"
+    if intent.action == HungerAI.ACTION_WANDER:
+        return "idle"
+    return "other"

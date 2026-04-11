@@ -51,6 +51,7 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("flees_last_tick", stats)
         self.assertIn("total_flees", stats)
         self.assertIn("fleeing_creatures_last_tick", stats)
+        self.assertIn("avg_flee_threat_distance_last_tick", stats)
 
     def test_generation_distribution_matches_population_counts(self) -> None:
         creatures = [
