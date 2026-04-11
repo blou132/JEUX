@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import random
@@ -151,6 +151,15 @@ def main() -> None:
             print("     " + format_proto_groups(stats, max_groups=3))
             print("     " + format_death_causes(stats, include_tick=True))
             print("     " + format_population_dynamics(stats, previous_logged_stats))
+            zone_stats = world.get_food_zone_stats()
+            print(
+                "     zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
+                    rich=int(zone_stats["rich"]),
+                    neutral=int(zone_stats["neutral"]),
+                    poor=int(zone_stats["poor"]),
+                    avg=float(zone_stats["avg_fertility"]),
+                )
+            )
             previous_logged_stats = stats
 
         if simulation.get_alive_count() == 0:
@@ -158,6 +167,7 @@ def main() -> None:
             break
 
     final_stats = build_population_stats(simulation)
+    final_zone_stats = world.get_food_zone_stats()
     generations = build_generation_distribution(simulation)
 
     print("--- Final Stats ---")
@@ -178,6 +188,14 @@ def main() -> None:
             avg_generation=float(final_stats["avg_generation"]),
             avg_speed=float(final_stats["avg_speed"]),
             avg_metabolism=float(final_stats["avg_metabolism"]),
+        )
+    )
+    print(
+        "zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
+            rich=int(final_zone_stats["rich"]),
+            neutral=int(final_zone_stats["neutral"]),
+            poor=int(final_zone_stats["poor"]),
+            avg=float(final_zone_stats["avg_fertility"]),
         )
     )
     print(format_generation_distribution(generations, max_bins=30))

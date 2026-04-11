@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import hypot
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 
 
 @dataclass
@@ -57,3 +57,6 @@ class FoodField:
 
     def get_total_food_energy(self) -> float:
         return sum(source.energy_value for source in self._sources.values() if source.energy_value > 0)
+
+    def iter_sources(self) -> Iterable[FoodSource]:
+        return self._sources.values()
