@@ -1,0 +1,115 @@
+﻿import random
+import unittest
+
+from ai import HungerAI
+from creatures import Creature
+from debug_tools import build_hunger_snapshot
+from genetics import GeneticTraits
+from simulation import HungerSimulation
+from world import FoodField
+
+
+class FleeBehaviorTests(unittest.TestCase):
+    def test_threat_detection_triggers_flee_with_target(self) -> None:
+        prey = Creature(
+            creature_id="prey",
+            x=5.0,
+            y=5.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+        predator = Creature(
+            creature_id="predator",
+            x=6.0,
+            y=5.0,
+            energy=40.0,
+            traits=GeneticTraits(speed=1.3, metabolism=1.0, max_energy=140.0),
+        )
+
+        sim = HungerSimulation(
+            creatures=[prey, predator],
+            food_field=FoodField(),
+            ai_system=HungerAI(threat_detection_range=10.0),
+            energy_drain_rate=0.0,
+            reproduction_energy_threshold=200.0,
+            random_source=random.Random(10),
+        )
+
+        sim.tick(1.0)
+
+        intent = sim.last_intents["prey"]
+        self.assertEqual(intent.action, HungerAI.ACTION_FLEE)
+        self.assertEqual(intent.target_creature_id, "predator")
+
+    def test_flee_movement_increases_distance_from_initial_threat_position(self) -> None:
+        prey = Creature(
+            creature_id="prey",
+            x=5.0,
+            y=5.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+        predator = Creature(
+            creature_id="predator",
+            x=6.0,
+            y=5.0,
+            energy=40.0,
+            traits=GeneticTraits(speed=1.3, metabolism=1.0, max_energy=140.0),
+        )
+
+        sim = HungerSimulation(
+            creatures=[prey, predator],
+            food_field=FoodField(),
+            ai_system=HungerAI(threat_detection_range=10.0),
+            energy_drain_rate=0.0,
+            movement_speed=1.0,
+            reproduction_energy_threshold=200.0,
+            random_source=random.Random(11),
+        )
+
+        predator_start_x = predator.x
+        predator_start_y = predator.y
+        before = prey.distance_to(predator_start_x, predator_start_y)
+
+        sim.tick(1.0)
+
+        after = prey.distance_to(predator_start_x, predator_start_y)
+
+        self.assertEqual(sim.last_intents["prey"].action, HungerAI.ACTION_FLEE)
+        self.assertGreater(after, before)
+
+    def test_debug_snapshot_exposes_flee_threat_target(self) -> None:
+        prey = Creature(
+            creature_id="prey",
+            x=5.0,
+            y=5.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+        predator = Creature(
+            creature_id="predator",
+            x=6.0,
+            y=5.0,
+            energy=40.0,
+            traits=GeneticTraits(speed=1.3, metabolism=1.0, max_energy=140.0),
+        )
+
+        sim = HungerSimulation(
+            creatures=[prey, predator],
+            food_field=FoodField(),
+            ai_system=HungerAI(threat_detection_range=10.0),
+            energy_drain_rate=0.0,
+            reproduction_energy_threshold=200.0,
+            random_source=random.Random(12),
+        )
+
+        sim.tick(1.0)
+        snapshot = build_hunger_snapshot(sim)
+
+        prey_row = next(row for row in snapshot["creatures"] if row["id"] == "prey")
+        self.assertEqual(prey_row["intent"], "flee")
+        self.assertEqual(prey_row["threat_target_id"], "predator")
+
+
+if __name__ == "__main__":
+    unittest.main()

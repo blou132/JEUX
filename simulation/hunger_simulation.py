@@ -128,6 +128,7 @@ class HungerSimulation:
                 continue
 
             intent = intents[creature.creature_id]
+            # THREAT/FLEE: execute flee intent before normal food/wander actions.
             if intent.action == HungerAI.ACTION_FLEE:
                 threat = None
                 if intent.target_creature_id is not None:
@@ -285,6 +286,7 @@ class HungerSimulation:
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
         self._clamp_creature_position(creature)
 
+    # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(self, creature: Creature, threat: Creature, dt: float) -> None:
         flee_distance = self.movement_speed * creature.traits.speed * dt * 1.2
         if flee_distance <= 0:
@@ -314,6 +316,8 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
+
 
 
 

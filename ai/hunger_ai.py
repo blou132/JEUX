@@ -53,7 +53,7 @@ class HungerAI:
         if not creature.alive:
             return CreatureIntent(action=self.ACTION_DEAD)
 
-        # Priority 0: immediate survival when a stronger nearby creature is detected.
+        # THREAT/FLEE: priority 0 is immediate escape from a detected nearby threat.
         nearest_threat = self._nearest_threat(creature, nearby_creatures)
         if nearest_threat is not None:
             return CreatureIntent(action=self.ACTION_FLEE, target_creature_id=nearest_threat.creature_id)
@@ -82,6 +82,7 @@ class HungerAI:
 
         return CreatureIntent(action=self.ACTION_SEARCH_FOOD)
 
+    # THREAT/FLEE: perception helper to find the nearest valid threat.
     def _nearest_threat(
         self,
         creature: Creature,
@@ -117,6 +118,7 @@ class HungerAI:
 
         return best_threat
 
+    # THREAT/FLEE: simple threat model based on hunger and power ratio.
     def _is_threat(self, creature: Creature, other: Creature) -> bool:
         # A threat is a stronger nearby creature that is itself in active hunger.
         if other.hunger < self.hunger_seek_threshold:
@@ -125,3 +127,5 @@ class HungerAI:
         creature_power = creature.traits.speed * creature.traits.max_energy
         other_power = other.traits.speed * other.traits.max_energy
         return other_power >= creature_power * self.threat_strength_ratio
+
+

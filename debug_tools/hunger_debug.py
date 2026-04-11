@@ -23,6 +23,11 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "max_energy": round(creature.traits.max_energy, 3),
                 },
                 "intent": None if intent is None else intent.action,
+                "threat_target_id": (
+                    None
+                    if intent is None or intent.action != "flee"
+                    else intent.target_creature_id
+                ),
             }
         )
 

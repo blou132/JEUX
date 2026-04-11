@@ -32,6 +32,7 @@ class PredatorPreyFleeTests(unittest.TestCase):
             ai_system=HungerAI(threat_detection_range=10.0),
             energy_drain_rate=0.0,
             reproduction_energy_threshold=200.0,
+            random_source=random.Random(1),
         )
 
         sim.tick(dt=1.0)
@@ -61,6 +62,7 @@ class PredatorPreyFleeTests(unittest.TestCase):
             ai_system=HungerAI(threat_detection_range=10.0),
             energy_drain_rate=0.0,
             reproduction_energy_threshold=200.0,
+            random_source=random.Random(2),
         )
 
         sim.tick(dt=1.0)
@@ -91,11 +93,16 @@ class PredatorPreyFleeTests(unittest.TestCase):
             energy_drain_rate=0.0,
             movement_speed=1.0,
             reproduction_energy_threshold=200.0,
+            random_source=random.Random(3),
         )
 
-        before_distance = prey.distance_to(predator.x, predator.y)
+        predator_start_x = predator.x
+        predator_start_y = predator.y
+        before_distance = prey.distance_to(predator_start_x, predator_start_y)
+
         sim.tick(dt=1.0)
-        after_distance = prey.distance_to(predator.x, predator.y)
+
+        after_distance = prey.distance_to(predator_start_x, predator_start_y)
 
         self.assertEqual(sim.last_intents["prey"].action, HungerAI.ACTION_FLEE)
         self.assertGreater(after_distance, before_distance)
@@ -123,6 +130,7 @@ class PredatorPreyFleeTests(unittest.TestCase):
             ai_system=HungerAI(threat_detection_range=10.0),
             energy_drain_rate=0.0,
             reproduction_energy_threshold=200.0,
+            random_source=random.Random(4),
         )
 
         sim.tick(dt=1.0)
