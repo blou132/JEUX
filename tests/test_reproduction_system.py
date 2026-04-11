@@ -57,6 +57,38 @@ class ReproductionSystemTests(unittest.TestCase):
         self.assertAlmostEqual(child.traits.metabolism, avg_metabolism * 1.1)
         self.assertAlmostEqual(child.traits.max_energy, avg_max_energy * 1.1)
 
+    def test_reproduction_occurs_when_energy_equals_threshold(self) -> None:
+        parent_a = Creature(
+            creature_id="p1",
+            x=0.0,
+            y=0.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+        parent_b = Creature(
+            creature_id="p2",
+            x=0.5,
+            y=0.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+
+        sim = HungerSimulation(
+            creatures=[parent_a, parent_b],
+            food_field=FoodField(),
+            ai_system=HungerAI(),
+            energy_drain_rate=0.0,
+            reproduction_energy_threshold=70.0,
+            reproduction_cost=10.0,
+            reproduction_distance=2.0,
+            mutation_variation=0.1,
+            random_source=FixedRandom(),
+        )
+
+        sim.tick(dt=1.0)
+        self.assertEqual(sim.total_births, 1)
+        self.assertEqual(len(sim.creatures), 3)
+
     def test_variation_observable_between_generations(self) -> None:
         parent_a = Creature(
             creature_id="p1",

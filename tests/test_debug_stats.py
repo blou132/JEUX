@@ -46,6 +46,8 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("total_births", stats)
         self.assertIn("avg_speed", stats)
         self.assertIn("avg_metabolism", stats)
+        self.assertIn("death_causes_last_tick", stats)
+        self.assertIn("death_causes_total", stats)
 
 
 if __name__ == "__main__":

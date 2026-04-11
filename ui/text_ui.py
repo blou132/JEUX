@@ -16,26 +16,27 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | total | alive | dead | food_left | avg_energy | avg_age | births(T/+d) | deaths(T/+d) | avg_speed | avg_metabolism"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy"
     )
 
 
-def format_stats_line(tick: int, stats: Dict[str, float | int]) -> str:
-    births_block = f"{int(stats['total_births'])}(+{int(stats['births_last_tick'])})"
-    deaths_block = f"{int(stats['total_deaths'])}(+{int(stats['deaths_last_tick'])})"
+def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
+    births_block = f"T:{int(stats['total_births'])} dT:+{int(stats['births_last_tick'])}"
+    deaths_block = f"T:{int(stats['total_deaths'])} dT:+{int(stats['deaths_last_tick'])}"
 
     return (
         f"{tick:4d} | "
-        f"{int(stats['population']):5d} | "
-        f"{int(stats['alive']):5d} | "
-        f"{int(stats['dead']):4d} | "
-        f"{float(stats['food_remaining']):9.1f} | "
-        f"{float(stats['avg_energy']):10.2f} | "
+        f"{int(stats['population']):10d} | "
+        f"{int(stats['alive']):7d} | "
+        f"{int(stats['dead']):5d} | "
+        f"{float(stats['food_remaining']):10.1f} | "
+        f"{float(stats['avg_energy']):11.2f} | "
         f"{float(stats['avg_age']):7.2f} | "
-        f"{births_block:11s} | "
-        f"{deaths_block:11s} | "
-        f"{float(stats['avg_speed']):9.3f} | "
-        f"{float(stats['avg_metabolism']):13.3f}"
+        f"{float(stats['avg_generation']):7.2f} | "
+        f"{births_block:16s} | "
+        f"{deaths_block:12s} | "
+        f"{float(stats['avg_speed']):11.3f} | "
+        f"{float(stats['avg_metabolism']):15.3f}"
     )
 
 
@@ -63,3 +64,34 @@ def format_generation_distribution(distribution: Dict[int, int], max_bins: int =
     hidden = len(ordered) - len(head) - len(tail)
     suffix = "" if hidden <= 0 else f" (+{hidden} hidden)"
     return "generations: " + " ".join(parts) + suffix
+
+
+def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
+    total = _read_cause_counts(stats.get("death_causes_total"))
+    last_tick = _read_cause_counts(stats.get("death_causes_last_tick"))
+
+    total_block = _format_cause_block(total, with_plus=False)
+    if not include_tick:
+        return f"causes_deces total[{total_block}]"
+
+    tick_block = _format_cause_block(last_tick, with_plus=True)
+    return f"causes_deces total[{total_block}] tick[{tick_block}]"
+
+
+def _read_cause_counts(raw: object) -> Dict[str, int]:
+    if not isinstance(raw, dict):
+        return {"starvation": 0, "exhaustion": 0, "unknown": 0}
+    return {
+        "starvation": int(raw.get("starvation", 0)),
+        "exhaustion": int(raw.get("exhaustion", 0)),
+        "unknown": int(raw.get("unknown", 0)),
+    }
+
+
+def _format_cause_block(causes: Dict[str, int], with_plus: bool) -> str:
+    sign = "+" if with_plus else ""
+    return (
+        f"faim:{sign}{causes['starvation']} "
+        f"epuisement:{sign}{causes['exhaustion']} "
+        f"autre:{sign}{causes['unknown']}"
+    )

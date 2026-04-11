@@ -11,6 +11,10 @@ from world import FoodField, SimpleMap
 
 
 class HungerSimulation:
+    DEATH_CAUSE_STARVATION = "starvation"
+    DEATH_CAUSE_EXHAUSTION = "exhaustion"
+    DEATH_CAUSE_UNKNOWN = "unknown"
+
     def __init__(
         self,
         creatures: Iterable[Creature],
@@ -61,18 +65,43 @@ class HungerSimulation:
         self.deaths_last_tick = 0
         self.total_deaths = 0
 
+        self.death_causes_last_tick: Dict[str, int] = {
+            self.DEATH_CAUSE_STARVATION: 0,
+            self.DEATH_CAUSE_EXHAUSTION: 0,
+            self.DEATH_CAUSE_UNKNOWN: 0,
+        }
+        self.total_death_causes: Dict[str, int] = {
+            self.DEATH_CAUSE_STARVATION: 0,
+            self.DEATH_CAUSE_EXHAUSTION: 0,
+            self.DEATH_CAUSE_UNKNOWN: 0,
+        }
+
     def tick(self, dt: float) -> None:
         if dt < 0:
             raise ValueError("dt must be >= 0")
 
         self.births_last_tick = 0
         self.deaths_last_tick = 0
+        self.death_causes_last_tick = {
+            self.DEATH_CAUSE_STARVATION: 0,
+            self.DEATH_CAUSE_EXHAUSTION: 0,
+            self.DEATH_CAUSE_UNKNOWN: 0,
+        }
+
         dead_before = self.get_dead_count()
+        alive_before_ids = {creature.creature_id for creature in self.creatures if creature.alive}
 
         # 1) Passive aging and energy loss.
         for creature in self.creatures:
             creature.grow_older(dt)
             creature.drain_energy(dt=dt, drain_rate=self.energy_drain_rate)
+
+        starvation_deaths = sum(
+            1
+            for creature in self.creatures
+            if creature.creature_id in alive_before_ids and not creature.alive
+        )
+        self.death_causes_last_tick[self.DEATH_CAUSE_STARVATION] = starvation_deaths
 
         # 2) Decide behavior for each creature.
         reproduction_candidates = self._build_reproduction_candidates()
@@ -117,11 +146,21 @@ class HungerSimulation:
                 self._wander(creature, dt, activity=0.5)
 
         # 4) Reproduction with simple inheritance + mutation.
-        self._process_reproduction(intents)
+        exhaustion_deaths = self._process_reproduction(intents)
+        self.death_causes_last_tick[self.DEATH_CAUSE_EXHAUSTION] = exhaustion_deaths
 
         dead_after = self.get_dead_count()
         self.deaths_last_tick = max(0, dead_after - dead_before)
         self.total_deaths += self.deaths_last_tick
+
+        known_deaths = (
+            self.death_causes_last_tick[self.DEATH_CAUSE_STARVATION]
+            + self.death_causes_last_tick[self.DEATH_CAUSE_EXHAUSTION]
+        )
+        self.death_causes_last_tick[self.DEATH_CAUSE_UNKNOWN] = max(0, self.deaths_last_tick - known_deaths)
+
+        for cause, value in self.death_causes_last_tick.items():
+            self.total_death_causes[cause] += value
 
     def _is_reproduction_eligible(self, creature: Creature) -> bool:
         return (
@@ -142,9 +181,11 @@ class HungerSimulation:
 
         return candidates
 
-    def _process_reproduction(self, intents: Dict[str, CreatureIntent]) -> None:
+    def _process_reproduction(self, intents: Dict[str, CreatureIntent]) -> int:
         newborns: list[Creature] = []
         used_ids: set[str] = set()
+        exhaustion_deaths = 0
+
         candidates = [
             c
             for c in self.creatures
@@ -185,8 +226,17 @@ class HungerSimulation:
                 self._child_counter += 1
                 newborns.append(child)
 
+                parent_a_alive_before = parent_a.alive
+                parent_b_alive_before = parent_b.alive
+
                 parent_a.spend_energy(self.reproduction_cost)
                 parent_b.spend_energy(self.reproduction_cost)
+
+                if parent_a_alive_before and not parent_a.alive:
+                    exhaustion_deaths += 1
+                if parent_b_alive_before and not parent_b.alive:
+                    exhaustion_deaths += 1
+
                 used_ids.add(parent_a.creature_id)
                 used_ids.add(parent_b.creature_id)
                 break
@@ -195,6 +245,8 @@ class HungerSimulation:
             self.creatures.extend(newborns)
             self.births_last_tick = len(newborns)
             self.total_births += len(newborns)
+
+        return exhaustion_deaths
 
     def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
         if activity < 0:

@@ -9,7 +9,7 @@ from creatures import create_initial_population
 from debug_tools import build_generation_distribution, build_population_stats
 from player import PlayerRunConfig
 from simulation import HungerSimulation
-from ui import format_generation_distribution, format_stats_line, print_run_header
+from ui import format_death_causes, format_generation_distribution, format_stats_line, print_run_header
 from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
@@ -121,6 +121,7 @@ def main() -> None:
             generations = build_generation_distribution(simulation)
             print(format_stats_line(tick, stats))
             print("     " + format_generation_distribution(generations, max_bins=10))
+            print("     " + format_death_causes(stats, include_tick=True))
 
         if simulation.get_alive_count() == 0:
             print(f"All creatures are dead at tick {tick}.")
@@ -150,6 +151,7 @@ def main() -> None:
         )
     )
     print(format_generation_distribution(generations, max_bins=30))
+    print(format_death_causes(final_stats, include_tick=False))
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from typing import Dict
 from simulation import HungerSimulation
 
 
-def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | int]:
+def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
     total = simulation.get_total_count()
     alive = simulation.get_alive_count()
     dead = simulation.get_dead_count()
@@ -26,6 +26,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | in
             "total_births": simulation.total_births,
             "deaths_last_tick": simulation.deaths_last_tick,
             "total_deaths": simulation.total_deaths,
+            "death_causes_last_tick": dict(simulation.death_causes_last_tick),
+            "death_causes_total": dict(simulation.total_death_causes),
         }
 
     avg_energy = sum(c.energy for c in simulation.creatures) / total
@@ -49,6 +51,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, float | in
         "total_births": simulation.total_births,
         "deaths_last_tick": simulation.deaths_last_tick,
         "total_deaths": simulation.total_deaths,
+        "death_causes_last_tick": dict(simulation.death_causes_last_tick),
+        "death_causes_total": dict(simulation.total_death_causes),
     }
 
 
