@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reproduction-threshold", type=float, default=58.0)
     parser.add_argument("--reproduction-cost", type=float, default=12.0)
     parser.add_argument("--reproduction-distance", type=float, default=15.0)
+    parser.add_argument("--reproduction-min-age", type=float, default=0.0)
     parser.add_argument("--mutation-variation", type=float, default=0.1)
 
     return parser
@@ -51,6 +52,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("creatures must be > 0")
     if args.initial_food < 0 or args.min_food < 0:
         raise ValueError("initial_food and min_food must be >= 0")
+    if args.reproduction_min_age < 0:
+        raise ValueError("reproduction_min_age must be >= 0")
 
 
 def main() -> None:
@@ -87,6 +90,7 @@ def main() -> None:
         reproduction_energy_threshold=args.reproduction_threshold,
         reproduction_cost=args.reproduction_cost,
         reproduction_distance=args.reproduction_distance,
+        reproduction_min_age=args.reproduction_min_age,
         mutation_variation=args.mutation_variation,
         random_source=random_source,
         world_map=world_map,

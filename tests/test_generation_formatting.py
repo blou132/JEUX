@@ -10,11 +10,21 @@ class GenerationFormattingTests(unittest.TestCase):
         self.assertIn("g1:6", text)
         self.assertIn("g2:3", text)
 
-    def test_generation_distribution_truncates_when_too_many_bins(self) -> None:
+    def test_generation_distribution_truncates_with_head_and_tail(self) -> None:
         distribution = {i: 1 for i in range(12)}
-        text = format_generation_distribution(distribution, max_bins=5)
+        text = format_generation_distribution(distribution, max_bins=6)
+
+        # Start of history remains visible.
         self.assertIn("g0:1", text)
-        self.assertIn("(+7 bins)", text)
+        self.assertIn("g1:1", text)
+
+        # Latest generations remain visible too.
+        self.assertIn("g10:1", text)
+        self.assertIn("g11:1", text)
+
+        # Truncation marker is explicit.
+        self.assertIn("...", text)
+        self.assertIn("hidden", text)
 
 
 if __name__ == "__main__":

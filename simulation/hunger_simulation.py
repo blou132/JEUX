@@ -22,6 +22,7 @@ class HungerSimulation:
         reproduction_energy_threshold: float = 70.0,
         reproduction_cost: float = 20.0,
         reproduction_distance: float = 1.5,
+        reproduction_min_age: float = 0.0,
         mutation_variation: float = 0.1,
         random_source: random.Random | None = None,
         world_map: SimpleMap | None = None,
@@ -33,6 +34,7 @@ class HungerSimulation:
             or reproduction_energy_threshold < 0
             or reproduction_cost < 0
             or reproduction_distance < 0
+            or reproduction_min_age < 0
             or mutation_variation < 0
         ):
             raise ValueError("rates must be >= 0")
@@ -46,6 +48,7 @@ class HungerSimulation:
         self.reproduction_energy_threshold = reproduction_energy_threshold
         self.reproduction_cost = reproduction_cost
         self.reproduction_distance = reproduction_distance
+        self.reproduction_min_age = reproduction_min_age
         self.mutation_variation = mutation_variation
         self.random_source = random_source or random.Random()
         self.world_map = world_map
@@ -120,8 +123,15 @@ class HungerSimulation:
         self.deaths_last_tick = max(0, dead_after - dead_before)
         self.total_deaths += self.deaths_last_tick
 
+    def _is_reproduction_eligible(self, creature: Creature) -> bool:
+        return (
+            creature.alive
+            and creature.age >= self.reproduction_min_age
+            and creature.energy >= self.reproduction_energy_threshold
+        )
+
     def _build_reproduction_candidates(self) -> Set[str]:
-        eligible = [c for c in self.creatures if c.alive and c.energy >= self.reproduction_energy_threshold]
+        eligible = [c for c in self.creatures if self._is_reproduction_eligible(c)]
         candidates: Set[str] = set()
 
         for idx, parent_a in enumerate(eligible):
@@ -138,9 +148,7 @@ class HungerSimulation:
         candidates = [
             c
             for c in self.creatures
-            if c.alive
-            and c.energy >= self.reproduction_energy_threshold
-            and intents[c.creature_id].action == "reproduce"
+            if self._is_reproduction_eligible(c) and intents[c.creature_id].action == "reproduce"
         ]
 
         for idx, parent_a in enumerate(candidates):

@@ -46,9 +46,20 @@ def format_generation_distribution(distribution: Dict[int, int], max_bins: int =
         return "generations: (none)"
 
     ordered = sorted(distribution.items())
-    visible = ordered[:max_bins]
-    parts = [f"g{generation}:{count}" for generation, count in visible]
+    if len(ordered) <= max_bins:
+        parts = [f"g{generation}:{count}" for generation, count in ordered]
+        return "generations: " + " ".join(parts)
 
-    hidden = len(ordered) - len(visible)
-    suffix = "" if hidden <= 0 else f" ... (+{hidden} bins)"
+    # Keep both history start and latest generations for readability.
+    head_bins = max(1, max_bins // 2)
+    tail_bins = max(1, max_bins - head_bins)
+    head = ordered[:head_bins]
+    tail = ordered[-tail_bins:]
+
+    parts = [f"g{generation}:{count}" for generation, count in head]
+    parts.append("...")
+    parts.extend(f"g{generation}:{count}" for generation, count in tail)
+
+    hidden = len(ordered) - len(head) - len(tail)
+    suffix = "" if hidden <= 0 else f" (+{hidden} hidden)"
     return "generations: " + " ".join(parts) + suffix
