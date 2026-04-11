@@ -1,8 +1,13 @@
 ﻿from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Iterable
 
+from creatures import Creature
 from simulation import HungerSimulation
+
+_PROTO_GROUP_WIDTH_SPEED = 0.2
+_PROTO_GROUP_WIDTH_METABOLISM = 0.15
+_PROTO_GROUP_WIDTH_BEHAVIOR = 0.25
 
 
 def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
@@ -25,6 +30,9 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
             "avg_prudence": 0.0,
             "avg_dominance": 0.0,
             "avg_repro_drive": 0.0,
+            "proto_group_count": 0,
+            "proto_groups_top": [],
+            "dominant_proto_group_share": 0.0,
             "births_last_tick": simulation.births_last_tick,
             "total_births": simulation.total_births,
             "deaths_last_tick": simulation.deaths_last_tick,
@@ -46,6 +54,12 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
     avg_dominance = sum(c.traits.dominance for c in simulation.creatures) / total
     avg_repro_drive = sum(c.traits.repro_drive for c in simulation.creatures) / total
 
+    alive_creatures = [creature for creature in simulation.creatures if creature.alive]
+    proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
+        alive_creatures,
+        max_groups=3,
+    )
+
     return {
         "population": total,
         "alive": alive,
@@ -60,6 +74,9 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
         "avg_prudence": avg_prudence,
         "avg_dominance": avg_dominance,
         "avg_repro_drive": avg_repro_drive,
+        "proto_group_count": proto_group_count,
+        "proto_groups_top": proto_groups_top,
+        "dominant_proto_group_share": dominant_proto_group_share,
         "births_last_tick": simulation.births_last_tick,
         "total_births": simulation.total_births,
         "deaths_last_tick": simulation.deaths_last_tick,
@@ -78,3 +95,76 @@ def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int
     for creature in simulation.creatures:
         distribution[creature.generation] = distribution.get(creature.generation, 0) + 1
     return distribution
+
+
+def _build_proto_groups(
+    creatures: Iterable[Creature],
+    max_groups: int,
+) -> tuple[int, list[Dict[str, object]], float]:
+    grouped: Dict[tuple[int, int, int, int, int], Dict[str, float | int]] = {}
+
+    for creature in creatures:
+        key = _proto_group_key(creature)
+        if key not in grouped:
+            grouped[key] = {
+                "size": 0,
+                "sum_speed": 0.0,
+                "sum_metabolism": 0.0,
+                "sum_prudence": 0.0,
+                "sum_dominance": 0.0,
+                "sum_repro_drive": 0.0,
+            }
+
+        bucket = grouped[key]
+        bucket["size"] = int(bucket["size"]) + 1
+        bucket["sum_speed"] = float(bucket["sum_speed"]) + creature.traits.speed
+        bucket["sum_metabolism"] = float(bucket["sum_metabolism"]) + creature.traits.metabolism
+        bucket["sum_prudence"] = float(bucket["sum_prudence"]) + creature.traits.prudence
+        bucket["sum_dominance"] = float(bucket["sum_dominance"]) + creature.traits.dominance
+        bucket["sum_repro_drive"] = float(bucket["sum_repro_drive"]) + creature.traits.repro_drive
+
+    group_count = len(grouped)
+    if group_count == 0:
+        return 0, [], 0.0
+
+    total = sum(int(bucket["size"]) for bucket in grouped.values())
+    ordered_keys = sorted(grouped.keys(), key=lambda key: (-int(grouped[key]["size"]), key))
+
+    top_groups: list[Dict[str, object]] = []
+    for key in ordered_keys[:max_groups]:
+        bucket = grouped[key]
+        size = int(bucket["size"])
+        top_groups.append(
+            {
+                "signature": _proto_signature(key),
+                "size": size,
+                "share": size / total,
+                "avg_speed": float(bucket["sum_speed"]) / size,
+                "avg_metabolism": float(bucket["sum_metabolism"]) / size,
+                "avg_prudence": float(bucket["sum_prudence"]) / size,
+                "avg_dominance": float(bucket["sum_dominance"]) / size,
+                "avg_repro_drive": float(bucket["sum_repro_drive"]) / size,
+            }
+        )
+
+    dominant_share = float(top_groups[0]["share"]) if top_groups else 0.0
+    return group_count, top_groups, dominant_share
+
+
+def _proto_group_key(creature: Creature) -> tuple[int, int, int, int, int]:
+    return (
+        _quantize(creature.traits.speed, _PROTO_GROUP_WIDTH_SPEED),
+        _quantize(creature.traits.metabolism, _PROTO_GROUP_WIDTH_METABOLISM),
+        _quantize(creature.traits.prudence, _PROTO_GROUP_WIDTH_BEHAVIOR),
+        _quantize(creature.traits.dominance, _PROTO_GROUP_WIDTH_BEHAVIOR),
+        _quantize(creature.traits.repro_drive, _PROTO_GROUP_WIDTH_BEHAVIOR),
+    )
+
+
+def _quantize(value: float, width: float) -> int:
+    return int(round(value / width))
+
+
+def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
+    return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
+

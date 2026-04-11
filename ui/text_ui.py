@@ -69,6 +69,40 @@ def format_generation_distribution(distribution: Dict[int, int], max_bins: int =
     return "generations: " + " ".join(parts) + suffix
 
 
+def format_proto_groups(stats: Dict[str, object], max_groups: int = 3) -> str:
+    if max_groups <= 0:
+        raise ValueError("max_groups must be > 0")
+
+    group_count = int(stats.get("proto_group_count", 0))
+    dominant_share = float(stats.get("dominant_proto_group_share", 0.0))
+    raw_top_groups = stats.get("proto_groups_top")
+
+    if group_count <= 0 or not isinstance(raw_top_groups, list) or len(raw_top_groups) == 0:
+        return "proto_groupes:0"
+
+    parts: list[str] = []
+    for group in raw_top_groups[:max_groups]:
+        if not isinstance(group, dict):
+            continue
+        parts.append(
+            "{signature}(n={size},part={share:.2f},s={speed:.2f},m={metabolism:.2f},p={prudence:.2f},d={dominance:.2f},r={repro:.2f})".format(
+                signature=str(group.get("signature", "?")),
+                size=int(group.get("size", 0)),
+                share=float(group.get("share", 0.0)),
+                speed=float(group.get("avg_speed", 0.0)),
+                metabolism=float(group.get("avg_metabolism", 0.0)),
+                prudence=float(group.get("avg_prudence", 0.0)),
+                dominance=float(group.get("avg_dominance", 0.0)),
+                repro=float(group.get("avg_repro_drive", 0.0)),
+            )
+        )
+
+    if not parts:
+        return f"proto_groupes:{group_count}"
+
+    return f"proto_groupes:{group_count} dominant_part:{dominant_share:.2f} top: " + " ".join(parts)
+
+
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
     total = _read_cause_counts(stats.get("death_causes_total"))
     last_tick = _read_cause_counts(stats.get("death_causes_last_tick"))

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import random
@@ -13,6 +13,7 @@ from ui import (
     format_death_causes,
     format_generation_distribution,
     format_population_dynamics,
+    format_proto_groups,
     format_stats_line,
     print_run_header,
 )
@@ -147,6 +148,7 @@ def main() -> None:
             generations = build_generation_distribution(simulation)
             print(format_stats_line(tick, stats))
             print("     " + format_generation_distribution(generations, max_bins=10))
+            print("     " + format_proto_groups(stats, max_groups=3))
             print("     " + format_death_causes(stats, include_tick=True))
             print("     " + format_population_dynamics(stats, previous_logged_stats))
             previous_logged_stats = stats
@@ -179,6 +181,7 @@ def main() -> None:
         )
     )
     print(format_generation_distribution(generations, max_bins=30))
+    print(format_proto_groups(final_stats, max_groups=6))
     print(format_death_causes(final_stats, include_tick=False))
     print(format_population_dynamics(final_stats, previous_logged_stats))
 
