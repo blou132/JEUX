@@ -66,6 +66,7 @@ class HungerSimulation:
         self.total_deaths = 0
         self.flees_last_tick = 0
         self.total_flees = 0
+        self.fleeing_creatures_last_tick: list[str] = []
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -85,6 +86,7 @@ class HungerSimulation:
         self.births_last_tick = 0
         self.deaths_last_tick = 0
         self.flees_last_tick = 0
+        self.fleeing_creatures_last_tick = []
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -138,6 +140,7 @@ class HungerSimulation:
 
                 self.flees_last_tick += 1
                 self.total_flees += 1
+                self.fleeing_creatures_last_tick.append(creature.creature_id)
                 continue
 
             if intent.action == "move_to_food" and intent.target_food_id is not None:
@@ -311,3 +314,6 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
+
+

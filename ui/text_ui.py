@@ -94,6 +94,7 @@ def format_population_dynamics(
     current_total_births = int(stats.get("total_births", 0))
     current_total_deaths = int(stats.get("total_deaths", 0))
     current_total_flees = int(stats.get("total_flees", 0))
+    fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
 
     alive_delta = 0
     births_log = births_tick
@@ -139,6 +140,8 @@ def format_population_dynamics(
     else:
         mortality_log = f"mortalite_log:{deaths_log} dominante_log:{dominant_log}"
 
+    fleeing_block = _format_fleeing_ids(fleeing_creatures_tick, max_ids=6)
+
     return (
         f"dynamique_log:{dynamic_log} "
         f"dynamique_tick:{dynamic_tick} "
@@ -147,6 +150,7 @@ def format_population_dynamics(
         f"net_tick_naissances_deces:{net_tick:+d} "
         f"fuites_log:{flees_log} "
         f"fuites_tick:{flees_tick} "
+        f"fuyards_tick:{fleeing_block} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
@@ -224,3 +228,22 @@ def _format_cause_block(causes: Dict[str, int], with_plus: bool) -> str:
         f"epuisement:{sign}{causes['exhaustion']} "
         f"autre:{sign}{causes['unknown']}"
     )
+
+
+def _read_fleeing_ids(raw: object) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw]
+
+
+def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
+    if max_ids <= 0:
+        raise ValueError("max_ids must be > 0")
+    if not creature_ids:
+        return "none"
+
+    shown = creature_ids[:max_ids]
+    hidden = len(creature_ids) - len(shown)
+    if hidden <= 0:
+        return ",".join(shown)
+    return f"{','.join(shown)},+{hidden}"

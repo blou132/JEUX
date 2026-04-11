@@ -32,6 +32,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "births_last_tick": simulation.births_last_tick,
         "deaths_last_tick": simulation.deaths_last_tick,
         "flees_last_tick": simulation.flees_last_tick,
+        "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
         "total_births": simulation.total_births,
         "total_deaths": simulation.total_deaths,
         "total_flees": simulation.total_flees,

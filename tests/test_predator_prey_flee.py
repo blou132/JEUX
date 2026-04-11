@@ -3,6 +3,7 @@ import unittest
 
 from ai import HungerAI
 from creatures import Creature, create_initial_population
+from debug_tools import build_population_stats
 from genetics import GeneticTraits
 from simulation import HungerSimulation
 from world import FoodField, FoodSpawnConfig, SimpleMap, SimpleWorld
@@ -99,6 +100,36 @@ class PredatorPreyFleeTests(unittest.TestCase):
         self.assertEqual(sim.last_intents["prey"].action, HungerAI.ACTION_FLEE)
         self.assertGreater(after_distance, before_distance)
         self.assertLess(prey.x, 5.0)
+
+    def test_debug_exposes_fleeing_creatures(self) -> None:
+        prey = Creature(
+            creature_id="prey",
+            x=5.0,
+            y=5.0,
+            energy=70.0,
+            traits=GeneticTraits(speed=1.0, metabolism=1.0, max_energy=100.0),
+        )
+        predator = Creature(
+            creature_id="predator",
+            x=6.0,
+            y=5.0,
+            energy=40.0,
+            traits=GeneticTraits(speed=1.2, metabolism=1.0, max_energy=140.0),
+        )
+
+        sim = HungerSimulation(
+            creatures=[prey, predator],
+            food_field=FoodField(),
+            ai_system=HungerAI(threat_detection_range=10.0),
+            energy_drain_rate=0.0,
+            reproduction_energy_threshold=200.0,
+        )
+
+        sim.tick(dt=1.0)
+        stats = build_population_stats(sim)
+
+        self.assertIn("fleeing_creatures_last_tick", stats)
+        self.assertIn("prey", stats["fleeing_creatures_last_tick"])
 
     def test_flee_does_not_block_overall_reproduction_and_survival(self) -> None:
         rng = random.Random(42)

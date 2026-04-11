@@ -50,6 +50,7 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("death_causes_total", stats)
         self.assertIn("flees_last_tick", stats)
         self.assertIn("total_flees", stats)
+        self.assertIn("fleeing_creatures_last_tick", stats)
 
     def test_generation_distribution_matches_population_counts(self) -> None:
         creatures = [
@@ -75,3 +76,4 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
