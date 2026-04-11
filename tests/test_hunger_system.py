@@ -20,6 +20,25 @@ class HungerSystemTests(unittest.TestCase):
         self.assertAlmostEqual(creature.energy, 7.0)
         self.assertTrue(creature.alive)
 
+    def test_energy_decreases_over_multiple_ticks(self) -> None:
+        creature = Creature(creature_id="c1", x=0, y=0, energy=10, max_energy=10)
+        sim = HungerSimulation(
+            creatures=[creature],
+            food_field=FoodField(),
+            ai_system=HungerAI(hunger_seek_threshold=0.6),
+            energy_drain_rate=1.0,
+        )
+
+        sim.tick(dt=1.0)
+        first_tick_energy = creature.energy
+        sim.tick(dt=1.0)
+        second_tick_energy = creature.energy
+        sim.tick(dt=1.0)
+
+        self.assertLess(first_tick_energy, 10.0)
+        self.assertLess(second_tick_energy, first_tick_energy)
+        self.assertAlmostEqual(creature.energy, 7.0)
+
     def test_hungry_creature_targets_food(self) -> None:
         creature = Creature(creature_id="c1", x=0, y=0, energy=20, max_energy=100)
         food = FoodField()

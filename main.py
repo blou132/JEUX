@@ -9,7 +9,13 @@ from creatures import create_initial_population
 from debug_tools import build_generation_distribution, build_population_stats
 from player import PlayerRunConfig
 from simulation import HungerSimulation
-from ui import format_death_causes, format_generation_distribution, format_stats_line, print_run_header
+from ui import (
+    format_death_causes,
+    format_generation_distribution,
+    format_population_dynamics,
+    format_stats_line,
+    print_run_header,
+)
 from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
@@ -48,12 +54,30 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("dt must be > 0")
     if args.log_interval <= 0:
         raise ValueError("log_interval must be > 0")
+
+    if args.map_width <= 0 or args.map_height <= 0:
+        raise ValueError("map_width and map_height must be > 0")
+
     if args.creatures <= 0:
         raise ValueError("creatures must be > 0")
     if args.initial_food < 0 or args.min_food < 0:
         raise ValueError("initial_food and min_food must be >= 0")
-    if args.reproduction_min_age < 0:
-        raise ValueError("reproduction_min_age must be >= 0")
+
+    if args.energy_drain_rate < 0 or args.movement_speed < 0 or args.eat_rate < 0:
+        raise ValueError("energy_drain_rate, movement_speed and eat_rate must be >= 0")
+    if not 0.0 <= args.hunger_threshold <= 1.0:
+        raise ValueError("hunger_threshold must be in [0, 1]")
+
+    if (
+        args.reproduction_threshold < 0
+        or args.reproduction_cost < 0
+        or args.reproduction_distance < 0
+        or args.reproduction_min_age < 0
+        or args.mutation_variation < 0
+    ):
+        raise ValueError(
+            "reproduction_threshold, reproduction_cost, reproduction_distance, reproduction_min_age and mutation_variation must be >= 0"
+        )
 
 
 def main() -> None:
@@ -112,6 +136,8 @@ def main() -> None:
     }
     print_run_header(header_config)
 
+    previous_logged_stats: Dict[str, object] | None = None
+
     for tick in range(1, run_config.steps + 1):
         world.tick()
         simulation.tick(run_config.dt)
@@ -122,6 +148,8 @@ def main() -> None:
             print(format_stats_line(tick, stats))
             print("     " + format_generation_distribution(generations, max_bins=10))
             print("     " + format_death_causes(stats, include_tick=True))
+            print("     " + format_population_dynamics(stats, previous_logged_stats))
+            previous_logged_stats = stats
 
         if simulation.get_alive_count() == 0:
             print(f"All creatures are dead at tick {tick}.")
@@ -152,6 +180,7 @@ def main() -> None:
     )
     print(format_generation_distribution(generations, max_bins=30))
     print(format_death_causes(final_stats, include_tick=False))
+    print(format_population_dynamics(final_stats, previous_logged_stats))
 
 
 if __name__ == "__main__":

@@ -78,6 +78,69 @@ def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> 
     return f"causes_deces total[{total_block}] tick[{tick_block}]"
 
 
+def format_population_dynamics(
+    stats: Dict[str, object],
+    previous_stats: Dict[str, object] | None = None,
+) -> str:
+    births_tick = int(stats.get("births_last_tick", 0))
+    deaths_tick = int(stats.get("deaths_last_tick", 0))
+    alive = int(stats.get("alive", 0))
+    food_remaining = float(stats.get("food_remaining", 0.0))
+    avg_energy = float(stats.get("avg_energy", 0.0))
+
+    net_tick = births_tick - deaths_tick
+    alive_delta = 0
+    if previous_stats is not None:
+        alive_delta = alive - int(previous_stats.get("alive", alive))
+
+    if net_tick > 0 or alive_delta > 0:
+        dynamic = "croissance"
+    elif net_tick < 0 or alive_delta < 0:
+        dynamic = "declin"
+    else:
+        dynamic = "stagnation"
+
+    food_pressure = _classify_food_pressure(alive, food_remaining)
+    energy_state = _classify_energy(avg_energy)
+
+    causes = _read_cause_counts(stats.get("death_causes_last_tick"))
+    dominant_cause = _dominant_death_cause(causes)
+
+    if deaths_tick <= 0:
+        mortality = "mortalite_tick:nulle"
+    else:
+        mortality = f"mortalite_tick:{deaths_tick} dominante:{dominant_cause}"
+
+    return (
+        f"dynamique:{dynamic} "
+        f"delta_log_vivants:{alive_delta:+d} "
+        f"net_tick_naissances_deces:{net_tick:+d} "
+        f"pression_nourriture:{food_pressure} "
+        f"energie:{energy_state} "
+        f"{mortality}"
+    )
+
+
+def _classify_food_pressure(alive: int, food_remaining: float) -> str:
+    if alive <= 0:
+        return "n/a"
+
+    food_per_alive = food_remaining / alive
+    if food_per_alive < 15.0:
+        return "forte"
+    if food_per_alive < 35.0:
+        return "moderee"
+    return "faible"
+
+
+def _classify_energy(avg_energy: float) -> str:
+    if avg_energy < 20.0:
+        return "basse"
+    if avg_energy < 45.0:
+        return "moyenne"
+    return "haute"
+
+
 def _read_cause_counts(raw: object) -> Dict[str, int]:
     if not isinstance(raw, dict):
         return {"starvation": 0, "exhaustion": 0, "unknown": 0}
@@ -86,6 +149,16 @@ def _read_cause_counts(raw: object) -> Dict[str, int]:
         "exhaustion": int(raw.get("exhaustion", 0)),
         "unknown": int(raw.get("unknown", 0)),
     }
+
+
+def _dominant_death_cause(causes: Dict[str, int]) -> str:
+    labels = {
+        "starvation": "faim",
+        "exhaustion": "epuisement",
+        "unknown": "autre",
+    }
+    cause_name = max(causes, key=causes.get)
+    return labels.get(cause_name, "autre")
 
 
 def _format_cause_block(causes: Dict[str, int], with_plus: bool) -> str:
