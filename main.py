@@ -7,6 +7,7 @@ from typing import Dict
 from ai import HungerAI
 from creatures import create_initial_population
 from debug_tools import (
+    build_batch_comparative_summary,
     build_batch_experiment_export,
     build_final_run_summary,
     build_generation_distribution,
@@ -16,6 +17,7 @@ from debug_tools import (
     build_single_run_export,
     create_proto_temporal_tracker,
     export_results,
+    format_batch_comparative_summary,
     update_proto_temporal_tracker,
 )
 from player import PlayerRunConfig
@@ -485,6 +487,10 @@ def _run_batch(args: argparse.Namespace) -> None:
             )
         )
 
+    comparative_summary = build_batch_comparative_summary(batch_param, scenarios)
+    print("--- Batch Comparative Summary ---")
+    print(format_batch_comparative_summary(comparative_summary))
+
     export_payload = build_batch_experiment_export(
         batch_param=batch_param,
         batch_values=batch_values,
@@ -492,6 +498,7 @@ def _run_batch(args: argparse.Namespace) -> None:
         base_seed=args.seed,
         seed_step=args.seed_step,
         scenarios=scenarios,
+        comparative_summary=comparative_summary,
     )
     _emit_export_if_needed(args, export_payload)
 
@@ -516,4 +523,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 

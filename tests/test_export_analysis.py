@@ -95,6 +95,28 @@ class ExportAnalysisTests(unittest.TestCase):
             "batch_param": "energy_drain_rate",
             "batch_values": [1.0, 1.5],
             "runs_per_value": 2,
+            "comparative_summary": {
+                "batch_param": "energy_drain_rate",
+                "evaluated_values_count": 2,
+                "most_stable": {
+                    "winners": [1.0],
+                    "extinction_rate": 0.0,
+                    "avg_final_population": 44.5,
+                    "avg_max_generation": 3.0,
+                },
+                "best_avg_max_generation": {
+                    "winners": [1.0],
+                    "avg_max_generation": 3.0,
+                },
+                "best_avg_final_population": {
+                    "winners": [1.0],
+                    "avg_final_population": 44.5,
+                },
+                "lowest_extinction_rate": {
+                    "winners": [1.0, 1.5],
+                    "extinction_rate": 0.0,
+                },
+            },
             "scenarios": [
                 {
                     "parameter_value": 1.0,
@@ -153,6 +175,9 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("param=energy_drain_rate values=1.0,1.5 runs_per_value=2", summary)
         self.assertIn("energy_drain_rate=1.0", summary)
         self.assertIn("energy_drain_rate=1.5", summary)
+        self.assertIn("--- Batch Comparative Summary ---", summary)
+        self.assertIn("batch_comparatif:", summary)
+        self.assertIn("plus_stable:", summary)
 
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

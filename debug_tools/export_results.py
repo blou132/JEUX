@@ -59,6 +59,7 @@ def build_batch_experiment_export(
     base_seed: int,
     seed_step: int,
     scenarios: Iterable[Dict[str, object]],
+    comparative_summary: Dict[str, object] | None = None,
 ) -> Dict[str, object]:
     parsed_scenarios: list[Dict[str, object]] = []
     for scenario in scenarios:
@@ -78,7 +79,7 @@ def build_batch_experiment_export(
 
         parsed_scenarios.append(parsed)
 
-    return {
+    payload: Dict[str, object] = {
         "mode": "batch",
         "batch_param": str(batch_param),
         "batch_values": [float(value) for value in batch_values],
@@ -87,6 +88,11 @@ def build_batch_experiment_export(
         "seed_step": int(seed_step),
         "scenarios": parsed_scenarios,
     }
+
+    if comparative_summary is not None:
+        payload["comparative_summary"] = dict(comparative_summary)
+
+    return payload
 
 
 def export_results(payload: Dict[str, object], export_path: str, export_format: str) -> Path:

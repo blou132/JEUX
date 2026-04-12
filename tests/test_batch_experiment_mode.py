@@ -45,6 +45,12 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("--- Batch Summary ---", output)
         self.assertIn("energy_drain_rate=1.0 runs=2", output)
         self.assertIn("energy_drain_rate=1.5 runs=2", output)
+        self.assertIn("--- Batch Comparative Summary ---", output)
+        self.assertIn("batch_comparatif:", output)
+        self.assertIn("plus_stable:", output)
+        self.assertIn("meilleure_gen_max_moy:", output)
+        self.assertIn("meilleure_pop_finale_moy:", output)
+        self.assertIn("plus_faible_taux_extinction:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -100,6 +106,14 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertEqual(scenarios[0]["seeds"], [100, 103])
             self.assertEqual(int(scenarios[0]["multi_run_summary"]["runs"]), 2)
             self.assertEqual(int(scenarios[1]["multi_run_summary"]["runs"]), 2)
+
+            comparative = payload.get("comparative_summary")
+            self.assertIsInstance(comparative, dict)
+            self.assertEqual(comparative.get("batch_param"), "energy_drain_rate")
+            self.assertIn("most_stable", comparative)
+            self.assertIn("best_avg_max_generation", comparative)
+            self.assertIn("best_avg_final_population", comparative)
+            self.assertIn("lowest_extinction_rate", comparative)
 
 
 if __name__ == "__main__":

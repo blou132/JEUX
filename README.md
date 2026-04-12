@@ -23,6 +23,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Export optionnel des syntheses en JSON ou CSV.
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
+- Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -97,6 +98,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Export du resume final d'un run simple.
 - Export du resume multi-runs avec agregats + details par run.
 - Export du resume batch experimental (agregats par valeur + details de runs).
+- Export de la synthese comparative batch (comparative_summary).
 - Formats disponibles: `json` (structure complete) et `csv` (aplati lisible).
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
@@ -105,7 +107,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Affiche un resume lisible sans relancer la simulation.
 - En multi-runs: runs, seeds, extinctions, generation max moyenne, population finale moyenne, traits finaux moyens.
 - En run simple: seed, extinction, generation max, population finale et synthese finale.
-- En batch: parametre teste, valeurs, runs par valeur, resumes agregees par valeur.
+- En batch: parametre teste, valeurs, runs par valeur, resumes agreges par valeur, et synthese comparative automatique.
 
 ### Mode batch experimental
 - Fait varier un parametre numerique existant sur une liste de valeurs.
@@ -116,6 +118,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - generation max moyenne
   - population finale moyenne
   - traits finaux moyens (via resume multi-runs)
+- Produit aussi une synthese comparative automatique:
+  - plus stable (regle transparente: extinction_rate min, puis population moyenne max, puis generation moyenne max)
+  - meilleure generation max moyenne
+  - meilleure population finale moyenne
+  - plus faible taux d'extinction
+  - gestion explicite des egalites
 - Aucun changement gameplay (mode purement observatoire).
 
 ## Lancer la simulation
@@ -192,6 +200,16 @@ py analyze_export.py outputs/multi_42.csv --format csv
 
 Le script affiche un resume texte exploitable sans dependre des logs complets du run.
 
+## Exemple de sortie batch comparative
+```text
+--- Batch Comparative Summary ---
+batch_comparatif:
+plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+meilleure_gen_max_moy: energy_drain_rate=1.0 (gen_max_moy=2.50)
+meilleure_pop_finale_moy: energy_drain_rate=1.0 (pop_finale_moy=42.50)
+plus_faible_taux_extinction: egalite[energy_drain_rate=1.0,1.5] (taux_ext=0.00)
+```
+
 ## Lancer les tests
 Tous les tests:
 ```powershell
@@ -210,6 +228,7 @@ py -m unittest tests.test_multi_run_mode
 py -m unittest tests.test_export_results
 py -m unittest tests.test_export_analysis
 py -m unittest tests.test_batch_experiment_mode
+py -m unittest tests.test_batch_comparative_summary
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -232,6 +251,7 @@ En mode multi-runs:
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
 - bloc `--- Batch Summary ---` avec agregats comparables entre valeurs.
+- bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
 
 En mode export:
 - ligne `export: <chemin> (<format>)` en fin d'execution.
@@ -246,7 +266,7 @@ Lecture rapide conseillee:
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
 5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds,
-6. en mode batch, comparer les lignes du `Batch Summary` entre valeurs,
+6. en mode batch, comparer les lignes du `Batch Summary` puis valider `Batch Comparative Summary`,
 7. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
 
 ## Roadmap actuelle
@@ -265,6 +285,7 @@ Lecture rapide conseillee:
 - Export optionnel JSON/CSV des syntheses run et multi-runs.
 - Outil CLI d'analyse des exports pour resume hors console.
 - Mode batch experimental pour comparer l'effet de valeurs de parametres existants.
+- Interpretation automatique legere des resultats batch (comparative summary).
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

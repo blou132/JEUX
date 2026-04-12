@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 from typing import Dict
 
+from debug_tools.batch_comparative import (
+    build_batch_comparative_summary,
+    format_batch_comparative_summary,
+)
 from ui import format_final_run_summary, format_multi_run_summary
 
 
@@ -97,6 +101,18 @@ def summarize_export_payload(payload: Dict[str, object]) -> str:
                     )
                 else:
                     lines.append(f"{batch_param}={_format_batch_value(value)} -> n/a")
+
+        comparative_raw = payload.get("comparative_summary")
+        if isinstance(comparative_raw, dict):
+            comparative = comparative_raw
+        else:
+            comparative = build_batch_comparative_summary(
+                batch_param=batch_param,
+                scenarios=scenarios_raw if isinstance(scenarios_raw, list) else [],
+            )
+
+        lines.append("--- Batch Comparative Summary ---")
+        lines.append(format_batch_comparative_summary(comparative))
 
         return "\n".join(lines)
 
