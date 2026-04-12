@@ -7,6 +7,8 @@ from pathlib import Path
 from debug_tools.batch_history import (
     append_batch_history,
     build_batch_history_entry,
+    build_batch_history_global_summary,
+    format_batch_history_global_summary,
     format_batch_history_summary,
     load_batch_history,
 )
@@ -69,6 +71,60 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("id=exp_a", summary_text)
             self.assertIn("param=energy_drain_rate", summary_text)
             self.assertIn("comparatif:", summary_text)
+            self.assertIn("historique_batch_comparatif:", summary_text)
+            self.assertIn("campagnes_archivees=1", summary_text)
+
+    def test_global_summary_multiple_campaigns(self) -> None:
+        history = {
+            "schema_version": 1,
+            "experiments": [
+                {
+                    "id": "exp_alpha",
+                    "batch_param": "energy_drain_rate",
+                    "scenario_summaries": [
+                        {
+                            "extinction_rate": 0.20,
+                            "avg_max_generation": 5.0,
+                            "avg_final_population": 30.0,
+                        },
+                        {
+                            "extinction_rate": 0.10,
+                            "avg_max_generation": 4.0,
+                            "avg_final_population": 40.0,
+                        },
+                    ],
+                },
+                {
+                    "id": "exp_beta",
+                    "batch_param": "reproduction_cost",
+                    "scenario_summaries": [
+                        {
+                            "extinction_rate": 0.10,
+                            "avg_max_generation": 6.0,
+                            "avg_final_population": 35.0,
+                        }
+                    ],
+                },
+            ],
+        }
+
+        summary = build_batch_history_global_summary(history)
+        self.assertEqual(int(summary["campaign_count"]), 2)
+        self.assertEqual(summary["tested_params"], ["energy_drain_rate", "reproduction_cost"])
+
+        self.assertEqual(summary["most_stable"]["winners"], ["exp_alpha"])
+        self.assertEqual(summary["best_avg_max_generation"]["winners"], ["exp_beta"])
+        self.assertEqual(summary["best_avg_final_population"]["winners"], ["exp_alpha"])
+        self.assertEqual(summary["lowest_extinction_rate"]["winners"], ["exp_alpha", "exp_beta"])
+
+        text = format_batch_history_global_summary(summary)
+        self.assertIn("historique_batch_comparatif:", text)
+        self.assertIn("campagnes_archivees=2", text)
+        self.assertIn("parametres_testes=energy_drain_rate,reproduction_cost", text)
+        self.assertIn("campagne_plus_stable=exp_alpha", text)
+        self.assertIn("campagne_meilleure_gen_max_moy=exp_beta", text)
+        self.assertIn("campagne_meilleure_pop_finale_moy=exp_alpha", text)
+        self.assertIn("campagne_plus_faible_taux_extinction=egalite[exp_alpha,exp_beta]", text)
 
     def test_duplicate_batch_id_raises(self) -> None:
         batch_payload = {
@@ -157,6 +213,12 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("experiences=2", output)
             self.assertIn("id=exp_001", output)
             self.assertIn("id=exp_002", output)
+            self.assertIn("historique_batch_comparatif:", output)
+            self.assertIn("campagnes_archivees=2", output)
+            self.assertIn("campagne_plus_stable=", output)
+            self.assertIn("campagne_meilleure_gen_max_moy=", output)
+            self.assertIn("campagne_meilleure_pop_finale_moy=", output)
+            self.assertIn("campagne_plus_faible_taux_extinction=", output)
 
 
 if __name__ == "__main__":

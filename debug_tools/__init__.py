@@ -5,6 +5,8 @@ from .batch_comparative import (
 from .batch_history import (
     append_batch_history,
     build_batch_history_entry,
+    build_batch_history_global_summary,
+    format_batch_history_global_summary,
     format_batch_history_summary,
     load_batch_history,
 )
@@ -40,6 +42,8 @@ __all__ = [
     "build_batch_history_entry",
     "append_batch_history",
     "load_batch_history",
+    "build_batch_history_global_summary",
+    "format_batch_history_global_summary",
     "format_batch_history_summary",
     "export_results",
 ]

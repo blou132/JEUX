@@ -148,7 +148,222 @@ def format_batch_history_summary(history: Dict[str, object], max_entries: int = 
             )
         )
 
+    global_summary = build_batch_history_global_summary(history)
+    lines.append("--- Batch History Comparative Summary ---")
+    lines.append(format_batch_history_global_summary(global_summary))
+
     return "\n".join(lines)
+
+
+def build_batch_history_global_summary(history: Dict[str, object]) -> Dict[str, object]:
+    experiments_raw = history.get("experiments")
+    if not isinstance(experiments_raw, list):
+        experiments_raw = []
+
+    experiments = [item for item in experiments_raw if isinstance(item, dict)]
+    campaign_count = len(experiments)
+
+    tested_params = sorted({str(item.get("batch_param", "?")) for item in experiments if str(item.get("batch_param", "")).strip() != ""})
+
+    campaign_metrics: list[Dict[str, object]] = []
+    for entry in experiments:
+        metrics = _extract_campaign_metrics(entry)
+        if metrics is None:
+            continue
+
+        campaign_metrics.append(
+            {
+                "id": str(entry.get("id", "?")),
+                "batch_param": str(entry.get("batch_param", "?")),
+                **metrics,
+            }
+        )
+
+    if len(campaign_metrics) == 0:
+        return {
+            "campaign_count": campaign_count,
+            "tested_params": tested_params,
+            "most_stable": _empty_global_metric(),
+            "best_avg_max_generation": _empty_global_metric(),
+            "best_avg_final_population": _empty_global_metric(),
+            "lowest_extinction_rate": _empty_global_metric(),
+        }
+
+    stable_rank = sorted(
+        campaign_metrics,
+        key=lambda item: (
+            float(item["stable_extinction_rate"]),
+            -float(item["stable_avg_final_population"]),
+            -float(item["stable_avg_max_generation"]),
+            str(item["id"]),
+        ),
+    )
+    best_stable = stable_rank[0]
+    stable_winners = [
+        str(item["id"])
+        for item in campaign_metrics
+        if _is_close(float(item["stable_extinction_rate"]), float(best_stable["stable_extinction_rate"]))
+        and _is_close(float(item["stable_avg_final_population"]), float(best_stable["stable_avg_final_population"]))
+        and _is_close(float(item["stable_avg_max_generation"]), float(best_stable["stable_avg_max_generation"]))
+    ]
+
+    best_gen_value = max(float(item["best_avg_max_generation"]) for item in campaign_metrics)
+    best_gen_winners = [
+        str(item["id"])
+        for item in campaign_metrics
+        if _is_close(float(item["best_avg_max_generation"]), best_gen_value)
+    ]
+
+    best_pop_value = max(float(item["best_avg_final_population"]) for item in campaign_metrics)
+    best_pop_winners = [
+        str(item["id"])
+        for item in campaign_metrics
+        if _is_close(float(item["best_avg_final_population"]), best_pop_value)
+    ]
+
+    lowest_ext_value = min(float(item["lowest_extinction_rate"]) for item in campaign_metrics)
+    lowest_ext_winners = [
+        str(item["id"])
+        for item in campaign_metrics
+        if _is_close(float(item["lowest_extinction_rate"]), lowest_ext_value)
+    ]
+
+    return {
+        "campaign_count": campaign_count,
+        "tested_params": tested_params,
+        "most_stable": {
+            "winners": sorted(stable_winners),
+            "tie": len(stable_winners) > 1,
+            "extinction_rate": float(best_stable["stable_extinction_rate"]),
+            "avg_final_population": float(best_stable["stable_avg_final_population"]),
+            "avg_max_generation": float(best_stable["stable_avg_max_generation"]),
+        },
+        "best_avg_max_generation": {
+            "winners": sorted(best_gen_winners),
+            "tie": len(best_gen_winners) > 1,
+            "avg_max_generation": best_gen_value,
+        },
+        "best_avg_final_population": {
+            "winners": sorted(best_pop_winners),
+            "tie": len(best_pop_winners) > 1,
+            "avg_final_population": best_pop_value,
+        },
+        "lowest_extinction_rate": {
+            "winners": sorted(lowest_ext_winners),
+            "tie": len(lowest_ext_winners) > 1,
+            "extinction_rate": lowest_ext_value,
+        },
+    }
+
+
+def format_batch_history_global_summary(summary: Dict[str, object]) -> str:
+    campaign_count = int(summary.get("campaign_count", 0))
+    tested_params_raw = summary.get("tested_params")
+    tested_params = tested_params_raw if isinstance(tested_params_raw, list) else []
+
+    params_text = "-" if len(tested_params) == 0 else ",".join(str(param) for param in tested_params)
+
+    most_stable_raw = summary.get("most_stable")
+    best_gen_raw = summary.get("best_avg_max_generation")
+    best_pop_raw = summary.get("best_avg_final_population")
+    lowest_ext_raw = summary.get("lowest_extinction_rate")
+
+    most_stable = most_stable_raw if isinstance(most_stable_raw, dict) else _empty_global_metric()
+    best_gen = best_gen_raw if isinstance(best_gen_raw, dict) else _empty_global_metric()
+    best_pop = best_pop_raw if isinstance(best_pop_raw, dict) else _empty_global_metric()
+    lowest_ext = lowest_ext_raw if isinstance(lowest_ext_raw, dict) else _empty_global_metric()
+
+    if campaign_count <= 0:
+        return "historique_batch_comparatif: n/a"
+
+    lines = [
+        "historique_batch_comparatif:",
+        f"campagnes_archivees={campaign_count}",
+        f"parametres_testes={params_text}",
+        "campagne_plus_stable={label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+            label=_campaign_label(most_stable.get("winners")),
+            ext=float(most_stable.get("extinction_rate", 0.0)),
+            pop=float(most_stable.get("avg_final_population", 0.0)),
+            gen=float(most_stable.get("avg_max_generation", 0.0)),
+        ),
+        "campagne_meilleure_gen_max_moy={label} (gen_max_moy={gen:.2f})".format(
+            label=_campaign_label(best_gen.get("winners")),
+            gen=float(best_gen.get("avg_max_generation", 0.0)),
+        ),
+        "campagne_meilleure_pop_finale_moy={label} (pop_finale_moy={pop:.2f})".format(
+            label=_campaign_label(best_pop.get("winners")),
+            pop=float(best_pop.get("avg_final_population", 0.0)),
+        ),
+        "campagne_plus_faible_taux_extinction={label} (taux_ext={ext:.2f})".format(
+            label=_campaign_label(lowest_ext.get("winners")),
+            ext=float(lowest_ext.get("extinction_rate", 0.0)),
+        ),
+    ]
+
+    return "\n".join(lines)
+
+
+def _extract_campaign_metrics(entry: Dict[str, object]) -> Dict[str, float] | None:
+    scenarios_raw = entry.get("scenario_summaries")
+    scenario_candidates: list[Dict[str, float]] = []
+
+    if isinstance(scenarios_raw, list):
+        for scenario in scenarios_raw:
+            if not isinstance(scenario, dict):
+                continue
+            scenario_candidates.append(
+                {
+                    "extinction_rate": float(scenario.get("extinction_rate", 0.0)),
+                    "avg_max_generation": float(scenario.get("avg_max_generation", 0.0)),
+                    "avg_final_population": float(scenario.get("avg_final_population", 0.0)),
+                }
+            )
+
+    if len(scenario_candidates) > 0:
+        stable_rank = sorted(
+            scenario_candidates,
+            key=lambda item: (
+                float(item["extinction_rate"]),
+                -float(item["avg_final_population"]),
+                -float(item["avg_max_generation"]),
+            ),
+        )
+        stable_best = stable_rank[0]
+
+        return {
+            "stable_extinction_rate": float(stable_best["extinction_rate"]),
+            "stable_avg_final_population": float(stable_best["avg_final_population"]),
+            "stable_avg_max_generation": float(stable_best["avg_max_generation"]),
+            "best_avg_max_generation": max(float(item["avg_max_generation"]) for item in scenario_candidates),
+            "best_avg_final_population": max(float(item["avg_final_population"]) for item in scenario_candidates),
+            "lowest_extinction_rate": min(float(item["extinction_rate"]) for item in scenario_candidates),
+        }
+
+    comparative_raw = entry.get("comparative_summary")
+    if not isinstance(comparative_raw, dict):
+        return None
+
+    most_stable_raw = comparative_raw.get("most_stable")
+    best_gen_raw = comparative_raw.get("best_avg_max_generation")
+    best_pop_raw = comparative_raw.get("best_avg_final_population")
+    low_ext_raw = comparative_raw.get("lowest_extinction_rate")
+
+    if (
+        not isinstance(most_stable_raw, dict)
+        or not isinstance(best_gen_raw, dict)
+        or not isinstance(best_pop_raw, dict)
+        or not isinstance(low_ext_raw, dict)
+    ):
+        return None
+
+    return {
+        "stable_extinction_rate": float(most_stable_raw.get("extinction_rate", 0.0)),
+        "stable_avg_final_population": float(most_stable_raw.get("avg_final_population", 0.0)),
+        "stable_avg_max_generation": float(most_stable_raw.get("avg_max_generation", 0.0)),
+        "best_avg_max_generation": float(best_gen_raw.get("avg_max_generation", 0.0)),
+        "best_avg_final_population": float(best_pop_raw.get("avg_final_population", 0.0)),
+        "lowest_extinction_rate": float(low_ext_raw.get("extinction_rate", 0.0)),
+    }
 
 
 def _load_or_init_history(path: Path) -> Dict[str, object]:
@@ -181,6 +396,25 @@ def _winner_label(batch_param: str, metric_raw: object) -> str:
     return f"egalite[{batch_param}={joined}]"
 
 
+def _campaign_label(winners_raw: object) -> str:
+    winners: list[str] = []
+    if isinstance(winners_raw, list):
+        winners = [str(value) for value in winners_raw]
+
+    if len(winners) == 0:
+        return "n/a"
+    if len(winners) == 1:
+        return winners[0]
+    return "egalite[" + ",".join(winners) + "]"
+
+
+def _empty_global_metric() -> Dict[str, object]:
+    return {
+        "winners": [],
+        "tie": False,
+    }
+
+
 def _read_float_list(raw: object) -> list[float]:
     if isinstance(raw, list):
         parsed: list[float] = []
@@ -198,3 +432,7 @@ def _format_value(value: float) -> str:
     if float(value).is_integer():
         return f"{value:.1f}"
     return f"{value:.6g}"
+
+
+def _is_close(a: float, b: float, tolerance: float = 1e-9) -> bool:
+    return abs(a - b) <= tolerance
