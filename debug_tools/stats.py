@@ -10,6 +10,7 @@ _PROTO_GROUP_WIDTH_METABOLISM = 0.15
 _PROTO_GROUP_WIDTH_BEHAVIOR = 0.25
 _PROTO_TREND_STABLE_DELTA = 0.02
 
+_PROTO_TEMPORAL_STATUSES = ("stable", "en_hausse", "en_baisse", "nouveau")
 _ZONE_NAMES = ("rich", "neutral", "poor")
 
 
@@ -123,6 +124,75 @@ def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int
     for creature in simulation.creatures:
         distribution[creature.generation] = distribution.get(creature.generation, 0) + 1
     return distribution
+
+
+def create_proto_temporal_tracker() -> Dict[str, object]:
+    return {
+        "observations": 0,
+        "by_signature": {},
+    }
+
+
+def update_proto_temporal_tracker(tracker: Dict[str, object], stats: Dict[str, object]) -> None:
+    tracker["observations"] = int(tracker.get("observations", 0)) + 1
+
+    by_signature = tracker.get("by_signature")
+    if not isinstance(by_signature, dict):
+        by_signature = {}
+        tracker["by_signature"] = by_signature
+
+    raw_trends = stats.get("proto_group_temporal_trends")
+    if not isinstance(raw_trends, list):
+        return
+
+    for trend in raw_trends:
+        if not isinstance(trend, dict):
+            continue
+
+        signature = str(trend.get("signature", "?"))
+        status = str(trend.get("status", ""))
+        if status not in _PROTO_TEMPORAL_STATUSES:
+            continue
+
+        counts = by_signature.get(signature)
+        if not isinstance(counts, dict):
+            counts = _empty_proto_temporal_summary()
+            by_signature[signature] = counts
+
+        counts[status] = int(counts.get(status, 0)) + 1
+
+
+def build_final_run_summary(
+    final_stats: Dict[str, object],
+    temporal_tracker: Dict[str, object],
+) -> Dict[str, object]:
+    dominant_signature = "-"
+    dominant_share = 0.0
+
+    raw_top_groups = final_stats.get("proto_groups_top")
+    if isinstance(raw_top_groups, list) and len(raw_top_groups) > 0:
+        first = raw_top_groups[0]
+        if isinstance(first, dict):
+            dominant_signature = str(first.get("signature", "-"))
+            dominant_share = float(first.get("share", 0.0))
+
+    by_signature = _read_status_counts(temporal_tracker)
+    stable_signature, stable_count = _pick_signature_by_status(by_signature, "stable")
+    rising_signature, rising_count = _pick_signature_by_status(by_signature, "en_hausse")
+
+    return {
+        "final_dominant_group_signature": dominant_signature,
+        "final_dominant_group_share": dominant_share,
+        "most_stable_group_signature": stable_signature,
+        "most_stable_group_count": stable_count,
+        "most_rising_group_signature": rising_signature,
+        "most_rising_group_count": rising_count,
+        "final_zone_distribution": _normalize_zone_distribution(
+            final_stats.get("creatures_by_fertility_zone")
+        ),
+        "avg_traits": _read_avg_traits(final_stats),
+        "observed_logs": int(temporal_tracker.get("observations", 0)),
+    }
 
 
 def _build_proto_zone_observations(
@@ -281,6 +351,73 @@ def _empty_proto_temporal_summary() -> Dict[str, int]:
         "en_hausse": 0,
         "en_baisse": 0,
         "nouveau": 0,
+    }
+
+
+def _read_status_counts(temporal_tracker: Dict[str, object]) -> Dict[str, Dict[str, int]]:
+    by_signature_raw = temporal_tracker.get("by_signature")
+    if not isinstance(by_signature_raw, dict):
+        return {}
+
+    parsed: Dict[str, Dict[str, int]] = {}
+    for signature, counts_raw in by_signature_raw.items():
+        if not isinstance(counts_raw, dict):
+            continue
+        parsed[str(signature)] = {
+            "stable": int(counts_raw.get("stable", 0)),
+            "en_hausse": int(counts_raw.get("en_hausse", 0)),
+            "en_baisse": int(counts_raw.get("en_baisse", 0)),
+            "nouveau": int(counts_raw.get("nouveau", 0)),
+        }
+    return parsed
+
+
+def _pick_signature_by_status(
+    by_signature: Dict[str, Dict[str, int]],
+    status_name: str,
+) -> tuple[str, int]:
+    if status_name not in _PROTO_TEMPORAL_STATUSES:
+        return "-", 0
+
+    candidates: list[tuple[int, int, str]] = []
+    for signature, counts in by_signature.items():
+        primary = int(counts.get(status_name, 0))
+        if primary <= 0:
+            continue
+
+        secondary_name = "en_hausse" if status_name == "stable" else "stable"
+        secondary = int(counts.get(secondary_name, 0))
+        candidates.append((primary, secondary, signature))
+
+    if not candidates:
+        return "-", 0
+
+    best = sorted(candidates, key=lambda item: (-item[0], -item[1], item[2]))[0]
+    return best[2], best[0]
+
+
+def _normalize_zone_distribution(raw: object) -> Dict[str, int]:
+    result = {
+        "rich": 0,
+        "neutral": 0,
+        "poor": 0,
+    }
+    if not isinstance(raw, dict):
+        return result
+
+    result["rich"] = int(raw.get("rich", 0))
+    result["neutral"] = int(raw.get("neutral", 0))
+    result["poor"] = int(raw.get("poor", 0))
+    return result
+
+
+def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
+    return {
+        "speed": float(final_stats.get("avg_speed", 0.0)),
+        "metabolism": float(final_stats.get("avg_metabolism", 0.0)),
+        "prudence": float(final_stats.get("avg_prudence", 0.0)),
+        "dominance": float(final_stats.get("avg_dominance", 0.0)),
+        "repro_drive": float(final_stats.get("avg_repro_drive", 0.0)),
     }
 
 

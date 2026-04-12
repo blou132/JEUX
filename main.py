@@ -6,11 +6,18 @@ from typing import Dict
 
 from ai import HungerAI
 from creatures import create_initial_population
-from debug_tools import build_generation_distribution, build_population_stats
+from debug_tools import (
+    build_final_run_summary,
+    build_generation_distribution,
+    build_population_stats,
+    create_proto_temporal_tracker,
+    update_proto_temporal_tracker,
+)
 from player import PlayerRunConfig
 from simulation import HungerSimulation
 from ui import (
     format_death_causes,
+    format_final_run_summary,
     format_generation_distribution,
     format_population_dynamics,
     format_proto_group_temporal,
@@ -140,6 +147,7 @@ def main() -> None:
     print_run_header(header_config)
 
     previous_logged_stats: Dict[str, object] | None = None
+    proto_temporal_tracker = create_proto_temporal_tracker()
 
     for tick in range(1, run_config.steps + 1):
         world.tick()
@@ -151,6 +159,8 @@ def main() -> None:
                 world=world,
                 previous_stats=previous_logged_stats,
             )
+            update_proto_temporal_tracker(proto_temporal_tracker, stats)
+
             generations = build_generation_distribution(simulation)
             print(format_stats_line(tick, stats))
             print("     " + format_generation_distribution(generations, max_bins=10))
@@ -181,6 +191,7 @@ def main() -> None:
     )
     final_zone_stats = world.get_food_zone_stats()
     generations = build_generation_distribution(simulation)
+    run_summary = build_final_run_summary(final_stats, proto_temporal_tracker)
 
     print("--- Final Stats ---")
     print(
@@ -216,6 +227,9 @@ def main() -> None:
     print(format_proto_groups_by_fertility_zone(final_stats))
     print(format_death_causes(final_stats, include_tick=False))
     print(format_population_dynamics(final_stats, previous_logged_stats))
+
+    print("--- Run Summary ---")
+    print(format_final_run_summary(run_summary))
 
 
 if __name__ == "__main__":

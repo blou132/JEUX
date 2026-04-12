@@ -206,6 +206,56 @@ def format_proto_group_temporal(stats: Dict[str, object], max_items: int = 6) ->
     )
 
 
+
+def format_final_run_summary(summary: Dict[str, object]) -> str:
+    zones_raw = summary.get("final_zone_distribution")
+    traits_raw = summary.get("avg_traits")
+
+    zones = {"rich": 0, "neutral": 0, "poor": 0}
+    if isinstance(zones_raw, dict):
+        zones["rich"] = int(zones_raw.get("rich", 0))
+        zones["neutral"] = int(zones_raw.get("neutral", 0))
+        zones["poor"] = int(zones_raw.get("poor", 0))
+
+    traits = {
+        "speed": 0.0,
+        "metabolism": 0.0,
+        "prudence": 0.0,
+        "dominance": 0.0,
+        "repro_drive": 0.0,
+    }
+    if isinstance(traits_raw, dict):
+        traits["speed"] = float(traits_raw.get("speed", 0.0))
+        traits["metabolism"] = float(traits_raw.get("metabolism", 0.0))
+        traits["prudence"] = float(traits_raw.get("prudence", 0.0))
+        traits["dominance"] = float(traits_raw.get("dominance", 0.0))
+        traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
+
+    return (
+        "synthese_run: "
+        "dominant_final={dominant}(part={dominant_share:.2f}) "
+        "plus_stable={stable}(n={stable_count}) "
+        "plus_hausse={rising}(n={rising_count}) "
+        "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "logs_obs={observed_logs}"
+    ).format(
+        dominant=str(summary.get("final_dominant_group_signature", "-")),
+        dominant_share=float(summary.get("final_dominant_group_share", 0.0)),
+        stable=str(summary.get("most_stable_group_signature", "-")),
+        stable_count=int(summary.get("most_stable_group_count", 0)),
+        rising=str(summary.get("most_rising_group_signature", "-")),
+        rising_count=int(summary.get("most_rising_group_count", 0)),
+        rich=zones["rich"],
+        neutral=zones["neutral"],
+        poor=zones["poor"],
+        speed=traits["speed"],
+        metabolism=traits["metabolism"],
+        prudence=traits["prudence"],
+        dominance=traits["dominance"],
+        repro=traits["repro_drive"],
+        observed_logs=int(summary.get("observed_logs", 0)),
+    )
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
     total = _read_cause_counts(stats.get("death_causes_total"))
     last_tick = _read_cause_counts(stats.get("death_causes_last_tick"))
@@ -395,3 +445,4 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+

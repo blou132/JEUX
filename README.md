@@ -18,6 +18,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Pression ecologique legere: distribution spatiale heterogene de nourriture (zones plus riches/pauvres).
 - Observation proto-groupes x fertilite de zone (repartition et dominants par zone).
 - Observation temporelle des proto-groupes (stable / en_hausse / en_baisse / nouveau entre logs).
+- Synthese finale de run orientee comparaison de seeds.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -74,6 +75,14 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Etiquettes simples: `stable`, `en_hausse`, `en_baisse`, `nouveau`.
 - Suivi purement observatoire (aucune modification de decision gameplay).
 
+### Synthese finale de run
+- Groupe dominant final + part finale.
+- Groupe le plus stable observe sur le run.
+- Groupe le plus souvent en hausse observe sur le run.
+- Repartition finale par zones de fertilite.
+- Rappel des moyennes de traits principales.
+- Resume lisible pour comparer rapidement plusieurs seeds.
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -110,6 +119,7 @@ py -m unittest tests.test_flee_behavior
 py -m unittest tests.test_food_distribution_pressure
 py -m unittest tests.test_proto_group_ecology_observation
 py -m unittest tests.test_proto_group_temporal_observation
+py -m unittest tests.test_run_final_summary
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -123,10 +133,14 @@ Chaque bloc de log periodique contient:
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
+En fin de run:
+- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales et traits moyens.
+
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
-3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales.
+3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
+4. verifier `Run Summary` pour comparer rapidement plusieurs seeds.
 
 ## Roadmap actuelle
 
@@ -139,6 +153,7 @@ Lecture rapide conseillee:
 - Pression ecologique legere sur la nourriture (heterogene, stable, testable).
 - Observation proto-groupes x fertilite (repartition + dominants par zone).
 - Observation temporelle des proto-groupes (stable/hausse/baisse/nouveau).
+- Synthese finale de run orientee comparaison de seeds.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
