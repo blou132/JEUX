@@ -69,6 +69,12 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("total_flees", stats)
         self.assertIn("fleeing_creatures_last_tick", stats)
         self.assertIn("avg_flee_threat_distance_last_tick", stats)
+        self.assertIn("creatures_with_food_memory", stats)
+        self.assertIn("creatures_with_danger_memory", stats)
+        self.assertIn("food_memory_guided_moves_last_tick", stats)
+        self.assertIn("total_food_memory_guided_moves", stats)
+        self.assertIn("danger_memory_avoid_moves_last_tick", stats)
+        self.assertIn("total_danger_memory_avoid_moves", stats)
         self.assertIn("creatures_by_fertility_zone", stats)
         self.assertIn("dominant_proto_group_by_fertility_zone", stats)
         self.assertIn("proto_group_temporal_trends", stats)
@@ -98,5 +104,4 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 

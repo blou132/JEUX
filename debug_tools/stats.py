@@ -24,6 +24,8 @@ def build_population_stats(
     dead = simulation.get_dead_count()
 
     alive_creatures = [creature for creature in simulation.creatures if creature.alive]
+    food_memory_active_count = sum(1 for creature in alive_creatures if creature.has_food_memory)
+    danger_memory_active_count = sum(1 for creature in alive_creatures if creature.has_danger_memory)
     (
         zone_distribution,
         dominant_proto_by_zone,
@@ -59,6 +61,12 @@ def build_population_stats(
             "total_flees": simulation.total_flees,
             "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
             "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
+            "creatures_with_food_memory": 0,
+            "creatures_with_danger_memory": 0,
+            "food_memory_guided_moves_last_tick": simulation.food_memory_guided_moves_last_tick,
+            "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
+            "danger_memory_avoid_moves_last_tick": simulation.danger_memory_avoid_moves_last_tick,
+            "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -114,10 +122,15 @@ def build_population_stats(
         "total_flees": simulation.total_flees,
         "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
         "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
+        "creatures_with_food_memory": food_memory_active_count,
+        "creatures_with_danger_memory": danger_memory_active_count,
+        "food_memory_guided_moves_last_tick": simulation.food_memory_guided_moves_last_tick,
+        "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
+        "danger_memory_avoid_moves_last_tick": simulation.danger_memory_avoid_moves_last_tick,
+        "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
-
 
 def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int]:
     distribution: Dict[int, int] = {}
@@ -581,5 +594,4 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
-
 

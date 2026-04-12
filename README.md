@@ -25,6 +25,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
+- Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -126,6 +127,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - plus faible taux d'extinction
   - gestion explicite des egalites
 - Aucun changement gameplay (mode purement observatoire).
+
+### Memoire locale courte (zones utiles/dangereuses)
+- Chaque creature conserve une memoire courte de derniere zone utile (nourriture consommee).
+- Chaque creature conserve une memoire courte de derniere zone dangereuse (menace lors d'une fuite).
+- Influence legere du comportement: en recherche de nourriture, retour vers zone utile proche; en errance, evitement bref d'une zone dangereuse proche.
+- Systeme purement local, sans pathfinding ni apprentissage complexe.
 
 ### Historique batch (archive d'experiences)
 - Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
@@ -310,6 +317,7 @@ Chaque bloc de log periodique contient:
 - `proto_zones_creatures:` repartition des creatures par zones fertiles et proto-groupe dominant par zone.
 - `causes_deces:` faim / epuisement / autre (tick et total).
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
+- `memoire_*:` creatures avec memoire active (utile/dangereuse) et mouvements guides/evitements (tick/log).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
@@ -333,6 +341,7 @@ En mode export:
 Avec les outils d'analyse:
 - `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export.
 - `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale et une vue agregee par parametre teste (avec ambiguite/insuffisance explicites).
+- pour observer la memoire locale en run: suivre `memoire_active`, `memoire_tick` et `memoire_log` dans la ligne `dynamique_*`.
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -364,6 +373,7 @@ Lecture rapide conseillee:
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
+- Memoire locale courte (zone utile/dangereuse) visible dans les stats/debug et testee.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import random
 from math import cos, pi, sin
@@ -30,6 +30,10 @@ class HungerSimulation:
         mutation_variation: float = 0.1,
         random_source: random.Random | None = None,
         world_map: SimpleMap | None = None,
+        food_memory_duration: float = 8.0,
+        danger_memory_duration: float = 6.0,
+        food_memory_recall_distance: float = 8.0,
+        danger_memory_avoid_distance: float = 5.0,
     ) -> None:
         if (
             energy_drain_rate < 0
@@ -40,6 +44,10 @@ class HungerSimulation:
             or reproduction_distance < 0
             or reproduction_min_age < 0
             or mutation_variation < 0
+            or food_memory_duration < 0
+            or danger_memory_duration < 0
+            or food_memory_recall_distance < 0
+            or danger_memory_avoid_distance < 0
         ):
             raise ValueError("rates must be >= 0")
 
@@ -57,6 +65,11 @@ class HungerSimulation:
         self.random_source = random_source or random.Random()
         self.world_map = world_map
 
+        self.food_memory_duration = food_memory_duration
+        self.danger_memory_duration = danger_memory_duration
+        self.food_memory_recall_distance = food_memory_recall_distance
+        self.danger_memory_avoid_distance = danger_memory_avoid_distance
+
         self.last_intents: Dict[str, CreatureIntent] = {}
         self._child_counter = 0
 
@@ -69,6 +82,11 @@ class HungerSimulation:
         self.fleeing_creatures_last_tick: list[str] = []
         self.flee_threat_distance_last_tick: Dict[str, float] = {}
         self.avg_flee_threat_distance_last_tick = 0.0
+
+        self.food_memory_guided_moves_last_tick = 0
+        self.total_food_memory_guided_moves = 0
+        self.danger_memory_avoid_moves_last_tick = 0
+        self.total_danger_memory_avoid_moves = 0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -91,6 +109,8 @@ class HungerSimulation:
         self.fleeing_creatures_last_tick = []
         self.flee_threat_distance_last_tick = {}
         self.avg_flee_threat_distance_last_tick = 0.0
+        self.food_memory_guided_moves_last_tick = 0
+        self.danger_memory_avoid_moves_last_tick = 0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -100,9 +120,10 @@ class HungerSimulation:
         dead_before = self.get_dead_count()
         alive_before_ids = {creature.creature_id for creature in self.creatures if creature.alive}
 
-        # 1) Passive aging and energy loss.
+        # 1) Passive aging, memory decay and energy loss.
         for creature in self.creatures:
             creature.grow_older(dt)
+            creature.decay_memory(dt)
             creature.drain_energy(dt=dt, drain_rate=self.energy_drain_rate)
 
         starvation_deaths = sum(
@@ -144,6 +165,7 @@ class HungerSimulation:
 
                 threat_distance = creature.distance_to(threat.x, threat.y)
                 self._flee_from(creature, threat, dt)
+                creature.remember_danger_zone(threat.x, threat.y, ttl=self.danger_memory_duration)
 
                 self.flees_last_tick += 1
                 self.total_flees += 1
@@ -154,7 +176,8 @@ class HungerSimulation:
             if intent.action == "move_to_food" and intent.target_food_id is not None:
                 target = self.food_field.get_food(intent.target_food_id)
                 if target is None:
-                    self._wander(creature, dt, activity=1.0)
+                    if not self._move_using_memory(creature, dt, search_mode=True):
+                        self._wander(creature, dt, activity=1.0)
                     continue
 
                 reached = creature.move_towards(
@@ -166,15 +189,19 @@ class HungerSimulation:
                 if reached:
                     eaten = self.food_field.consume(target.food_id, self.eat_rate * dt)
                     creature.add_energy(eaten)
+                    if eaten > 0.0:
+                        creature.remember_food_zone(target.x, target.y, ttl=self.food_memory_duration)
                 continue
 
             if intent.action == "search_food":
-                # Search mode: more active movement than idle wandering.
-                self._wander(creature, dt, activity=1.0)
+                if not self._move_using_memory(creature, dt, search_mode=True):
+                    # Search mode: more active movement than idle wandering.
+                    self._wander(creature, dt, activity=1.0)
                 continue
 
             if intent.action == "wander":
-                self._wander(creature, dt, activity=0.5)
+                if not self._move_using_memory(creature, dt, search_mode=False):
+                    self._wander(creature, dt, activity=0.5)
 
         if self.flee_threat_distance_last_tick:
             self.avg_flee_threat_distance_last_tick = (
@@ -287,6 +314,64 @@ class HungerSimulation:
 
         return exhaustion_deaths
 
+    def _move_using_memory(self, creature: Creature, dt: float, search_mode: bool) -> bool:
+        if self._avoid_danger_memory(creature, dt):
+            return True
+
+        if search_mode:
+            return self._move_towards_food_memory(creature, dt, activity=1.0)
+
+        return False
+
+    def _move_towards_food_memory(self, creature: Creature, dt: float, activity: float) -> bool:
+        if not creature.has_food_memory:
+            return False
+
+        assert creature.last_food_zone is not None
+        target_x, target_y = creature.last_food_zone
+        distance_to_memory = creature.distance_to(target_x, target_y)
+        if distance_to_memory > self.food_memory_recall_distance:
+            return False
+
+        step_distance = self.movement_speed * activity * creature.traits.speed * dt
+        if step_distance <= 0.0:
+            return False
+
+        creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
+        self._clamp_creature_position(creature)
+
+        self.food_memory_guided_moves_last_tick += 1
+        self.total_food_memory_guided_moves += 1
+        return True
+
+    def _avoid_danger_memory(self, creature: Creature, dt: float) -> bool:
+        if not creature.has_danger_memory:
+            return False
+
+        assert creature.last_danger_zone is not None
+        danger_x, danger_y = creature.last_danger_zone
+        distance_to_danger = creature.distance_to(danger_x, danger_y)
+        if distance_to_danger > self.danger_memory_avoid_distance:
+            return False
+
+        step_distance = self.movement_speed * creature.traits.speed * dt
+        if step_distance <= 0.0:
+            return False
+
+        dx = creature.x - danger_x
+        dy = creature.y - danger_y
+        if dx == 0.0 and dy == 0.0:
+            self._wander(creature, dt, activity=1.0)
+        else:
+            target_x = creature.x + dx
+            target_y = creature.y + dy
+            creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
+            self._clamp_creature_position(creature)
+
+        self.danger_memory_avoid_moves_last_tick += 1
+        self.total_danger_memory_avoid_moves += 1
+        return True
+
     def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
         if activity < 0:
             raise ValueError("activity must be >= 0")
@@ -331,9 +416,4 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
-
-
-
-
-
 

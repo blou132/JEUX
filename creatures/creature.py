@@ -19,6 +19,10 @@ class Creature:
     generation: int = 0
     age: float = 0.0
     parent_ids: Optional[Tuple[str, str]] = None
+    last_food_zone: Optional[Tuple[float, float]] = None
+    food_memory_ttl: float = 0.0
+    last_danger_zone: Optional[Tuple[float, float]] = None
+    danger_memory_ttl: float = 0.0
 
     def __post_init__(self) -> None:
         if self.max_energy is None:
@@ -38,11 +42,43 @@ class Creature:
             return 1.0
         return max(0.0, min(1.0, 1.0 - (self.energy / self.max_energy)))
 
+    @property
+    def has_food_memory(self) -> bool:
+        return self.food_memory_ttl > 0.0 and self.last_food_zone is not None
+
+    @property
+    def has_danger_memory(self) -> bool:
+        return self.danger_memory_ttl > 0.0 and self.last_danger_zone is not None
+
     def grow_older(self, dt: float) -> None:
         if dt < 0:
             raise ValueError("dt must be >= 0")
         if self.alive:
             self.age += dt
+
+    def decay_memory(self, dt: float) -> None:
+        if dt < 0:
+            raise ValueError("dt must be >= 0")
+
+        self.food_memory_ttl = max(0.0, self.food_memory_ttl - dt)
+        if self.food_memory_ttl == 0.0:
+            self.last_food_zone = None
+
+        self.danger_memory_ttl = max(0.0, self.danger_memory_ttl - dt)
+        if self.danger_memory_ttl == 0.0:
+            self.last_danger_zone = None
+
+    def remember_food_zone(self, x: float, y: float, ttl: float) -> None:
+        if ttl < 0:
+            raise ValueError("ttl must be >= 0")
+        self.last_food_zone = (x, y)
+        self.food_memory_ttl = ttl
+
+    def remember_danger_zone(self, x: float, y: float, ttl: float) -> None:
+        if ttl < 0:
+            raise ValueError("ttl must be >= 0")
+        self.last_danger_zone = (x, y)
+        self.danger_memory_ttl = ttl
 
     def drain_energy(self, dt: float, drain_rate: float) -> None:
         if not self.alive:
@@ -95,3 +131,4 @@ class Creature:
         self.x += (target_x - self.x) * ratio
         self.y += (target_y - self.y) * ratio
         return False
+
