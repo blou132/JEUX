@@ -21,6 +21,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Synthese finale de run orientee comparaison de seeds.
 - Mode multi-runs optionnel pour comparer automatiquement plusieurs seeds.
 - Export optionnel des syntheses en JSON ou CSV.
+- Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -32,7 +33,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - `world/`: carte, ressources nourriture, fertilite spatiale.
 - `player/`: configuration de run.
 - `ui/`: formatage des logs texte.
-- `debug_tools/`: calcul d'indicateurs, syntheses et export.
+- `debug_tools/`: calcul d'indicateurs, syntheses, export et analyse d'exports.
 - `save/`: reserve pour plus tard (non active dans le MVP courant).
 
 ## Fonctionnalites validees
@@ -97,6 +98,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Formats disponibles: `json` (structure complete) et `csv` (aplati lisible).
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
+### Analyse d'exports (CLI)
+- Lit un export existant (JSON obligatoire, CSV support simple).
+- Affiche un resume lisible sans relancer la simulation.
+- En multi-runs: runs, seeds, extinctions, generation max moyenne, population finale moyenne, traits finaux moyens.
+- En run simple: seed, extinction, generation max, population finale et synthese finale.
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -137,6 +144,24 @@ Parametres CLI principaux:
 - `--reproduction-threshold`, `--reproduction-cost`, `--reproduction-distance`, `--reproduction-min-age`
 - `--mutation-variation`
 
+## Outil d'analyse d'exports
+Commande de base:
+```powershell
+py analyze_export.py <chemin_export>
+```
+
+Exemple analyse JSON multi-runs:
+```powershell
+py analyze_export.py outputs/multi_42.json
+```
+
+Exemple analyse CSV en forcant le format:
+```powershell
+py analyze_export.py outputs/multi_42.csv --format csv
+```
+
+Le script affiche un resume texte exploitable sans dependre des logs complets du run.
+
 ## Lancer les tests
 Tous les tests:
 ```powershell
@@ -153,6 +178,7 @@ py -m unittest tests.test_proto_group_temporal_observation
 py -m unittest tests.test_run_final_summary
 py -m unittest tests.test_multi_run_mode
 py -m unittest tests.test_export_results
+py -m unittest tests.test_export_analysis
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -176,13 +202,16 @@ En mode export:
 - ligne `export: <chemin> (<format>)` en fin d'execution.
 - le contenu exporte reprend les memes syntheses que la console (run simple ou multi-runs).
 
+Avec l'outil d'analyse:
+- `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export (utile pour comparer des runs sans relancer la simulation).
+
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
 5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds en une commande,
-6. si export actif, utiliser le fichier JSON/CSV pour comparaison hors console.
+6. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
 
 ## Roadmap actuelle
 
@@ -198,6 +227,7 @@ Lecture rapide conseillee:
 - Synthese finale de run orientee comparaison de seeds.
 - Mode multi-runs optionnel avec resume agrege compare-seeds.
 - Export optionnel JSON/CSV des syntheses run et multi-runs.
+- Outil CLI d'analyse des exports pour resume hors console.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
