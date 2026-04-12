@@ -34,6 +34,10 @@ class HungerSimulation:
         danger_memory_duration: float = 6.0,
         food_memory_recall_distance: float = 8.0,
         danger_memory_avoid_distance: float = 5.0,
+        social_influence_distance: float = 6.0,
+        social_follow_strength: float = 0.35,
+        social_flee_boost_per_neighbor: float = 0.15,
+        social_flee_boost_max: float = 0.45,
     ) -> None:
         if (
             energy_drain_rate < 0
@@ -48,6 +52,10 @@ class HungerSimulation:
             or danger_memory_duration < 0
             or food_memory_recall_distance < 0
             or danger_memory_avoid_distance < 0
+            or social_influence_distance < 0
+            or social_follow_strength < 0
+            or social_flee_boost_per_neighbor < 0
+            or social_flee_boost_max < 0
         ):
             raise ValueError("rates must be >= 0")
 
@@ -69,6 +77,10 @@ class HungerSimulation:
         self.danger_memory_duration = danger_memory_duration
         self.food_memory_recall_distance = food_memory_recall_distance
         self.danger_memory_avoid_distance = danger_memory_avoid_distance
+        self.social_influence_distance = social_influence_distance
+        self.social_follow_strength = social_follow_strength
+        self.social_flee_boost_per_neighbor = social_flee_boost_per_neighbor
+        self.social_flee_boost_max = social_flee_boost_max
 
         self.last_intents: Dict[str, CreatureIntent] = {}
         self._child_counter = 0
@@ -94,6 +106,12 @@ class HungerSimulation:
         self.total_danger_memory_distance_gain = 0.0
         self.avg_danger_memory_distance_gain_last_tick = 0.0
         self.tick_count = 0
+        self.social_follow_moves_last_tick = 0
+        self.total_social_follow_moves = 0
+        self.social_flee_boosted_last_tick = 0
+        self.total_social_flee_boosted = 0
+        self.social_flee_multiplier_sum_last_tick = 0.0
+        self.avg_social_flee_multiplier_last_tick = 1.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -122,6 +140,10 @@ class HungerSimulation:
         self.avg_food_memory_distance_gain_last_tick = 0.0
         self.danger_memory_distance_gain_last_tick = 0.0
         self.avg_danger_memory_distance_gain_last_tick = 0.0
+        self.social_follow_moves_last_tick = 0
+        self.social_flee_boosted_last_tick = 0
+        self.social_flee_multiplier_sum_last_tick = 0.0
+        self.avg_social_flee_multiplier_last_tick = 1.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -175,7 +197,16 @@ class HungerSimulation:
                     continue
 
                 threat_distance = creature.distance_to(threat.x, threat.y)
-                self._flee_from(creature, threat, dt)
+                flee_boost_multiplier = self._social_flee_boost_multiplier(
+                    creature,
+                    intents,
+                    creatures_by_id,
+                )
+                self._flee_from(creature, threat, dt, boost_multiplier=flee_boost_multiplier)
+                if flee_boost_multiplier > 1.0:
+                    self.social_flee_boosted_last_tick += 1
+                    self.total_social_flee_boosted += 1
+                    self.social_flee_multiplier_sum_last_tick += flee_boost_multiplier
                 creature.remember_danger_zone(threat.x, threat.y, ttl=self.danger_memory_duration)
 
                 self.flees_last_tick += 1
@@ -206,13 +237,15 @@ class HungerSimulation:
 
             if intent.action == "search_food":
                 if not self._move_using_memory(creature, dt, search_mode=True):
-                    # Search mode: more active movement than idle wandering.
-                    self._wander(creature, dt, activity=1.0)
+                    if not self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                        # Search mode: more active movement than idle wandering.
+                        self._wander(creature, dt, activity=1.0)
                 continue
 
             if intent.action == "wander":
                 if not self._move_using_memory(creature, dt, search_mode=False):
-                    self._wander(creature, dt, activity=0.5)
+                    if not self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                        self._wander(creature, dt, activity=0.5)
 
         if self.flee_threat_distance_last_tick:
             self.avg_flee_threat_distance_last_tick = (
@@ -235,6 +268,13 @@ class HungerSimulation:
             )
         else:
             self.avg_danger_memory_distance_gain_last_tick = 0.0
+
+        if self.social_flee_boosted_last_tick > 0:
+            self.avg_social_flee_multiplier_last_tick = (
+                self.social_flee_multiplier_sum_last_tick / self.social_flee_boosted_last_tick
+            )
+        else:
+            self.avg_social_flee_multiplier_last_tick = 1.0
 
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
@@ -409,6 +449,89 @@ class HungerSimulation:
         self.total_danger_memory_distance_gain += distance_gain
         return True
 
+    def _move_using_social_follow(
+        self,
+        creature: Creature,
+        dt: float,
+        intents: Dict[str, CreatureIntent],
+        creatures_by_id: Dict[str, Creature],
+    ) -> bool:
+        if self.social_influence_distance <= 0.0 or self.social_follow_strength <= 0.0:
+            return False
+
+        nearest_target: tuple[float, float] | None = None
+        nearest_distance = float("inf")
+
+        for other_id, other_intent in intents.items():
+            if other_id == creature.creature_id:
+                continue
+
+            other = creatures_by_id.get(other_id)
+            if other is None or not other.alive:
+                continue
+
+            if other_intent.action != HungerAI.ACTION_MOVE_TO_FOOD or other_intent.target_food_id is None:
+                continue
+
+            distance_to_other = creature.distance_to(other.x, other.y)
+            if distance_to_other > self.social_influence_distance:
+                continue
+
+            food = self.food_field.get_food(other_intent.target_food_id)
+            if food is None:
+                continue
+
+            if distance_to_other < nearest_distance:
+                nearest_distance = distance_to_other
+                nearest_target = (food.x, food.y)
+
+        if nearest_target is None:
+            return False
+
+        step_distance = self.movement_speed * creature.traits.speed * dt * self.social_follow_strength
+        if step_distance <= 0.0:
+            return False
+
+        creature.move_towards(
+            target_x=nearest_target[0],
+            target_y=nearest_target[1],
+            max_distance=step_distance,
+        )
+        self._clamp_creature_position(creature)
+        self.social_follow_moves_last_tick += 1
+        self.total_social_follow_moves += 1
+        return True
+
+    def _social_flee_boost_multiplier(
+        self,
+        creature: Creature,
+        intents: Dict[str, CreatureIntent],
+        creatures_by_id: Dict[str, Creature],
+    ) -> float:
+        if self.social_influence_distance <= 0.0 or self.social_flee_boost_per_neighbor <= 0.0:
+            return 1.0
+
+        nearby_fleeing = 0
+        for other_id, other_intent in intents.items():
+            if other_id == creature.creature_id:
+                continue
+
+            if other_intent.action != HungerAI.ACTION_FLEE:
+                continue
+
+            other = creatures_by_id.get(other_id)
+            if other is None or not other.alive:
+                continue
+
+            if creature.distance_to(other.x, other.y) <= self.social_influence_distance:
+                nearby_fleeing += 1
+
+        if nearby_fleeing <= 0:
+            return 1.0
+
+        boost = min(self.social_flee_boost_max, nearby_fleeing * self.social_flee_boost_per_neighbor)
+        return 1.0 + boost
+
     def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
         if activity < 0:
             raise ValueError("activity must be >= 0")
@@ -424,8 +547,14 @@ class HungerSimulation:
         self._clamp_creature_position(creature)
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
-    def _flee_from(self, creature: Creature, threat: Creature, dt: float) -> None:
-        flee_distance = self.movement_speed * creature.traits.speed * dt * 1.2
+    def _flee_from(
+        self,
+        creature: Creature,
+        threat: Creature,
+        dt: float,
+        boost_multiplier: float = 1.0,
+    ) -> None:
+        flee_distance = self.movement_speed * creature.traits.speed * dt * 1.2 * max(1.0, boost_multiplier)
         if flee_distance <= 0:
             return
 
@@ -453,3 +582,4 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+

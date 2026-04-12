@@ -400,6 +400,8 @@ def format_population_dynamics(
     current_total_flees = int(stats.get("total_flees", 0))
     current_total_food_memory_guided = int(stats.get("total_food_memory_guided_moves", 0))
     current_total_danger_memory_avoid = int(stats.get("total_danger_memory_avoid_moves", 0))
+    current_total_social_follow = int(stats.get("total_social_follow_moves", 0))
+    current_total_social_flee_boost = int(stats.get("total_social_flee_boosted", 0))
 
     fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
     avg_flee_threat_distance_tick = float(stats.get("avg_flee_threat_distance_last_tick", 0.0))
@@ -415,6 +417,10 @@ def format_population_dynamics(
     food_memory_effect_tick = float(stats.get("food_memory_effect_avg_distance_tick", 0.0))
     danger_memory_effect_tick = float(stats.get("danger_memory_effect_avg_distance_tick", 0.0))
 
+    social_follow_tick = int(stats.get("social_follow_moves_last_tick", 0))
+    social_flee_boost_tick = int(stats.get("social_flee_boosted_last_tick", 0))
+    avg_social_flee_multiplier_tick = float(stats.get("avg_social_flee_multiplier_last_tick", 1.0))
+
     avg_prudence = float(stats.get("avg_prudence", 0.0))
     avg_dominance = float(stats.get("avg_dominance", 0.0))
     avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
@@ -425,6 +431,8 @@ def format_population_dynamics(
     flees_log = flees_tick
     food_memory_guided_log = food_memory_guided_tick
     danger_memory_avoid_log = danger_memory_avoid_tick
+    social_follow_log = social_follow_tick
+    social_flee_boost_log = social_flee_boost_tick
 
     if previous_stats is not None:
         previous_alive = int(previous_stats.get("alive", alive))
@@ -437,6 +445,12 @@ def format_population_dynamics(
         previous_total_danger_memory_avoid = int(
             previous_stats.get("total_danger_memory_avoid_moves", current_total_danger_memory_avoid)
         )
+        previous_total_social_follow = int(
+            previous_stats.get("total_social_follow_moves", current_total_social_follow)
+        )
+        previous_total_social_flee_boost = int(
+            previous_stats.get("total_social_flee_boosted", current_total_social_flee_boost)
+        )
 
         alive_delta = alive - previous_alive
         births_log = max(0, current_total_births - previous_total_births)
@@ -444,6 +458,8 @@ def format_population_dynamics(
         flees_log = max(0, current_total_flees - previous_total_flees)
         food_memory_guided_log = max(0, current_total_food_memory_guided - previous_total_food_memory_guided)
         danger_memory_avoid_log = max(0, current_total_danger_memory_avoid - previous_total_danger_memory_avoid)
+        social_follow_log = max(0, current_total_social_follow - previous_total_social_follow)
+        social_flee_boost_log = max(0, current_total_social_flee_boost - previous_total_social_flee_boost)
 
     net_log = births_log - deaths_log
     dynamic_log = _classify_trend(primary=alive_delta, secondary=net_log)
@@ -492,6 +508,8 @@ def format_population_dynamics(
         f"memoire_tick:utile={food_memory_guided_tick} danger={danger_memory_avoid_tick} "
         f"memoire_freq_tick:utile={food_memory_usage_alive_tick:.2f} danger={danger_memory_usage_alive_tick:.2f} "
         f"memoire_effet_tick:utile={food_memory_effect_tick:.2f} danger={danger_memory_effect_tick:.2f} "
+        f"social_log:suivi={social_follow_log} fuite_boost={social_flee_boost_log} "
+        f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} mult_fuite={avg_social_flee_multiplier_tick:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
@@ -588,3 +606,4 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+

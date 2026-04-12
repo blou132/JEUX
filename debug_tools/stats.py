@@ -91,6 +91,15 @@ def build_population_stats(
             "danger_memory_effect_avg_distance_tick": simulation.avg_danger_memory_distance_gain_last_tick,
             "food_memory_effect_avg_distance_total": avg_food_memory_distance_gain_total,
             "danger_memory_effect_avg_distance_total": avg_danger_memory_distance_gain_total,
+            "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
+            "total_social_follow_moves": simulation.total_social_follow_moves,
+            "social_flee_boosted_last_tick": simulation.social_flee_boosted_last_tick,
+            "total_social_flee_boosted": simulation.total_social_flee_boosted,
+            "avg_social_flee_multiplier_last_tick": simulation.avg_social_flee_multiplier_last_tick,
+            "social_follow_usage_per_alive_tick": 0.0,
+            "social_flee_boost_usage_per_alive_tick": 0.0,
+            "social_follow_usage_per_tick_total": 0.0,
+            "social_flee_boost_usage_per_tick_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -162,6 +171,15 @@ def build_population_stats(
         "danger_memory_effect_avg_distance_tick": simulation.avg_danger_memory_distance_gain_last_tick,
         "food_memory_effect_avg_distance_total": avg_food_memory_distance_gain_total,
         "danger_memory_effect_avg_distance_total": avg_danger_memory_distance_gain_total,
+        "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
+        "total_social_follow_moves": simulation.total_social_follow_moves,
+        "social_flee_boosted_last_tick": simulation.social_flee_boosted_last_tick,
+        "total_social_flee_boosted": simulation.total_social_flee_boosted,
+        "avg_social_flee_multiplier_last_tick": simulation.avg_social_flee_multiplier_last_tick,
+        "social_follow_usage_per_alive_tick": simulation.social_follow_moves_last_tick / alive,
+        "social_flee_boost_usage_per_alive_tick": simulation.social_flee_boosted_last_tick / alive,
+        "social_follow_usage_per_tick_total": simulation.total_social_follow_moves / max(1, simulation.tick_count),
+        "social_flee_boost_usage_per_tick_total": simulation.total_social_flee_boosted / max(1, simulation.tick_count),
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -679,3 +697,4 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
+

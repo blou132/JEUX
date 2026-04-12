@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes et pression ecologique legere sur la nourriture.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte et influence sociale locale minimale.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -28,6 +28,8 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
 - Indicateurs d'impact memoire (usage, part active, effet moyen distance) visibles en stats/syntheses.
+- Influence sociale locale minimale (suivi social vers nourriture + renforcement local de fuite).
+- Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, multiplicateur de fuite).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -142,6 +144,13 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Influence legere du comportement: en recherche de nourriture, retour vers zone utile proche; en errance, evitement bref d'une zone dangereuse proche.
 - Systeme purement local, sans pathfinding ni apprentissage complexe.
 - Indicateurs associes: frequence d'usage memoire utile/dangereuse, part de creatures avec memoire active, effet moyen de rapprochement/eloignement par tick et cumule.
+
+
+### Influence sociale locale minimale
+- Une creature peut suivre legerement un congenere proche qui se deplace vers une zone de nourriture visible.
+- Une fuite locale peut etre renforcee si d'autres creatures proches fuient au meme tick.
+- Systeme volontairement leger et local (pas de groupe complexe, pas de hierarchie, pas de pathfinding social).
+- Indicateurs associes: `social_follow_moves_last_tick`, `social_flee_boosted_last_tick`, `avg_social_flee_multiplier_last_tick`, plus les blocs `social_log` et `social_tick` dans `dynamique_*`.
 
 ### Historique batch (archive d'experiences)
 - Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
@@ -331,6 +340,7 @@ py -m unittest tests.test_export_analysis
 py -m unittest tests.test_batch_experiment_mode
 py -m unittest tests.test_batch_comparative_summary
 py -m unittest tests.test_batch_history
+py -m unittest tests.test_social_influence_behavior
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -343,6 +353,7 @@ Chaque bloc de log periodique contient:
 - `causes_deces:` faim / epuisement / autre (tick et total).
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
+- `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, multiplicateur moyen de fuite).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
@@ -403,6 +414,7 @@ Lecture rapide conseillee:
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
 - Memoire locale courte (zone utile/dangereuse) visible dans les stats/debug et testee.
 - Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
+- Influence sociale locale minimale observable dans les stats/debug (suivi social + fuite renforcee).
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
@@ -420,8 +432,4 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
-
-
-
-
 

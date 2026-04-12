@@ -85,6 +85,15 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("danger_memory_effect_avg_distance_tick", stats)
         self.assertIn("food_memory_effect_avg_distance_total", stats)
         self.assertIn("danger_memory_effect_avg_distance_total", stats)
+        self.assertIn("social_follow_moves_last_tick", stats)
+        self.assertIn("total_social_follow_moves", stats)
+        self.assertIn("social_flee_boosted_last_tick", stats)
+        self.assertIn("total_social_flee_boosted", stats)
+        self.assertIn("avg_social_flee_multiplier_last_tick", stats)
+        self.assertIn("social_follow_usage_per_alive_tick", stats)
+        self.assertIn("social_flee_boost_usage_per_alive_tick", stats)
+        self.assertIn("social_follow_usage_per_tick_total", stats)
+        self.assertIn("social_flee_boost_usage_per_tick_total", stats)
         self.assertIn("creatures_by_fertility_zone", stats)
         self.assertIn("dominant_proto_group_by_fertility_zone", stats)
         self.assertIn("proto_group_temporal_trends", stats)
@@ -114,3 +123,4 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
