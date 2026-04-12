@@ -137,6 +137,75 @@ def format_proto_groups_by_fertility_zone(stats: Dict[str, object]) -> str:
     )
 
 
+def format_proto_group_temporal(stats: Dict[str, object], max_items: int = 6) -> str:
+    if max_items <= 0:
+        raise ValueError("max_items must be > 0")
+
+    raw_trends = stats.get("proto_group_temporal_trends")
+    raw_summary = stats.get("proto_group_temporal_summary")
+
+    if not isinstance(raw_trends, list):
+        return "proto_tendance: n/a"
+
+    summary = {
+        "stable": 0,
+        "en_hausse": 0,
+        "en_baisse": 0,
+        "nouveau": 0,
+    }
+    if isinstance(raw_summary, dict):
+        summary["stable"] = int(raw_summary.get("stable", 0))
+        summary["en_hausse"] = int(raw_summary.get("en_hausse", 0))
+        summary["en_baisse"] = int(raw_summary.get("en_baisse", 0))
+        summary["nouveau"] = int(raw_summary.get("nouveau", 0))
+
+    if len(raw_trends) == 0:
+        return (
+            "proto_tendance: aucune "
+            f"(stable={summary['stable']} hausse={summary['en_hausse']} "
+            f"baisse={summary['en_baisse']} nouveau={summary['nouveau']})"
+        )
+
+    def label_for_status(status: str) -> str:
+        if status == "en_hausse":
+            return "hausse"
+        if status == "en_baisse":
+            return "baisse"
+        return status
+
+    parts: list[str] = []
+    for trend in raw_trends[:max_items]:
+        if not isinstance(trend, dict):
+            continue
+        signature = str(trend.get("signature", "?"))
+        status = label_for_status(str(trend.get("status", "?")))
+        current_share = float(trend.get("current_share", 0.0))
+        previous_share = float(trend.get("previous_share", 0.0))
+        delta_share = float(trend.get("delta_share", 0.0))
+        parts.append(
+            f"{signature}:{status}({previous_share:.2f}->{current_share:.2f},{delta_share:+.2f})"
+        )
+
+    if not parts:
+        return (
+            "proto_tendance: aucune "
+            f"(stable={summary['stable']} hausse={summary['en_hausse']} "
+            f"baisse={summary['en_baisse']} nouveau={summary['nouveau']})"
+        )
+
+    return (
+        "proto_tendance: "
+        + " ".join(parts)
+        + " "
+        + "(stable={stable} hausse={hausse} baisse={baisse} nouveau={nouveau})".format(
+            stable=summary["stable"],
+            hausse=summary["en_hausse"],
+            baisse=summary["en_baisse"],
+            nouveau=summary["nouveau"],
+        )
+    )
+
+
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
     total = _read_cause_counts(stats.get("death_causes_total"))
     last_tick = _read_cause_counts(stats.get("death_causes_last_tick"))

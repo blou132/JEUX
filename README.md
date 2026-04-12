@@ -17,6 +17,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Proto-groupes (regroupements approximatifs par traits).
 - Pression ecologique legere: distribution spatiale heterogene de nourriture (zones plus riches/pauvres).
 - Observation proto-groupes x fertilite de zone (repartition et dominants par zone).
+- Observation temporelle des proto-groupes (stable / en_hausse / en_baisse / nouveau entre logs).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -68,6 +69,11 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Proto-groupe dominant observe dans chaque type de zone.
 - Systeme purement observatoire (aucune nouvelle regle gameplay ajoutee).
 
+### Observation temporelle des proto-groupes
+- Comparaison legere des proto-groupes dominants entre deux logs consecutifs.
+- Etiquettes simples: `stable`, `en_hausse`, `en_baisse`, `nouveau`.
+- Suivi purement observatoire (aucune modification de decision gameplay).
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -103,6 +109,7 @@ py -m unittest tests.test_hunger_system
 py -m unittest tests.test_flee_behavior
 py -m unittest tests.test_food_distribution_pressure
 py -m unittest tests.test_proto_group_ecology_observation
+py -m unittest tests.test_proto_group_temporal_observation
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -110,6 +117,7 @@ Chaque bloc de log periodique contient:
 - ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits.
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
+- `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
 - `proto_zones_creatures:` repartition des creatures par zones fertiles et proto-groupe dominant par zone.
 - `causes_deces:` faim / epuisement / autre (tick et total).
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
@@ -118,7 +126,7 @@ Chaque bloc de log periodique contient:
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
-3. verifier `proto_groupes` + `proto_zones_creatures` pour les tendances evolutives locales.
+3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales.
 
 ## Roadmap actuelle
 
@@ -130,6 +138,7 @@ Lecture rapide conseillee:
 - Proto-groupes visibles en debug.
 - Pression ecologique legere sur la nourriture (heterogene, stable, testable).
 - Observation proto-groupes x fertilite (repartition + dominants par zone).
+- Observation temporelle des proto-groupes (stable/hausse/baisse/nouveau).
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

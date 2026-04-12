@@ -8,6 +8,7 @@ from simulation import HungerSimulation
 _PROTO_GROUP_WIDTH_SPEED = 0.2
 _PROTO_GROUP_WIDTH_METABOLISM = 0.15
 _PROTO_GROUP_WIDTH_BEHAVIOR = 0.25
+_PROTO_TREND_STABLE_DELTA = 0.02
 
 _ZONE_NAMES = ("rich", "neutral", "poor")
 
@@ -15,6 +16,7 @@ _ZONE_NAMES = ("rich", "neutral", "poor")
 def build_population_stats(
     simulation: HungerSimulation,
     world: object | None = None,
+    previous_stats: Dict[str, object] | None = None,
 ) -> Dict[str, object]:
     total = simulation.get_total_count()
     alive = simulation.get_alive_count()
@@ -44,6 +46,8 @@ def build_population_stats(
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
+            "proto_group_temporal_trends": [],
+            "proto_group_temporal_summary": _empty_proto_temporal_summary(),
             "creatures_by_fertility_zone": zone_distribution,
             "dominant_proto_group_by_fertility_zone": dominant_proto_by_zone,
             "births_last_tick": simulation.births_last_tick,
@@ -71,6 +75,14 @@ def build_population_stats(
         alive_creatures,
         max_groups=3,
     )
+    (
+        proto_group_temporal_trends,
+        proto_group_temporal_summary,
+    ) = _build_proto_group_temporal_observations(
+        proto_groups_top,
+        previous_stats=previous_stats,
+        max_groups=3,
+    )
 
     return {
         "population": total,
@@ -89,6 +101,8 @@ def build_population_stats(
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
+        "proto_group_temporal_trends": proto_group_temporal_trends,
+        "proto_group_temporal_summary": proto_group_temporal_summary,
         "creatures_by_fertility_zone": zone_distribution,
         "dominant_proto_group_by_fertility_zone": dominant_proto_by_zone,
         "births_last_tick": simulation.births_last_tick,
@@ -162,6 +176,112 @@ def _empty_zone_distribution() -> Dict[str, int]:
 
 def _empty_zone_dominants() -> Dict[str, Dict[str, object] | None]:
     return {zone: None for zone in _ZONE_NAMES}
+
+
+def _build_proto_group_temporal_observations(
+    current_top_groups: list[Dict[str, object]],
+    previous_stats: Dict[str, object] | None,
+    max_groups: int,
+) -> tuple[list[Dict[str, object]], Dict[str, int]]:
+    if max_groups <= 0:
+        raise ValueError("max_groups must be > 0")
+
+    previous_top_groups = _read_top_groups(previous_stats, max_groups)
+    current_groups = _read_top_groups_from_list(current_top_groups, max_groups)
+
+    previous_share_by_signature = {
+        str(group["signature"]): float(group["share"]) for group in previous_top_groups
+    }
+    current_share_by_signature = {
+        str(group["signature"]): float(group["share"]) for group in current_groups
+    }
+
+    trends: list[Dict[str, object]] = []
+    for group in current_groups:
+        signature = str(group["signature"])
+        current_share = float(group["share"])
+        previous_share = previous_share_by_signature.get(signature)
+
+        if previous_share is None:
+            status = "nouveau"
+            delta_share = current_share
+        else:
+            delta_share = current_share - previous_share
+            if abs(delta_share) <= _PROTO_TREND_STABLE_DELTA:
+                status = "stable"
+            elif delta_share > 0:
+                status = "en_hausse"
+            else:
+                status = "en_baisse"
+
+        trends.append(
+            {
+                "signature": signature,
+                "status": status,
+                "current_share": current_share,
+                "previous_share": 0.0 if previous_share is None else previous_share,
+                "delta_share": delta_share,
+            }
+        )
+
+    for signature, previous_share in previous_share_by_signature.items():
+        if signature in current_share_by_signature:
+            continue
+        trends.append(
+            {
+                "signature": signature,
+                "status": "en_baisse",
+                "current_share": 0.0,
+                "previous_share": previous_share,
+                "delta_share": -previous_share,
+            }
+        )
+
+    summary = _empty_proto_temporal_summary()
+    for trend in trends:
+        status = str(trend["status"])
+        if status in summary:
+            summary[status] += 1
+
+    return trends, summary
+
+
+def _read_top_groups(
+    stats: Dict[str, object] | None,
+    max_groups: int,
+) -> list[Dict[str, object]]:
+    if stats is None:
+        return []
+    raw = stats.get("proto_groups_top")
+    if not isinstance(raw, list):
+        return []
+    return _read_top_groups_from_list(raw, max_groups)
+
+
+def _read_top_groups_from_list(
+    groups: list[Dict[str, object]],
+    max_groups: int,
+) -> list[Dict[str, object]]:
+    parsed: list[Dict[str, object]] = []
+    for group in groups[:max_groups]:
+        if not isinstance(group, dict):
+            continue
+        parsed.append(
+            {
+                "signature": str(group.get("signature", "?")),
+                "share": float(group.get("share", 0.0)),
+            }
+        )
+    return parsed
+
+
+def _empty_proto_temporal_summary() -> Dict[str, int]:
+    return {
+        "stable": 0,
+        "en_hausse": 0,
+        "en_baisse": 0,
+        "nouveau": 0,
+    }
 
 
 def _build_proto_groups(
