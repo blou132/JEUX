@@ -204,6 +204,95 @@ class BatchExperimentModeTests(unittest.TestCase):
         assert isinstance(memory, dict)
         self.assertIn("available", memory)
 
+    def test_cli_social_batch_outputs_social_comparative(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        cmd = [
+            sys.executable,
+            "main.py",
+            "--batch-param",
+            "social_follow_strength",
+            "--batch-values",
+            "0,0.35",
+            "--batch-runs",
+            "2",
+            "--seed",
+            "100",
+            "--seed-step",
+            "3",
+            "--steps",
+            "30",
+            "--log-interval",
+            "15",
+        ]
+
+        completed = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=180,
+        )
+
+        output = completed.stdout
+        self.assertIn("param=social_follow_strength", output)
+        self.assertIn("--- Batch Comparative Summary ---", output)
+        self.assertIn("social_batch:", output)
+        self.assertIn("usage_suivi_social_max:", output)
+        self.assertIn("usage_boost_fuite_social_max:", output)
+        self.assertIn("part_creatures_influencees_max:", output)
+        self.assertIn("effet_multiplicateur_fuite_max:", output)
+
+    def test_social_batch_json_export_contains_social_comparative(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_path = Path(temp_dir) / "batch_social.json"
+            cmd = [
+                sys.executable,
+                "main.py",
+                "--batch-param",
+                "social_follow_strength",
+                "--batch-values",
+                "0,0.35",
+                "--batch-runs",
+                "2",
+                "--seed",
+                "100",
+                "--seed-step",
+                "3",
+                "--steps",
+                "30",
+                "--log-interval",
+                "15",
+                "--export-path",
+                str(export_path),
+                "--export-format",
+                "json",
+            ]
+
+            subprocess.run(
+                cmd,
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=180,
+            )
+
+            payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["mode"], "batch")
+        self.assertEqual(payload["batch_param"], "social_follow_strength")
+
+        comparative = payload.get("comparative_summary")
+        self.assertIsInstance(comparative, dict)
+        assert isinstance(comparative, dict)
+        social = comparative.get("social_comparative")
+        self.assertIsInstance(social, dict)
+        assert isinstance(social, dict)
+        self.assertIn("available", social)
+
 
 if __name__ == "__main__":
     unittest.main()

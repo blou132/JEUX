@@ -313,6 +313,94 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("usage_memoire_utile_max:", summary)
         self.assertIn("effet_memoire_dangereuse_max:", summary)
 
+    def test_batch_social_analysis_shows_social_comparative(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "social_follow_strength",
+            "batch_values": [0.0, 0.35],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 0.0,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 2.0,
+                        "avg_final_population": 8.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_social_impact": {
+                            "follow_usage_total": 1.0,
+                            "flee_boost_usage_total": 0.5,
+                            "influenced_count_last_tick": 0.0,
+                            "influenced_share_last_tick": 0.05,
+                            "influenced_per_tick": 0.1,
+                            "follow_usage_per_tick": 0.05,
+                            "flee_boost_usage_per_tick": 0.03,
+                            "flee_multiplier_avg_tick": 1.01,
+                            "flee_multiplier_avg_total": 1.02,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 0.35,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 20.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_social_impact": {
+                            "follow_usage_total": 5.0,
+                            "flee_boost_usage_total": 3.0,
+                            "influenced_count_last_tick": 3.0,
+                            "influenced_share_last_tick": 0.3,
+                            "influenced_per_tick": 0.9,
+                            "follow_usage_per_tick": 0.25,
+                            "flee_boost_usage_per_tick": 0.15,
+                            "flee_multiplier_avg_tick": 1.08,
+                            "flee_multiplier_avg_total": 1.16,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_social.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_export_payload(str(path))
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        self.assertIn("social_batch:", summary)
+        self.assertIn("usage_suivi_social_max:", summary)
+        self.assertIn("usage_boost_fuite_social_max:", summary)
+        self.assertIn("part_creatures_influencees_max:", summary)
+        self.assertIn("effet_multiplicateur_fuite_max:", summary)
+
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
@@ -368,5 +456,3 @@ class ExportAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

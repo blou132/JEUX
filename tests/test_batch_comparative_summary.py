@@ -198,6 +198,122 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("memoire_batch:", text)
         self.assertIn("donnees_memoire: n/a", text)
 
+    def test_social_param_summary_includes_social_comparatives(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 8.0,
+                    "avg_social_impact": {
+                        "follow_usage_per_tick": 0.00,
+                        "flee_boost_usage_per_tick": 0.05,
+                        "influenced_share_last_tick": 0.08,
+                        "flee_multiplier_avg_total": 1.02,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.35,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 22.0,
+                    "avg_social_impact": {
+                        "follow_usage_per_tick": 0.30,
+                        "flee_boost_usage_per_tick": 0.20,
+                        "influenced_share_last_tick": 0.35,
+                        "flee_multiplier_avg_total": 1.18,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.70,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_social_impact": {
+                        "follow_usage_per_tick": 0.45,
+                        "flee_boost_usage_per_tick": 0.18,
+                        "influenced_share_last_tick": 0.32,
+                        "flee_multiplier_avg_total": 1.22,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("social_follow_strength", scenarios)
+        social = summary.get("social_comparative")
+
+        self.assertIsInstance(social, dict)
+        assert isinstance(social, dict)
+        self.assertTrue(bool(social.get("available", False)))
+
+        follow_usage = social.get("best_social_follow_usage")
+        self.assertIsInstance(follow_usage, dict)
+        assert isinstance(follow_usage, dict)
+        self.assertEqual(follow_usage["winners"], [0.7])
+        self.assertAlmostEqual(float(follow_usage["value"]), 0.45)
+
+        flee_usage = social.get("best_social_flee_boost_usage")
+        self.assertIsInstance(flee_usage, dict)
+        assert isinstance(flee_usage, dict)
+        self.assertEqual(flee_usage["winners"], [0.35])
+        self.assertAlmostEqual(float(flee_usage["value"]), 0.20)
+
+        influenced_share = social.get("best_social_influenced_share")
+        self.assertIsInstance(influenced_share, dict)
+        assert isinstance(influenced_share, dict)
+        self.assertEqual(influenced_share["winners"], [0.35])
+        self.assertAlmostEqual(float(influenced_share["value"]), 0.35)
+
+        flee_effect = social.get("best_social_flee_multiplier_effect")
+        self.assertIsInstance(flee_effect, dict)
+        assert isinstance(flee_effect, dict)
+        self.assertEqual(flee_effect["winners"], [0.7])
+        self.assertAlmostEqual(float(flee_effect["value"]), 1.22)
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("social_batch:", text)
+        self.assertIn("usage_suivi_social_max:", text)
+        self.assertIn("usage_boost_fuite_social_max:", text)
+        self.assertIn("part_creatures_influencees_max:", text)
+        self.assertIn("effet_multiplicateur_fuite_max:", text)
+
+    def test_social_param_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 8.0,
+                },
+            },
+            {
+                "parameter_value": 0.7,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("social_follow_strength", scenarios)
+        social = summary.get("social_comparative")
+
+        self.assertIsInstance(social, dict)
+        assert isinstance(social, dict)
+        self.assertFalse(bool(social.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(social.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("social_batch:", text)
+        self.assertIn("donnees_sociales: n/a", text)
+
 
 if __name__ == "__main__":
     unittest.main()

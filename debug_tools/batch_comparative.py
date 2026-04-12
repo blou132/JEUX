@@ -10,6 +10,13 @@ _MEMORY_BATCH_PARAMS = {
     "danger_memory_avoid_distance",
 }
 
+_SOCIAL_BATCH_PARAMS = {
+    "social_influence_distance",
+    "social_follow_strength",
+    "social_flee_boost_per_neighbor",
+    "social_flee_boost_max",
+}
+
 
 def build_batch_comparative_summary(
     batch_param: str,
@@ -17,8 +24,10 @@ def build_batch_comparative_summary(
 ) -> Dict[str, object]:
     candidates: list[Dict[str, float]] = []
     memory_candidates: list[Dict[str, float]] = []
+    social_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
+    is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
 
     for scenario in scenarios:
         if not isinstance(scenario, dict):
@@ -44,6 +53,12 @@ def build_batch_comparative_summary(
                 continue
             memory_candidates.append({"value": value, **memory_metrics})
 
+        if is_social_param:
+            social_metrics = _read_social_metrics(summary_raw)
+            if social_metrics is None:
+                continue
+            social_candidates.append({"value": value, **social_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -56,6 +71,8 @@ def build_batch_comparative_summary(
         }
         if is_memory_param:
             empty["memory_comparative"] = _build_memory_comparative(memory_candidates)
+        if is_social_param:
+            empty["social_comparative"] = _build_social_comparative(social_candidates)
         return empty
 
     lowest_ext_value = min(candidate["extinction_rate"] for candidate in candidates)
@@ -113,6 +130,8 @@ def build_batch_comparative_summary(
 
     if is_memory_param:
         summary["memory_comparative"] = _build_memory_comparative(memory_candidates)
+    if is_social_param:
+        summary["social_comparative"] = _build_social_comparative(social_candidates)
 
     return summary
 
@@ -159,6 +178,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     memory_raw = summary.get("memory_comparative")
     if isinstance(memory_raw, dict):
         lines.extend(_format_memory_comparative(batch_param, memory_raw))
+
+    social_raw = summary.get("social_comparative")
+    if isinstance(social_raw, dict):
+        lines.extend(_format_social_comparative(batch_param, social_raw))
 
     return "\n".join(lines)
 
@@ -224,6 +247,67 @@ def _build_memory_comparative(memory_candidates: list[Dict[str, float]]) -> Dict
     }
 
 
+def _format_social_comparative(batch_param: str, social_summary: Dict[str, object]) -> list[str]:
+    lines = ["social_batch:"]
+
+    if not bool(social_summary.get("available", False)):
+        note = str(social_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_sociales: n/a ({note})")
+        return lines
+
+    follow_usage = _read_metric_result(social_summary.get("best_social_follow_usage"))
+    flee_boost_usage = _read_metric_result(social_summary.get("best_social_flee_boost_usage"))
+    influenced_share = _read_metric_result(social_summary.get("best_social_influenced_share"))
+    flee_multiplier = _read_metric_result(social_summary.get("best_social_flee_multiplier_effect"))
+
+    lines.append(
+        "usage_suivi_social_max: {label} (usage_moy={value:.2f})".format(
+            label=_winner_label(batch_param, follow_usage.get("winners")),
+            value=float(follow_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_boost_fuite_social_max: {label} (usage_moy={value:.2f})".format(
+            label=_winner_label(batch_param, flee_boost_usage.get("winners")),
+            value=float(flee_boost_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "part_creatures_influencees_max: {label} (part_moy={value:.2f})".format(
+            label=_winner_label(batch_param, influenced_share.get("winners")),
+            value=float(influenced_share.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "effet_multiplicateur_fuite_max: {label} (multiplicateur_moy={value:.2f})".format(
+            label=_winner_label(batch_param, flee_multiplier.get("winners")),
+            value=float(flee_multiplier.get("value", 0.0)),
+        )
+    )
+
+    return lines
+
+
+def _build_social_comparative(social_candidates: list[Dict[str, float]]) -> Dict[str, object]:
+    if len(social_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact social",
+            "best_social_follow_usage": _insufficient_metric_result(),
+            "best_social_flee_boost_usage": _insufficient_metric_result(),
+            "best_social_influenced_share": _insufficient_metric_result(),
+            "best_social_flee_multiplier_effect": _insufficient_metric_result(),
+        }
+
+    return {
+        "available": True,
+        "best_social_follow_usage": _build_peak_metric(social_candidates, "follow_usage_per_tick"),
+        "best_social_flee_boost_usage": _build_peak_metric(social_candidates, "flee_boost_usage_per_tick"),
+        "best_social_influenced_share": _build_peak_metric(social_candidates, "influenced_share_last_tick"),
+        "best_social_flee_multiplier_effect": _build_peak_metric(social_candidates, "flee_multiplier_avg_total"),
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -265,6 +349,28 @@ def _read_memory_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | N
         "danger_usage_total": float(avg_memory_raw.get("danger_usage_total", 0.0)),
         "food_effect_avg_distance": float(avg_memory_raw.get("food_effect_avg_distance", 0.0)),
         "danger_effect_avg_distance": float(avg_memory_raw.get("danger_effect_avg_distance", 0.0)),
+    }
+
+
+def _read_social_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_social_raw = summary_raw.get("avg_social_impact")
+    if not isinstance(avg_social_raw, dict):
+        return None
+
+    required = (
+        "follow_usage_per_tick",
+        "flee_boost_usage_per_tick",
+        "influenced_share_last_tick",
+        "flee_multiplier_avg_total",
+    )
+    if any(key not in avg_social_raw for key in required):
+        return None
+
+    return {
+        "follow_usage_per_tick": float(avg_social_raw.get("follow_usage_per_tick", 0.0)),
+        "flee_boost_usage_per_tick": float(avg_social_raw.get("flee_boost_usage_per_tick", 0.0)),
+        "influenced_share_last_tick": float(avg_social_raw.get("influenced_share_last_tick", 0.0)),
+        "flee_multiplier_avg_total": float(avg_social_raw.get("flee_multiplier_avg_total", 1.0)),
     }
 
 

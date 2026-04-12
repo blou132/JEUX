@@ -24,6 +24,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Interpretation batch memoire (pour parametres memoire) avec comparatifs usage/effet.
+- Interpretation batch sociale (pour parametres sociaux) avec comparatifs usage/part/effet.
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
@@ -135,6 +136,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - plus forte utilisation memoire dangereuse
   - plus grand effet moyen memoire utile
   - plus grand effet moyen memoire dangereuse
+  - signalement explicite si donnees insuffisantes
+- Pour les batchs sur parametres sociaux (`social_influence_distance`, `social_follow_strength`, `social_flee_boost_per_neighbor`, `social_flee_boost_max`):
+  - plus forte frequence de suivi social
+  - plus forte frequence de boost de fuite social
+  - plus grande part de creatures influencees
+  - plus grand effet moyen du multiplicateur de fuite social
   - signalement explicite si donnees insuffisantes
 - Aucun changement gameplay (mode purement observatoire).
 
@@ -309,6 +316,11 @@ usage_memoire_utile_max: food_memory_duration=8.0 (usage_moy=4.30)
 usage_memoire_dangereuse_max: food_memory_duration=8.0 (usage_moy=2.10)
 effet_memoire_utile_max: food_memory_duration=8.0 (effet_moy=1.15)
 effet_memoire_dangereuse_max: food_memory_duration=8.0 (effet_moy=0.72)
+social_batch:
+usage_suivi_social_max: social_follow_strength=0.7 (usage_moy=0.31)
+usage_boost_fuite_social_max: social_follow_strength=0.35 (usage_moy=0.21)
+part_creatures_influencees_max: social_follow_strength=0.7 (part_moy=0.28)
+effet_multiplicateur_fuite_max: social_follow_strength=0.7 (multiplicateur_moy=1.18)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -386,6 +398,7 @@ En mode batch:
 - bloc `--- Batch Summary ---` avec agregats comparables entre valeurs.
 - bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
 - si le parametre batch est un parametre memoire, le bloc inclut aussi les comparatifs memoire (`memoire_batch`).
+- si le parametre batch est un parametre social, le bloc inclut aussi les comparatifs sociaux (`social_batch`).
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -400,6 +413,7 @@ Avec les outils d'analyse:
 - pour observer la memoire locale en run: suivre `memoire_active`, `memoire_part`, `memoire_tick`, `memoire_freq_tick`, `memoire_effet_tick` et `memoire_log` dans la ligne `dynamique_*`.
 - pour comparer memoire active vs neutralisee: relancer avec `--food-memory-duration 0 --danger-memory-duration 0` puis comparer `memoire:*` et la synthese finale.
 - pour comparer influence sociale active vs neutralisee: relancer avec `--social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0` puis comparer `social_*` et les blocs `social:`/`social_moy:`.
+- pour un batch social, verifier dans `Batch Comparative Summary` le bloc `social_batch` (usage suivi, usage boost fuite, part influencee, effet multiplicateur).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -429,6 +443,7 @@ Lecture rapide conseillee:
 - Mode batch experimental pour comparer l'effet de valeurs de parametres existants.
 - Interpretation automatique legere des resultats batch (comparative summary).
 - Interpretation batch memoire (usage/effet utiles et dangereux) pour les parametres memoire.
+- Interpretation batch sociale (suivi/fuite/part influencee/effet multiplicateur) pour les parametres sociaux.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
@@ -453,5 +468,3 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
-
-
