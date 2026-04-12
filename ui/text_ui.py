@@ -256,6 +256,56 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         repro=traits["repro_drive"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
+def format_multi_run_summary(summary: Dict[str, object]) -> str:
+    seeds_raw = summary.get("seeds")
+    traits_raw = summary.get("avg_final_traits")
+
+    seeds: list[int] = []
+    if isinstance(seeds_raw, list):
+        seeds = [int(seed) for seed in seeds_raw]
+
+    traits = {
+        "speed": 0.0,
+        "metabolism": 0.0,
+        "prudence": 0.0,
+        "dominance": 0.0,
+        "repro_drive": 0.0,
+    }
+    if isinstance(traits_raw, dict):
+        traits["speed"] = float(traits_raw.get("speed", 0.0))
+        traits["metabolism"] = float(traits_raw.get("metabolism", 0.0))
+        traits["prudence"] = float(traits_raw.get("prudence", 0.0))
+        traits["dominance"] = float(traits_raw.get("dominance", 0.0))
+        traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
+
+    seeds_text = ",".join(str(seed) for seed in seeds)
+
+    return (
+        "multi_runs: runs={runs} seeds=[{seeds}] "
+        "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
+        "gen_max_moy={avg_gen:.2f} "
+        "pop_finale_moy={avg_pop:.2f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
+    ).format(
+        runs=int(summary.get("runs", 0)),
+        seeds=seeds_text,
+        ext_count=int(summary.get("extinction_count", 0)),
+        ext_rate=float(summary.get("extinction_rate", 0.0)),
+        avg_gen=float(summary.get("avg_max_generation", 0.0)),
+        avg_pop=float(summary.get("avg_final_population", 0.0)),
+        speed=traits["speed"],
+        metabolism=traits["metabolism"],
+        prudence=traits["prudence"],
+        dominance=traits["dominance"],
+        repro=traits["repro_drive"],
+        dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
+        dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
+        dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
+    )
+
+
+
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
     total = _read_cause_counts(stats.get("death_causes_total"))
     last_tick = _read_cause_counts(stats.get("death_causes_last_tick"))
@@ -445,4 +495,6 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+
+
 

@@ -2,6 +2,7 @@ from .hunger_debug import build_hunger_snapshot
 from .stats import (
     build_final_run_summary,
     build_generation_distribution,
+    build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
     update_proto_temporal_tracker,
@@ -14,4 +15,5 @@ __all__ = [
     "create_proto_temporal_tracker",
     "update_proto_temporal_tracker",
     "build_final_run_summary",
+    "build_multi_run_summary",
 ]

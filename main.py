@@ -9,6 +9,7 @@ from creatures import create_initial_population
 from debug_tools import (
     build_final_run_summary,
     build_generation_distribution,
+    build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
     update_proto_temporal_tracker,
@@ -19,6 +20,7 @@ from ui import (
     format_death_causes,
     format_final_run_summary,
     format_generation_distribution,
+    format_multi_run_summary,
     format_population_dynamics,
     format_proto_group_temporal,
     format_proto_groups,
@@ -35,6 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dt", type=float, default=1.0)
     parser.add_argument("--log-interval", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
+
+    parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument("--seed-step", type=int, default=1)
 
     parser.add_argument("--map-width", type=float, default=60.0)
     parser.add_argument("--map-height", type=float, default=40.0)
@@ -65,6 +70,11 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.log_interval <= 0:
         raise ValueError("log_interval must be > 0")
 
+    if args.runs <= 0:
+        raise ValueError("runs must be > 0")
+    if args.seed_step <= 0:
+        raise ValueError("seed_step must be > 0")
+
     if args.map_width <= 0 or args.map_height <= 0:
         raise ValueError("map_width and map_height must be > 0")
 
@@ -90,12 +100,12 @@ def validate_args(args: argparse.Namespace) -> None:
         )
 
 
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-    validate_args(args)
+def _build_seed_list(base_seed: int, runs: int, seed_step: int) -> list[int]:
+    return [base_seed + (idx * seed_step) for idx in range(runs)]
 
-    random_source = random.Random(args.seed)
+
+def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str, object]:
+    random_source = random.Random(seed)
 
     world_map = SimpleMap(width=args.map_width, height=args.map_height)
     world = SimpleWorld(
@@ -136,15 +146,16 @@ def main() -> None:
         log_interval=args.log_interval,
     )
 
-    header_config: Dict[str, float | int] = {
-        "map_width": world_map.width,
-        "map_height": world_map.height,
-        "creature_count": args.creatures,
-        "initial_food_count": args.initial_food,
-        "steps": run_config.steps,
-        "dt": run_config.dt,
-    }
-    print_run_header(header_config)
+    if verbose:
+        header_config: Dict[str, float | int] = {
+            "map_width": world_map.width,
+            "map_height": world_map.height,
+            "creature_count": args.creatures,
+            "initial_food_count": args.initial_food,
+            "steps": run_config.steps,
+            "dt": run_config.dt,
+        }
+        print_run_header(header_config)
 
     previous_logged_stats: Dict[str, object] | None = None
     proto_temporal_tracker = create_proto_temporal_tracker()
@@ -161,27 +172,30 @@ def main() -> None:
             )
             update_proto_temporal_tracker(proto_temporal_tracker, stats)
 
-            generations = build_generation_distribution(simulation)
-            print(format_stats_line(tick, stats))
-            print("     " + format_generation_distribution(generations, max_bins=10))
-            print("     " + format_proto_groups(stats, max_groups=3))
-            print("     " + format_proto_group_temporal(stats, max_items=6))
-            print("     " + format_proto_groups_by_fertility_zone(stats))
-            print("     " + format_death_causes(stats, include_tick=True))
-            print("     " + format_population_dynamics(stats, previous_logged_stats))
-            zone_stats = world.get_food_zone_stats()
-            print(
-                "     zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
-                    rich=int(zone_stats["rich"]),
-                    neutral=int(zone_stats["neutral"]),
-                    poor=int(zone_stats["poor"]),
-                    avg=float(zone_stats["avg_fertility"]),
+            if verbose:
+                generations = build_generation_distribution(simulation)
+                print(format_stats_line(tick, stats))
+                print("     " + format_generation_distribution(generations, max_bins=10))
+                print("     " + format_proto_groups(stats, max_groups=3))
+                print("     " + format_proto_group_temporal(stats, max_items=6))
+                print("     " + format_proto_groups_by_fertility_zone(stats))
+                print("     " + format_death_causes(stats, include_tick=True))
+                print("     " + format_population_dynamics(stats, previous_logged_stats))
+                zone_stats = world.get_food_zone_stats()
+                print(
+                    "     zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
+                        rich=int(zone_stats["rich"]),
+                        neutral=int(zone_stats["neutral"]),
+                        poor=int(zone_stats["poor"]),
+                        avg=float(zone_stats["avg_fertility"]),
+                    )
                 )
-            )
+
             previous_logged_stats = stats
 
         if simulation.get_alive_count() == 0:
-            print(f"All creatures are dead at tick {tick}.")
+            if verbose:
+                print(f"All creatures are dead at tick {tick}.")
             break
 
     final_stats = build_population_stats(
@@ -193,43 +207,112 @@ def main() -> None:
     generations = build_generation_distribution(simulation)
     run_summary = build_final_run_summary(final_stats, proto_temporal_tracker)
 
-    print("--- Final Stats ---")
-    print(
-        "population={population} alive={alive} dead={dead} food_left={food_left:.1f} births={births} deaths={deaths}".format(
-            population=final_stats["population"],
-            alive=final_stats["alive"],
-            dead=final_stats["dead"],
-            food_left=float(final_stats["food_remaining"]),
-            births=final_stats["total_births"],
-            deaths=final_stats["total_deaths"],
+    if verbose:
+        print("--- Final Stats ---")
+        print(
+            "population={population} alive={alive} dead={dead} food_left={food_left:.1f} births={births} deaths={deaths}".format(
+                population=final_stats["population"],
+                alive=final_stats["alive"],
+                dead=final_stats["dead"],
+                food_left=float(final_stats["food_remaining"]),
+                births=final_stats["total_births"],
+                deaths=final_stats["total_deaths"],
+            )
         )
-    )
-    print(
-        "avg_energy={avg_energy:.2f} avg_age={avg_age:.2f} avg_generation={avg_generation:.2f} avg_speed={avg_speed:.3f} avg_metabolism={avg_metabolism:.3f}".format(
-            avg_energy=float(final_stats["avg_energy"]),
-            avg_age=float(final_stats["avg_age"]),
-            avg_generation=float(final_stats["avg_generation"]),
-            avg_speed=float(final_stats["avg_speed"]),
-            avg_metabolism=float(final_stats["avg_metabolism"]),
+        print(
+            "avg_energy={avg_energy:.2f} avg_age={avg_age:.2f} avg_generation={avg_generation:.2f} avg_speed={avg_speed:.3f} avg_metabolism={avg_metabolism:.3f}".format(
+                avg_energy=float(final_stats["avg_energy"]),
+                avg_age=float(final_stats["avg_age"]),
+                avg_generation=float(final_stats["avg_generation"]),
+                avg_speed=float(final_stats["avg_speed"]),
+                avg_metabolism=float(final_stats["avg_metabolism"]),
+            )
         )
-    )
-    print(
-        "zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
-            rich=int(final_zone_stats["rich"]),
-            neutral=int(final_zone_stats["neutral"]),
-            poor=int(final_zone_stats["poor"]),
-            avg=float(final_zone_stats["avg_fertility"]),
+        print(
+            "zones_nourriture: riches={rich} neutres={neutral} pauvres={poor} fert_moy={avg:.2f}".format(
+                rich=int(final_zone_stats["rich"]),
+                neutral=int(final_zone_stats["neutral"]),
+                poor=int(final_zone_stats["poor"]),
+                avg=float(final_zone_stats["avg_fertility"]),
+            )
         )
-    )
-    print(format_generation_distribution(generations, max_bins=30))
-    print(format_proto_groups(final_stats, max_groups=6))
-    print(format_proto_group_temporal(final_stats, max_items=10))
-    print(format_proto_groups_by_fertility_zone(final_stats))
-    print(format_death_causes(final_stats, include_tick=False))
-    print(format_population_dynamics(final_stats, previous_logged_stats))
+        print(format_generation_distribution(generations, max_bins=30))
+        print(format_proto_groups(final_stats, max_groups=6))
+        print(format_proto_group_temporal(final_stats, max_items=10))
+        print(format_proto_groups_by_fertility_zone(final_stats))
+        print(format_death_causes(final_stats, include_tick=False))
+        print(format_population_dynamics(final_stats, previous_logged_stats))
 
-    print("--- Run Summary ---")
-    print(format_final_run_summary(run_summary))
+        print("--- Run Summary ---")
+        print(format_final_run_summary(run_summary))
+
+    max_generation = max((creature.generation for creature in simulation.creatures), default=0)
+    return {
+        "seed": seed,
+        "extinct": simulation.get_alive_count() == 0,
+        "max_generation": max_generation,
+        "final_alive": int(final_stats["alive"]),
+        "final_population": int(final_stats["population"]),
+        "final_stats": final_stats,
+        "run_summary": run_summary,
+    }
+
+
+def _run_multi(args: argparse.Namespace) -> None:
+    seeds = _build_seed_list(args.seed, args.runs, args.seed_step)
+
+    print("=== Multi-Run Mode ===")
+    print(
+        "runs={runs} steps={steps} dt={dt} log_interval={log_interval}".format(
+            runs=args.runs,
+            steps=args.steps,
+            dt=args.dt,
+            log_interval=args.log_interval,
+        )
+    )
+    print("seeds: " + ",".join(str(seed) for seed in seeds))
+
+    results: list[Dict[str, object]] = []
+
+    for idx, seed in enumerate(seeds, start=1):
+        result = _run_single(args, seed=seed, verbose=False)
+        results.append(result)
+
+        run_summary = result.get("run_summary")
+        dominant_signature = "-"
+        dominant_share = 0.0
+        if isinstance(run_summary, dict):
+            dominant_signature = str(run_summary.get("final_dominant_group_signature", "-"))
+            dominant_share = float(run_summary.get("final_dominant_group_share", 0.0))
+
+        print(
+            "run {idx}/{total} seed={seed} extinct={extinct} max_gen={max_gen} alive_final={alive} dominant={dominant} part={part:.2f}".format(
+                idx=idx,
+                total=args.runs,
+                seed=seed,
+                extinct="yes" if bool(result.get("extinct", False)) else "no",
+                max_gen=int(result.get("max_generation", 0)),
+                alive=int(result.get("final_alive", 0)),
+                dominant=dominant_signature,
+                part=dominant_share,
+            )
+        )
+
+    summary = build_multi_run_summary(results)
+    print("--- Multi-Run Summary ---")
+    print(format_multi_run_summary(summary))
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    validate_args(args)
+
+    if args.runs <= 1:
+        _run_single(args, seed=args.seed, verbose=True)
+        return
+
+    _run_multi(args)
 
 
 if __name__ == "__main__":

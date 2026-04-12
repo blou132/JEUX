@@ -19,6 +19,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation proto-groupes x fertilite de zone (repartition et dominants par zone).
 - Observation temporelle des proto-groupes (stable / en_hausse / en_baisse / nouveau entre logs).
 - Synthese finale de run orientee comparaison de seeds.
+- Mode multi-runs optionnel pour comparer automatiquement plusieurs seeds.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -83,6 +84,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Rappel des moyennes de traits principales.
 - Resume lisible pour comparer rapidement plusieurs seeds.
 
+### Mode multi-runs (comparaison seeds)
+- Lance automatiquement N runs avec seeds deterministes.
+- Reutilise la synthese finale de chaque run.
+- Produit un resume agrege: taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
+- Systeme purement observatoire (aucune mecanique gameplay ajoutee).
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -98,8 +105,14 @@ Exemple utile (run court, seed fixe):
 py main.py --steps 120 --log-interval 20 --seed 42
 ```
 
+Exemple multi-runs (comparaison de seeds):
+```powershell
+py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
 Parametres CLI principaux:
 - `--steps`, `--dt`, `--log-interval`, `--seed`
+- `--runs`, `--seed-step`
 - `--map-width`, `--map-height`
 - `--creatures`, `--initial-food`, `--min-food`
 - `--energy-drain-rate`, `--movement-speed`, `--eat-rate`, `--hunger-threshold`
@@ -120,6 +133,7 @@ py -m unittest tests.test_food_distribution_pressure
 py -m unittest tests.test_proto_group_ecology_observation
 py -m unittest tests.test_proto_group_temporal_observation
 py -m unittest tests.test_run_final_summary
+py -m unittest tests.test_multi_run_mode
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -136,11 +150,15 @@ Chaque bloc de log periodique contient:
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales et traits moyens.
 
+En mode multi-runs:
+- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
+
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
-4. verifier `Run Summary` pour comparer rapidement plusieurs seeds.
+4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
+5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds en une commande.
 
 ## Roadmap actuelle
 
@@ -154,6 +172,7 @@ Lecture rapide conseillee:
 - Observation proto-groupes x fertilite (repartition + dominants par zone).
 - Observation temporelle des proto-groupes (stable/hausse/baisse/nouveau).
 - Synthese finale de run orientee comparaison de seeds.
+- Mode multi-runs optionnel avec resume agrege compare-seeds.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

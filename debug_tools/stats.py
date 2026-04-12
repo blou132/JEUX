@@ -195,6 +195,96 @@ def build_final_run_summary(
     }
 
 
+def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[str, object]:
+    runs = list(run_results)
+    run_count = len(runs)
+    if run_count == 0:
+        return {
+            "runs": 0,
+            "seeds": [],
+            "extinction_count": 0,
+            "extinction_rate": 0.0,
+            "avg_max_generation": 0.0,
+            "avg_final_population": 0.0,
+            "avg_final_traits": {
+                "speed": 0.0,
+                "metabolism": 0.0,
+                "prudence": 0.0,
+                "dominance": 0.0,
+                "repro_drive": 0.0,
+            },
+            "most_frequent_final_dominant_group": "-",
+            "most_frequent_final_dominant_group_count": 0,
+            "most_frequent_final_dominant_group_share": 0.0,
+        }
+
+    seeds: list[int] = []
+    extinction_count = 0
+    max_generation_sum = 0.0
+    final_population_sum = 0.0
+
+    avg_traits_acc = {
+        "speed": 0.0,
+        "metabolism": 0.0,
+        "prudence": 0.0,
+        "dominance": 0.0,
+        "repro_drive": 0.0,
+    }
+
+    dominant_frequency: Dict[str, int] = {}
+
+    for run in runs:
+        seeds.append(int(run.get("seed", 0)))
+
+        if bool(run.get("extinct", False)):
+            extinction_count += 1
+
+        max_generation_sum += float(run.get("max_generation", 0.0))
+        final_population_sum += float(run.get("final_alive", 0.0))
+
+        run_summary = run.get("run_summary")
+        if isinstance(run_summary, dict):
+            signature = str(run_summary.get("final_dominant_group_signature", "-"))
+            if signature != "-":
+                dominant_frequency[signature] = dominant_frequency.get(signature, 0) + 1
+
+            traits_raw = run_summary.get("avg_traits")
+            if isinstance(traits_raw, dict):
+                avg_traits_acc["speed"] += float(traits_raw.get("speed", 0.0))
+                avg_traits_acc["metabolism"] += float(traits_raw.get("metabolism", 0.0))
+                avg_traits_acc["prudence"] += float(traits_raw.get("prudence", 0.0))
+                avg_traits_acc["dominance"] += float(traits_raw.get("dominance", 0.0))
+                avg_traits_acc["repro_drive"] += float(traits_raw.get("repro_drive", 0.0))
+
+    if dominant_frequency:
+        dominant_signature, dominant_count = sorted(
+            dominant_frequency.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[0]
+    else:
+        dominant_signature, dominant_count = "-", 0
+
+    return {
+        "runs": run_count,
+        "seeds": seeds,
+        "extinction_count": extinction_count,
+        "extinction_rate": extinction_count / run_count,
+        "avg_max_generation": max_generation_sum / run_count,
+        "avg_final_population": final_population_sum / run_count,
+        "avg_final_traits": {
+            "speed": avg_traits_acc["speed"] / run_count,
+            "metabolism": avg_traits_acc["metabolism"] / run_count,
+            "prudence": avg_traits_acc["prudence"] / run_count,
+            "dominance": avg_traits_acc["dominance"] / run_count,
+            "repro_drive": avg_traits_acc["repro_drive"] / run_count,
+        },
+        "most_frequent_final_dominant_group": dominant_signature,
+        "most_frequent_final_dominant_group_count": dominant_count,
+        "most_frequent_final_dominant_group_share": dominant_count / run_count,
+    }
+
+
+
 def _build_proto_zone_observations(
     creatures: Iterable[Creature],
     world: object | None,
@@ -491,3 +581,5 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
+
+
