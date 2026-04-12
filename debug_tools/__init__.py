@@ -2,6 +2,12 @@ from .batch_comparative import (
     build_batch_comparative_summary,
     format_batch_comparative_summary,
 )
+from .batch_history import (
+    append_batch_history,
+    build_batch_history_entry,
+    format_batch_history_summary,
+    load_batch_history,
+)
 from .export_results import (
     build_batch_experiment_export,
     build_multi_run_export,
@@ -31,5 +37,9 @@ __all__ = [
     "build_batch_experiment_export",
     "build_batch_comparative_summary",
     "format_batch_comparative_summary",
+    "build_batch_history_entry",
+    "append_batch_history",
+    "load_batch_history",
+    "format_batch_history_summary",
     "export_results",
 ]

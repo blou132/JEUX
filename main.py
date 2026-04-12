@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import argparse
 import random
+from datetime import datetime, timezone
 from typing import Dict
 
 from ai import HungerAI
 from creatures import create_initial_population
 from debug_tools import (
+    append_batch_history,
+    build_batch_history_entry,
     build_batch_comparative_summary,
     build_batch_experiment_export,
     build_final_run_summary,
@@ -68,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-param", type=str, choices=_BATCH_PARAM_NAMES, default=None)
     parser.add_argument("--batch-values", type=str, default=None)
     parser.add_argument("--batch-runs", type=int, default=3)
+    parser.add_argument("--batch-history-path", type=str, default=None)
+    parser.add_argument("--batch-id", type=str, default=None)
 
     parser.add_argument("--export-path", type=str, default=None)
     parser.add_argument("--export-format", type=str, choices=_DEF_EXPORT_FORMATS, default="json")
@@ -116,6 +121,18 @@ def validate_args(args: argparse.Namespace) -> None:
         if args.batch_values is None or str(args.batch_values).strip() == "":
             raise ValueError("batch_values must be provided when batch_param is set")
         _parse_batch_values(args.batch_values, args.batch_param)
+
+    if args.batch_history_path is not None:
+        if str(args.batch_history_path).strip() == "":
+            raise ValueError("batch_history_path cannot be empty")
+        if args.batch_param is None:
+            raise ValueError("batch_history_path requires batch mode")
+
+    if args.batch_id is not None:
+        if str(args.batch_id).strip() == "":
+            raise ValueError("batch_id cannot be empty")
+        if args.batch_history_path is None:
+            raise ValueError("batch_id requires batch_history_path")
 
     if args.export_path is not None and str(args.export_path).strip() == "":
         raise ValueError("export_path cannot be empty")
@@ -197,6 +214,21 @@ def _emit_export_if_needed(args: argparse.Namespace, payload: Dict[str, object])
     output_path = export_results(payload, args.export_path, args.export_format)
     print(f"export: {output_path} ({args.export_format})")
 
+
+
+def _build_default_batch_id() -> str:
+    now = datetime.now(timezone.utc)
+    return now.strftime("batch_%Y%m%d_%H%M%S")
+
+
+def _append_batch_history_if_needed(args: argparse.Namespace, batch_payload: Dict[str, object]) -> None:
+    if args.batch_history_path is None:
+        return
+
+    batch_id = _build_default_batch_id() if args.batch_id is None else str(args.batch_id)
+    entry = build_batch_history_entry(batch_id=batch_id, batch_payload=batch_payload)
+    history_path = append_batch_history(args.batch_history_path, entry)
+    print(f"batch_history: {history_path} id={batch_id}")
 
 def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str, object]:
     random_source = random.Random(seed)
@@ -501,6 +533,7 @@ def _run_batch(args: argparse.Namespace) -> None:
         comparative_summary=comparative_summary,
     )
     _emit_export_if_needed(args, export_payload)
+    _append_batch_history_if_needed(args, export_payload)
 
 
 def main() -> None:
@@ -523,6 +556,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
 
 
 

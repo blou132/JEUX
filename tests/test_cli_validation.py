@@ -16,6 +16,8 @@ class CliValidationTests(unittest.TestCase):
             "batch_param": None,
             "batch_values": None,
             "batch_runs": 3,
+            "batch_history_path": None,
+            "batch_id": None,
             "export_path": None,
             "export_format": "json",
             "map_width": 60.0,
@@ -62,6 +64,29 @@ class CliValidationTests(unittest.TestCase):
             validate_args(self._valid_args(batch_param="energy_drain_rate", batch_values=None))
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(batch_param="energy_drain_rate", batch_values="abc"))
+
+    def test_invalid_batch_history_args_raise(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(batch_history_path="history.json"))
+        with self.assertRaises(ValueError):
+            validate_args(
+                self._valid_args(
+                    batch_param="energy_drain_rate",
+                    batch_values="1.0,1.2",
+                    batch_history_path="   ",
+                )
+            )
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(batch_id="exp_001"))
+        with self.assertRaises(ValueError):
+            validate_args(
+                self._valid_args(
+                    batch_param="energy_drain_rate",
+                    batch_values="1.0,1.2",
+                    batch_history_path="history.json",
+                    batch_id="   ",
+                )
+            )
 
     def test_invalid_export_args_raise(self) -> None:
         with self.assertRaises(ValueError):

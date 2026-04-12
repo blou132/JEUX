@@ -24,6 +24,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
+- Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -35,7 +36,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - `world/`: carte, ressources nourriture, fertilite spatiale.
 - `player/`: configuration de run.
 - `ui/`: formatage des logs texte.
-- `debug_tools/`: calcul d'indicateurs, syntheses, export et analyse d'exports.
+- `debug_tools/`: calcul d'indicateurs, syntheses, export, analyse d'exports et historique batch.
 - `save/`: reserve pour plus tard (non active dans le MVP courant).
 
 ## Fonctionnalites validees
@@ -98,7 +99,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Export du resume final d'un run simple.
 - Export du resume multi-runs avec agregats + details par run.
 - Export du resume batch experimental (agregats par valeur + details de runs).
-- Export de la synthese comparative batch (comparative_summary).
+- Export de la synthese comparative batch (`comparative_summary`).
 - Formats disponibles: `json` (structure complete) et `csv` (aplati lisible).
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
@@ -126,6 +127,17 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - gestion explicite des egalites
 - Aucun changement gameplay (mode purement observatoire).
 
+### Historique batch (archive d'experiences)
+- Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
+- Chaque entree contient au minimum:
+  - identifiant (`id`)
+  - date UTC d'enregistrement
+  - parametre et valeurs testees
+  - runs par valeur + seed de base
+  - synthese comparative batch
+- Lecture et resume rapide via un outil CLI dedie (`analyze_batch_history.py`).
+- Systeme purement observatoire (aucune mecanique gameplay ajoutee).
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -151,6 +163,11 @@ Exemple batch experimental:
 py main.py --batch-param energy_drain_rate --batch-values 1.0,1.2,1.4 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
+Exemple batch + archivage historique:
+```powershell
+py main.py --batch-param energy_drain_rate --batch-values 1.0,1.2,1.4 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20 --batch-history-path outputs/batch_history.json --batch-id exp_001
+```
+
 Exemple export JSON (run simple):
 ```powershell
 py main.py --seed 42 --steps 120 --log-interval 20 --export-path outputs/run_42.json --export-format json
@@ -170,6 +187,7 @@ Parametres CLI principaux:
 - `--steps`, `--dt`, `--log-interval`, `--seed`
 - `--runs`, `--seed-step`
 - `--batch-param`, `--batch-values`, `--batch-runs`
+- `--batch-history-path`, `--batch-id`
 - `--export-path`, `--export-format`
 - `--map-width`, `--map-height`
 - `--creatures`, `--initial-food`, `--min-food`
@@ -200,6 +218,19 @@ py analyze_export.py outputs/multi_42.csv --format csv
 
 Le script affiche un resume texte exploitable sans dependre des logs complets du run.
 
+## Outil d'analyse de l'historique batch
+Commande de base:
+```powershell
+py analyze_batch_history.py outputs/batch_history.json
+```
+
+Limiter le nombre d'entrees affichees:
+```powershell
+py analyze_batch_history.py outputs/batch_history.json --max 10
+```
+
+Ce script permet de relire rapidement plusieurs campagnes batch archivees.
+
 ## Exemple de sortie batch comparative
 ```text
 --- Batch Comparative Summary ---
@@ -229,6 +260,7 @@ py -m unittest tests.test_export_results
 py -m unittest tests.test_export_analysis
 py -m unittest tests.test_batch_experiment_mode
 py -m unittest tests.test_batch_comparative_summary
+py -m unittest tests.test_batch_history
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -253,12 +285,16 @@ En mode batch:
 - bloc `--- Batch Summary ---` avec agregats comparables entre valeurs.
 - bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
 
+En mode historique batch:
+- ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
+
 En mode export:
 - ligne `export: <chemin> (<format>)` en fin d'execution.
 - le contenu exporte reprend les memes syntheses que la console (run simple, multi-runs, batch).
 
-Avec l'outil d'analyse:
-- `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export (utile pour comparer des runs sans relancer la simulation).
+Avec les outils d'analyse:
+- `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export.
+- `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees.
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -267,7 +303,8 @@ Lecture rapide conseillee:
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
 5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds,
 6. en mode batch, comparer les lignes du `Batch Summary` puis valider `Batch Comparative Summary`,
-7. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
+7. en mode historique, suivre les campagnes via `analyze_batch_history.py`,
+8. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
 
 ## Roadmap actuelle
 
@@ -286,6 +323,7 @@ Lecture rapide conseillee:
 - Outil CLI d'analyse des exports pour resume hors console.
 - Mode batch experimental pour comparer l'effet de valeurs de parametres existants.
 - Interpretation automatique legere des resultats batch (comparative summary).
+- Historique batch leger (archivage multi-campagnes + outil de lecture).
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
