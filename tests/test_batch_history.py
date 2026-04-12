@@ -8,7 +8,9 @@ from debug_tools.batch_history import (
     append_batch_history,
     build_batch_history_entry,
     build_batch_history_global_summary,
+    build_batch_history_parameter_impact_summary,
     format_batch_history_global_summary,
+    format_batch_history_parameter_impact_summary,
     format_batch_history_summary,
     load_batch_history,
 )
@@ -73,6 +75,8 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("comparatif:", summary_text)
             self.assertIn("historique_batch_comparatif:", summary_text)
             self.assertIn("campagnes_archivees=1", summary_text)
+            self.assertIn("historique_batch_parametres:", summary_text)
+            self.assertIn("parametre=energy_drain_rate", summary_text)
 
     def test_global_summary_multiple_campaigns(self) -> None:
         history = {
@@ -125,6 +129,101 @@ class BatchHistoryTests(unittest.TestCase):
         self.assertIn("campagne_meilleure_gen_max_moy=exp_beta", text)
         self.assertIn("campagne_meilleure_pop_finale_moy=exp_alpha", text)
         self.assertIn("campagne_plus_faible_taux_extinction=egalite[exp_alpha,exp_beta]", text)
+
+    def test_parameter_impact_summary_by_parameter(self) -> None:
+        history = {
+            "schema_version": 1,
+            "experiments": [
+                {
+                    "id": "exp_a1",
+                    "batch_param": "energy_drain_rate",
+                    "scenario_summaries": [
+                        {
+                            "parameter_value": 1.0,
+                            "extinction_rate": 0.0,
+                            "avg_max_generation": 3.0,
+                            "avg_final_population": 40.0,
+                        },
+                        {
+                            "parameter_value": 1.2,
+                            "extinction_rate": 0.2,
+                            "avg_max_generation": 4.0,
+                            "avg_final_population": 35.0,
+                        },
+                    ],
+                },
+                {
+                    "id": "exp_a2",
+                    "batch_param": "energy_drain_rate",
+                    "scenario_summaries": [
+                        {
+                            "parameter_value": 1.0,
+                            "extinction_rate": 0.1,
+                            "avg_max_generation": 2.0,
+                            "avg_final_population": 42.0,
+                        },
+                        {
+                            "parameter_value": 1.2,
+                            "extinction_rate": 0.3,
+                            "avg_max_generation": 5.0,
+                            "avg_final_population": 33.0,
+                        },
+                    ],
+                },
+                {
+                    "id": "exp_b1",
+                    "batch_param": "reproduction_cost",
+                    "scenario_summaries": [
+                        {
+                            "parameter_value": 5.0,
+                            "extinction_rate": 0.2,
+                            "avg_max_generation": 4.0,
+                            "avg_final_population": 30.0,
+                        },
+                        {
+                            "parameter_value": 6.0,
+                            "extinction_rate": 0.2,
+                            "avg_max_generation": 4.0,
+                            "avg_final_population": 30.0,
+                        },
+                    ],
+                },
+                {
+                    "id": "exp_c1",
+                    "batch_param": "mutation_variation",
+                    "scenario_summaries": [],
+                    "comparative_summary": {},
+                },
+            ],
+        }
+
+        summary = build_batch_history_parameter_impact_summary(history)
+        self.assertEqual(int(summary["parameter_count"]), 3)
+
+        params = {item["batch_param"]: item for item in summary["parameters"]}
+        self.assertEqual(int(params["energy_drain_rate"]["campaign_count"]), 2)
+        self.assertEqual(params["energy_drain_rate"]["stable_value"]["values"], [1.0])
+        self.assertEqual(params["energy_drain_rate"]["best_gen_value"]["values"], [1.2])
+        self.assertEqual(params["energy_drain_rate"]["best_pop_value"]["values"], [1.0])
+
+        self.assertEqual(params["reproduction_cost"]["stable_value"]["status"], "ambiguous")
+        self.assertEqual(params["reproduction_cost"]["best_gen_value"]["status"], "ambiguous")
+        self.assertEqual(params["reproduction_cost"]["best_pop_value"]["status"], "ambiguous")
+
+        self.assertEqual(params["mutation_variation"]["stable_value"]["status"], "insufficient")
+        self.assertEqual(params["mutation_variation"]["best_gen_value"]["status"], "insufficient")
+        self.assertEqual(params["mutation_variation"]["best_pop_value"]["status"], "insufficient")
+
+        text = format_batch_history_parameter_impact_summary(summary)
+        self.assertIn("historique_batch_parametres:", text)
+        self.assertIn("parametre=energy_drain_rate campagnes=2", text)
+        self.assertIn("valeur_plus_frequente_stabilite=1.0", text)
+        self.assertIn("valeur_plus_frequente_gen_max=1.2", text)
+        self.assertIn("valeur_plus_frequente_pop_finale=1.0", text)
+        self.assertIn("parametre=reproduction_cost campagnes=1", text)
+        self.assertIn("ambigu[5.0,6.0]", text)
+        self.assertIn("parametre=mutation_variation campagnes=1", text)
+        self.assertIn("insuffisant", text)
 
     def test_duplicate_batch_id_raises(self) -> None:
         batch_payload = {
@@ -219,6 +318,8 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("campagne_meilleure_gen_max_moy=", output)
             self.assertIn("campagne_meilleure_pop_finale_moy=", output)
             self.assertIn("campagne_plus_faible_taux_extinction=", output)
+            self.assertIn("historique_batch_parametres:", output)
+            self.assertIn("parametre=energy_drain_rate", output)
 
 
 if __name__ == "__main__":

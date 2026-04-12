@@ -6,7 +6,9 @@ from .batch_history import (
     append_batch_history,
     build_batch_history_entry,
     build_batch_history_global_summary,
+    build_batch_history_parameter_impact_summary,
     format_batch_history_global_summary,
+    format_batch_history_parameter_impact_summary,
     format_batch_history_summary,
     load_batch_history,
 )
@@ -44,6 +46,8 @@ __all__ = [
     "load_batch_history",
     "build_batch_history_global_summary",
     "format_batch_history_global_summary",
+    "build_batch_history_parameter_impact_summary",
+    "format_batch_history_parameter_impact_summary",
     "format_batch_history_summary",
     "export_results",
 ]

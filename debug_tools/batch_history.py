@@ -152,6 +152,10 @@ def format_batch_history_summary(history: Dict[str, object], max_entries: int = 
     lines.append("--- Batch History Comparative Summary ---")
     lines.append(format_batch_history_global_summary(global_summary))
 
+    parameter_summary = build_batch_history_parameter_impact_summary(history)
+    lines.append("--- Batch History Parameter Impact ---")
+    lines.append(format_batch_history_parameter_impact_summary(parameter_summary))
+
     return "\n".join(lines)
 
 
@@ -163,7 +167,13 @@ def build_batch_history_global_summary(history: Dict[str, object]) -> Dict[str, 
     experiments = [item for item in experiments_raw if isinstance(item, dict)]
     campaign_count = len(experiments)
 
-    tested_params = sorted({str(item.get("batch_param", "?")) for item in experiments if str(item.get("batch_param", "")).strip() != ""})
+    tested_params = sorted(
+        {
+            str(item.get("batch_param", "?"))
+            for item in experiments
+            if str(item.get("batch_param", "")).strip() != ""
+        }
+    )
 
     campaign_metrics: list[Dict[str, object]] = []
     for entry in experiments:
@@ -303,6 +313,114 @@ def format_batch_history_global_summary(summary: Dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def build_batch_history_parameter_impact_summary(history: Dict[str, object]) -> Dict[str, object]:
+    experiments_raw = history.get("experiments")
+    if not isinstance(experiments_raw, list):
+        experiments_raw = []
+
+    grouped_by_param: dict[str, list[Dict[str, object]]] = {}
+    for entry in experiments_raw:
+        if not isinstance(entry, dict):
+            continue
+
+        param = str(entry.get("batch_param", "")).strip()
+        if param == "":
+            continue
+
+        grouped_by_param.setdefault(param, []).append(entry)
+
+    parameter_summaries: list[Dict[str, object]] = []
+    for param in sorted(grouped_by_param.keys()):
+        campaigns = grouped_by_param[param]
+
+        stable_counts: dict[float, int] = {}
+        gen_counts: dict[float, int] = {}
+        pop_counts: dict[float, int] = {}
+
+        stable_with_data = 0
+        gen_with_data = 0
+        pop_with_data = 0
+
+        for campaign in campaigns:
+            stable_winners = _extract_campaign_value_winners(campaign, metric="stable")
+            if len(stable_winners) > 0:
+                stable_with_data += 1
+                _accumulate_value_counts(stable_counts, stable_winners)
+
+            gen_winners = _extract_campaign_value_winners(campaign, metric="best_gen")
+            if len(gen_winners) > 0:
+                gen_with_data += 1
+                _accumulate_value_counts(gen_counts, gen_winners)
+
+            pop_winners = _extract_campaign_value_winners(campaign, metric="best_pop")
+            if len(pop_winners) > 0:
+                pop_with_data += 1
+                _accumulate_value_counts(pop_counts, pop_winners)
+
+        parameter_summaries.append(
+            {
+                "batch_param": param,
+                "campaign_count": len(campaigns),
+                "stable_value": _build_value_frequency_summary(stable_counts, stable_with_data),
+                "best_gen_value": _build_value_frequency_summary(gen_counts, gen_with_data),
+                "best_pop_value": _build_value_frequency_summary(pop_counts, pop_with_data),
+            }
+        )
+
+    return {
+        "parameter_count": len(parameter_summaries),
+        "parameters": parameter_summaries,
+    }
+
+
+def format_batch_history_parameter_impact_summary(summary: Dict[str, object]) -> str:
+    parameter_count = int(summary.get("parameter_count", 0))
+    parameters_raw = summary.get("parameters")
+    parameters = parameters_raw if isinstance(parameters_raw, list) else []
+
+    if parameter_count <= 0 or len(parameters) == 0:
+        return "historique_batch_parametres: n/a"
+
+    lines = [
+        "historique_batch_parametres:",
+        f"parametres={parameter_count}",
+    ]
+
+    for param_summary_raw in parameters:
+        if not isinstance(param_summary_raw, dict):
+            continue
+
+        param = str(param_summary_raw.get("batch_param", "?"))
+        campaigns = int(param_summary_raw.get("campaign_count", 0))
+
+        stable_value_raw = param_summary_raw.get("stable_value")
+        best_gen_value_raw = param_summary_raw.get("best_gen_value")
+        best_pop_value_raw = param_summary_raw.get("best_pop_value")
+
+        stable_value = stable_value_raw if isinstance(stable_value_raw, dict) else _empty_parameter_metric_summary()
+        best_gen_value = best_gen_value_raw if isinstance(best_gen_value_raw, dict) else _empty_parameter_metric_summary()
+        best_pop_value = best_pop_value_raw if isinstance(best_pop_value_raw, dict) else _empty_parameter_metric_summary()
+
+        lines.append(f"parametre={param} campagnes={campaigns}")
+        lines.append(
+            "  valeur_plus_frequente_stabilite={label}".format(
+                label=_format_parameter_metric_choice(stable_value),
+            )
+        )
+        lines.append(
+            "  valeur_plus_frequente_gen_max={label}".format(
+                label=_format_parameter_metric_choice(best_gen_value),
+            )
+        )
+        lines.append(
+            "  valeur_plus_frequente_pop_finale={label}".format(
+                label=_format_parameter_metric_choice(best_pop_value),
+            )
+        )
+
+    return "\n".join(lines)
+
+
 def _extract_campaign_metrics(entry: Dict[str, object]) -> Dict[str, float] | None:
     scenarios_raw = entry.get("scenario_summaries")
     scenario_candidates: list[Dict[str, float]] = []
@@ -366,6 +484,144 @@ def _extract_campaign_metrics(entry: Dict[str, object]) -> Dict[str, float] | No
     }
 
 
+def _extract_campaign_value_winners(entry: Dict[str, object], metric: str) -> list[float]:
+    scenarios_raw = entry.get("scenario_summaries")
+    scenarios: list[Dict[str, float]] = []
+
+    if isinstance(scenarios_raw, list):
+        for scenario in scenarios_raw:
+            if not isinstance(scenario, dict):
+                continue
+
+            scenarios.append(
+                {
+                    "parameter_value": float(scenario.get("parameter_value", 0.0)),
+                    "extinction_rate": float(scenario.get("extinction_rate", 0.0)),
+                    "avg_max_generation": float(scenario.get("avg_max_generation", 0.0)),
+                    "avg_final_population": float(scenario.get("avg_final_population", 0.0)),
+                }
+            )
+
+    if len(scenarios) > 0:
+        if metric == "stable":
+            best = min(
+                scenarios,
+                key=lambda item: (
+                    float(item["extinction_rate"]),
+                    -float(item["avg_final_population"]),
+                    -float(item["avg_max_generation"]),
+                ),
+            )
+            winners = [
+                float(item["parameter_value"])
+                for item in scenarios
+                if _is_close(float(item["extinction_rate"]), float(best["extinction_rate"]))
+                and _is_close(float(item["avg_final_population"]), float(best["avg_final_population"]))
+                and _is_close(float(item["avg_max_generation"]), float(best["avg_max_generation"]))
+            ]
+            return _unique_sorted_values(winners)
+
+        if metric == "best_gen":
+            best_value = max(float(item["avg_max_generation"]) for item in scenarios)
+            winners = [
+                float(item["parameter_value"])
+                for item in scenarios
+                if _is_close(float(item["avg_max_generation"]), best_value)
+            ]
+            return _unique_sorted_values(winners)
+
+        if metric == "best_pop":
+            best_value = max(float(item["avg_final_population"]) for item in scenarios)
+            winners = [
+                float(item["parameter_value"])
+                for item in scenarios
+                if _is_close(float(item["avg_final_population"]), best_value)
+            ]
+            return _unique_sorted_values(winners)
+
+        raise ValueError(f"unsupported metric: {metric}")
+
+    comparative_raw = entry.get("comparative_summary")
+    if not isinstance(comparative_raw, dict):
+        return []
+
+    if metric == "stable":
+        metric_raw = comparative_raw.get("most_stable")
+    elif metric == "best_gen":
+        metric_raw = comparative_raw.get("best_avg_max_generation")
+    elif metric == "best_pop":
+        metric_raw = comparative_raw.get("best_avg_final_population")
+    else:
+        raise ValueError(f"unsupported metric: {metric}")
+
+    if not isinstance(metric_raw, dict):
+        return []
+
+    winners_raw = metric_raw.get("winners")
+    return _unique_sorted_values(_read_float_list(winners_raw))
+
+
+def _build_value_frequency_summary(value_counts: Dict[float, int], campaigns_with_data: int) -> Dict[str, object]:
+    if campaigns_with_data <= 0 or len(value_counts) == 0:
+        return {
+            "status": "insufficient",
+            "values": [],
+            "count": 0,
+            "campaigns_with_data": campaigns_with_data,
+        }
+
+    top_count = max(int(count) for count in value_counts.values())
+    winners = _unique_sorted_values(
+        [float(value) for value, count in value_counts.items() if int(count) == top_count]
+    )
+
+    return {
+        "status": "ambiguous" if len(winners) > 1 else "ok",
+        "values": winners,
+        "count": top_count,
+        "campaigns_with_data": campaigns_with_data,
+    }
+
+
+def _format_parameter_metric_choice(metric_summary_raw: object) -> str:
+    if not isinstance(metric_summary_raw, dict):
+        return "insuffisant"
+
+    status = str(metric_summary_raw.get("status", "insufficient"))
+    values = _read_float_list(metric_summary_raw.get("values"))
+    top_count = int(metric_summary_raw.get("count", 0))
+    campaigns_with_data = int(metric_summary_raw.get("campaigns_with_data", 0))
+
+    if status == "insufficient" or len(values) == 0 or campaigns_with_data <= 0:
+        return "insuffisant"
+
+    values_text = ",".join(_format_value(value) for value in values)
+    freq_text = f"{top_count}/{campaigns_with_data}"
+
+    if status == "ambiguous" or len(values) > 1:
+        return f"ambigu[{values_text}] (freq={freq_text})"
+
+    return f"{values_text} (freq={freq_text})"
+
+
+def _accumulate_value_counts(target: Dict[float, int], values: list[float]) -> None:
+    for value in values:
+        target[float(value)] = int(target.get(float(value), 0)) + 1
+
+
+def _unique_sorted_values(values: list[float]) -> list[float]:
+    if len(values) == 0:
+        return []
+
+    sorted_values = sorted(float(value) for value in values)
+    unique_values: list[float] = []
+    for value in sorted_values:
+        if len(unique_values) == 0 or not _is_close(value, unique_values[-1]):
+            unique_values.append(value)
+
+    return unique_values
+
+
 def _load_or_init_history(path: Path) -> Dict[str, object]:
     if not path.exists():
         return {
@@ -412,6 +668,15 @@ def _empty_global_metric() -> Dict[str, object]:
     return {
         "winners": [],
         "tie": False,
+    }
+
+
+def _empty_parameter_metric_summary() -> Dict[str, object]:
+    return {
+        "status": "insufficient",
+        "values": [],
+        "count": 0,
+        "campaigns_with_data": 0,
     }
 
 

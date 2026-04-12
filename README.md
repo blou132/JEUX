@@ -137,6 +137,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - synthese comparative batch
 - Lecture et resume rapide via un outil CLI dedie (`analyze_batch_history.py`).
 - Synthese comparative globale de l'historique: campagnes archivees, parametres testes, campagne la plus stable, meilleure generation max moyenne, meilleure population finale moyenne, plus faible extinction.
+- Lecture agregee par parametre teste: campagnes concernees + valeurs les plus frequemment associees a stabilite / generation max / population finale (ambiguite ou insuffisance explicites).
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
 ## Lancer la simulation
@@ -238,6 +239,8 @@ Il inclut une synthese comparative globale de l'historique avec:
 - campagne avec meilleure generation max moyenne
 - campagne avec meilleure population finale moyenne
 - campagne avec plus faible taux d'extinction
+- vue agregee par parametre teste (campagnes, valeur dominante stabilite/gen/pop).
+- signalement explicite des cas ambigus ou insuffisants.
 
 ## Exemple de sortie batch comparative
 ```text
@@ -260,6 +263,22 @@ campagne_meilleure_gen_max_moy=exp_003 (gen_max_moy=3.60)
 campagne_meilleure_pop_finale_moy=exp_002 (pop_finale_moy=45.50)
 campagne_plus_faible_taux_extinction=egalite[exp_001,exp_002] (taux_ext=0.00)
 ```
+
+## Exemple de sortie historique par parametre
+```text
+--- Batch History Parameter Impact ---
+historique_batch_parametres:
+parametres=2
+parametre=energy_drain_rate campagnes=3
+  valeur_plus_frequente_stabilite=1.0 (freq=2/3)
+  valeur_plus_frequente_gen_max=1.2 (freq=2/3)
+  valeur_plus_frequente_pop_finale=1.0 (freq=2/3)
+parametre=reproduction_cost campagnes=1
+  valeur_plus_frequente_stabilite=ambigu[5.0,6.0] (freq=1/1)
+  valeur_plus_frequente_gen_max=ambigu[5.0,6.0] (freq=1/1)
+  valeur_plus_frequente_pop_finale=ambigu[5.0,6.0] (freq=1/1)
+```
+
 ## Lancer les tests
 Tous les tests:
 ```powershell
@@ -313,7 +332,7 @@ En mode export:
 
 Avec les outils d'analyse:
 - `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export.
-- `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees et une synthese comparative globale de l'historique.
+- `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale et une vue agregee par parametre teste (avec ambiguite/insuffisance explicites).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -344,6 +363,7 @@ Lecture rapide conseillee:
 - Interpretation automatique legere des resultats batch (comparative summary).
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
+- Lecture agregee de l'impact des parametres testes dans l'historique batch.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
