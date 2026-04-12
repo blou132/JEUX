@@ -1,4 +1,5 @@
 from .export_results import (
+    build_batch_experiment_export,
     build_multi_run_export,
     build_single_run_export,
     export_results,
@@ -23,5 +24,6 @@ __all__ = [
     "build_multi_run_summary",
     "build_single_run_export",
     "build_multi_run_export",
+    "build_batch_experiment_export",
     "export_results",
 ]

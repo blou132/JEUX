@@ -7,6 +7,7 @@ from typing import Dict
 from ai import HungerAI
 from creatures import create_initial_population
 from debug_tools import (
+    build_batch_experiment_export,
     build_final_run_summary,
     build_generation_distribution,
     build_multi_run_export,
@@ -35,6 +36,21 @@ from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
 _DEF_EXPORT_FORMATS = ("json", "csv")
+_BATCH_PARAM_CASTERS = {
+    "energy_drain_rate": float,
+    "eat_rate": float,
+    "hunger_threshold": float,
+    "movement_speed": float,
+    "reproduction_threshold": float,
+    "reproduction_cost": float,
+    "reproduction_distance": float,
+    "reproduction_min_age": float,
+    "mutation_variation": float,
+    "initial_food": int,
+    "min_food": int,
+    "creatures": int,
+}
+_BATCH_PARAM_NAMES = tuple(sorted(_BATCH_PARAM_CASTERS.keys()))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,6 +62,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--seed-step", type=int, default=1)
+
+    parser.add_argument("--batch-param", type=str, choices=_BATCH_PARAM_NAMES, default=None)
+    parser.add_argument("--batch-values", type=str, default=None)
+    parser.add_argument("--batch-runs", type=int, default=3)
 
     parser.add_argument("--export-path", type=str, default=None)
     parser.add_argument("--export-format", type=str, choices=_DEF_EXPORT_FORMATS, default="json")
@@ -84,6 +104,17 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.seed_step <= 0:
         raise ValueError("seed_step must be > 0")
 
+    if args.batch_runs <= 0:
+        raise ValueError("batch_runs must be > 0")
+
+    if args.batch_param is None:
+        if args.batch_values is not None and str(args.batch_values).strip() != "":
+            raise ValueError("batch_values requires batch_param")
+    else:
+        if args.batch_values is None or str(args.batch_values).strip() == "":
+            raise ValueError("batch_values must be provided when batch_param is set")
+        _parse_batch_values(args.batch_values, args.batch_param)
+
     if args.export_path is not None and str(args.export_path).strip() == "":
         raise ValueError("export_path cannot be empty")
     if args.export_format not in _DEF_EXPORT_FORMATS:
@@ -112,6 +143,45 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError(
             "reproduction_threshold, reproduction_cost, reproduction_distance, reproduction_min_age and mutation_variation must be >= 0"
         )
+
+
+def _parse_batch_values(raw_values: str, batch_param: str) -> list[float | int]:
+    caster = _BATCH_PARAM_CASTERS.get(batch_param)
+    if caster is None:
+        raise ValueError(f"unsupported batch_param: {batch_param}")
+
+    parts = [part.strip() for part in raw_values.split(",") if part.strip() != ""]
+    if len(parts) == 0:
+        raise ValueError("batch_values must contain at least one numeric value")
+
+    values: list[float | int] = []
+    for part in parts:
+        try:
+            values.append(caster(part))
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid batch value '{part}' for param '{batch_param}'"
+            ) from exc
+
+    return values
+
+
+def _format_batch_value(value: float | int) -> str:
+    if isinstance(value, float):
+        if value.is_integer():
+            return f"{value:.1f}"
+        return f"{value:.6g}"
+    return str(value)
+
+
+def _with_overridden_param(
+    base_args: argparse.Namespace,
+    param_name: str,
+    value: float | int,
+) -> argparse.Namespace:
+    data = vars(base_args).copy()
+    data[param_name] = value
+    return argparse.Namespace(**data)
 
 
 def _build_seed_list(base_seed: int, runs: int, seed_step: int) -> list[int]:
@@ -328,10 +398,112 @@ def _run_multi(args: argparse.Namespace) -> None:
     _emit_export_if_needed(args, export_payload)
 
 
+def _run_batch(args: argparse.Namespace) -> None:
+    batch_param = str(args.batch_param)
+    batch_values = _parse_batch_values(str(args.batch_values), batch_param)
+
+    print("=== Batch Experimental Mode ===")
+    print(
+        "param={param} values={values} runs_per_value={runs} steps={steps} dt={dt} log_interval={log_interval}".format(
+            param=batch_param,
+            values=",".join(_format_batch_value(value) for value in batch_values),
+            runs=args.batch_runs,
+            steps=args.steps,
+            dt=args.dt,
+            log_interval=args.log_interval,
+        )
+    )
+
+    scenarios: list[Dict[str, object]] = []
+
+    for index, value in enumerate(batch_values, start=1):
+        variant_args = _with_overridden_param(args, batch_param, value)
+        validate_args(variant_args)
+
+        seeds = _build_seed_list(args.seed, args.batch_runs, args.seed_step)
+
+        print(
+            "--- Batch Value {idx}/{total}: {param}={value} ---".format(
+                idx=index,
+                total=len(batch_values),
+                param=batch_param,
+                value=_format_batch_value(value),
+            )
+        )
+        print("seeds: " + ",".join(str(seed) for seed in seeds))
+
+        results: list[Dict[str, object]] = []
+        for run_idx, seed in enumerate(seeds, start=1):
+            result = _run_single(variant_args, seed=seed, verbose=False)
+            results.append(result)
+
+            print(
+                "run {idx}/{total} seed={seed} extinct={extinct} max_gen={max_gen} alive_final={alive}".format(
+                    idx=run_idx,
+                    total=args.batch_runs,
+                    seed=seed,
+                    extinct="yes" if bool(result.get("extinct", False)) else "no",
+                    max_gen=int(result.get("max_generation", 0)),
+                    alive=int(result.get("final_alive", 0)),
+                )
+            )
+
+        summary = build_multi_run_summary(results)
+        print("summary: " + format_multi_run_summary(summary))
+
+        scenarios.append(
+            {
+                "param": batch_param,
+                "parameter_value": value,
+                "seeds": seeds,
+                "multi_run_summary": summary,
+                "per_run": results,
+            }
+        )
+
+    print("--- Batch Summary ---")
+    for scenario in scenarios:
+        value = scenario.get("parameter_value", 0.0)
+        summary = scenario.get("multi_run_summary")
+        if not isinstance(summary, dict):
+            continue
+
+        runs = int(summary.get("runs", 0))
+        ext = int(summary.get("extinction_count", 0))
+        ext_rate = float(summary.get("extinction_rate", 0.0))
+        avg_gen = float(summary.get("avg_max_generation", 0.0))
+        avg_pop = float(summary.get("avg_final_population", 0.0))
+        print(
+            "{param}={value} runs={runs} extinctions={ext}/{runs} (taux={ext_rate:.2f}) gen_max_moy={avg_gen:.2f} pop_finale_moy={avg_pop:.2f}".format(
+                param=batch_param,
+                value=_format_batch_value(value),
+                runs=runs,
+                ext=ext,
+                ext_rate=ext_rate,
+                avg_gen=avg_gen,
+                avg_pop=avg_pop,
+            )
+        )
+
+    export_payload = build_batch_experiment_export(
+        batch_param=batch_param,
+        batch_values=batch_values,
+        runs_per_value=args.batch_runs,
+        base_seed=args.seed,
+        seed_step=args.seed_step,
+        scenarios=scenarios,
+    )
+    _emit_export_if_needed(args, export_payload)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
     validate_args(args)
+
+    if args.batch_param is not None:
+        _run_batch(args)
+        return
 
     if args.runs <= 1:
         result = _run_single(args, seed=args.seed, verbose=True)
@@ -344,3 +516,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

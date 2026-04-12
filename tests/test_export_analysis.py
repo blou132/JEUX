@@ -89,6 +89,71 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("multi_runs:", summary)
         self.assertIn("extinctions=1/3", summary)
 
+    def test_load_batch_json_and_build_summary(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "energy_drain_rate",
+            "batch_values": [1.0, 1.5],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 1.0,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 3.0,
+                        "avg_final_population": 44.5,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 1.5,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 2.0,
+                        "avg_final_population": 20.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_export_payload(str(path))
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        self.assertIn("=== Export Analysis (batch) ===", summary)
+        self.assertIn("param=energy_drain_rate values=1.0,1.5 runs_per_value=2", summary)
+        self.assertIn("energy_drain_rate=1.0", summary)
+        self.assertIn("energy_drain_rate=1.5", summary)
+
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 

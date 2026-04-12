@@ -22,6 +22,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Mode multi-runs optionnel pour comparer automatiquement plusieurs seeds.
 - Export optionnel des syntheses en JSON ou CSV.
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
+- Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -95,6 +96,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 ### Export optionnel (JSON / CSV)
 - Export du resume final d'un run simple.
 - Export du resume multi-runs avec agregats + details par run.
+- Export du resume batch experimental (agregats par valeur + details de runs).
 - Formats disponibles: `json` (structure complete) et `csv` (aplati lisible).
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
@@ -103,6 +105,18 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Affiche un resume lisible sans relancer la simulation.
 - En multi-runs: runs, seeds, extinctions, generation max moyenne, population finale moyenne, traits finaux moyens.
 - En run simple: seed, extinction, generation max, population finale et synthese finale.
+- En batch: parametre teste, valeurs, runs par valeur, resumes agregees par valeur.
+
+### Mode batch experimental
+- Fait varier un parametre numerique existant sur une liste de valeurs.
+- Execute plusieurs runs par valeur (deterministes via seed + seed_step).
+- Produit une synthese par valeur:
+  - nombre de runs
+  - taux d'extinction
+  - generation max moyenne
+  - population finale moyenne
+  - traits finaux moyens (via resume multi-runs)
+- Aucun changement gameplay (mode purement observatoire).
 
 ## Lancer la simulation
 Prerequis:
@@ -124,6 +138,11 @@ Exemple multi-runs (comparaison de seeds):
 py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
+Exemple batch experimental:
+```powershell
+py main.py --batch-param energy_drain_rate --batch-values 1.0,1.2,1.4 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
 Exemple export JSON (run simple):
 ```powershell
 py main.py --seed 42 --steps 120 --log-interval 20 --export-path outputs/run_42.json --export-format json
@@ -134,9 +153,15 @@ Exemple export CSV (multi-runs):
 py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20 --export-path outputs/multi_42.csv --export-format csv
 ```
 
+Exemple export JSON (batch):
+```powershell
+py main.py --batch-param energy_drain_rate --batch-values 1.0,1.2,1.4 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20 --export-path outputs/batch_energy_drain.json --export-format json
+```
+
 Parametres CLI principaux:
 - `--steps`, `--dt`, `--log-interval`, `--seed`
 - `--runs`, `--seed-step`
+- `--batch-param`, `--batch-values`, `--batch-runs`
 - `--export-path`, `--export-format`
 - `--map-width`, `--map-height`
 - `--creatures`, `--initial-food`, `--min-food`
@@ -153,6 +178,11 @@ py analyze_export.py <chemin_export>
 Exemple analyse JSON multi-runs:
 ```powershell
 py analyze_export.py outputs/multi_42.json
+```
+
+Exemple analyse JSON batch:
+```powershell
+py analyze_export.py outputs/batch_energy_drain.json
 ```
 
 Exemple analyse CSV en forcant le format:
@@ -179,6 +209,7 @@ py -m unittest tests.test_run_final_summary
 py -m unittest tests.test_multi_run_mode
 py -m unittest tests.test_export_results
 py -m unittest tests.test_export_analysis
+py -m unittest tests.test_batch_experiment_mode
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -198,9 +229,13 @@ En fin de run:
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
 
+En mode batch:
+- bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
+- bloc `--- Batch Summary ---` avec agregats comparables entre valeurs.
+
 En mode export:
 - ligne `export: <chemin> (<format>)` en fin d'execution.
-- le contenu exporte reprend les memes syntheses que la console (run simple ou multi-runs).
+- le contenu exporte reprend les memes syntheses que la console (run simple, multi-runs, batch).
 
 Avec l'outil d'analyse:
 - `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export (utile pour comparer des runs sans relancer la simulation).
@@ -210,8 +245,9 @@ Lecture rapide conseillee:
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
-5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds en une commande,
-6. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
+5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds,
+6. en mode batch, comparer les lignes du `Batch Summary` entre valeurs,
+7. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
 
 ## Roadmap actuelle
 
@@ -228,6 +264,7 @@ Lecture rapide conseillee:
 - Mode multi-runs optionnel avec resume agrege compare-seeds.
 - Export optionnel JSON/CSV des syntheses run et multi-runs.
 - Outil CLI d'analyse des exports pour resume hors console.
+- Mode batch experimental pour comparer l'effet de valeurs de parametres existants.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

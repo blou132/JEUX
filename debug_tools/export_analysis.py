@@ -66,6 +66,40 @@ def summarize_export_payload(payload: Dict[str, object]) -> str:
 
         return "\n".join(lines)
 
+    if mode == "batch":
+        batch_param = str(payload.get("batch_param", "?"))
+        batch_values = _read_float_list(payload.get("batch_values"))
+        runs_per_value = int(payload.get("runs_per_value", 0))
+        scenarios_raw = payload.get("scenarios")
+
+        lines = [
+            "=== Export Analysis (batch) ===",
+            "param={param} values={values} runs_per_value={runs}".format(
+                param=batch_param,
+                values=",".join(_format_batch_value(value) for value in batch_values),
+                runs=runs_per_value,
+            ),
+        ]
+
+        if isinstance(scenarios_raw, list):
+            for scenario_raw in scenarios_raw:
+                if not isinstance(scenario_raw, dict):
+                    continue
+                value = float(scenario_raw.get("parameter_value", 0.0))
+                summary_raw = scenario_raw.get("multi_run_summary")
+                if isinstance(summary_raw, dict):
+                    lines.append(
+                        "{param}={value} -> {summary}".format(
+                            param=batch_param,
+                            value=_format_batch_value(value),
+                            summary=format_multi_run_summary(summary_raw),
+                        )
+                    )
+                else:
+                    lines.append(f"{batch_param}={_format_batch_value(value)} -> n/a")
+
+        return "\n".join(lines)
+
     return "=== Export Analysis ===\nmode non supporte"
 
 
@@ -92,6 +126,10 @@ def _load_csv_payload(path: Path) -> Dict[str, object]:
     if len(rows) == 0:
         raise ValueError("csv export is empty")
 
+    batch_aggregate_row = _find_row_by_type(rows, "batch_aggregate")
+    if batch_aggregate_row is not None:
+        return _build_batch_payload_from_csv(rows, batch_aggregate_row)
+
     aggregate_row = _find_row_by_type(rows, "aggregate")
     if aggregate_row is not None:
         return _build_multi_payload_from_csv(aggregate_row)
@@ -107,6 +145,10 @@ def _find_row_by_type(rows: list[Dict[str, str]], row_type: str) -> Dict[str, st
         if str(row.get("row_type", "")).strip() == row_type:
             return row
     return None
+
+
+def _find_rows_by_type(rows: list[Dict[str, str]], row_type: str) -> list[Dict[str, str]]:
+    return [row for row in rows if str(row.get("row_type", "")).strip() == row_type]
 
 
 def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
@@ -181,6 +223,58 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
     }
 
 
+def _build_batch_payload_from_csv(
+    rows: list[Dict[str, str]],
+    aggregate_row: Dict[str, str],
+) -> Dict[str, object]:
+    scenarios: list[Dict[str, object]] = []
+
+    for scenario_row in _find_rows_by_type(rows, "batch_scenario"):
+        summary = {
+            "runs": _parse_int(scenario_row.get("multi_run_summary.runs")),
+            "seeds": _read_seed_list(scenario_row.get("multi_run_summary.seeds")),
+            "extinction_count": _parse_int(scenario_row.get("multi_run_summary.extinction_count")),
+            "extinction_rate": _parse_float(scenario_row.get("multi_run_summary.extinction_rate")),
+            "avg_max_generation": _parse_float(scenario_row.get("multi_run_summary.avg_max_generation")),
+            "avg_final_population": _parse_float(scenario_row.get("multi_run_summary.avg_final_population")),
+            "avg_final_traits": {
+                "speed": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.speed")),
+                "metabolism": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.metabolism")),
+                "prudence": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.prudence")),
+                "dominance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.dominance")),
+                "repro_drive": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.repro_drive")),
+            },
+            "most_frequent_final_dominant_group": scenario_row.get(
+                "multi_run_summary.most_frequent_final_dominant_group",
+                "-",
+            ),
+            "most_frequent_final_dominant_group_count": _parse_int(
+                scenario_row.get("multi_run_summary.most_frequent_final_dominant_group_count")
+            ),
+            "most_frequent_final_dominant_group_share": _parse_float(
+                scenario_row.get("multi_run_summary.most_frequent_final_dominant_group_share")
+            ),
+        }
+
+        scenarios.append(
+            {
+                "parameter_value": _parse_float(scenario_row.get("parameter_value")),
+                "seeds": _read_seed_list(scenario_row.get("seeds")),
+                "multi_run_summary": summary,
+            }
+        )
+
+    return {
+        "mode": "batch",
+        "batch_param": str(aggregate_row.get("batch_param", "?")),
+        "batch_values": _read_float_list(aggregate_row.get("batch_values")),
+        "runs_per_value": _parse_int(aggregate_row.get("runs_per_value")),
+        "base_seed": _parse_int(aggregate_row.get("base_seed")),
+        "seed_step": _parse_int(aggregate_row.get("seed_step")),
+        "scenarios": scenarios,
+    }
+
+
 def _read_seed_list(raw: object) -> list[int]:
     if isinstance(raw, list):
         return [int(seed) for seed in raw]
@@ -190,7 +284,19 @@ def _read_seed_list(raw: object) -> list[int]:
         return []
 
     parts = [part.strip() for part in text.split("|") if part.strip() != ""]
-    return [int(part) for part in parts]
+    return [int(float(part)) for part in parts]
+
+
+def _read_float_list(raw: object) -> list[float]:
+    if isinstance(raw, list):
+        return [float(value) for value in raw]
+
+    text = "" if raw is None else str(raw).strip()
+    if text == "":
+        return []
+
+    parts = [part.strip() for part in text.split("|") if part.strip() != ""]
+    return [float(part) for part in parts]
 
 
 def _parse_int(raw: object, default: int = 0) -> int:
@@ -216,3 +322,9 @@ def _parse_bool(raw: object, default: bool = False) -> bool:
     if text in ("0", "false", "no"):
         return False
     return default
+
+
+def _format_batch_value(value: float) -> str:
+    if float(value).is_integer():
+        return f"{value:.1f}"
+    return f"{value:.6g}"
