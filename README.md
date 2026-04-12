@@ -26,6 +26,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
+- Indicateurs d'impact memoire (usage, part active, effet moyen distance) visibles en stats/syntheses.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -133,6 +134,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Chaque creature conserve une memoire courte de derniere zone dangereuse (menace lors d'une fuite).
 - Influence legere du comportement: en recherche de nourriture, retour vers zone utile proche; en errance, evitement bref d'une zone dangereuse proche.
 - Systeme purement local, sans pathfinding ni apprentissage complexe.
+- Indicateurs associes: frequence d'usage memoire utile/dangereuse, part de creatures avec memoire active, effet moyen de rapprochement/eloignement par tick et cumule.
 
 ### Historique batch (archive d'experiences)
 - Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
@@ -165,6 +167,15 @@ py main.py --steps 120 --log-interval 20 --seed 42
 Exemple multi-runs (comparaison de seeds):
 ```powershell
 py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+Exemple comparaison memoire active vs neutralisee (run simple):
+```powershell
+py main.py --seed 42 --steps 120 --log-interval 20 --food-memory-duration 0 --danger-memory-duration 0
+```
+
+Exemple comparaison memoire via batch (meme seed de base):
+```powershell
+py main.py --batch-param food_memory_duration --batch-values 0,8 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple batch experimental:
@@ -203,6 +214,8 @@ Parametres CLI principaux:
 - `--energy-drain-rate`, `--movement-speed`, `--eat-rate`, `--hunger-threshold`
 - `--reproduction-threshold`, `--reproduction-cost`, `--reproduction-distance`, `--reproduction-min-age`
 - `--mutation-variation`
+- `--food-memory-duration`, `--danger-memory-duration`
+- `--food-memory-recall-distance`, `--danger-memory-avoid-distance`
 
 ## Outil d'analyse d'exports
 Commande de base:
@@ -317,14 +330,14 @@ Chaque bloc de log periodique contient:
 - `proto_zones_creatures:` repartition des creatures par zones fertiles et proto-groupe dominant par zone.
 - `causes_deces:` faim / epuisement / autre (tick et total).
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
-- `memoire_*:` creatures avec memoire active (utile/dangereuse) et mouvements guides/evitements (tick/log).
+- `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
-- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales et traits moyens.
+- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens et impact memoire cumule.
 
 En mode multi-runs:
-- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
+- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen.
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -341,7 +354,8 @@ En mode export:
 Avec les outils d'analyse:
 - `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export.
 - `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale et une vue agregee par parametre teste (avec ambiguite/insuffisance explicites).
-- pour observer la memoire locale en run: suivre `memoire_active`, `memoire_tick` et `memoire_log` dans la ligne `dynamique_*`.
+- pour observer la memoire locale en run: suivre `memoire_active`, `memoire_part`, `memoire_tick`, `memoire_freq_tick`, `memoire_effet_tick` et `memoire_log` dans la ligne `dynamique_*`.
+- pour comparer memoire active vs neutralisee: relancer avec `--food-memory-duration 0 --danger-memory-duration 0` puis comparer `memoire:*` et la synthese finale.
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -374,6 +388,7 @@ Lecture rapide conseillee:
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
 - Memoire locale courte (zone utile/dangereuse) visible dans les stats/debug et testee.
+- Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
@@ -391,4 +406,3 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
-

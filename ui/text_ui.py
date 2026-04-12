@@ -210,6 +210,7 @@ def format_proto_group_temporal(stats: Dict[str, object], max_items: int = 6) ->
 def format_final_run_summary(summary: Dict[str, object]) -> str:
     zones_raw = summary.get("final_zone_distribution")
     traits_raw = summary.get("avg_traits")
+    memory_raw = summary.get("memory_impact")
 
     zones = {"rich": 0, "neutral": 0, "poor": 0}
     if isinstance(zones_raw, dict):
@@ -231,6 +232,26 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
 
+    memory = {
+        "food_usage_total": 0,
+        "danger_usage_total": 0,
+        "food_active_share": 0.0,
+        "danger_active_share": 0.0,
+        "food_effect_avg_distance": 0.0,
+        "danger_effect_avg_distance": 0.0,
+        "food_usage_per_tick": 0.0,
+        "danger_usage_per_tick": 0.0,
+    }
+    if isinstance(memory_raw, dict):
+        memory["food_usage_total"] = int(memory_raw.get("food_usage_total", 0))
+        memory["danger_usage_total"] = int(memory_raw.get("danger_usage_total", 0))
+        memory["food_active_share"] = float(memory_raw.get("food_active_share", 0.0))
+        memory["danger_active_share"] = float(memory_raw.get("danger_active_share", 0.0))
+        memory["food_effect_avg_distance"] = float(memory_raw.get("food_effect_avg_distance", 0.0))
+        memory["danger_effect_avg_distance"] = float(memory_raw.get("danger_effect_avg_distance", 0.0))
+        memory["food_usage_per_tick"] = float(memory_raw.get("food_usage_per_tick", 0.0))
+        memory["danger_usage_per_tick"] = float(memory_raw.get("danger_usage_per_tick", 0.0))
+
     return (
         "synthese_run: "
         "dominant_final={dominant}(part={dominant_share:.2f}) "
@@ -238,6 +259,9 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
         "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
+        "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
+        "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -254,11 +278,21 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         repro=traits["repro_drive"],
+        mem_food=memory["food_usage_total"],
+        mem_danger=memory["danger_usage_total"],
+        mem_food_share=memory["food_active_share"],
+        mem_danger_share=memory["danger_active_share"],
+        mem_food_freq=memory["food_usage_per_tick"],
+        mem_danger_freq=memory["danger_usage_per_tick"],
+        mem_food_effect=memory["food_effect_avg_distance"],
+        mem_danger_effect=memory["danger_effect_avg_distance"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
+
 def format_multi_run_summary(summary: Dict[str, object]) -> str:
     seeds_raw = summary.get("seeds")
     traits_raw = summary.get("avg_final_traits")
+    memory_raw = summary.get("avg_memory_impact")
 
     seeds: list[int] = []
     if isinstance(seeds_raw, list):
@@ -278,6 +312,26 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
 
+    memory = {
+        "food_usage_total": 0.0,
+        "danger_usage_total": 0.0,
+        "food_active_share": 0.0,
+        "danger_active_share": 0.0,
+        "food_effect_avg_distance": 0.0,
+        "danger_effect_avg_distance": 0.0,
+        "food_usage_per_tick": 0.0,
+        "danger_usage_per_tick": 0.0,
+    }
+    if isinstance(memory_raw, dict):
+        memory["food_usage_total"] = float(memory_raw.get("food_usage_total", 0.0))
+        memory["danger_usage_total"] = float(memory_raw.get("danger_usage_total", 0.0))
+        memory["food_active_share"] = float(memory_raw.get("food_active_share", 0.0))
+        memory["danger_active_share"] = float(memory_raw.get("danger_active_share", 0.0))
+        memory["food_effect_avg_distance"] = float(memory_raw.get("food_effect_avg_distance", 0.0))
+        memory["danger_effect_avg_distance"] = float(memory_raw.get("danger_effect_avg_distance", 0.0))
+        memory["food_usage_per_tick"] = float(memory_raw.get("food_usage_per_tick", 0.0))
+        memory["danger_usage_per_tick"] = float(memory_raw.get("danger_usage_per_tick", 0.0))
+
     seeds_text = ",".join(str(seed) for seed in seeds)
 
     return (
@@ -286,6 +340,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
         "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
+        "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
+        "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
+        "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -299,12 +357,18 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         repro=traits["repro_drive"],
+        mem_food=memory["food_usage_total"],
+        mem_danger=memory["danger_usage_total"],
+        mem_food_share=memory["food_active_share"],
+        mem_danger_share=memory["danger_active_share"],
+        mem_food_freq=memory["food_usage_per_tick"],
+        mem_danger_freq=memory["danger_usage_per_tick"],
+        mem_food_effect=memory["food_effect_avg_distance"],
+        mem_danger_effect=memory["danger_effect_avg_distance"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
     )
-
-
 
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:
     total = _read_cause_counts(stats.get("death_causes_total"))
@@ -342,8 +406,14 @@ def format_population_dynamics(
 
     food_memory_active = int(stats.get("creatures_with_food_memory", 0))
     danger_memory_active = int(stats.get("creatures_with_danger_memory", 0))
+    food_memory_active_share = float(stats.get("food_memory_active_share", 0.0))
+    danger_memory_active_share = float(stats.get("danger_memory_active_share", 0.0))
     food_memory_guided_tick = int(stats.get("food_memory_guided_moves_last_tick", 0))
     danger_memory_avoid_tick = int(stats.get("danger_memory_avoid_moves_last_tick", 0))
+    food_memory_usage_alive_tick = float(stats.get("food_memory_usage_per_alive_tick", 0.0))
+    danger_memory_usage_alive_tick = float(stats.get("danger_memory_usage_per_alive_tick", 0.0))
+    food_memory_effect_tick = float(stats.get("food_memory_effect_avg_distance_tick", 0.0))
+    danger_memory_effect_tick = float(stats.get("danger_memory_effect_avg_distance_tick", 0.0))
 
     avg_prudence = float(stats.get("avg_prudence", 0.0))
     avg_dominance = float(stats.get("avg_dominance", 0.0))
@@ -417,8 +487,11 @@ def format_population_dynamics(
         f"fuyards_tick:{fleeing_block} "
         f"dist_menace_moy_tick:{threat_distance_block} "
         f"memoire_active:utile={food_memory_active} danger={danger_memory_active} "
+        f"memoire_part:utile={food_memory_active_share:.2f} danger={danger_memory_active_share:.2f} "
         f"memoire_log:utile={food_memory_guided_log} danger={danger_memory_avoid_log} "
         f"memoire_tick:utile={food_memory_guided_tick} danger={danger_memory_avoid_tick} "
+        f"memoire_freq_tick:utile={food_memory_usage_alive_tick:.2f} danger={danger_memory_usage_alive_tick:.2f} "
+        f"memoire_effet_tick:utile={food_memory_effect_tick:.2f} danger={danger_memory_effect_tick:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
@@ -515,4 +588,3 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
-

@@ -106,6 +106,75 @@ class MultiRunModeTests(unittest.TestCase):
         self.assertIn("traits_finaux_moy:", text)
         self.assertIn("dominant_final_freq=gA", text)
 
+    def test_multi_run_summary_includes_avg_memory_impact(self) -> None:
+        results = [
+            {
+                "seed": 10,
+                "extinct": False,
+                "max_generation": 8,
+                "final_alive": 40,
+                "run_summary": {
+                    "final_dominant_group_signature": "gA",
+                    "avg_traits": {
+                        "speed": 1.0,
+                        "metabolism": 1.0,
+                        "prudence": 1.0,
+                        "dominance": 1.0,
+                        "repro_drive": 1.0,
+                    },
+                    "memory_impact": {
+                        "food_usage_total": 12,
+                        "danger_usage_total": 5,
+                        "food_active_share": 0.4,
+                        "danger_active_share": 0.2,
+                        "food_effect_avg_distance": 1.3,
+                        "danger_effect_avg_distance": 0.6,
+                        "food_usage_per_tick": 0.5,
+                        "danger_usage_per_tick": 0.2,
+                    },
+                },
+            },
+            {
+                "seed": 12,
+                "extinct": True,
+                "max_generation": 4,
+                "final_alive": 0,
+                "run_summary": {
+                    "final_dominant_group_signature": "gB",
+                    "avg_traits": {
+                        "speed": 1.0,
+                        "metabolism": 1.0,
+                        "prudence": 1.0,
+                        "dominance": 1.0,
+                        "repro_drive": 1.0,
+                    },
+                    "memory_impact": {
+                        "food_usage_total": 4,
+                        "danger_usage_total": 1,
+                        "food_active_share": 0.2,
+                        "danger_active_share": 0.1,
+                        "food_effect_avg_distance": 0.7,
+                        "danger_effect_avg_distance": 0.3,
+                        "food_usage_per_tick": 0.2,
+                        "danger_usage_per_tick": 0.1,
+                    },
+                },
+            },
+        ]
+
+        summary = build_multi_run_summary(results)
+        avg_memory = summary.get("avg_memory_impact")
+
+        self.assertIsInstance(avg_memory, dict)
+        assert isinstance(avg_memory, dict)
+        self.assertAlmostEqual(float(avg_memory["food_usage_total"]), 8.0)
+        self.assertAlmostEqual(float(avg_memory["danger_usage_total"]), 3.0)
+        self.assertAlmostEqual(float(avg_memory["food_active_share"]), 0.3)
+        self.assertAlmostEqual(float(avg_memory["danger_active_share"]), 0.15)
+
+        text_summary = format_multi_run_summary(summary)
+        self.assertIn("memoire_moy:", text_summary)
+
     def test_cli_multi_run_mode_outputs_summary(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         cmd = [

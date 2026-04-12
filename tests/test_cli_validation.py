@@ -34,6 +34,10 @@ class CliValidationTests(unittest.TestCase):
             "reproduction_distance": 15.0,
             "reproduction_min_age": 0.0,
             "mutation_variation": 0.1,
+            "food_memory_duration": 8.0,
+            "danger_memory_duration": 6.0,
+            "food_memory_recall_distance": 8.0,
+            "danger_memory_avoid_distance": 5.0,
         }
         data.update(overrides)
         return argparse.Namespace(**data)
@@ -64,6 +68,14 @@ class CliValidationTests(unittest.TestCase):
             validate_args(self._valid_args(batch_param="energy_drain_rate", batch_values=None))
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(batch_param="energy_drain_rate", batch_values="abc"))
+
+    def test_batch_memory_param_is_supported(self) -> None:
+        validate_args(
+            self._valid_args(
+                batch_param="food_memory_duration",
+                batch_values="0,8",
+            )
+        )
 
     def test_invalid_batch_history_args_raise(self) -> None:
         with self.assertRaises(ValueError):
@@ -115,6 +127,16 @@ class CliValidationTests(unittest.TestCase):
             validate_args(self._valid_args(hunger_threshold=-0.1))
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(hunger_threshold=1.1))
+
+    def test_invalid_memory_args_raise(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(food_memory_duration=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(danger_memory_duration=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(food_memory_recall_distance=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(danger_memory_avoid_distance=-0.1))
 
     def test_invalid_reproduction_and_mutation_args_raise(self) -> None:
         with self.assertRaises(ValueError):

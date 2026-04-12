@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from ui import format_population_dynamics
 
@@ -31,7 +31,8 @@ class DebugReadabilityTests(unittest.TestCase):
         self.assertIn("net_log_naissances_deces:+2", text)
         self.assertIn("pression_nourriture:faible", text)
         self.assertIn("dist_menace_moy_tick:n/a", text)
-
+        self.assertIn("memoire_freq_tick:utile=", text)
+        self.assertIn("memoire_effet_tick:utile=", text)
     def test_decline_dynamics_highlights_mortality_cause(self) -> None:
         stats = {
             "births_last_tick": 0,
@@ -61,3 +62,4 @@ class DebugReadabilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

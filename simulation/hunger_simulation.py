@@ -87,6 +87,13 @@ class HungerSimulation:
         self.total_food_memory_guided_moves = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.total_danger_memory_avoid_moves = 0
+        self.food_memory_distance_gain_last_tick = 0.0
+        self.total_food_memory_distance_gain = 0.0
+        self.avg_food_memory_distance_gain_last_tick = 0.0
+        self.danger_memory_distance_gain_last_tick = 0.0
+        self.total_danger_memory_distance_gain = 0.0
+        self.avg_danger_memory_distance_gain_last_tick = 0.0
+        self.tick_count = 0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -111,6 +118,10 @@ class HungerSimulation:
         self.avg_flee_threat_distance_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
+        self.food_memory_distance_gain_last_tick = 0.0
+        self.avg_food_memory_distance_gain_last_tick = 0.0
+        self.danger_memory_distance_gain_last_tick = 0.0
+        self.avg_danger_memory_distance_gain_last_tick = 0.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -211,6 +222,20 @@ class HungerSimulation:
         else:
             self.avg_flee_threat_distance_last_tick = 0.0
 
+        if self.food_memory_guided_moves_last_tick > 0:
+            self.avg_food_memory_distance_gain_last_tick = (
+                self.food_memory_distance_gain_last_tick / self.food_memory_guided_moves_last_tick
+            )
+        else:
+            self.avg_food_memory_distance_gain_last_tick = 0.0
+
+        if self.danger_memory_avoid_moves_last_tick > 0:
+            self.avg_danger_memory_distance_gain_last_tick = (
+                self.danger_memory_distance_gain_last_tick / self.danger_memory_avoid_moves_last_tick
+            )
+        else:
+            self.avg_danger_memory_distance_gain_last_tick = 0.0
+
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
         self.death_causes_last_tick[self.DEATH_CAUSE_EXHAUSTION] = exhaustion_deaths
@@ -227,6 +252,8 @@ class HungerSimulation:
 
         for cause, value in self.death_causes_last_tick.items():
             self.total_death_causes[cause] += value
+
+        self.tick_count += 1
 
     def _is_reproduction_eligible(self, creature: Creature) -> bool:
         return (
@@ -337,11 +364,16 @@ class HungerSimulation:
         if step_distance <= 0.0:
             return False
 
+        before_distance = distance_to_memory
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
         self._clamp_creature_position(creature)
+        after_distance = creature.distance_to(target_x, target_y)
+        distance_gain = max(0.0, before_distance - after_distance)
 
         self.food_memory_guided_moves_last_tick += 1
         self.total_food_memory_guided_moves += 1
+        self.food_memory_distance_gain_last_tick += distance_gain
+        self.total_food_memory_distance_gain += distance_gain
         return True
 
     def _avoid_danger_memory(self, creature: Creature, dt: float) -> bool:
@@ -358,6 +390,7 @@ class HungerSimulation:
         if step_distance <= 0.0:
             return False
 
+        before_distance = distance_to_danger
         dx = creature.x - danger_x
         dy = creature.y - danger_y
         if dx == 0.0 and dy == 0.0:
@@ -367,9 +400,13 @@ class HungerSimulation:
             target_y = creature.y + dy
             creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
             self._clamp_creature_position(creature)
+        after_distance = creature.distance_to(danger_x, danger_y)
+        distance_gain = max(0.0, after_distance - before_distance)
 
         self.danger_memory_avoid_moves_last_tick += 1
         self.total_danger_memory_avoid_moves += 1
+        self.danger_memory_distance_gain_last_tick += distance_gain
+        self.total_danger_memory_distance_gain += distance_gain
         return True
 
     def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
@@ -416,4 +453,3 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
-

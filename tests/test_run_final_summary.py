@@ -55,6 +55,14 @@ class RunFinalSummaryTests(unittest.TestCase):
             "avg_prudence": 1.01,
             "avg_dominance": 1.08,
             "avg_repro_drive": 0.95,
+            "total_food_memory_guided_moves": 12,
+            "total_danger_memory_avoid_moves": 5,
+            "food_memory_active_share": 0.4,
+            "danger_memory_active_share": 0.2,
+            "food_memory_effect_avg_distance_total": 1.4,
+            "danger_memory_effect_avg_distance_total": 0.7,
+            "food_memory_usage_per_tick_total": 0.5,
+            "danger_memory_usage_per_tick_total": 0.2,
         }
 
         summary = build_final_run_summary(final_stats, tracker)
@@ -75,6 +83,12 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_traits["dominance"]), 1.08)
         self.assertAlmostEqual(float(avg_traits["repro_drive"]), 0.95)
 
+        memory_impact = summary["memory_impact"]
+        self.assertEqual(int(memory_impact["food_usage_total"]), 12)
+        self.assertEqual(int(memory_impact["danger_usage_total"]), 5)
+        self.assertAlmostEqual(float(memory_impact["food_active_share"]), 0.4)
+        self.assertAlmostEqual(float(memory_impact["danger_active_share"]), 0.2)
+
     def test_final_summary_format_is_readable(self) -> None:
         summary = {
             "final_dominant_group_signature": "gA",
@@ -92,6 +106,16 @@ class RunFinalSummaryTests(unittest.TestCase):
                 "repro_drive": 0.96,
             },
             "observed_logs": 5,
+            "memory_impact": {
+                "food_usage_total": 14,
+                "danger_usage_total": 6,
+                "food_active_share": 0.45,
+                "danger_active_share": 0.25,
+                "food_effect_avg_distance": 1.2,
+                "danger_effect_avg_distance": 0.6,
+                "food_usage_per_tick": 0.55,
+                "danger_usage_per_tick": 0.22,
+            },
         }
 
         text = format_final_run_summary(summary)
@@ -102,6 +126,7 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertIn("plus_hausse=gC", text)
         self.assertIn("zones_finales:", text)
         self.assertIn("traits_moy:", text)
+        self.assertIn("memoire:", text)
 
     def test_short_run_stays_stable_with_final_summary(self) -> None:
         rng = random.Random(123)
@@ -161,6 +186,7 @@ class RunFinalSummaryTests(unittest.TestCase):
             "most_rising_group_count",
             "final_zone_distribution",
             "avg_traits",
+            "memory_impact",
             "observed_logs",
         }
         self.assertTrue(required_fields.issubset(set(summary.keys())))

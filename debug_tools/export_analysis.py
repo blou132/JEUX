@@ -187,6 +187,16 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "dominance": _parse_float(row.get("run_summary.avg_traits.dominance")),
             "repro_drive": _parse_float(row.get("run_summary.avg_traits.repro_drive")),
         },
+        "memory_impact": {
+            "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
+            "danger_usage_total": _parse_int(row.get("run_summary.memory_impact.danger_usage_total")),
+            "food_active_share": _parse_float(row.get("run_summary.memory_impact.food_active_share")),
+            "danger_active_share": _parse_float(row.get("run_summary.memory_impact.danger_active_share")),
+            "food_effect_avg_distance": _parse_float(row.get("run_summary.memory_impact.food_effect_avg_distance")),
+            "danger_effect_avg_distance": _parse_float(row.get("run_summary.memory_impact.danger_effect_avg_distance")),
+            "food_usage_per_tick": _parse_float(row.get("run_summary.memory_impact.food_usage_per_tick")),
+            "danger_usage_per_tick": _parse_float(row.get("run_summary.memory_impact.danger_usage_per_tick")),
+        },
         "observed_logs": _parse_int(row.get("run_summary.observed_logs")),
     }
 
@@ -227,8 +237,17 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
         "most_frequent_final_dominant_group_share": _parse_float(
             row.get("multi_run_summary.most_frequent_final_dominant_group_share")
         ),
+        "avg_memory_impact": {
+            "food_usage_total": _parse_float(row.get("multi_run_summary.avg_memory_impact.food_usage_total")),
+            "danger_usage_total": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_usage_total")),
+            "food_active_share": _parse_float(row.get("multi_run_summary.avg_memory_impact.food_active_share")),
+            "danger_active_share": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_active_share")),
+            "food_effect_avg_distance": _parse_float(row.get("multi_run_summary.avg_memory_impact.food_effect_avg_distance")),
+            "danger_effect_avg_distance": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_effect_avg_distance")),
+            "food_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_memory_impact.food_usage_per_tick")),
+            "danger_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_usage_per_tick")),
+        },
     }
-
     run_count = _parse_int(row.get("run_count"), default=multi_summary["runs"])
 
     return {
@@ -270,8 +289,17 @@ def _build_batch_payload_from_csv(
             "most_frequent_final_dominant_group_share": _parse_float(
                 scenario_row.get("multi_run_summary.most_frequent_final_dominant_group_share")
             ),
+            "avg_memory_impact": {
+                "food_usage_total": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.food_usage_total")),
+                "danger_usage_total": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_usage_total")),
+                "food_active_share": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.food_active_share")),
+                "danger_active_share": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_active_share")),
+                "food_effect_avg_distance": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.food_effect_avg_distance")),
+                "danger_effect_avg_distance": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_effect_avg_distance")),
+                "food_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.food_usage_per_tick")),
+                "danger_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_usage_per_tick")),
+            },
         }
-
         scenarios.append(
             {
                 "parameter_value": _parse_float(scenario_row.get("parameter_value")),

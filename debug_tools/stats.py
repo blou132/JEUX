@@ -31,6 +31,20 @@ def build_population_stats(
         dominant_proto_by_zone,
     ) = _build_proto_zone_observations(alive_creatures, world)
 
+    food_memory_active_share = (food_memory_active_count / alive) if alive > 0 else 0.0
+    danger_memory_active_share = (danger_memory_active_count / alive) if alive > 0 else 0.0
+
+    avg_food_memory_distance_gain_total = (
+        simulation.total_food_memory_distance_gain / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    avg_danger_memory_distance_gain_total = (
+        simulation.total_danger_memory_distance_gain / simulation.total_danger_memory_avoid_moves
+        if simulation.total_danger_memory_avoid_moves > 0
+        else 0.0
+    )
+
     if total == 0:
         return {
             "population": 0,
@@ -63,10 +77,20 @@ def build_population_stats(
             "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
             "creatures_with_food_memory": 0,
             "creatures_with_danger_memory": 0,
+            "food_memory_active_share": 0.0,
+            "danger_memory_active_share": 0.0,
             "food_memory_guided_moves_last_tick": simulation.food_memory_guided_moves_last_tick,
             "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
             "danger_memory_avoid_moves_last_tick": simulation.danger_memory_avoid_moves_last_tick,
             "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
+            "food_memory_usage_per_alive_tick": 0.0,
+            "danger_memory_usage_per_alive_tick": 0.0,
+            "food_memory_usage_per_tick_total": 0.0,
+            "danger_memory_usage_per_tick_total": 0.0,
+            "food_memory_effect_avg_distance_tick": simulation.avg_food_memory_distance_gain_last_tick,
+            "danger_memory_effect_avg_distance_tick": simulation.avg_danger_memory_distance_gain_last_tick,
+            "food_memory_effect_avg_distance_total": avg_food_memory_distance_gain_total,
+            "danger_memory_effect_avg_distance_total": avg_danger_memory_distance_gain_total,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -124,10 +148,20 @@ def build_population_stats(
         "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
         "creatures_with_food_memory": food_memory_active_count,
         "creatures_with_danger_memory": danger_memory_active_count,
+        "food_memory_active_share": food_memory_active_share,
+        "danger_memory_active_share": danger_memory_active_share,
         "food_memory_guided_moves_last_tick": simulation.food_memory_guided_moves_last_tick,
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "danger_memory_avoid_moves_last_tick": simulation.danger_memory_avoid_moves_last_tick,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
+        "food_memory_usage_per_alive_tick": simulation.food_memory_guided_moves_last_tick / alive,
+        "danger_memory_usage_per_alive_tick": simulation.danger_memory_avoid_moves_last_tick / alive,
+        "food_memory_usage_per_tick_total": simulation.total_food_memory_guided_moves / max(1, simulation.tick_count),
+        "danger_memory_usage_per_tick_total": simulation.total_danger_memory_avoid_moves / max(1, simulation.tick_count),
+        "food_memory_effect_avg_distance_tick": simulation.avg_food_memory_distance_gain_last_tick,
+        "danger_memory_effect_avg_distance_tick": simulation.avg_danger_memory_distance_gain_last_tick,
+        "food_memory_effect_avg_distance_total": avg_food_memory_distance_gain_total,
+        "danger_memory_effect_avg_distance_total": avg_danger_memory_distance_gain_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -193,6 +227,17 @@ def build_final_run_summary(
     stable_signature, stable_count = _pick_signature_by_status(by_signature, "stable")
     rising_signature, rising_count = _pick_signature_by_status(by_signature, "en_hausse")
 
+    memory_impact = {
+        "food_usage_total": int(final_stats.get("total_food_memory_guided_moves", 0)),
+        "danger_usage_total": int(final_stats.get("total_danger_memory_avoid_moves", 0)),
+        "food_active_share": float(final_stats.get("food_memory_active_share", 0.0)),
+        "danger_active_share": float(final_stats.get("danger_memory_active_share", 0.0)),
+        "food_effect_avg_distance": float(final_stats.get("food_memory_effect_avg_distance_total", 0.0)),
+        "danger_effect_avg_distance": float(final_stats.get("danger_memory_effect_avg_distance_total", 0.0)),
+        "food_usage_per_tick": float(final_stats.get("food_memory_usage_per_tick_total", 0.0)),
+        "danger_usage_per_tick": float(final_stats.get("danger_memory_usage_per_tick_total", 0.0)),
+    }
+
     return {
         "final_dominant_group_signature": dominant_signature,
         "final_dominant_group_share": dominant_share,
@@ -204,6 +249,7 @@ def build_final_run_summary(
             final_stats.get("creatures_by_fertility_zone")
         ),
         "avg_traits": _read_avg_traits(final_stats),
+        "memory_impact": memory_impact,
         "observed_logs": int(temporal_tracker.get("observations", 0)),
     }
 
@@ -226,6 +272,16 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "dominance": 0.0,
                 "repro_drive": 0.0,
             },
+            "avg_memory_impact": {
+                "food_usage_total": 0.0,
+                "danger_usage_total": 0.0,
+                "food_active_share": 0.0,
+                "danger_active_share": 0.0,
+                "food_effect_avg_distance": 0.0,
+                "danger_effect_avg_distance": 0.0,
+                "food_usage_per_tick": 0.0,
+                "danger_usage_per_tick": 0.0,
+            },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
             "most_frequent_final_dominant_group_share": 0.0,
@@ -242,6 +298,16 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "prudence": 0.0,
         "dominance": 0.0,
         "repro_drive": 0.0,
+    }
+    avg_memory_acc = {
+        "food_usage_total": 0.0,
+        "danger_usage_total": 0.0,
+        "food_active_share": 0.0,
+        "danger_active_share": 0.0,
+        "food_effect_avg_distance": 0.0,
+        "danger_effect_avg_distance": 0.0,
+        "food_usage_per_tick": 0.0,
+        "danger_usage_per_tick": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -269,6 +335,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["dominance"] += float(traits_raw.get("dominance", 0.0))
                 avg_traits_acc["repro_drive"] += float(traits_raw.get("repro_drive", 0.0))
 
+            memory_raw = run_summary.get("memory_impact")
+            if isinstance(memory_raw, dict):
+                avg_memory_acc["food_usage_total"] += float(memory_raw.get("food_usage_total", 0.0))
+                avg_memory_acc["danger_usage_total"] += float(memory_raw.get("danger_usage_total", 0.0))
+                avg_memory_acc["food_active_share"] += float(memory_raw.get("food_active_share", 0.0))
+                avg_memory_acc["danger_active_share"] += float(memory_raw.get("danger_active_share", 0.0))
+                avg_memory_acc["food_effect_avg_distance"] += float(memory_raw.get("food_effect_avg_distance", 0.0))
+                avg_memory_acc["danger_effect_avg_distance"] += float(memory_raw.get("danger_effect_avg_distance", 0.0))
+                avg_memory_acc["food_usage_per_tick"] += float(memory_raw.get("food_usage_per_tick", 0.0))
+                avg_memory_acc["danger_usage_per_tick"] += float(memory_raw.get("danger_usage_per_tick", 0.0))
+
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
             dominant_frequency.items(),
@@ -291,12 +368,20 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "dominance": avg_traits_acc["dominance"] / run_count,
             "repro_drive": avg_traits_acc["repro_drive"] / run_count,
         },
+        "avg_memory_impact": {
+            "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
+            "danger_usage_total": avg_memory_acc["danger_usage_total"] / run_count,
+            "food_active_share": avg_memory_acc["food_active_share"] / run_count,
+            "danger_active_share": avg_memory_acc["danger_active_share"] / run_count,
+            "food_effect_avg_distance": avg_memory_acc["food_effect_avg_distance"] / run_count,
+            "danger_effect_avg_distance": avg_memory_acc["danger_effect_avg_distance"] / run_count,
+            "food_usage_per_tick": avg_memory_acc["food_usage_per_tick"] / run_count,
+            "danger_usage_per_tick": avg_memory_acc["danger_usage_per_tick"] / run_count,
+        },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,
         "most_frequent_final_dominant_group_share": dominant_count / run_count,
     }
-
-
 
 def _build_proto_zone_observations(
     creatures: Iterable[Creature],
@@ -594,4 +679,3 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
-

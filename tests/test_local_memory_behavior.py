@@ -72,6 +72,32 @@ class LocalMemoryBehaviorTests(unittest.TestCase):
         self.assertEqual(sim.danger_memory_avoid_moves_last_tick, 1)
         self.assertEqual(sim.total_danger_memory_avoid_moves, 1)
 
+    def test_memory_can_be_neutralized_with_zero_duration(self) -> None:
+        creature = Creature(creature_id="c1", x=0.0, y=0.0, energy=10.0, max_energy=100.0)
+        field = FoodField()
+        field.add_food(FoodSource(food_id="f1", x=0.5, y=0.0, energy_value=30.0))
+
+        sim = HungerSimulation(
+            creatures=[creature],
+            food_field=field,
+            ai_system=HungerAI(hunger_seek_threshold=0.6, food_detection_range=10.0),
+            energy_drain_rate=0.0,
+            movement_speed=1.0,
+            food_memory_duration=0.0,
+            danger_memory_duration=0.0,
+        )
+
+        sim.tick(dt=1.0)
+        sim.tick(dt=1.0)
+
+        stats = build_population_stats(sim)
+        self.assertFalse(creature.has_food_memory)
+        self.assertFalse(creature.has_danger_memory)
+        self.assertEqual(sim.total_food_memory_guided_moves, 0)
+        self.assertEqual(sim.total_danger_memory_avoid_moves, 0)
+        self.assertAlmostEqual(float(stats["food_memory_usage_per_tick_total"]), 0.0)
+        self.assertAlmostEqual(float(stats["danger_memory_usage_per_tick_total"]), 0.0)
+
     def test_debug_exposes_memory_counters_and_fields(self) -> None:
         creature = Creature(creature_id="c1", x=0.0, y=0.0, energy=10.0, max_energy=100.0)
         creature.remember_food_zone(4.0, 0.0, ttl=8.0)
@@ -101,4 +127,3 @@ class LocalMemoryBehaviorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

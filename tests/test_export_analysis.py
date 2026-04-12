@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from debug_tools import export_results
 from debug_tools.export_analysis import load_export_payload, summarize_export_payload
 
 
@@ -178,6 +179,55 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("--- Batch Comparative Summary ---", summary)
         self.assertIn("batch_comparatif:", summary)
         self.assertIn("plus_stable:", summary)
+
+    def test_load_multi_csv_preserves_memory_impact(self) -> None:
+        payload = {
+            "mode": "multi",
+            "seeds": [10, 11],
+            "run_count": 2,
+            "multi_run_summary": {
+                "runs": 2,
+                "seeds": [10, 11],
+                "extinction_count": 0,
+                "extinction_rate": 0.0,
+                "avg_max_generation": 5.0,
+                "avg_final_population": 20.0,
+                "avg_final_traits": {
+                    "speed": 1.0,
+                    "metabolism": 1.0,
+                    "prudence": 1.0,
+                    "dominance": 1.0,
+                    "repro_drive": 1.0,
+                },
+                "avg_memory_impact": {
+                    "food_usage_total": 8.0,
+                    "danger_usage_total": 3.0,
+                    "food_active_share": 0.25,
+                    "danger_active_share": 0.15,
+                    "food_effect_avg_distance": 1.2,
+                    "danger_effect_avg_distance": 0.6,
+                    "food_usage_per_tick": 0.4,
+                    "danger_usage_per_tick": 0.2,
+                },
+                "most_frequent_final_dominant_group": "gA",
+                "most_frequent_final_dominant_group_count": 2,
+                "most_frequent_final_dominant_group_share": 1.0,
+            },
+            "per_run": [],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "multi.csv"
+            export_results(payload, str(path), "csv")
+
+            loaded = load_export_payload(str(path), input_format="csv")
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "multi")
+        avg_memory = loaded["multi_run_summary"]["avg_memory_impact"]
+        self.assertAlmostEqual(float(avg_memory["food_usage_total"]), 8.0)
+        self.assertAlmostEqual(float(avg_memory["danger_usage_total"]), 3.0)
+        self.assertIn("memoire_moy:", summary)
 
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

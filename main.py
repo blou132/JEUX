@@ -51,6 +51,10 @@ _BATCH_PARAM_CASTERS = {
     "reproduction_distance": float,
     "reproduction_min_age": float,
     "mutation_variation": float,
+    "food_memory_duration": float,
+    "danger_memory_duration": float,
+    "food_memory_recall_distance": float,
+    "danger_memory_avoid_distance": float,
     "initial_food": int,
     "min_food": int,
     "creatures": int,
@@ -94,7 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reproduction-distance", type=float, default=15.0)
     parser.add_argument("--reproduction-min-age", type=float, default=0.0)
     parser.add_argument("--mutation-variation", type=float, default=0.1)
-
+    parser.add_argument("--food-memory-duration", type=float, default=8.0)
+    parser.add_argument("--danger-memory-duration", type=float, default=6.0)
+    parser.add_argument("--food-memory-recall-distance", type=float, default=8.0)
+    parser.add_argument("--danger-memory-avoid-distance", type=float, default=5.0)
     return parser
 
 
@@ -163,6 +170,15 @@ def validate_args(args: argparse.Namespace) -> None:
             "reproduction_threshold, reproduction_cost, reproduction_distance, reproduction_min_age and mutation_variation must be >= 0"
         )
 
+    if (
+        args.food_memory_duration < 0
+        or args.danger_memory_duration < 0
+        or args.food_memory_recall_distance < 0
+        or args.danger_memory_avoid_distance < 0
+    ):
+        raise ValueError(
+            "food_memory_duration, danger_memory_duration, food_memory_recall_distance and danger_memory_avoid_distance must be >= 0"
+        )
 
 def _parse_batch_values(raw_values: str, batch_param: str) -> list[float | int]:
     caster = _BATCH_PARAM_CASTERS.get(batch_param)
@@ -262,6 +278,10 @@ def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str,
         reproduction_distance=args.reproduction_distance,
         reproduction_min_age=args.reproduction_min_age,
         mutation_variation=args.mutation_variation,
+        food_memory_duration=args.food_memory_duration,
+        danger_memory_duration=args.danger_memory_duration,
+        food_memory_recall_distance=args.food_memory_recall_distance,
+        danger_memory_avoid_distance=args.danger_memory_avoid_distance,
         random_source=random_source,
         world_map=world_map,
     )
@@ -556,13 +576,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
