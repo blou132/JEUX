@@ -104,6 +104,7 @@ class MultiRunModeTests(unittest.TestCase):
         self.assertIn("gen_max_moy=", text)
         self.assertIn("pop_finale_moy=", text)
         self.assertIn("traits_finaux_moy:", text)
+        self.assertIn("social_moy:", text)
         self.assertIn("dominant_final_freq=gA", text)
 
     def test_multi_run_summary_includes_avg_memory_impact(self) -> None:
@@ -132,6 +133,17 @@ class MultiRunModeTests(unittest.TestCase):
                         "food_usage_per_tick": 0.5,
                         "danger_usage_per_tick": 0.2,
                     },
+                    "social_impact": {
+                        "follow_usage_total": 8,
+                        "flee_boost_usage_total": 3,
+                        "influenced_count_last_tick": 2,
+                        "influenced_share_last_tick": 0.25,
+                        "influenced_per_tick": 0.9,
+                        "follow_usage_per_tick": 0.4,
+                        "flee_boost_usage_per_tick": 0.15,
+                        "flee_multiplier_avg_tick": 1.2,
+                        "flee_multiplier_avg_total": 1.1,
+                    },
                 },
             },
             {
@@ -158,6 +170,17 @@ class MultiRunModeTests(unittest.TestCase):
                         "food_usage_per_tick": 0.2,
                         "danger_usage_per_tick": 0.1,
                     },
+                    "social_impact": {
+                        "follow_usage_total": 2,
+                        "flee_boost_usage_total": 1,
+                        "influenced_count_last_tick": 1,
+                        "influenced_share_last_tick": 0.1,
+                        "influenced_per_tick": 0.4,
+                        "follow_usage_per_tick": 0.15,
+                        "flee_boost_usage_per_tick": 0.05,
+                        "flee_multiplier_avg_tick": 1.1,
+                        "flee_multiplier_avg_total": 1.05,
+                    },
                 },
             },
         ]
@@ -172,8 +195,16 @@ class MultiRunModeTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_memory["food_active_share"]), 0.3)
         self.assertAlmostEqual(float(avg_memory["danger_active_share"]), 0.15)
 
+        avg_social = summary.get("avg_social_impact")
+        self.assertIsInstance(avg_social, dict)
+        assert isinstance(avg_social, dict)
+        self.assertAlmostEqual(float(avg_social["follow_usage_total"]), 5.0)
+        self.assertAlmostEqual(float(avg_social["flee_boost_usage_total"]), 2.0)
+        self.assertAlmostEqual(float(avg_social["influenced_share_last_tick"]), 0.175)
+
         text_summary = format_multi_run_summary(summary)
         self.assertIn("memoire_moy:", text_summary)
+        self.assertIn("social_moy:", text_summary)
 
     def test_cli_multi_run_mode_outputs_summary(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -239,3 +270,4 @@ class MultiRunModeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -63,6 +63,15 @@ class RunFinalSummaryTests(unittest.TestCase):
             "danger_memory_effect_avg_distance_total": 0.7,
             "food_memory_usage_per_tick_total": 0.5,
             "danger_memory_usage_per_tick_total": 0.2,
+            "total_social_follow_moves": 8,
+            "total_social_flee_boosted": 3,
+            "social_influenced_creatures_last_tick": 2,
+            "social_influenced_share_last_tick": 0.25,
+            "social_influenced_per_tick_total": 0.6,
+            "social_follow_usage_per_tick_total": 0.4,
+            "social_flee_boost_usage_per_tick_total": 0.15,
+            "avg_social_flee_multiplier_last_tick": 1.2,
+            "social_flee_multiplier_avg_total": 1.1,
         }
 
         summary = build_final_run_summary(final_stats, tracker)
@@ -88,6 +97,11 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertEqual(int(memory_impact["danger_usage_total"]), 5)
         self.assertAlmostEqual(float(memory_impact["food_active_share"]), 0.4)
         self.assertAlmostEqual(float(memory_impact["danger_active_share"]), 0.2)
+
+        social_impact = summary["social_impact"]
+        self.assertEqual(int(social_impact["follow_usage_total"]), 8)
+        self.assertEqual(int(social_impact["flee_boost_usage_total"]), 3)
+        self.assertAlmostEqual(float(social_impact["influenced_share_last_tick"]), 0.25)
 
     def test_final_summary_format_is_readable(self) -> None:
         summary = {
@@ -116,6 +130,17 @@ class RunFinalSummaryTests(unittest.TestCase):
                 "food_usage_per_tick": 0.55,
                 "danger_usage_per_tick": 0.22,
             },
+            "social_impact": {
+                "follow_usage_total": 10,
+                "flee_boost_usage_total": 4,
+                "influenced_count_last_tick": 3,
+                "influenced_share_last_tick": 0.3,
+                "influenced_per_tick": 0.9,
+                "follow_usage_per_tick": 0.5,
+                "flee_boost_usage_per_tick": 0.2,
+                "flee_multiplier_avg_tick": 1.2,
+                "flee_multiplier_avg_total": 1.1,
+            },
         }
 
         text = format_final_run_summary(summary)
@@ -127,6 +152,7 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertIn("zones_finales:", text)
         self.assertIn("traits_moy:", text)
         self.assertIn("memoire:", text)
+        self.assertIn("social:", text)
 
     def test_short_run_stays_stable_with_final_summary(self) -> None:
         rng = random.Random(123)
@@ -187,6 +213,7 @@ class RunFinalSummaryTests(unittest.TestCase):
             "final_zone_distribution",
             "avg_traits",
             "memory_impact",
+            "social_impact",
             "observed_logs",
         }
         self.assertTrue(required_fields.issubset(set(summary.keys())))
@@ -194,3 +221,4 @@ class RunFinalSummaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

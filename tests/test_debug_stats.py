@@ -94,6 +94,11 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("social_flee_boost_usage_per_alive_tick", stats)
         self.assertIn("social_follow_usage_per_tick_total", stats)
         self.assertIn("social_flee_boost_usage_per_tick_total", stats)
+        self.assertIn("social_influenced_creatures_last_tick", stats)
+        self.assertIn("total_social_influenced_creatures", stats)
+        self.assertIn("social_influenced_share_last_tick", stats)
+        self.assertIn("social_influenced_per_tick_total", stats)
+        self.assertIn("social_flee_multiplier_avg_total", stats)
         self.assertIn("creatures_by_fertility_zone", stats)
         self.assertIn("dominant_proto_group_by_fertility_zone", stats)
         self.assertIn("proto_group_temporal_trends", stats)
@@ -123,4 +128,5 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

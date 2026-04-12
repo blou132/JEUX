@@ -44,6 +44,11 @@ def build_population_stats(
         if simulation.total_danger_memory_avoid_moves > 0
         else 0.0
     )
+    avg_social_flee_multiplier_total = (
+        simulation.total_social_flee_multiplier_sum / simulation.total_social_flee_boosted
+        if simulation.total_social_flee_boosted > 0
+        else 1.0
+    )
 
     if total == 0:
         return {
@@ -100,6 +105,11 @@ def build_population_stats(
             "social_flee_boost_usage_per_alive_tick": 0.0,
             "social_follow_usage_per_tick_total": 0.0,
             "social_flee_boost_usage_per_tick_total": 0.0,
+            "social_influenced_creatures_last_tick": 0,
+            "total_social_influenced_creatures": 0,
+            "social_influenced_share_last_tick": 0.0,
+            "social_influenced_per_tick_total": 0.0,
+            "social_flee_multiplier_avg_total": avg_social_flee_multiplier_total,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -180,6 +190,11 @@ def build_population_stats(
         "social_flee_boost_usage_per_alive_tick": simulation.social_flee_boosted_last_tick / alive,
         "social_follow_usage_per_tick_total": simulation.total_social_follow_moves / max(1, simulation.tick_count),
         "social_flee_boost_usage_per_tick_total": simulation.total_social_flee_boosted / max(1, simulation.tick_count),
+        "social_influenced_creatures_last_tick": simulation.social_influenced_creatures_last_tick,
+        "total_social_influenced_creatures": simulation.total_social_influenced_creatures,
+        "social_influenced_share_last_tick": simulation.social_influenced_creatures_last_tick / alive,
+        "social_influenced_per_tick_total": simulation.total_social_influenced_creatures / max(1, simulation.tick_count),
+        "social_flee_multiplier_avg_total": avg_social_flee_multiplier_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -255,6 +270,17 @@ def build_final_run_summary(
         "food_usage_per_tick": float(final_stats.get("food_memory_usage_per_tick_total", 0.0)),
         "danger_usage_per_tick": float(final_stats.get("danger_memory_usage_per_tick_total", 0.0)),
     }
+    social_impact = {
+        "follow_usage_total": int(final_stats.get("total_social_follow_moves", 0)),
+        "flee_boost_usage_total": int(final_stats.get("total_social_flee_boosted", 0)),
+        "influenced_count_last_tick": int(final_stats.get("social_influenced_creatures_last_tick", 0)),
+        "influenced_share_last_tick": float(final_stats.get("social_influenced_share_last_tick", 0.0)),
+        "influenced_per_tick": float(final_stats.get("social_influenced_per_tick_total", 0.0)),
+        "follow_usage_per_tick": float(final_stats.get("social_follow_usage_per_tick_total", 0.0)),
+        "flee_boost_usage_per_tick": float(final_stats.get("social_flee_boost_usage_per_tick_total", 0.0)),
+        "flee_multiplier_avg_tick": float(final_stats.get("avg_social_flee_multiplier_last_tick", 1.0)),
+        "flee_multiplier_avg_total": float(final_stats.get("social_flee_multiplier_avg_total", 1.0)),
+    }
 
     return {
         "final_dominant_group_signature": dominant_signature,
@@ -268,6 +294,7 @@ def build_final_run_summary(
         ),
         "avg_traits": _read_avg_traits(final_stats),
         "memory_impact": memory_impact,
+        "social_impact": social_impact,
         "observed_logs": int(temporal_tracker.get("observations", 0)),
     }
 
@@ -300,6 +327,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_usage_per_tick": 0.0,
                 "danger_usage_per_tick": 0.0,
             },
+            "avg_social_impact": {
+                "follow_usage_total": 0.0,
+                "flee_boost_usage_total": 0.0,
+                "influenced_count_last_tick": 0.0,
+                "influenced_share_last_tick": 0.0,
+                "influenced_per_tick": 0.0,
+                "follow_usage_per_tick": 0.0,
+                "flee_boost_usage_per_tick": 0.0,
+                "flee_multiplier_avg_tick": 1.0,
+                "flee_multiplier_avg_total": 1.0,
+            },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
             "most_frequent_final_dominant_group_share": 0.0,
@@ -326,6 +364,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "danger_effect_avg_distance": 0.0,
         "food_usage_per_tick": 0.0,
         "danger_usage_per_tick": 0.0,
+    }
+    avg_social_acc = {
+        "follow_usage_total": 0.0,
+        "flee_boost_usage_total": 0.0,
+        "influenced_count_last_tick": 0.0,
+        "influenced_share_last_tick": 0.0,
+        "influenced_per_tick": 0.0,
+        "follow_usage_per_tick": 0.0,
+        "flee_boost_usage_per_tick": 0.0,
+        "flee_multiplier_avg_tick": 0.0,
+        "flee_multiplier_avg_total": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -364,6 +413,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_memory_acc["food_usage_per_tick"] += float(memory_raw.get("food_usage_per_tick", 0.0))
                 avg_memory_acc["danger_usage_per_tick"] += float(memory_raw.get("danger_usage_per_tick", 0.0))
 
+            social_raw = run_summary.get("social_impact")
+            if isinstance(social_raw, dict):
+                avg_social_acc["follow_usage_total"] += float(social_raw.get("follow_usage_total", 0.0))
+                avg_social_acc["flee_boost_usage_total"] += float(social_raw.get("flee_boost_usage_total", 0.0))
+                avg_social_acc["influenced_count_last_tick"] += float(social_raw.get("influenced_count_last_tick", 0.0))
+                avg_social_acc["influenced_share_last_tick"] += float(social_raw.get("influenced_share_last_tick", 0.0))
+                avg_social_acc["influenced_per_tick"] += float(social_raw.get("influenced_per_tick", 0.0))
+                avg_social_acc["follow_usage_per_tick"] += float(social_raw.get("follow_usage_per_tick", 0.0))
+                avg_social_acc["flee_boost_usage_per_tick"] += float(social_raw.get("flee_boost_usage_per_tick", 0.0))
+                avg_social_acc["flee_multiplier_avg_tick"] += float(social_raw.get("flee_multiplier_avg_tick", 1.0))
+                avg_social_acc["flee_multiplier_avg_total"] += float(social_raw.get("flee_multiplier_avg_total", 1.0))
+
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
             dominant_frequency.items(),
@@ -395,6 +456,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "danger_effect_avg_distance": avg_memory_acc["danger_effect_avg_distance"] / run_count,
             "food_usage_per_tick": avg_memory_acc["food_usage_per_tick"] / run_count,
             "danger_usage_per_tick": avg_memory_acc["danger_usage_per_tick"] / run_count,
+        },
+        "avg_social_impact": {
+            "follow_usage_total": avg_social_acc["follow_usage_total"] / run_count,
+            "flee_boost_usage_total": avg_social_acc["flee_boost_usage_total"] / run_count,
+            "influenced_count_last_tick": avg_social_acc["influenced_count_last_tick"] / run_count,
+            "influenced_share_last_tick": avg_social_acc["influenced_share_last_tick"] / run_count,
+            "influenced_per_tick": avg_social_acc["influenced_per_tick"] / run_count,
+            "follow_usage_per_tick": avg_social_acc["follow_usage_per_tick"] / run_count,
+            "flee_boost_usage_per_tick": avg_social_acc["flee_boost_usage_per_tick"] / run_count,
+            "flee_multiplier_avg_tick": avg_social_acc["flee_multiplier_avg_tick"] / run_count,
+            "flee_multiplier_avg_total": avg_social_acc["flee_multiplier_avg_total"] / run_count,
         },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,
@@ -697,4 +769,6 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
+
+
 

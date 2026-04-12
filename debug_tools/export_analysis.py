@@ -197,6 +197,17 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_usage_per_tick": _parse_float(row.get("run_summary.memory_impact.food_usage_per_tick")),
             "danger_usage_per_tick": _parse_float(row.get("run_summary.memory_impact.danger_usage_per_tick")),
         },
+        "social_impact": {
+            "follow_usage_total": _parse_float(row.get("run_summary.social_impact.follow_usage_total")),
+            "flee_boost_usage_total": _parse_float(row.get("run_summary.social_impact.flee_boost_usage_total")),
+            "influenced_count_last_tick": _parse_float(row.get("run_summary.social_impact.influenced_count_last_tick")),
+            "influenced_share_last_tick": _parse_float(row.get("run_summary.social_impact.influenced_share_last_tick")),
+            "influenced_per_tick": _parse_float(row.get("run_summary.social_impact.influenced_per_tick")),
+            "follow_usage_per_tick": _parse_float(row.get("run_summary.social_impact.follow_usage_per_tick")),
+            "flee_boost_usage_per_tick": _parse_float(row.get("run_summary.social_impact.flee_boost_usage_per_tick")),
+            "flee_multiplier_avg_tick": _parse_float(row.get("run_summary.social_impact.flee_multiplier_avg_tick"), default=1.0),
+            "flee_multiplier_avg_total": _parse_float(row.get("run_summary.social_impact.flee_multiplier_avg_total"), default=1.0),
+        },
         "observed_logs": _parse_int(row.get("run_summary.observed_logs")),
     }
 
@@ -246,6 +257,17 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "danger_effect_avg_distance": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_effect_avg_distance")),
             "food_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_memory_impact.food_usage_per_tick")),
             "danger_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_memory_impact.danger_usage_per_tick")),
+        },
+        "avg_social_impact": {
+            "follow_usage_total": _parse_float(row.get("multi_run_summary.avg_social_impact.follow_usage_total")),
+            "flee_boost_usage_total": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_boost_usage_total")),
+            "influenced_count_last_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.influenced_count_last_tick")),
+            "influenced_share_last_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.influenced_share_last_tick")),
+            "influenced_per_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.influenced_per_tick")),
+            "follow_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.follow_usage_per_tick")),
+            "flee_boost_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_boost_usage_per_tick")),
+            "flee_multiplier_avg_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_tick"), default=1.0),
+            "flee_multiplier_avg_total": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_total"), default=1.0),
         },
     }
     run_count = _parse_int(row.get("run_count"), default=multi_summary["runs"])
@@ -298,6 +320,17 @@ def _build_batch_payload_from_csv(
                 "danger_effect_avg_distance": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_effect_avg_distance")),
                 "food_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.food_usage_per_tick")),
                 "danger_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_memory_impact.danger_usage_per_tick")),
+            },
+            "avg_social_impact": {
+                "follow_usage_total": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.follow_usage_total")),
+                "flee_boost_usage_total": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_boost_usage_total")),
+                "influenced_count_last_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.influenced_count_last_tick")),
+                "influenced_share_last_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.influenced_share_last_tick")),
+                "influenced_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.influenced_per_tick")),
+                "follow_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.follow_usage_per_tick")),
+                "flee_boost_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_boost_usage_per_tick")),
+                "flee_multiplier_avg_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_tick"), default=1.0),
+                "flee_multiplier_avg_total": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_total"), default=1.0),
             },
         }
         scenarios.append(
@@ -372,3 +405,4 @@ def _format_batch_value(value: float) -> str:
     if float(value).is_integer():
         return f"{value:.1f}"
     return f"{value:.6g}"
+

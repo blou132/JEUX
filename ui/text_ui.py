@@ -211,6 +211,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
     zones_raw = summary.get("final_zone_distribution")
     traits_raw = summary.get("avg_traits")
     memory_raw = summary.get("memory_impact")
+    social_raw = summary.get("social_impact")
 
     zones = {"rich": 0, "neutral": 0, "poor": 0}
     if isinstance(zones_raw, dict):
@@ -252,6 +253,28 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         memory["food_usage_per_tick"] = float(memory_raw.get("food_usage_per_tick", 0.0))
         memory["danger_usage_per_tick"] = float(memory_raw.get("danger_usage_per_tick", 0.0))
 
+    social = {
+        "follow_usage_total": 0,
+        "flee_boost_usage_total": 0,
+        "influenced_count_last_tick": 0,
+        "influenced_share_last_tick": 0.0,
+        "influenced_per_tick": 0.0,
+        "follow_usage_per_tick": 0.0,
+        "flee_boost_usage_per_tick": 0.0,
+        "flee_multiplier_avg_tick": 1.0,
+        "flee_multiplier_avg_total": 1.0,
+    }
+    if isinstance(social_raw, dict):
+        social["follow_usage_total"] = int(social_raw.get("follow_usage_total", 0))
+        social["flee_boost_usage_total"] = int(social_raw.get("flee_boost_usage_total", 0))
+        social["influenced_count_last_tick"] = int(social_raw.get("influenced_count_last_tick", 0))
+        social["influenced_share_last_tick"] = float(social_raw.get("influenced_share_last_tick", 0.0))
+        social["influenced_per_tick"] = float(social_raw.get("influenced_per_tick", 0.0))
+        social["follow_usage_per_tick"] = float(social_raw.get("follow_usage_per_tick", 0.0))
+        social["flee_boost_usage_per_tick"] = float(social_raw.get("flee_boost_usage_per_tick", 0.0))
+        social["flee_multiplier_avg_tick"] = float(social_raw.get("flee_multiplier_avg_tick", 1.0))
+        social["flee_multiplier_avg_total"] = float(social_raw.get("flee_multiplier_avg_total", 1.0))
+
     return (
         "synthese_run: "
         "dominant_final={dominant}(part={dominant_share:.2f}) "
@@ -262,6 +285,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
+        "social:suivi={social_follow} fuite_boost={social_flee_boost} "
+        "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
+        "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
+        "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -286,6 +313,15 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         mem_danger_freq=memory["danger_usage_per_tick"],
         mem_food_effect=memory["food_effect_avg_distance"],
         mem_danger_effect=memory["danger_effect_avg_distance"],
+        social_follow=social["follow_usage_total"],
+        social_flee_boost=social["flee_boost_usage_total"],
+        social_infl_share=social["influenced_share_last_tick"],
+        social_infl_count=social["influenced_count_last_tick"],
+        social_infl_tick=social["influenced_per_tick"],
+        social_follow_freq=social["follow_usage_per_tick"],
+        social_boost_freq=social["flee_boost_usage_per_tick"],
+        social_mult_tick=social["flee_multiplier_avg_tick"],
+        social_mult_total=social["flee_multiplier_avg_total"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
 
@@ -293,6 +329,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
     seeds_raw = summary.get("seeds")
     traits_raw = summary.get("avg_final_traits")
     memory_raw = summary.get("avg_memory_impact")
+    social_raw = summary.get("avg_social_impact")
 
     seeds: list[int] = []
     if isinstance(seeds_raw, list):
@@ -332,6 +369,28 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         memory["food_usage_per_tick"] = float(memory_raw.get("food_usage_per_tick", 0.0))
         memory["danger_usage_per_tick"] = float(memory_raw.get("danger_usage_per_tick", 0.0))
 
+    social = {
+        "follow_usage_total": 0.0,
+        "flee_boost_usage_total": 0.0,
+        "influenced_count_last_tick": 0.0,
+        "influenced_share_last_tick": 0.0,
+        "influenced_per_tick": 0.0,
+        "follow_usage_per_tick": 0.0,
+        "flee_boost_usage_per_tick": 0.0,
+        "flee_multiplier_avg_tick": 1.0,
+        "flee_multiplier_avg_total": 1.0,
+    }
+    if isinstance(social_raw, dict):
+        social["follow_usage_total"] = float(social_raw.get("follow_usage_total", 0.0))
+        social["flee_boost_usage_total"] = float(social_raw.get("flee_boost_usage_total", 0.0))
+        social["influenced_count_last_tick"] = float(social_raw.get("influenced_count_last_tick", 0.0))
+        social["influenced_share_last_tick"] = float(social_raw.get("influenced_share_last_tick", 0.0))
+        social["influenced_per_tick"] = float(social_raw.get("influenced_per_tick", 0.0))
+        social["follow_usage_per_tick"] = float(social_raw.get("follow_usage_per_tick", 0.0))
+        social["flee_boost_usage_per_tick"] = float(social_raw.get("flee_boost_usage_per_tick", 0.0))
+        social["flee_multiplier_avg_tick"] = float(social_raw.get("flee_multiplier_avg_tick", 1.0))
+        social["flee_multiplier_avg_total"] = float(social_raw.get("flee_multiplier_avg_total", 1.0))
+
     seeds_text = ",".join(str(seed) for seed in seeds)
 
     return (
@@ -344,6 +403,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
+        "social_moy:suivi={social_follow:.2f} fuite_boost={social_flee_boost:.2f} "
+        "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
+        "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
+        "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -365,6 +428,15 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         mem_danger_freq=memory["danger_usage_per_tick"],
         mem_food_effect=memory["food_effect_avg_distance"],
         mem_danger_effect=memory["danger_effect_avg_distance"],
+        social_follow=social["follow_usage_total"],
+        social_flee_boost=social["flee_boost_usage_total"],
+        social_infl_share=social["influenced_share_last_tick"],
+        social_infl_count=social["influenced_count_last_tick"],
+        social_infl_tick=social["influenced_per_tick"],
+        social_follow_freq=social["follow_usage_per_tick"],
+        social_boost_freq=social["flee_boost_usage_per_tick"],
+        social_mult_tick=social["flee_multiplier_avg_tick"],
+        social_mult_total=social["flee_multiplier_avg_total"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
@@ -402,6 +474,7 @@ def format_population_dynamics(
     current_total_danger_memory_avoid = int(stats.get("total_danger_memory_avoid_moves", 0))
     current_total_social_follow = int(stats.get("total_social_follow_moves", 0))
     current_total_social_flee_boost = int(stats.get("total_social_flee_boosted", 0))
+    current_total_social_influenced = int(stats.get("total_social_influenced_creatures", 0))
 
     fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
     avg_flee_threat_distance_tick = float(stats.get("avg_flee_threat_distance_last_tick", 0.0))
@@ -419,7 +492,11 @@ def format_population_dynamics(
 
     social_follow_tick = int(stats.get("social_follow_moves_last_tick", 0))
     social_flee_boost_tick = int(stats.get("social_flee_boosted_last_tick", 0))
+    social_influenced_tick = int(stats.get("social_influenced_creatures_last_tick", 0))
+    social_influenced_share_tick = float(stats.get("social_influenced_share_last_tick", 0.0))
+    social_influenced_rate_total = float(stats.get("social_influenced_per_tick_total", 0.0))
     avg_social_flee_multiplier_tick = float(stats.get("avg_social_flee_multiplier_last_tick", 1.0))
+    avg_social_flee_multiplier_total = float(stats.get("social_flee_multiplier_avg_total", 1.0))
 
     avg_prudence = float(stats.get("avg_prudence", 0.0))
     avg_dominance = float(stats.get("avg_dominance", 0.0))
@@ -433,6 +510,7 @@ def format_population_dynamics(
     danger_memory_avoid_log = danger_memory_avoid_tick
     social_follow_log = social_follow_tick
     social_flee_boost_log = social_flee_boost_tick
+    social_influenced_log = social_influenced_tick
 
     if previous_stats is not None:
         previous_alive = int(previous_stats.get("alive", alive))
@@ -451,6 +529,9 @@ def format_population_dynamics(
         previous_total_social_flee_boost = int(
             previous_stats.get("total_social_flee_boosted", current_total_social_flee_boost)
         )
+        previous_total_social_influenced = int(
+            previous_stats.get("total_social_influenced_creatures", current_total_social_influenced)
+        )
 
         alive_delta = alive - previous_alive
         births_log = max(0, current_total_births - previous_total_births)
@@ -460,6 +541,7 @@ def format_population_dynamics(
         danger_memory_avoid_log = max(0, current_total_danger_memory_avoid - previous_total_danger_memory_avoid)
         social_follow_log = max(0, current_total_social_follow - previous_total_social_follow)
         social_flee_boost_log = max(0, current_total_social_flee_boost - previous_total_social_flee_boost)
+        social_influenced_log = max(0, current_total_social_influenced - previous_total_social_influenced)
 
     net_log = births_log - deaths_log
     dynamic_log = _classify_trend(primary=alive_delta, secondary=net_log)
@@ -508,8 +590,10 @@ def format_population_dynamics(
         f"memoire_tick:utile={food_memory_guided_tick} danger={danger_memory_avoid_tick} "
         f"memoire_freq_tick:utile={food_memory_usage_alive_tick:.2f} danger={danger_memory_usage_alive_tick:.2f} "
         f"memoire_effet_tick:utile={food_memory_effect_tick:.2f} danger={danger_memory_effect_tick:.2f} "
-        f"social_log:suivi={social_follow_log} fuite_boost={social_flee_boost_log} "
-        f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} mult_fuite={avg_social_flee_multiplier_tick:.2f} "
+        f"social_log:suivi={social_follow_log} fuite_boost={social_flee_boost_log} infl={social_influenced_log} "
+        f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} infl={social_influenced_tick} "
+        f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
+        f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
@@ -606,4 +690,6 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+
+
 

@@ -1,7 +1,7 @@
 import argparse
 import unittest
 
-from main import validate_args
+from main import build_parser, validate_args
 
 
 class CliValidationTests(unittest.TestCase):
@@ -38,6 +38,10 @@ class CliValidationTests(unittest.TestCase):
             "danger_memory_duration": 6.0,
             "food_memory_recall_distance": 8.0,
             "danger_memory_avoid_distance": 5.0,
+            "social_influence_distance": 6.0,
+            "social_follow_strength": 0.35,
+            "social_flee_boost_per_neighbor": 0.15,
+            "social_flee_boost_max": 0.45,
         }
         data.update(overrides)
         return argparse.Namespace(**data)
@@ -138,6 +142,34 @@ class CliValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(danger_memory_avoid_distance=-0.1))
 
+    def test_social_cli_args_parse_and_validate(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "--steps",
+                "10",
+                "--social-influence-distance",
+                "0",
+                "--social-follow-strength",
+                "0",
+                "--social-flee-boost-per-neighbor",
+                "0",
+                "--social-flee-boost-max",
+                "0",
+            ]
+        )
+        validate_args(args)
+
+    def test_invalid_social_args_raise(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(social_influence_distance=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(social_follow_strength=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(social_flee_boost_per_neighbor=-0.1))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(social_flee_boost_max=-0.1))
+
     def test_invalid_reproduction_and_mutation_args_raise(self) -> None:
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(reproduction_threshold=-1.0))
@@ -153,3 +185,4 @@ class CliValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

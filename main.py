@@ -55,6 +55,10 @@ _BATCH_PARAM_CASTERS = {
     "danger_memory_duration": float,
     "food_memory_recall_distance": float,
     "danger_memory_avoid_distance": float,
+    "social_influence_distance": float,
+    "social_follow_strength": float,
+    "social_flee_boost_per_neighbor": float,
+    "social_flee_boost_max": float,
     "initial_food": int,
     "min_food": int,
     "creatures": int,
@@ -102,6 +106,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--danger-memory-duration", type=float, default=6.0)
     parser.add_argument("--food-memory-recall-distance", type=float, default=8.0)
     parser.add_argument("--danger-memory-avoid-distance", type=float, default=5.0)
+    parser.add_argument("--social-influence-distance", type=float, default=6.0)
+    parser.add_argument("--social-follow-strength", type=float, default=0.35)
+    parser.add_argument("--social-flee-boost-per-neighbor", type=float, default=0.15)
+    parser.add_argument("--social-flee-boost-max", type=float, default=0.45)
     return parser
 
 
@@ -178,6 +186,16 @@ def validate_args(args: argparse.Namespace) -> None:
     ):
         raise ValueError(
             "food_memory_duration, danger_memory_duration, food_memory_recall_distance and danger_memory_avoid_distance must be >= 0"
+        )
+
+    if (
+        args.social_influence_distance < 0
+        or args.social_follow_strength < 0
+        or args.social_flee_boost_per_neighbor < 0
+        or args.social_flee_boost_max < 0
+    ):
+        raise ValueError(
+            "social_influence_distance, social_follow_strength, social_flee_boost_per_neighbor and social_flee_boost_max must be >= 0"
         )
 
 def _parse_batch_values(raw_values: str, batch_param: str) -> list[float | int]:
@@ -282,6 +300,10 @@ def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str,
         danger_memory_duration=args.danger_memory_duration,
         food_memory_recall_distance=args.food_memory_recall_distance,
         danger_memory_avoid_distance=args.danger_memory_avoid_distance,
+        social_influence_distance=args.social_influence_distance,
+        social_follow_strength=args.social_follow_strength,
+        social_flee_boost_per_neighbor=args.social_flee_boost_per_neighbor,
+        social_flee_boost_max=args.social_flee_boost_max,
         random_source=random_source,
         world_map=world_map,
     )
@@ -576,3 +598,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+

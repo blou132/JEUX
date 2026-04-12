@@ -63,6 +63,13 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_flees": simulation.total_flees,
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
+        "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
+        "social_flee_boosted_last_tick": simulation.social_flee_boosted_last_tick,
+        "social_influenced_creatures_last_tick": simulation.social_influenced_creatures_last_tick,
+        "avg_social_flee_multiplier_last_tick": simulation.avg_social_flee_multiplier_last_tick,
+        "total_social_follow_moves": simulation.total_social_follow_moves,
+        "total_social_flee_boosted": simulation.total_social_flee_boosted,
+        "total_social_influenced_creatures": simulation.total_social_influenced_creatures,
         "creatures": creatures,
         "food_sources_count": simulation.food_field.get_food_count(),
         "food_remaining": round(simulation.food_field.get_total_food_energy(), 3),
@@ -83,4 +90,5 @@ def _intent_reason(intent: CreatureIntent | None) -> str | None:
     if intent.action == HungerAI.ACTION_WANDER:
         return "idle"
     return "other"
+
 

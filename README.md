@@ -29,7 +29,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
 - Indicateurs d'impact memoire (usage, part active, effet moyen distance) visibles en stats/syntheses.
 - Influence sociale locale minimale (suivi social vers nourriture + renforcement local de fuite).
-- Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, multiplicateur de fuite).
+- Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, part influencee, multiplicateur de fuite tick/moyen).
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -150,7 +150,15 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Une creature peut suivre legerement un congenere proche qui se deplace vers une zone de nourriture visible.
 - Une fuite locale peut etre renforcee si d'autres creatures proches fuient au meme tick.
 - Systeme volontairement leger et local (pas de groupe complexe, pas de hierarchie, pas de pathfinding social).
-- Indicateurs associes: `social_follow_moves_last_tick`, `social_flee_boosted_last_tick`, `avg_social_flee_multiplier_last_tick`, plus les blocs `social_log` et `social_tick` dans `dynamique_*`.
+- Indicateurs associes: `social_follow_moves_last_tick`, `social_flee_boosted_last_tick`, `social_influenced_creatures_last_tick`, `social_influenced_share_last_tick`, `avg_social_flee_multiplier_last_tick`, `social_flee_multiplier_avg_total`, plus les blocs `social_log` et `social_tick` dans `dynamique_*`.
+
+### Evaluation legere de l'impact social
+- Mesures d'impact exposees en stats/synthese: frequence du suivi social, frequence du boost de fuite social, part de creatures influencees, effet moyen du multiplicateur de fuite social (tick + moyenne run).
+- Ces indicateurs sont visibles dans:
+  - la ligne `dynamique_*` des logs (`social_log`, `social_tick`, `part_infl`, `mult_fuite`, `mult_fuite_moy`)
+  - la `Run Summary` (`social:`)
+  - la `Multi-Run Summary` (`social_moy:`)
+- Neutralisation simple via CLI (sans refactor): mettre les parametres sociaux a 0 (par exemple `--social-influence-distance 0`).
 
 ### Historique batch (archive d'experiences)
 - Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
@@ -187,6 +195,15 @@ py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 Exemple comparaison memoire active vs neutralisee (run simple):
 ```powershell
 py main.py --seed 42 --steps 120 --log-interval 20 --food-memory-duration 0 --danger-memory-duration 0
+```
+Exemple comparaison influence sociale active vs neutralisee (run simple):
+```powershell
+py main.py --seed 42 --steps 120 --log-interval 20 --social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0
+```
+
+Exemple batch social (variation d'un parametre social):
+```powershell
+py main.py --batch-param social_follow_strength --batch-values 0,0.35,0.7 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple comparaison memoire via batch (meme seed de base):
@@ -232,6 +249,7 @@ Parametres CLI principaux:
 - `--mutation-variation`
 - `--food-memory-duration`, `--danger-memory-duration`
 - `--food-memory-recall-distance`, `--danger-memory-avoid-distance`
+- `--social-influence-distance`, `--social-follow-strength`, `--social-flee-boost-per-neighbor`, `--social-flee-boost-max`
 
 ## Outil d'analyse d'exports
 Commande de base:
@@ -341,6 +359,7 @@ py -m unittest tests.test_batch_experiment_mode
 py -m unittest tests.test_batch_comparative_summary
 py -m unittest tests.test_batch_history
 py -m unittest tests.test_social_influence_behavior
+py -m unittest tests.test_social_impact_metrics
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -353,14 +372,14 @@ Chaque bloc de log periodique contient:
 - `causes_deces:` faim / epuisement / autre (tick et total).
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
-- `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, multiplicateur moyen de fuite).
+- `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
-- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens et impact memoire cumule.
+- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule et impact social (`social:`).
 
 En mode multi-runs:
-- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen.
+- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen et impact social moyen (`social_moy:`).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -380,6 +399,7 @@ Avec les outils d'analyse:
 - `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale et une vue agregee par parametre teste (avec ambiguite/insuffisance explicites).
 - pour observer la memoire locale en run: suivre `memoire_active`, `memoire_part`, `memoire_tick`, `memoire_freq_tick`, `memoire_effet_tick` et `memoire_log` dans la ligne `dynamique_*`.
 - pour comparer memoire active vs neutralisee: relancer avec `--food-memory-duration 0 --danger-memory-duration 0` puis comparer `memoire:*` et la synthese finale.
+- pour comparer influence sociale active vs neutralisee: relancer avec `--social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0` puis comparer `social_*` et les blocs `social:`/`social_moy:`.
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -415,6 +435,7 @@ Lecture rapide conseillee:
 - Memoire locale courte (zone utile/dangereuse) visible dans les stats/debug et testee.
 - Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
 - Influence sociale locale minimale observable dans les stats/debug (suivi social + fuite renforcee).
+- Evaluation legere de l'impact social (frequences, part influencee, multiplicateur de fuite tick/moyen) dans stats, synthese run, multi-runs, export et analyse.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
@@ -432,4 +453,5 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
+
 

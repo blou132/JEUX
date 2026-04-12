@@ -112,6 +112,9 @@ class HungerSimulation:
         self.total_social_flee_boosted = 0
         self.social_flee_multiplier_sum_last_tick = 0.0
         self.avg_social_flee_multiplier_last_tick = 1.0
+        self.social_influenced_creatures_last_tick = 0
+        self.total_social_influenced_creatures = 0
+        self.total_social_flee_multiplier_sum = 0.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -144,6 +147,7 @@ class HungerSimulation:
         self.social_flee_boosted_last_tick = 0
         self.social_flee_multiplier_sum_last_tick = 0.0
         self.avg_social_flee_multiplier_last_tick = 1.0
+        self.social_influenced_creatures_last_tick = 0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -180,6 +184,7 @@ class HungerSimulation:
 
         # 3) Execute movement and feeding behavior.
         creatures_by_id = {creature.creature_id: creature for creature in self.creatures}
+        social_influenced_ids: set[str] = set()
 
         for creature in self.creatures:
             if not creature.alive:
@@ -207,6 +212,8 @@ class HungerSimulation:
                     self.social_flee_boosted_last_tick += 1
                     self.total_social_flee_boosted += 1
                     self.social_flee_multiplier_sum_last_tick += flee_boost_multiplier
+                    self.total_social_flee_multiplier_sum += flee_boost_multiplier
+                    social_influenced_ids.add(creature.creature_id)
                 creature.remember_danger_zone(threat.x, threat.y, ttl=self.danger_memory_duration)
 
                 self.flees_last_tick += 1
@@ -237,15 +244,22 @@ class HungerSimulation:
 
             if intent.action == "search_food":
                 if not self._move_using_memory(creature, dt, search_mode=True):
-                    if not self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                    if self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                        social_influenced_ids.add(creature.creature_id)
+                    else:
                         # Search mode: more active movement than idle wandering.
                         self._wander(creature, dt, activity=1.0)
                 continue
 
             if intent.action == "wander":
                 if not self._move_using_memory(creature, dt, search_mode=False):
-                    if not self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                    if self._move_using_social_follow(creature, dt, intents, creatures_by_id):
+                        social_influenced_ids.add(creature.creature_id)
+                    else:
                         self._wander(creature, dt, activity=0.5)
+
+        self.social_influenced_creatures_last_tick = len(social_influenced_ids)
+        self.total_social_influenced_creatures += self.social_influenced_creatures_last_tick
 
         if self.flee_threat_distance_last_tick:
             self.avg_flee_threat_distance_last_tick = (
@@ -582,4 +596,6 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
+
 
