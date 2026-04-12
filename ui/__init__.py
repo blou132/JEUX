@@ -1,8 +1,9 @@
-﻿from .text_ui import (
+from .text_ui import (
     format_death_causes,
     format_generation_distribution,
     format_population_dynamics,
     format_proto_groups,
+    format_proto_groups_by_fertility_zone,
     format_stats_line,
     print_run_header,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "format_stats_line",
     "format_generation_distribution",
     "format_proto_groups",
+    "format_proto_groups_by_fertility_zone",
     "format_death_causes",
     "format_population_dynamics",
 ]

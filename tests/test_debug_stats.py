@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from ai import HungerAI
 from creatures import Creature
@@ -69,6 +69,8 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("total_flees", stats)
         self.assertIn("fleeing_creatures_last_tick", stats)
         self.assertIn("avg_flee_threat_distance_last_tick", stats)
+        self.assertIn("creatures_by_fertility_zone", stats)
+        self.assertIn("dominant_proto_group_by_fertility_zone", stats)
 
     def test_generation_distribution_matches_population_counts(self) -> None:
         creatures = [

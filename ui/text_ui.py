@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Dict
 
@@ -101,6 +101,40 @@ def format_proto_groups(stats: Dict[str, object], max_groups: int = 3) -> str:
         return f"proto_groupes:{group_count}"
 
     return f"proto_groupes:{group_count} dominant_part:{dominant_share:.2f} top: " + " ".join(parts)
+
+
+def format_proto_groups_by_fertility_zone(stats: Dict[str, object]) -> str:
+    zone_counts_raw = stats.get("creatures_by_fertility_zone")
+    zone_dominants_raw = stats.get("dominant_proto_group_by_fertility_zone")
+
+    zone_counts = {"rich": 0, "neutral": 0, "poor": 0}
+    if isinstance(zone_counts_raw, dict):
+        zone_counts["rich"] = int(zone_counts_raw.get("rich", 0))
+        zone_counts["neutral"] = int(zone_counts_raw.get("neutral", 0))
+        zone_counts["poor"] = int(zone_counts_raw.get("poor", 0))
+
+    def dominant_label(zone_name: str) -> str:
+        if not isinstance(zone_dominants_raw, dict):
+            return "-"
+        dominant = zone_dominants_raw.get(zone_name)
+        if not isinstance(dominant, dict):
+            return "-"
+        signature = str(dominant.get("signature", "?"))
+        count = int(dominant.get("count", 0))
+        share = float(dominant.get("share", 0.0))
+        return f"{signature}(n={count},part={share:.2f})"
+
+    return (
+        "proto_zones_creatures: riches={rich} neutres={neutral} pauvres={poor} "
+        "dominants: riches={dom_rich} neutres={dom_neutral} pauvres={dom_poor}"
+    ).format(
+        rich=zone_counts["rich"],
+        neutral=zone_counts["neutral"],
+        poor=zone_counts["poor"],
+        dom_rich=dominant_label("rich"),
+        dom_neutral=dominant_label("neutral"),
+        dom_poor=dominant_label("poor"),
+    )
 
 
 def format_death_causes(stats: Dict[str, object], include_tick: bool = True) -> str:

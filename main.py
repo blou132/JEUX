@@ -14,6 +14,7 @@ from ui import (
     format_generation_distribution,
     format_population_dynamics,
     format_proto_groups,
+    format_proto_groups_by_fertility_zone,
     format_stats_line,
     print_run_header,
 )
@@ -144,11 +145,12 @@ def main() -> None:
         simulation.tick(run_config.dt)
 
         if tick == 1 or tick % run_config.log_interval == 0:
-            stats = build_population_stats(simulation)
+            stats = build_population_stats(simulation, world=world)
             generations = build_generation_distribution(simulation)
             print(format_stats_line(tick, stats))
             print("     " + format_generation_distribution(generations, max_bins=10))
             print("     " + format_proto_groups(stats, max_groups=3))
+            print("     " + format_proto_groups_by_fertility_zone(stats))
             print("     " + format_death_causes(stats, include_tick=True))
             print("     " + format_population_dynamics(stats, previous_logged_stats))
             zone_stats = world.get_food_zone_stats()
@@ -166,7 +168,7 @@ def main() -> None:
             print(f"All creatures are dead at tick {tick}.")
             break
 
-    final_stats = build_population_stats(simulation)
+    final_stats = build_population_stats(simulation, world=world)
     final_zone_stats = world.get_food_zone_stats()
     generations = build_generation_distribution(simulation)
 
@@ -200,6 +202,7 @@ def main() -> None:
     )
     print(format_generation_distribution(generations, max_bins=30))
     print(format_proto_groups(final_stats, max_groups=6))
+    print(format_proto_groups_by_fertility_zone(final_stats))
     print(format_death_causes(final_stats, include_tick=False))
     print(format_population_dynamics(final_stats, previous_logged_stats))
 

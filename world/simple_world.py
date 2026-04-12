@@ -23,8 +23,8 @@ class FoodSpawnConfig:
 
 
 class SimpleWorld:
-    _RICH_THRESHOLD = 1.05
-    _POOR_THRESHOLD = 0.95
+    _RICH_THRESHOLD = 1.12
+    _POOR_THRESHOLD = 0.88
 
     def __init__(
         self,
@@ -57,6 +57,14 @@ class SimpleWorld:
     def fertility_at(self, x: float, y: float) -> float:
         row, col = self._cell_from_position(x, y)
         return self._fertility_grid[row][col]
+
+    def get_fertility_zone(self, x: float, y: float) -> str:
+        fertility = self.fertility_at(x, y)
+        if fertility >= self._RICH_THRESHOLD:
+            return "rich"
+        if fertility <= self._POOR_THRESHOLD:
+            return "poor"
+        return "neutral"
 
     def get_food_zone_stats(self) -> Dict[str, float | int]:
         rich = 0
@@ -158,6 +166,4 @@ class SimpleWorld:
             raise ValueError("fertility_amplitude must be >= 0")
         if self.spawn_config.fertility_energy_influence < 0:
             raise ValueError("fertility_energy_influence must be >= 0")
-
-
 

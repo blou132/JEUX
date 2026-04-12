@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Dict, Iterable
 
@@ -9,11 +9,22 @@ _PROTO_GROUP_WIDTH_SPEED = 0.2
 _PROTO_GROUP_WIDTH_METABOLISM = 0.15
 _PROTO_GROUP_WIDTH_BEHAVIOR = 0.25
 
+_ZONE_NAMES = ("rich", "neutral", "poor")
 
-def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
+
+def build_population_stats(
+    simulation: HungerSimulation,
+    world: object | None = None,
+) -> Dict[str, object]:
     total = simulation.get_total_count()
     alive = simulation.get_alive_count()
     dead = simulation.get_dead_count()
+
+    alive_creatures = [creature for creature in simulation.creatures if creature.alive]
+    (
+        zone_distribution,
+        dominant_proto_by_zone,
+    ) = _build_proto_zone_observations(alive_creatures, world)
 
     if total == 0:
         return {
@@ -33,6 +44,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
+            "creatures_by_fertility_zone": zone_distribution,
+            "dominant_proto_group_by_fertility_zone": dominant_proto_by_zone,
             "births_last_tick": simulation.births_last_tick,
             "total_births": simulation.total_births,
             "deaths_last_tick": simulation.deaths_last_tick,
@@ -54,7 +67,6 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
     avg_dominance = sum(c.traits.dominance for c in simulation.creatures) / total
     avg_repro_drive = sum(c.traits.repro_drive for c in simulation.creatures) / total
 
-    alive_creatures = [creature for creature in simulation.creatures if creature.alive]
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
         max_groups=3,
@@ -77,6 +89,8 @@ def build_population_stats(simulation: HungerSimulation) -> Dict[str, object]:
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
+        "creatures_by_fertility_zone": zone_distribution,
+        "dominant_proto_group_by_fertility_zone": dominant_proto_by_zone,
         "births_last_tick": simulation.births_last_tick,
         "total_births": simulation.total_births,
         "deaths_last_tick": simulation.deaths_last_tick,
@@ -95,6 +109,59 @@ def build_generation_distribution(simulation: HungerSimulation) -> Dict[int, int
     for creature in simulation.creatures:
         distribution[creature.generation] = distribution.get(creature.generation, 0) + 1
     return distribution
+
+
+def _build_proto_zone_observations(
+    creatures: Iterable[Creature],
+    world: object | None,
+) -> tuple[Dict[str, int], Dict[str, Dict[str, object] | None]]:
+    zone_distribution = _empty_zone_distribution()
+    dominant_proto_by_zone = _empty_zone_dominants()
+
+    if world is None:
+        return zone_distribution, dominant_proto_by_zone
+
+    get_zone = getattr(world, "get_fertility_zone", None)
+    if not callable(get_zone):
+        return zone_distribution, dominant_proto_by_zone
+
+    grouped_by_zone: Dict[str, Dict[str, int]] = {zone: {} for zone in _ZONE_NAMES}
+
+    for creature in creatures:
+        zone_name = str(get_zone(creature.x, creature.y))
+        if zone_name not in zone_distribution:
+            continue
+
+        zone_distribution[zone_name] += 1
+        signature = _proto_signature(_proto_group_key(creature))
+
+        bucket = grouped_by_zone[zone_name]
+        bucket[signature] = bucket.get(signature, 0) + 1
+
+    for zone_name in _ZONE_NAMES:
+        zone_count = zone_distribution[zone_name]
+        bucket = grouped_by_zone[zone_name]
+
+        if zone_count <= 0 or not bucket:
+            dominant_proto_by_zone[zone_name] = None
+            continue
+
+        signature, dominant_count = sorted(bucket.items(), key=lambda item: (-item[1], item[0]))[0]
+        dominant_proto_by_zone[zone_name] = {
+            "signature": signature,
+            "count": dominant_count,
+            "share": dominant_count / zone_count,
+        }
+
+    return zone_distribution, dominant_proto_by_zone
+
+
+def _empty_zone_distribution() -> Dict[str, int]:
+    return {zone: 0 for zone in _ZONE_NAMES}
+
+
+def _empty_zone_dominants() -> Dict[str, Dict[str, object] | None]:
+    return {zone: None for zone in _ZONE_NAMES}
 
 
 def _build_proto_groups(
@@ -167,4 +234,3 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
-
