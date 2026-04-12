@@ -13,6 +13,8 @@ class CliValidationTests(unittest.TestCase):
             "seed": 42,
             "runs": 1,
             "seed_step": 1,
+            "export_path": None,
+            "export_format": "json",
             "map_width": 60.0,
             "map_height": 40.0,
             "creatures": 20,
@@ -47,6 +49,12 @@ class CliValidationTests(unittest.TestCase):
             validate_args(self._valid_args(runs=0))
         with self.assertRaises(ValueError):
             validate_args(self._valid_args(seed_step=0))
+
+    def test_invalid_export_args_raise(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(export_path="   "))
+        with self.assertRaises(ValueError):
+            validate_args(self._valid_args(export_format="xml"))
 
     def test_invalid_world_and_population_args_raise(self) -> None:
         with self.assertRaises(ValueError):

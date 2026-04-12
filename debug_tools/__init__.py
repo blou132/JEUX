@@ -1,3 +1,8 @@
+from .export_results import (
+    build_multi_run_export,
+    build_single_run_export,
+    export_results,
+)
 from .hunger_debug import build_hunger_snapshot
 from .stats import (
     build_final_run_summary,
@@ -16,4 +21,7 @@ __all__ = [
     "update_proto_temporal_tracker",
     "build_final_run_summary",
     "build_multi_run_summary",
+    "build_single_run_export",
+    "build_multi_run_export",
+    "export_results",
 ]

@@ -1,4 +1,4 @@
-﻿# Evolution MVP (Python)
+# Evolution MVP (Python)
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
@@ -20,6 +20,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation temporelle des proto-groupes (stable / en_hausse / en_baisse / nouveau entre logs).
 - Synthese finale de run orientee comparaison de seeds.
 - Mode multi-runs optionnel pour comparer automatiquement plusieurs seeds.
+- Export optionnel des syntheses en JSON ou CSV.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -31,7 +32,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - `world/`: carte, ressources nourriture, fertilite spatiale.
 - `player/`: configuration de run.
 - `ui/`: formatage des logs texte.
-- `debug_tools/`: calcul d'indicateurs et distributions.
+- `debug_tools/`: calcul d'indicateurs, syntheses et export.
 - `save/`: reserve pour plus tard (non active dans le MVP courant).
 
 ## Fonctionnalites validees
@@ -90,6 +91,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Produit un resume agrege: taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
+### Export optionnel (JSON / CSV)
+- Export du resume final d'un run simple.
+- Export du resume multi-runs avec agregats + details par run.
+- Formats disponibles: `json` (structure complete) et `csv` (aplati lisible).
+- Systeme purement observatoire (aucune mecanique gameplay ajoutee).
+
 ## Lancer la simulation
 Prerequis:
 - Python 3.x
@@ -110,9 +117,20 @@ Exemple multi-runs (comparaison de seeds):
 py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
+Exemple export JSON (run simple):
+```powershell
+py main.py --seed 42 --steps 120 --log-interval 20 --export-path outputs/run_42.json --export-format json
+```
+
+Exemple export CSV (multi-runs):
+```powershell
+py main.py --runs 5 --seed 42 --seed-step 1 --steps 120 --log-interval 20 --export-path outputs/multi_42.csv --export-format csv
+```
+
 Parametres CLI principaux:
 - `--steps`, `--dt`, `--log-interval`, `--seed`
 - `--runs`, `--seed-step`
+- `--export-path`, `--export-format`
 - `--map-width`, `--map-height`
 - `--creatures`, `--initial-food`, `--min-food`
 - `--energy-drain-rate`, `--movement-speed`, `--eat-rate`, `--hunger-threshold`
@@ -134,6 +152,7 @@ py -m unittest tests.test_proto_group_ecology_observation
 py -m unittest tests.test_proto_group_temporal_observation
 py -m unittest tests.test_run_final_summary
 py -m unittest tests.test_multi_run_mode
+py -m unittest tests.test_export_results
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -153,12 +172,17 @@ En fin de run:
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent.
 
+En mode export:
+- ligne `export: <chemin> (<format>)` en fin d'execution.
+- le contenu exporte reprend les memes syntheses que la console (run simple ou multi-runs).
+
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
 2. verifier `pression_nourriture` + `zones_nourriture` pour la contrainte environnementale,
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
-5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds en une commande.
+5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds en une commande,
+6. si export actif, utiliser le fichier JSON/CSV pour comparaison hors console.
 
 ## Roadmap actuelle
 
@@ -173,6 +197,7 @@ Lecture rapide conseillee:
 - Observation temporelle des proto-groupes (stable/hausse/baisse/nouveau).
 - Synthese finale de run orientee comparaison de seeds.
 - Mode multi-runs optionnel avec resume agrege compare-seeds.
+- Export optionnel JSON/CSV des syntheses run et multi-runs.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

@@ -9,9 +9,12 @@ from creatures import create_initial_population
 from debug_tools import (
     build_final_run_summary,
     build_generation_distribution,
+    build_multi_run_export,
     build_multi_run_summary,
     build_population_stats,
+    build_single_run_export,
     create_proto_temporal_tracker,
+    export_results,
     update_proto_temporal_tracker,
 )
 from player import PlayerRunConfig
@@ -31,6 +34,9 @@ from ui import (
 from world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
+_DEF_EXPORT_FORMATS = ("json", "csv")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the MVP evolutionary simulation.")
     parser.add_argument("--steps", type=int, default=400)
@@ -40,6 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--seed-step", type=int, default=1)
+
+    parser.add_argument("--export-path", type=str, default=None)
+    parser.add_argument("--export-format", type=str, choices=_DEF_EXPORT_FORMATS, default="json")
 
     parser.add_argument("--map-width", type=float, default=60.0)
     parser.add_argument("--map-height", type=float, default=40.0)
@@ -75,6 +84,11 @@ def validate_args(args: argparse.Namespace) -> None:
     if args.seed_step <= 0:
         raise ValueError("seed_step must be > 0")
 
+    if args.export_path is not None and str(args.export_path).strip() == "":
+        raise ValueError("export_path cannot be empty")
+    if args.export_format not in _DEF_EXPORT_FORMATS:
+        raise ValueError("export_format must be json or csv")
+
     if args.map_width <= 0 or args.map_height <= 0:
         raise ValueError("map_width and map_height must be > 0")
 
@@ -102,6 +116,14 @@ def validate_args(args: argparse.Namespace) -> None:
 
 def _build_seed_list(base_seed: int, runs: int, seed_step: int) -> list[int]:
     return [base_seed + (idx * seed_step) for idx in range(runs)]
+
+
+def _emit_export_if_needed(args: argparse.Namespace, payload: Dict[str, object]) -> None:
+    if args.export_path is None:
+        return
+
+    output_path = export_results(payload, args.export_path, args.export_format)
+    print(f"export: {output_path} ({args.export_format})")
 
 
 def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str, object]:
@@ -302,6 +324,9 @@ def _run_multi(args: argparse.Namespace) -> None:
     print("--- Multi-Run Summary ---")
     print(format_multi_run_summary(summary))
 
+    export_payload = build_multi_run_export(seeds, results, summary)
+    _emit_export_if_needed(args, export_payload)
+
 
 def main() -> None:
     parser = build_parser()
@@ -309,7 +334,9 @@ def main() -> None:
     validate_args(args)
 
     if args.runs <= 1:
-        _run_single(args, seed=args.seed, verbose=True)
+        result = _run_single(args, seed=args.seed, verbose=True)
+        export_payload = build_single_run_export(args.seed, result)
+        _emit_export_if_needed(args, export_payload)
         return
 
     _run_multi(args)
