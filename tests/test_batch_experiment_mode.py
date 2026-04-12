@@ -115,6 +115,95 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertIn("best_avg_final_population", comparative)
             self.assertIn("lowest_extinction_rate", comparative)
 
+    def test_cli_memory_batch_outputs_memory_comparative(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        cmd = [
+            sys.executable,
+            "main.py",
+            "--batch-param",
+            "food_memory_duration",
+            "--batch-values",
+            "0,8",
+            "--batch-runs",
+            "2",
+            "--seed",
+            "100",
+            "--seed-step",
+            "3",
+            "--steps",
+            "30",
+            "--log-interval",
+            "15",
+        ]
+
+        completed = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=180,
+        )
+
+        output = completed.stdout
+        self.assertIn("param=food_memory_duration", output)
+        self.assertIn("--- Batch Comparative Summary ---", output)
+        self.assertIn("memoire_batch:", output)
+        self.assertIn("usage_memoire_utile_max:", output)
+        self.assertIn("usage_memoire_dangereuse_max:", output)
+        self.assertIn("effet_memoire_utile_max:", output)
+        self.assertIn("effet_memoire_dangereuse_max:", output)
+
+    def test_memory_batch_json_export_contains_memory_comparative(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_path = Path(temp_dir) / "batch_memory.json"
+            cmd = [
+                sys.executable,
+                "main.py",
+                "--batch-param",
+                "food_memory_duration",
+                "--batch-values",
+                "0,8",
+                "--batch-runs",
+                "2",
+                "--seed",
+                "100",
+                "--seed-step",
+                "3",
+                "--steps",
+                "30",
+                "--log-interval",
+                "15",
+                "--export-path",
+                str(export_path),
+                "--export-format",
+                "json",
+            ]
+
+            subprocess.run(
+                cmd,
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=180,
+            )
+
+            payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["mode"], "batch")
+        self.assertEqual(payload["batch_param"], "food_memory_duration")
+
+        comparative = payload.get("comparative_summary")
+        self.assertIsInstance(comparative, dict)
+        assert isinstance(comparative, dict)
+        memory = comparative.get("memory_comparative")
+        self.assertIsInstance(memory, dict)
+        assert isinstance(memory, dict)
+        self.assertIn("available", memory)
+
 
 if __name__ == "__main__":
     unittest.main()

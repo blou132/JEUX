@@ -229,6 +229,90 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_memory["danger_usage_total"]), 3.0)
         self.assertIn("memoire_moy:", summary)
 
+    def test_batch_memory_analysis_shows_memory_comparative(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "food_memory_duration",
+            "batch_values": [0.0, 8.0],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 0.0,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 2.0,
+                        "avg_final_population": 8.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_memory_impact": {
+                            "food_usage_total": 1.0,
+                            "danger_usage_total": 0.5,
+                            "food_effect_avg_distance": 0.2,
+                            "danger_effect_avg_distance": 0.1,
+                            "food_active_share": 0.0,
+                            "danger_active_share": 0.0,
+                            "food_usage_per_tick": 0.1,
+                            "danger_usage_per_tick": 0.05,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 8.0,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 20.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_memory_impact": {
+                            "food_usage_total": 5.0,
+                            "danger_usage_total": 3.0,
+                            "food_effect_avg_distance": 1.1,
+                            "danger_effect_avg_distance": 0.7,
+                            "food_active_share": 0.0,
+                            "danger_active_share": 0.0,
+                            "food_usage_per_tick": 0.4,
+                            "danger_usage_per_tick": 0.2,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_memory.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_export_payload(str(path))
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        self.assertIn("memoire_batch:", summary)
+        self.assertIn("usage_memoire_utile_max:", summary)
+        self.assertIn("effet_memoire_dangereuse_max:", summary)
+
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
@@ -284,3 +368,5 @@ class ExportAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

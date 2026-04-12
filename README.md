@@ -23,6 +23,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Export optionnel des syntheses en JSON ou CSV.
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
+- Interpretation batch memoire (pour parametres memoire) avec comparatifs usage/effet.
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
@@ -127,6 +128,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - meilleure population finale moyenne
   - plus faible taux d'extinction
   - gestion explicite des egalites
+- Pour les batchs sur parametres memoire (`food_memory_duration`, `danger_memory_duration`, `food_memory_recall_distance`, `danger_memory_avoid_distance`):
+  - plus forte utilisation memoire utile
+  - plus forte utilisation memoire dangereuse
+  - plus grand effet moyen memoire utile
+  - plus grand effet moyen memoire dangereuse
+  - signalement explicite si donnees insuffisantes
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -270,6 +277,11 @@ plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max
 meilleure_gen_max_moy: energy_drain_rate=1.0 (gen_max_moy=2.50)
 meilleure_pop_finale_moy: energy_drain_rate=1.0 (pop_finale_moy=42.50)
 plus_faible_taux_extinction: egalite[energy_drain_rate=1.0,1.5] (taux_ext=0.00)
+memoire_batch:
+usage_memoire_utile_max: food_memory_duration=8.0 (usage_moy=4.30)
+usage_memoire_dangereuse_max: food_memory_duration=8.0 (usage_moy=2.10)
+effet_memoire_utile_max: food_memory_duration=8.0 (effet_moy=1.15)
+effet_memoire_dangereuse_max: food_memory_duration=8.0 (effet_moy=0.72)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -343,6 +355,7 @@ En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
 - bloc `--- Batch Summary ---` avec agregats comparables entre valeurs.
 - bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
+- si le parametre batch est un parametre memoire, le bloc inclut aussi les comparatifs memoire (`memoire_batch`).
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -384,6 +397,7 @@ Lecture rapide conseillee:
 - Outil CLI d'analyse des exports pour resume hors console.
 - Mode batch experimental pour comparer l'effet de valeurs de parametres existants.
 - Interpretation automatique legere des resultats batch (comparative summary).
+- Interpretation batch memoire (usage/effet utiles et dangereux) pour les parametres memoire.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
@@ -406,3 +420,8 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
+
+
+
+
+
