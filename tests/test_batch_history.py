@@ -1,4 +1,4 @@
-import subprocess
+﻿import subprocess
 import sys
 import tempfile
 import unittest
@@ -6,15 +6,16 @@ from pathlib import Path
 
 from debug_tools.batch_history import (
     append_batch_history,
+    build_batch_history_behavior_mechanic_comparison_summary,
     build_batch_history_entry,
     build_batch_history_global_summary,
     build_batch_history_parameter_impact_summary,
+    format_batch_history_behavior_mechanic_comparison_summary,
     format_batch_history_global_summary,
     format_batch_history_parameter_impact_summary,
     format_batch_history_summary,
     load_batch_history,
 )
-
 
 class BatchHistoryTests(unittest.TestCase):
     def test_append_and_load_history(self) -> None:
@@ -77,6 +78,7 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("campagnes_archivees=1", summary_text)
             self.assertIn("historique_batch_parametres:", summary_text)
             self.assertIn("parametre=energy_drain_rate", summary_text)
+            self.assertIn("historique_batch_memoire_vs_social:", summary_text)
 
     def test_global_summary_multiple_campaigns(self) -> None:
         history = {
@@ -225,6 +227,106 @@ class BatchHistoryTests(unittest.TestCase):
         self.assertIn("parametre=mutation_variation campagnes=1", text)
         self.assertIn("insuffisant", text)
 
+    def test_memory_vs_social_comparison_summary(self) -> None:
+        history = {
+            "schema_version": 1,
+            "experiments": [
+                {
+                    "id": "mem_a",
+                    "batch_param": "food_memory_duration",
+                    "scenario_summaries": [
+                        {"parameter_value": 0.0, "extinction_rate": 0.50, "avg_max_generation": 3.0, "avg_final_population": 20.0},
+                        {"parameter_value": 8.0, "extinction_rate": 0.10, "avg_max_generation": 4.0, "avg_final_population": 27.0},
+                    ],
+                    "comparative_summary": {
+                        "memory_comparative": {
+                            "available": True,
+                            "best_food_memory_usage": {"value": 4.0, "insufficient": False},
+                            "best_danger_memory_usage": {"value": 2.0, "insufficient": False},
+                            "best_food_memory_effect": {"value": 1.2, "insufficient": False},
+                            "best_danger_memory_effect": {"value": 0.8, "insufficient": False},
+                        }
+                    },
+                },
+                {
+                    "id": "mem_b",
+                    "batch_param": "danger_memory_duration",
+                    "scenario_summaries": [
+                        {"parameter_value": 0.0, "extinction_rate": 0.35, "avg_max_generation": 4.0, "avg_final_population": 25.0},
+                        {"parameter_value": 8.0, "extinction_rate": 0.10, "avg_max_generation": 6.0, "avg_final_population": 31.0},
+                    ],
+                    "comparative_summary": {
+                        "memory_comparative": {
+                            "available": True,
+                            "best_food_memory_usage": {"value": 3.0, "insufficient": False},
+                            "best_danger_memory_usage": {"value": 2.5, "insufficient": False},
+                            "best_food_memory_effect": {"value": 1.0, "insufficient": False},
+                            "best_danger_memory_effect": {"value": 0.9, "insufficient": False},
+                        }
+                    },
+                },
+                {
+                    "id": "soc_a",
+                    "batch_param": "social_follow_strength",
+                    "scenario_summaries": [
+                        {"parameter_value": 0.0, "extinction_rate": 0.25, "avg_max_generation": 3.0, "avg_final_population": 20.0},
+                        {"parameter_value": 0.35, "extinction_rate": 0.10, "avg_max_generation": 7.0, "avg_final_population": 30.0},
+                    ],
+                    "comparative_summary": {
+                        "social_comparative": {
+                            "available": True,
+                            "best_social_follow_usage": {"value": 0.70, "insufficient": False},
+                            "best_social_flee_boost_usage": {"value": 0.20, "insufficient": False},
+                            "best_social_influenced_share": {"value": 0.30, "insufficient": False},
+                            "best_social_flee_multiplier_effect": {"value": 1.15, "insufficient": False},
+                        }
+                    },
+                },
+                {
+                    "id": "soc_b",
+                    "batch_param": "social_flee_boost_per_neighbor",
+                    "scenario_summaries": [
+                        {"parameter_value": 0.0, "extinction_rate": 0.20, "avg_max_generation": 5.0, "avg_final_population": 22.0},
+                        {"parameter_value": 0.2, "extinction_rate": 0.10, "avg_max_generation": 8.0, "avg_final_population": 34.0},
+                    ],
+                    "comparative_summary": {
+                        "social_comparative": {
+                            "available": True,
+                            "best_social_follow_usage": {"value": 0.50, "insufficient": False},
+                            "best_social_flee_boost_usage": {"value": 0.25, "insufficient": False},
+                            "best_social_influenced_share": {"value": 0.28, "insufficient": False},
+                            "best_social_flee_multiplier_effect": {"value": 1.20, "insufficient": False},
+                        }
+                    },
+                },
+            ],
+        }
+
+        summary = build_batch_history_behavior_mechanic_comparison_summary(history)
+        self.assertEqual(int(summary["memory_campaign_count"]), 2)
+        self.assertEqual(int(summary["social_campaign_count"]), 2)
+        self.assertEqual(summary["stability_effect"]["winner"], "memory")
+        self.assertEqual(summary["generation_effect"]["winner"], "social")
+        self.assertEqual(summary["population_effect"]["winner"], "social")
+
+        memory_behavior = summary.get("memory_behavior")
+        self.assertIsInstance(memory_behavior, dict)
+        assert isinstance(memory_behavior, dict)
+        self.assertTrue(bool(memory_behavior.get("available", False)))
+
+        social_behavior = summary.get("social_behavior")
+        self.assertIsInstance(social_behavior, dict)
+        assert isinstance(social_behavior, dict)
+        self.assertTrue(bool(social_behavior.get("available", False)))
+
+        text = format_batch_history_behavior_mechanic_comparison_summary(summary)
+        self.assertIn("historique_batch_memoire_vs_social:", text)
+        self.assertIn("campagnes_memoire=2 campagnes_sociales=2", text)
+        self.assertIn("lecture_stabilite=memory", text)
+        self.assertIn("lecture_gen_max=social", text)
+        self.assertIn("lecture_pop_finale=social", text)
+        self.assertIn("comportement_memoire:", text)
+        self.assertIn("comportement_social:", text)
     def test_duplicate_batch_id_raises(self) -> None:
         batch_payload = {
             "mode": "batch",
@@ -320,7 +422,9 @@ class BatchHistoryTests(unittest.TestCase):
             self.assertIn("campagne_plus_faible_taux_extinction=", output)
             self.assertIn("historique_batch_parametres:", output)
             self.assertIn("parametre=energy_drain_rate", output)
+            self.assertIn("historique_batch_memoire_vs_social:", output)
 
 
 if __name__ == "__main__":
     unittest.main()
+

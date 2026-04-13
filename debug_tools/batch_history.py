@@ -8,6 +8,19 @@ from typing import Dict
 
 _HISTORY_SCHEMA_VERSION = 1
 
+_MEMORY_BATCH_PARAMS = {
+    "food_memory_duration",
+    "danger_memory_duration",
+    "food_memory_recall_distance",
+    "danger_memory_avoid_distance",
+}
+
+_SOCIAL_BATCH_PARAMS = {
+    "social_influence_distance",
+    "social_follow_strength",
+    "social_flee_boost_per_neighbor",
+    "social_flee_boost_max",
+}
 
 def build_batch_history_entry(batch_id: str, batch_payload: Dict[str, object]) -> Dict[str, object]:
     if str(batch_payload.get("mode", "")) != "batch":
@@ -155,6 +168,10 @@ def format_batch_history_summary(history: Dict[str, object], max_entries: int = 
     parameter_summary = build_batch_history_parameter_impact_summary(history)
     lines.append("--- Batch History Parameter Impact ---")
     lines.append(format_batch_history_parameter_impact_summary(parameter_summary))
+
+    mechanism_summary = build_batch_history_behavior_mechanic_comparison_summary(history)
+    lines.append("--- Batch History Memory vs Social ---")
+    lines.append(format_batch_history_behavior_mechanic_comparison_summary(mechanism_summary))
 
     return "\n".join(lines)
 
@@ -419,6 +436,389 @@ def format_batch_history_parameter_impact_summary(summary: Dict[str, object]) ->
         )
 
     return "\n".join(lines)
+
+
+def build_batch_history_behavior_mechanic_comparison_summary(history: Dict[str, object]) -> Dict[str, object]:
+    experiments_raw = history.get("experiments")
+    if not isinstance(experiments_raw, list):
+        experiments_raw = []
+
+    experiments = [item for item in experiments_raw if isinstance(item, dict)]
+
+    memory_campaigns = [
+        entry
+        for entry in experiments
+        if str(entry.get("batch_param", "")).strip() in _MEMORY_BATCH_PARAMS
+    ]
+    social_campaigns = [
+        entry
+        for entry in experiments
+        if str(entry.get("batch_param", "")).strip() in _SOCIAL_BATCH_PARAMS
+    ]
+
+    memory_general = _build_mechanic_general_effect(memory_campaigns)
+    social_general = _build_mechanic_general_effect(social_campaigns)
+
+    memory_behavior = _build_memory_behavior_effect(memory_campaigns)
+    social_behavior = _build_social_behavior_effect(social_campaigns)
+
+    return {
+        "memory_campaign_count": len(memory_campaigns),
+        "social_campaign_count": len(social_campaigns),
+        "memory_general": memory_general,
+        "social_general": social_general,
+        "stability_effect": _compare_mechanic_metric(
+            memory_general.get("avg_extinction_delta"),
+            social_general.get("avg_extinction_delta"),
+        ),
+        "generation_effect": _compare_mechanic_metric(
+            memory_general.get("avg_generation_delta"),
+            social_general.get("avg_generation_delta"),
+        ),
+        "population_effect": _compare_mechanic_metric(
+            memory_general.get("avg_population_delta"),
+            social_general.get("avg_population_delta"),
+        ),
+        "memory_behavior": memory_behavior,
+        "social_behavior": social_behavior,
+        "comparability_note": (
+            "les metriques comportementales memoire/social sont affichees separement "
+            "(unites differentes, comparaison directe non stricte)"
+        ),
+    }
+
+
+def format_batch_history_behavior_mechanic_comparison_summary(summary: Dict[str, object]) -> str:
+    memory_campaigns = int(summary.get("memory_campaign_count", 0))
+    social_campaigns = int(summary.get("social_campaign_count", 0))
+
+    if memory_campaigns <= 0 and social_campaigns <= 0:
+        return "historique_batch_memoire_vs_social: n/a"
+
+    lines = [
+        "historique_batch_memoire_vs_social:",
+        f"campagnes_memoire={memory_campaigns} campagnes_sociales={social_campaigns}",
+    ]
+
+    memory_general_raw = summary.get("memory_general")
+    social_general_raw = summary.get("social_general")
+    memory_general = memory_general_raw if isinstance(memory_general_raw, dict) else {}
+    social_general = social_general_raw if isinstance(social_general_raw, dict) else {}
+
+    lines.append(
+        "delta_moy_stabilite_taux_ext: memoire={m} social={s}".format(
+            m=_format_optional_float(memory_general.get("avg_extinction_delta")),
+            s=_format_optional_float(social_general.get("avg_extinction_delta")),
+        )
+    )
+    lines.append(
+        "delta_moy_gen_max: memoire={m} social={s}".format(
+            m=_format_optional_float(memory_general.get("avg_generation_delta")),
+            s=_format_optional_float(social_general.get("avg_generation_delta")),
+        )
+    )
+    lines.append(
+        "delta_moy_pop_finale: memoire={m} social={s}".format(
+            m=_format_optional_float(memory_general.get("avg_population_delta")),
+            s=_format_optional_float(social_general.get("avg_population_delta")),
+        )
+    )
+
+    lines.append(
+        "lecture_stabilite={label}".format(
+            label=_format_mechanic_comparison_label(summary.get("stability_effect")),
+        )
+    )
+    lines.append(
+        "lecture_gen_max={label}".format(
+            label=_format_mechanic_comparison_label(summary.get("generation_effect")),
+        )
+    )
+    lines.append(
+        "lecture_pop_finale={label}".format(
+            label=_format_mechanic_comparison_label(summary.get("population_effect")),
+        )
+    )
+
+    memory_behavior_raw = summary.get("memory_behavior")
+    memory_behavior = memory_behavior_raw if isinstance(memory_behavior_raw, dict) else {}
+    if bool(memory_behavior.get("available", False)):
+        lines.append(
+            "comportement_memoire: usage_utile_max_moy={food_u} usage_dangereuse_max_moy={danger_u} "
+            "effet_utile_max_moy={food_e} effet_dangereuse_max_moy={danger_e}".format(
+                food_u=_format_optional_float(memory_behavior.get("food_usage_total_avg")),
+                danger_u=_format_optional_float(memory_behavior.get("danger_usage_total_avg")),
+                food_e=_format_optional_float(memory_behavior.get("food_effect_avg_distance_avg")),
+                danger_e=_format_optional_float(memory_behavior.get("danger_effect_avg_distance_avg")),
+            )
+        )
+    else:
+        lines.append(
+            "comportement_memoire: n/a ({note})".format(
+                note=str(memory_behavior.get("note", "donnees insuffisantes")),
+            )
+        )
+
+    social_behavior_raw = summary.get("social_behavior")
+    social_behavior = social_behavior_raw if isinstance(social_behavior_raw, dict) else {}
+    if bool(social_behavior.get("available", False)):
+        lines.append(
+            "comportement_social: suivi_max_moy={follow} boost_fuite_max_moy={flee} "
+            "part_influencee_max_moy={share} multiplicateur_fuite_max_moy={mult}".format(
+                follow=_format_optional_float(social_behavior.get("follow_usage_per_tick_avg")),
+                flee=_format_optional_float(social_behavior.get("flee_boost_usage_per_tick_avg")),
+                share=_format_optional_float(social_behavior.get("influenced_share_last_tick_avg")),
+                mult=_format_optional_float(social_behavior.get("flee_multiplier_avg_total_avg")),
+            )
+        )
+    else:
+        lines.append(
+            "comportement_social: n/a ({note})".format(
+                note=str(social_behavior.get("note", "donnees insuffisantes")),
+            )
+        )
+
+    lines.append(f"note={str(summary.get('comparability_note', 'n/a'))}")
+
+    return "\n".join(lines)
+
+
+def _build_mechanic_general_effect(campaigns: list[Dict[str, object]]) -> Dict[str, object]:
+    deltas: list[Dict[str, float]] = []
+    for campaign in campaigns:
+        delta = _extract_scenario_effect_deltas(campaign)
+        if delta is None:
+            continue
+        deltas.append(delta)
+
+    if len(deltas) == 0:
+        return {
+            "comparable_campaigns": 0,
+            "avg_extinction_delta": None,
+            "avg_generation_delta": None,
+            "avg_population_delta": None,
+        }
+
+    return {
+        "comparable_campaigns": len(deltas),
+        "avg_extinction_delta": sum(item["extinction_delta"] for item in deltas) / len(deltas),
+        "avg_generation_delta": sum(item["generation_delta"] for item in deltas) / len(deltas),
+        "avg_population_delta": sum(item["population_delta"] for item in deltas) / len(deltas),
+    }
+
+
+def _build_memory_behavior_effect(campaigns: list[Dict[str, object]]) -> Dict[str, object]:
+    food_usage: list[float] = []
+    danger_usage: list[float] = []
+    food_effect: list[float] = []
+    danger_effect: list[float] = []
+
+    for campaign in campaigns:
+        memory = _extract_memory_comparative(campaign)
+        if memory is None:
+            continue
+
+        _append_metric_value(food_usage, memory, "best_food_memory_usage")
+        _append_metric_value(danger_usage, memory, "best_danger_memory_usage")
+        _append_metric_value(food_effect, memory, "best_food_memory_effect")
+        _append_metric_value(danger_effect, memory, "best_danger_memory_effect")
+
+    if len(food_usage) == 0 and len(danger_usage) == 0 and len(food_effect) == 0 and len(danger_effect) == 0:
+        return {
+            "available": False,
+            "note": "donnees memoire insuffisantes dans l'historique",
+        }
+
+    return {
+        "available": True,
+        "food_usage_total_avg": _avg_or_none(food_usage),
+        "danger_usage_total_avg": _avg_or_none(danger_usage),
+        "food_effect_avg_distance_avg": _avg_or_none(food_effect),
+        "danger_effect_avg_distance_avg": _avg_or_none(danger_effect),
+        "campaigns_with_data": max(len(food_usage), len(danger_usage), len(food_effect), len(danger_effect)),
+    }
+
+
+def _build_social_behavior_effect(campaigns: list[Dict[str, object]]) -> Dict[str, object]:
+    follow_usage: list[float] = []
+    flee_usage: list[float] = []
+    influenced_share: list[float] = []
+    flee_multiplier: list[float] = []
+
+    for campaign in campaigns:
+        social = _extract_social_comparative(campaign)
+        if social is None:
+            continue
+
+        _append_metric_value(follow_usage, social, "best_social_follow_usage")
+        _append_metric_value(flee_usage, social, "best_social_flee_boost_usage")
+        _append_metric_value(influenced_share, social, "best_social_influenced_share")
+        _append_metric_value(flee_multiplier, social, "best_social_flee_multiplier_effect")
+
+    if len(follow_usage) == 0 and len(flee_usage) == 0 and len(influenced_share) == 0 and len(flee_multiplier) == 0:
+        return {
+            "available": False,
+            "note": "donnees sociales insuffisantes dans l'historique",
+        }
+
+    return {
+        "available": True,
+        "follow_usage_per_tick_avg": _avg_or_none(follow_usage),
+        "flee_boost_usage_per_tick_avg": _avg_or_none(flee_usage),
+        "influenced_share_last_tick_avg": _avg_or_none(influenced_share),
+        "flee_multiplier_avg_total_avg": _avg_or_none(flee_multiplier),
+        "campaigns_with_data": max(len(follow_usage), len(flee_usage), len(influenced_share), len(flee_multiplier)),
+    }
+
+
+def _extract_scenario_effect_deltas(entry: Dict[str, object]) -> Dict[str, float] | None:
+    scenarios_raw = entry.get("scenario_summaries")
+    if not isinstance(scenarios_raw, list):
+        return None
+
+    ext_rates: list[float] = []
+    generations: list[float] = []
+    populations: list[float] = []
+
+    for scenario in scenarios_raw:
+        if not isinstance(scenario, dict):
+            continue
+
+        ext_rates.append(float(scenario.get("extinction_rate", 0.0)))
+        generations.append(float(scenario.get("avg_max_generation", 0.0)))
+        populations.append(float(scenario.get("avg_final_population", 0.0)))
+
+    if len(ext_rates) == 0:
+        return None
+
+    return {
+        "extinction_delta": max(ext_rates) - min(ext_rates),
+        "generation_delta": max(generations) - min(generations),
+        "population_delta": max(populations) - min(populations),
+    }
+
+
+def _extract_memory_comparative(entry: Dict[str, object]) -> Dict[str, object] | None:
+    comparative_raw = entry.get("comparative_summary")
+    if not isinstance(comparative_raw, dict):
+        return None
+
+    memory_raw = comparative_raw.get("memory_comparative")
+    if not isinstance(memory_raw, dict):
+        return None
+
+    if not bool(memory_raw.get("available", False)):
+        return None
+
+    return memory_raw
+
+
+def _extract_social_comparative(entry: Dict[str, object]) -> Dict[str, object] | None:
+    comparative_raw = entry.get("comparative_summary")
+    if not isinstance(comparative_raw, dict):
+        return None
+
+    social_raw = comparative_raw.get("social_comparative")
+    if not isinstance(social_raw, dict):
+        return None
+
+    if not bool(social_raw.get("available", False)):
+        return None
+
+    return social_raw
+
+
+def _append_metric_value(target: list[float], comparative: Dict[str, object], field: str) -> None:
+    metric_raw = comparative.get(field)
+    if not isinstance(metric_raw, dict):
+        return
+
+    if bool(metric_raw.get("insufficient", False)):
+        return
+
+    try:
+        target.append(float(metric_raw.get("value")))
+    except (TypeError, ValueError):
+        return
+
+
+def _compare_mechanic_metric(memory_value_raw: object, social_value_raw: object) -> Dict[str, object]:
+    memory_value = _parse_optional_float(memory_value_raw)
+    social_value = _parse_optional_float(social_value_raw)
+
+    if memory_value is None and social_value is None:
+        return {
+            "status": "insufficient",
+            "winner": "n/a",
+            "memory": None,
+            "social": None,
+            "note": "donnees insuffisantes",
+        }
+
+    if memory_value is None or social_value is None:
+        return {
+            "status": "non_comparable",
+            "winner": "n/a",
+            "memory": memory_value,
+            "social": social_value,
+            "note": "donnees non comparables entre mecaniques",
+        }
+
+    if _is_close(memory_value, social_value):
+        return {
+            "status": "tie",
+            "winner": "egalite",
+            "memory": memory_value,
+            "social": social_value,
+            "note": "egalite",
+        }
+
+    winner = "memory" if memory_value > social_value else "social"
+    return {
+        "status": "ok",
+        "winner": winner,
+        "memory": memory_value,
+        "social": social_value,
+        "note": "",
+    }
+
+
+def _format_mechanic_comparison_label(metric_raw: object) -> str:
+    if not isinstance(metric_raw, dict):
+        return "n/a (donnees insuffisantes)"
+
+    winner = str(metric_raw.get("winner", "n/a"))
+    status = str(metric_raw.get("status", "insufficient"))
+
+    if status == "ok":
+        return winner
+    if status == "tie":
+        return "egalite"
+
+    note = str(metric_raw.get("note", "donnees insuffisantes"))
+    return f"n/a ({note})"
+
+
+def _avg_or_none(values: list[float]) -> float | None:
+    if len(values) == 0:
+        return None
+    return sum(values) / len(values)
+
+
+def _parse_optional_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_optional_float(value: object) -> str:
+    parsed = _parse_optional_float(value)
+    if parsed is None:
+        return "n/a"
+    return f"{parsed:.2f}"
 
 
 def _extract_campaign_metrics(entry: Dict[str, object]) -> Dict[str, float] | None:

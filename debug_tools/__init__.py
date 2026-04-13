@@ -4,9 +4,11 @@ from .batch_comparative import (
 )
 from .batch_history import (
     append_batch_history,
+    build_batch_history_behavior_mechanic_comparison_summary,
     build_batch_history_entry,
     build_batch_history_global_summary,
     build_batch_history_parameter_impact_summary,
+    format_batch_history_behavior_mechanic_comparison_summary,
     format_batch_history_global_summary,
     format_batch_history_parameter_impact_summary,
     format_batch_history_summary,
@@ -48,6 +50,8 @@ __all__ = [
     "format_batch_history_global_summary",
     "build_batch_history_parameter_impact_summary",
     "format_batch_history_parameter_impact_summary",
+    "build_batch_history_behavior_mechanic_comparison_summary",
+    "format_batch_history_behavior_mechanic_comparison_summary",
     "format_batch_history_summary",
     "export_results",
 ]

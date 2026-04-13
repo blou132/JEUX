@@ -25,6 +25,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Interpretation batch memoire (pour parametres memoire) avec comparatifs usage/effet.
 - Interpretation batch sociale (pour parametres sociaux) avec comparatifs usage/part/effet.
+- Lecture comparative legere memoire vs social dans l'historique batch (effets observes + metriques comportementales).
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
 - Memoire locale courte des zones utiles/dangereuses avec influence legere sur le deplacement.
@@ -178,6 +179,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Lecture et resume rapide via un outil CLI dedie (`analyze_batch_history.py`).
 - Synthese comparative globale de l'historique: campagnes archivees, parametres testes, campagne la plus stable, meilleure generation max moyenne, meilleure population finale moyenne, plus faible extinction.
 - Lecture agregee par parametre teste: campagnes concernees + valeurs les plus frequemment associees a stabilite / generation max / population finale (ambiguite ou insuffisance explicites).
+- Lecture comparative memoire vs social: deltas moyens observes (stabilite/gen/pop) + metriques comportementales propres a chaque mecanique, avec signalement explicite si donnees insuffisantes/non comparables.
 - Systeme purement observatoire (aucune mecanique gameplay ajoutee).
 
 ## Lancer la simulation
@@ -301,6 +303,7 @@ Il inclut une synthese comparative globale de l'historique avec:
 - campagne avec meilleure population finale moyenne
 - campagne avec plus faible taux d'extinction
 - vue agregee par parametre teste (campagnes, valeur dominante stabilite/gen/pop).
+- lecture comparative memoire vs social (deltas stabilite/gen/pop + lecture comportementale propre a chaque mecanique).
 - signalement explicite des cas ambigus ou insuffisants.
 
 ## Exemple de sortie batch comparative
@@ -348,6 +351,22 @@ parametre=reproduction_cost campagnes=1
   valeur_plus_frequente_stabilite=ambigu[5.0,6.0] (freq=1/1)
   valeur_plus_frequente_gen_max=ambigu[5.0,6.0] (freq=1/1)
   valeur_plus_frequente_pop_finale=ambigu[5.0,6.0] (freq=1/1)
+```
+
+## Exemple de sortie historique memoire vs social
+```text
+--- Batch History Memory vs Social ---
+historique_batch_memoire_vs_social:
+campagnes_memoire=2 campagnes_sociales=2
+delta_moy_stabilite_taux_ext: memoire=0.33 social=0.13
+delta_moy_gen_max: memoire=1.50 social=3.50
+delta_moy_pop_finale: memoire=6.50 social=11.00
+lecture_stabilite=memory
+lecture_gen_max=social
+lecture_pop_finale=social
+comportement_memoire: usage_utile_max_moy=3.50 usage_dangereuse_max_moy=2.25 effet_utile_max_moy=1.10 effet_dangereuse_max_moy=0.85
+comportement_social: suivi_max_moy=0.60 boost_fuite_max_moy=0.23 part_influencee_max_moy=0.29 multiplicateur_fuite_max_moy=1.18
+note=les metriques comportementales memoire/social sont affichees separement (unites differentes, comparaison directe non stricte)
 ```
 
 ## Lancer les tests
@@ -409,7 +428,7 @@ En mode export:
 
 Avec les outils d'analyse:
 - `py analyze_export.py <fichier>` affiche une synthese concise basee sur l'export.
-- `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale et une vue agregee par parametre teste (avec ambiguite/insuffisance explicites).
+- `py analyze_batch_history.py <fichier_historique>` affiche un resume des campagnes batch archivees, une synthese comparative globale, une vue agregee par parametre teste (avec ambiguite/insuffisance explicites) et une lecture memoire vs social.
 - pour observer la memoire locale en run: suivre `memoire_active`, `memoire_part`, `memoire_tick`, `memoire_freq_tick`, `memoire_effet_tick` et `memoire_log` dans la ligne `dynamique_*`.
 - pour comparer memoire active vs neutralisee: relancer avec `--food-memory-duration 0 --danger-memory-duration 0` puis comparer `memoire:*` et la synthese finale.
 - pour comparer influence sociale active vs neutralisee: relancer avec `--social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0` puis comparer `social_*` et les blocs `social:`/`social_moy:`.
@@ -447,6 +466,7 @@ Lecture rapide conseillee:
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
+- Lecture comparative memoire vs social dans l'historique batch (deltas stabilite/gen/pop + lecture comportementale dediee).
 - Memoire locale courte (zone utile/dangereuse) visible dans les stats/debug et testee.
 - Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
 - Influence sociale locale minimale observable dans les stats/debug (suivi social + fuite renforcee).
