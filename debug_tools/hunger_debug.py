@@ -26,6 +26,8 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "prudence": round(creature.traits.prudence, 3),
                     "dominance": round(creature.traits.dominance, 3),
                     "repro_drive": round(creature.traits.repro_drive, 3),
+                    "memory_focus": round(creature.traits.memory_focus, 3),
+                    "social_sensitivity": round(creature.traits.social_sensitivity, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -90,5 +92,3 @@ def _intent_reason(intent: CreatureIntent | None) -> str | None:
     if intent.action == HungerAI.ACTION_WANDER:
         return "idle"
     return "other"
-
-

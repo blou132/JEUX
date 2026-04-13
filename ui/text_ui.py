@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | repro_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | repro_moy | memoire_trait_moy | social_trait_moy"
     )
 
 
@@ -39,7 +39,9 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{float(stats['avg_metabolism']):15.3f} | "
         f"{float(stats['avg_prudence']):12.3f} | "
         f"{float(stats['avg_dominance']):13.3f} | "
-        f"{float(stats['avg_repro_drive']):9.3f}"
+        f"{float(stats['avg_repro_drive']):9.3f} | "
+        f"{float(stats.get('avg_memory_focus', 0.0)):17.3f} | "
+        f"{float(stats.get('avg_social_sensitivity', 0.0)):16.3f}"
     )
 
 
@@ -501,6 +503,8 @@ def format_population_dynamics(
     avg_prudence = float(stats.get("avg_prudence", 0.0))
     avg_dominance = float(stats.get("avg_dominance", 0.0))
     avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
+    avg_memory_focus = float(stats.get("avg_memory_focus", 0.0))
+    avg_social_sensitivity = float(stats.get("avg_social_sensitivity", 0.0))
 
     alive_delta = 0
     births_log = births_tick
@@ -594,7 +598,7 @@ def format_population_dynamics(
         f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} infl={social_influenced_tick} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
@@ -690,6 +694,3 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
-
-
-

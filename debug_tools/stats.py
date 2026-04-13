@@ -65,6 +65,8 @@ def build_population_stats(
             "avg_prudence": 0.0,
             "avg_dominance": 0.0,
             "avg_repro_drive": 0.0,
+            "avg_memory_focus": 0.0,
+            "avg_social_sensitivity": 0.0,
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
@@ -122,6 +124,8 @@ def build_population_stats(
     avg_prudence = sum(c.traits.prudence for c in simulation.creatures) / total
     avg_dominance = sum(c.traits.dominance for c in simulation.creatures) / total
     avg_repro_drive = sum(c.traits.repro_drive for c in simulation.creatures) / total
+    avg_memory_focus = sum(c.traits.memory_focus for c in simulation.creatures) / total
+    avg_social_sensitivity = sum(c.traits.social_sensitivity for c in simulation.creatures) / total
 
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
@@ -150,6 +154,8 @@ def build_population_stats(
         "avg_prudence": avg_prudence,
         "avg_dominance": avg_dominance,
         "avg_repro_drive": avg_repro_drive,
+        "avg_memory_focus": avg_memory_focus,
+        "avg_social_sensitivity": avg_social_sensitivity,
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
@@ -769,6 +775,3 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
-
-
-

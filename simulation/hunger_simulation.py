@@ -408,10 +408,14 @@ class HungerSimulation:
         if not creature.has_food_memory:
             return False
 
+        effective_recall_distance = self.food_memory_recall_distance * creature.traits.memory_focus
+        if effective_recall_distance <= 0.0:
+            return False
+
         assert creature.last_food_zone is not None
         target_x, target_y = creature.last_food_zone
         distance_to_memory = creature.distance_to(target_x, target_y)
-        if distance_to_memory > self.food_memory_recall_distance:
+        if distance_to_memory > effective_recall_distance:
             return False
 
         step_distance = self.movement_speed * activity * creature.traits.speed * dt
@@ -434,10 +438,14 @@ class HungerSimulation:
         if not creature.has_danger_memory:
             return False
 
+        effective_avoid_distance = self.danger_memory_avoid_distance * creature.traits.memory_focus
+        if effective_avoid_distance <= 0.0:
+            return False
+
         assert creature.last_danger_zone is not None
         danger_x, danger_y = creature.last_danger_zone
         distance_to_danger = creature.distance_to(danger_x, danger_y)
-        if distance_to_danger > self.danger_memory_avoid_distance:
+        if distance_to_danger > effective_avoid_distance:
             return False
 
         step_distance = self.movement_speed * creature.traits.speed * dt
@@ -470,7 +478,10 @@ class HungerSimulation:
         intents: Dict[str, CreatureIntent],
         creatures_by_id: Dict[str, Creature],
     ) -> bool:
-        if self.social_influence_distance <= 0.0 or self.social_follow_strength <= 0.0:
+        effective_social_distance = self.social_influence_distance * creature.traits.social_sensitivity
+        effective_follow_strength = self.social_follow_strength * creature.traits.social_sensitivity
+
+        if effective_social_distance <= 0.0 or effective_follow_strength <= 0.0:
             return False
 
         nearest_target: tuple[float, float] | None = None
@@ -488,7 +499,7 @@ class HungerSimulation:
                 continue
 
             distance_to_other = creature.distance_to(other.x, other.y)
-            if distance_to_other > self.social_influence_distance:
+            if distance_to_other > effective_social_distance:
                 continue
 
             food = self.food_field.get_food(other_intent.target_food_id)
@@ -502,7 +513,7 @@ class HungerSimulation:
         if nearest_target is None:
             return False
 
-        step_distance = self.movement_speed * creature.traits.speed * dt * self.social_follow_strength
+        step_distance = self.movement_speed * creature.traits.speed * dt * effective_follow_strength
         if step_distance <= 0.0:
             return False
 
@@ -522,7 +533,11 @@ class HungerSimulation:
         intents: Dict[str, CreatureIntent],
         creatures_by_id: Dict[str, Creature],
     ) -> float:
-        if self.social_influence_distance <= 0.0 or self.social_flee_boost_per_neighbor <= 0.0:
+        effective_social_distance = self.social_influence_distance * creature.traits.social_sensitivity
+        effective_boost_per_neighbor = self.social_flee_boost_per_neighbor * creature.traits.social_sensitivity
+        effective_boost_max = self.social_flee_boost_max * creature.traits.social_sensitivity
+
+        if effective_social_distance <= 0.0 or effective_boost_per_neighbor <= 0.0:
             return 1.0
 
         nearby_fleeing = 0
@@ -537,13 +552,13 @@ class HungerSimulation:
             if other is None or not other.alive:
                 continue
 
-            if creature.distance_to(other.x, other.y) <= self.social_influence_distance:
+            if creature.distance_to(other.x, other.y) <= effective_social_distance:
                 nearby_fleeing += 1
 
         if nearby_fleeing <= 0:
             return 1.0
 
-        boost = min(self.social_flee_boost_max, nearby_fleeing * self.social_flee_boost_per_neighbor)
+        boost = min(effective_boost_max, nearby_fleeing * effective_boost_per_neighbor)
         return 1.0 + boost
 
     def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
@@ -596,6 +611,3 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
-
-
-

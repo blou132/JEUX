@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -13,9 +13,13 @@ class GeneticTraits:
     # - prudence: higher means safer decisions, earlier threat avoidance.
     # - dominance: higher means less likely to treat borderline opponents as threats.
     # - repro_drive: higher means more willingness to prioritize reproduction.
+    # - memory_focus: higher means stronger tendency to reuse local memories.
+    # - social_sensitivity: higher means stronger responsiveness to nearby social cues.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
+    memory_focus: float = 1.0
+    social_sensitivity: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -26,4 +30,6 @@ class GeneticTraits:
         self.prudence = max(0.2, min(2.0, self.prudence))
         self.dominance = max(0.2, min(2.0, self.dominance))
         self.repro_drive = max(0.2, min(2.0, self.repro_drive))
+        self.memory_focus = max(0.5, min(1.5, self.memory_focus))
+        self.social_sensitivity = max(0.5, min(1.5, self.social_sensitivity))
         return self

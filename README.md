@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte et influence sociale locale minimale.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, et biais individuels legers sur memoire/social.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -32,6 +32,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Indicateurs d'impact memoire (usage, part active, effet moyen distance) visibles en stats/syntheses.
 - Influence sociale locale minimale (suivi social vers nourriture + renforcement local de fuite).
 - Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, part influencee, multiplicateur de fuite tick/moyen).
+- Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -68,6 +69,16 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Traits utilises dans la decision: `prudence`, `dominance`, `repro_drive`.
 - Ces traits influencent legerement les priorites d'action.
 - Heredite + mutation appliquees sur ces traits.
+
+### Biais individuels memoire/social
+- Traits legers ajoutes: `memory_focus` (sensibilite a la memoire locale) et `social_sensitivity` (sensibilite aux signaux sociaux proches).
+- Effet volontairement limite:
+  - `memory_focus` module la distance de rappel/evitement de memoire utile ou dangereuse.
+  - `social_sensitivity` module la portee sociale, le suivi social et le boost social de fuite.
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs:
+  - moyennes globales: `memoire_trait_moy`, `social_trait_moy`
+  - composantes traits: `traits_comp_moy` (inclut `mem` et `soc`).
 
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
@@ -391,11 +402,12 @@ py -m unittest tests.test_batch_comparative_summary
 py -m unittest tests.test_batch_history
 py -m unittest tests.test_social_influence_behavior
 py -m unittest tests.test_social_impact_metrics
+py -m unittest tests.test_individual_behavior_bias
 ```
 
 ## Lire les logs debug (indicateurs utiles)
 Chaque bloc de log periodique contient:
-- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits.
+- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `repro_drive`, `memory_focus`, `social_sensitivity`).
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
 - `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
@@ -471,6 +483,7 @@ Lecture rapide conseillee:
 - Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
 - Influence sociale locale minimale observable dans les stats/debug (suivi social + fuite renforcee).
 - Evaluation legere de l'impact social (frequences, part influencee, multiplicateur de fuite tick/moyen) dans stats, synthese run, multi-runs, export et analyse.
+- Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

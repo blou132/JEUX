@@ -63,6 +63,8 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("avg_prudence", stats)
         self.assertIn("avg_dominance", stats)
         self.assertIn("avg_repro_drive", stats)
+        self.assertIn("avg_memory_focus", stats)
+        self.assertIn("avg_social_sensitivity", stats)
         self.assertIn("death_causes_last_tick", stats)
         self.assertIn("death_causes_total", stats)
         self.assertIn("flees_last_tick", stats)
@@ -128,5 +130,3 @@ class DebugStatsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
