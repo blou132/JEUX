@@ -36,6 +36,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Indicateurs d'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyennes, dispersion et biais d'usage memoire/social visibles en stats/syntheses.
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
+- Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -92,6 +93,16 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs/syntheses:
   - `dynamique_*` via `traits_comp_moy` (`fp`, `tp`) et `traits_disp` (`fp_sigma`, `tp_sigma`)
   - `Run Summary` et `Multi-Run Summary` via `traits_moy` / `traits_finaux_moy` (`fp`, `tp`).
+
+### Evaluation legere de l'impact perception
+- Indicateurs exposes en stats/synthese:
+  - moyenne et dispersion de `food_perception` et `threat_perception`
+  - usage reel detection nourriture (`food_detection_*`) et consommation (`food_consumption_*`)
+  - usage reel detection menace/fuite (`threat_detection_*`)
+  - biais simples: moyenne des utilisateurs - moyenne population (`food_perception_detection_usage_bias_*`, `food_perception_consumption_usage_bias_*`, `threat_perception_flee_usage_bias_*`)
+- Visibilite:
+  - `dynamique_*`: `perception_log`, `perception_tick`, `perception_freq_tick`, `perception_bias_tick`
+  - `Run Summary` / `Multi-Run Summary`: bloc `traits_impact` / `traits_impact_moy` (inclut `fp_mu`, `tp_mu`, biais perception)
 
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
@@ -450,6 +461,7 @@ py -m unittest tests.test_social_impact_metrics
 py -m unittest tests.test_trait_impact_metrics
 py -m unittest tests.test_individual_behavior_bias
 py -m unittest tests.test_perception_traits
+py -m unittest tests.test_perception_impact_metrics
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -465,13 +477,16 @@ Chaque bloc de log periodique contient:
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`.
+- `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -537,6 +552,7 @@ Lecture rapide conseillee:
 - Evaluation legere de l'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyenne/dispersion + biais d'usage memoire/social en stats, synthese run, multi-runs, export et analyse.
 - Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
+- Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

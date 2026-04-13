@@ -135,6 +135,30 @@ def build_population_stats(
             "social_sensitivity_flee_boost_users_avg_total": 0.0,
             "social_sensitivity_flee_boost_usage_bias_tick": 0.0,
             "social_sensitivity_flee_boost_usage_bias_total": 0.0,
+            "food_detection_moves_last_tick": simulation.food_detection_moves_last_tick,
+            "total_food_detection_moves": simulation.total_food_detection_moves,
+            "food_consumptions_last_tick": simulation.food_consumptions_last_tick,
+            "total_food_consumptions": simulation.total_food_consumptions,
+            "threat_detection_flee_last_tick": simulation.threat_detection_flee_last_tick,
+            "total_threat_detection_flee": simulation.total_threat_detection_flee,
+            "food_detection_usage_per_alive_tick": 0.0,
+            "food_detection_usage_per_tick_total": 0.0,
+            "food_consumption_usage_per_alive_tick": 0.0,
+            "food_consumption_usage_per_tick_total": 0.0,
+            "threat_detection_usage_per_alive_tick": 0.0,
+            "threat_detection_usage_per_tick_total": 0.0,
+            "food_perception_detection_users_avg_tick": 0.0,
+            "food_perception_detection_users_avg_total": 0.0,
+            "food_perception_detection_usage_bias_tick": 0.0,
+            "food_perception_detection_usage_bias_total": 0.0,
+            "food_perception_consumption_users_avg_tick": 0.0,
+            "food_perception_consumption_users_avg_total": 0.0,
+            "food_perception_consumption_usage_bias_tick": 0.0,
+            "food_perception_consumption_usage_bias_total": 0.0,
+            "threat_perception_flee_users_avg_tick": 0.0,
+            "threat_perception_flee_users_avg_total": 0.0,
+            "threat_perception_flee_usage_bias_tick": 0.0,
+            "threat_perception_flee_usage_bias_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -246,6 +270,68 @@ def build_population_stats(
         else 0.0
     )
 
+    avg_food_perception_detection_users_tick = (
+        simulation.food_perception_sum_detection_last_tick / simulation.food_detection_moves_last_tick
+        if simulation.food_detection_moves_last_tick > 0
+        else 0.0
+    )
+    avg_food_perception_detection_users_total = (
+        simulation.total_food_perception_sum_detection / simulation.total_food_detection_moves
+        if simulation.total_food_detection_moves > 0
+        else 0.0
+    )
+    avg_food_perception_consumption_users_tick = (
+        simulation.food_perception_sum_consumption_last_tick / simulation.food_consumptions_last_tick
+        if simulation.food_consumptions_last_tick > 0
+        else 0.0
+    )
+    avg_food_perception_consumption_users_total = (
+        simulation.total_food_perception_sum_consumption / simulation.total_food_consumptions
+        if simulation.total_food_consumptions > 0
+        else 0.0
+    )
+    avg_threat_perception_flee_users_tick = (
+        simulation.threat_perception_sum_flee_last_tick / simulation.threat_detection_flee_last_tick
+        if simulation.threat_detection_flee_last_tick > 0
+        else 0.0
+    )
+    avg_threat_perception_flee_users_total = (
+        simulation.total_threat_perception_sum_flee / simulation.total_threat_detection_flee
+        if simulation.total_threat_detection_flee > 0
+        else 0.0
+    )
+
+    food_perception_detection_usage_bias_tick = (
+        avg_food_perception_detection_users_tick - avg_food_perception
+        if simulation.food_detection_moves_last_tick > 0
+        else 0.0
+    )
+    food_perception_detection_usage_bias_total = (
+        avg_food_perception_detection_users_total - avg_food_perception
+        if simulation.total_food_detection_moves > 0
+        else 0.0
+    )
+    food_perception_consumption_usage_bias_tick = (
+        avg_food_perception_consumption_users_tick - avg_food_perception
+        if simulation.food_consumptions_last_tick > 0
+        else 0.0
+    )
+    food_perception_consumption_usage_bias_total = (
+        avg_food_perception_consumption_users_total - avg_food_perception
+        if simulation.total_food_consumptions > 0
+        else 0.0
+    )
+    threat_perception_flee_usage_bias_tick = (
+        avg_threat_perception_flee_users_tick - avg_threat_perception
+        if simulation.threat_detection_flee_last_tick > 0
+        else 0.0
+    )
+    threat_perception_flee_usage_bias_total = (
+        avg_threat_perception_flee_users_total - avg_threat_perception
+        if simulation.total_threat_detection_flee > 0
+        else 0.0
+    )
+
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
         max_groups=3,
@@ -342,6 +428,30 @@ def build_population_stats(
         "social_sensitivity_flee_boost_users_avg_total": avg_social_sensitivity_flee_boost_users_total,
         "social_sensitivity_flee_boost_usage_bias_tick": social_sensitivity_flee_boost_usage_bias_tick,
         "social_sensitivity_flee_boost_usage_bias_total": social_sensitivity_flee_boost_usage_bias_total,
+        "food_detection_moves_last_tick": simulation.food_detection_moves_last_tick,
+        "total_food_detection_moves": simulation.total_food_detection_moves,
+        "food_consumptions_last_tick": simulation.food_consumptions_last_tick,
+        "total_food_consumptions": simulation.total_food_consumptions,
+        "threat_detection_flee_last_tick": simulation.threat_detection_flee_last_tick,
+        "total_threat_detection_flee": simulation.total_threat_detection_flee,
+        "food_detection_usage_per_alive_tick": simulation.food_detection_moves_last_tick / alive,
+        "food_detection_usage_per_tick_total": simulation.total_food_detection_moves / max(1, simulation.tick_count),
+        "food_consumption_usage_per_alive_tick": simulation.food_consumptions_last_tick / alive,
+        "food_consumption_usage_per_tick_total": simulation.total_food_consumptions / max(1, simulation.tick_count),
+        "threat_detection_usage_per_alive_tick": simulation.threat_detection_flee_last_tick / alive,
+        "threat_detection_usage_per_tick_total": simulation.total_threat_detection_flee / max(1, simulation.tick_count),
+        "food_perception_detection_users_avg_tick": avg_food_perception_detection_users_tick,
+        "food_perception_detection_users_avg_total": avg_food_perception_detection_users_total,
+        "food_perception_detection_usage_bias_tick": food_perception_detection_usage_bias_tick,
+        "food_perception_detection_usage_bias_total": food_perception_detection_usage_bias_total,
+        "food_perception_consumption_users_avg_tick": avg_food_perception_consumption_users_tick,
+        "food_perception_consumption_users_avg_total": avg_food_perception_consumption_users_total,
+        "food_perception_consumption_usage_bias_tick": food_perception_consumption_usage_bias_tick,
+        "food_perception_consumption_usage_bias_total": food_perception_consumption_usage_bias_total,
+        "threat_perception_flee_users_avg_tick": avg_threat_perception_flee_users_tick,
+        "threat_perception_flee_users_avg_total": avg_threat_perception_flee_users_total,
+        "threat_perception_flee_usage_bias_tick": threat_perception_flee_usage_bias_tick,
+        "threat_perception_flee_usage_bias_total": threat_perception_flee_usage_bias_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -433,10 +543,17 @@ def build_final_run_summary(
         "memory_focus_std": float(final_stats.get("std_memory_focus", 0.0)),
         "social_sensitivity_mean": float(final_stats.get("avg_social_sensitivity", 0.0)),
         "social_sensitivity_std": float(final_stats.get("std_social_sensitivity", 0.0)),
+        "food_perception_mean": float(final_stats.get("avg_food_perception", 0.0)),
+        "food_perception_std": float(final_stats.get("std_food_perception", 0.0)),
+        "threat_perception_mean": float(final_stats.get("avg_threat_perception", 0.0)),
+        "threat_perception_std": float(final_stats.get("std_threat_perception", 0.0)),
         "memory_focus_food_bias": float(final_stats.get("memory_focus_food_usage_bias_total", 0.0)),
         "memory_focus_danger_bias": float(final_stats.get("memory_focus_danger_usage_bias_total", 0.0)),
         "social_sensitivity_follow_bias": float(final_stats.get("social_sensitivity_follow_usage_bias_total", 0.0)),
         "social_sensitivity_flee_boost_bias": float(final_stats.get("social_sensitivity_flee_boost_usage_bias_total", 0.0)),
+        "food_perception_detection_bias": float(final_stats.get("food_perception_detection_usage_bias_total", 0.0)),
+        "food_perception_consumption_bias": float(final_stats.get("food_perception_consumption_usage_bias_total", 0.0)),
+        "threat_perception_flee_bias": float(final_stats.get("threat_perception_flee_usage_bias_total", 0.0)),
     }
 
     return {
@@ -503,10 +620,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "memory_focus_std": 0.0,
                 "social_sensitivity_mean": 0.0,
                 "social_sensitivity_std": 0.0,
+                "food_perception_mean": 0.0,
+                "food_perception_std": 0.0,
+                "threat_perception_mean": 0.0,
+                "threat_perception_std": 0.0,
                 "memory_focus_food_bias": 0.0,
                 "memory_focus_danger_bias": 0.0,
                 "social_sensitivity_follow_bias": 0.0,
                 "social_sensitivity_flee_boost_bias": 0.0,
+                "food_perception_detection_bias": 0.0,
+                "food_perception_consumption_bias": 0.0,
+                "threat_perception_flee_bias": 0.0,
             },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
@@ -553,10 +677,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "memory_focus_std": 0.0,
         "social_sensitivity_mean": 0.0,
         "social_sensitivity_std": 0.0,
+        "food_perception_mean": 0.0,
+        "food_perception_std": 0.0,
+        "threat_perception_mean": 0.0,
+        "threat_perception_std": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
         "social_sensitivity_flee_boost_bias": 0.0,
+        "food_perception_detection_bias": 0.0,
+        "food_perception_consumption_bias": 0.0,
+        "threat_perception_flee_bias": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -615,10 +746,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["memory_focus_std"] += float(trait_impact_raw.get("memory_focus_std", 0.0))
                 avg_trait_impact_acc["social_sensitivity_mean"] += float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
                 avg_trait_impact_acc["social_sensitivity_std"] += float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+                avg_trait_impact_acc["food_perception_mean"] += float(trait_impact_raw.get("food_perception_mean", 0.0))
+                avg_trait_impact_acc["food_perception_std"] += float(trait_impact_raw.get("food_perception_std", 0.0))
+                avg_trait_impact_acc["threat_perception_mean"] += float(trait_impact_raw.get("threat_perception_mean", 0.0))
+                avg_trait_impact_acc["threat_perception_std"] += float(trait_impact_raw.get("threat_perception_std", 0.0))
                 avg_trait_impact_acc["memory_focus_food_bias"] += float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
                 avg_trait_impact_acc["memory_focus_danger_bias"] += float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
                 avg_trait_impact_acc["social_sensitivity_follow_bias"] += float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
                 avg_trait_impact_acc["social_sensitivity_flee_boost_bias"] += float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+                avg_trait_impact_acc["food_perception_detection_bias"] += float(trait_impact_raw.get("food_perception_detection_bias", 0.0))
+                avg_trait_impact_acc["food_perception_consumption_bias"] += float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
+                avg_trait_impact_acc["threat_perception_flee_bias"] += float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
 
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
@@ -670,10 +808,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "memory_focus_std": avg_trait_impact_acc["memory_focus_std"] / run_count,
             "social_sensitivity_mean": avg_trait_impact_acc["social_sensitivity_mean"] / run_count,
             "social_sensitivity_std": avg_trait_impact_acc["social_sensitivity_std"] / run_count,
+            "food_perception_mean": avg_trait_impact_acc["food_perception_mean"] / run_count,
+            "food_perception_std": avg_trait_impact_acc["food_perception_std"] / run_count,
+            "threat_perception_mean": avg_trait_impact_acc["threat_perception_mean"] / run_count,
+            "threat_perception_std": avg_trait_impact_acc["threat_perception_std"] / run_count,
             "memory_focus_food_bias": avg_trait_impact_acc["memory_focus_food_bias"] / run_count,
             "memory_focus_danger_bias": avg_trait_impact_acc["memory_focus_danger_bias"] / run_count,
             "social_sensitivity_follow_bias": avg_trait_impact_acc["social_sensitivity_follow_bias"] / run_count,
             "social_sensitivity_flee_boost_bias": avg_trait_impact_acc["social_sensitivity_flee_boost_bias"] / run_count,
+            "food_perception_detection_bias": avg_trait_impact_acc["food_perception_detection_bias"] / run_count,
+            "food_perception_consumption_bias": avg_trait_impact_acc["food_perception_consumption_bias"] / run_count,
+            "threat_perception_flee_bias": avg_trait_impact_acc["threat_perception_flee_bias"] / run_count,
         },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,

@@ -94,6 +94,18 @@ class HungerSimulation:
         self.fleeing_creatures_last_tick: list[str] = []
         self.flee_threat_distance_last_tick: Dict[str, float] = {}
         self.avg_flee_threat_distance_last_tick = 0.0
+        self.food_detection_moves_last_tick = 0
+        self.total_food_detection_moves = 0
+        self.food_perception_sum_detection_last_tick = 0.0
+        self.total_food_perception_sum_detection = 0.0
+        self.food_consumptions_last_tick = 0
+        self.total_food_consumptions = 0
+        self.food_perception_sum_consumption_last_tick = 0.0
+        self.total_food_perception_sum_consumption = 0.0
+        self.threat_detection_flee_last_tick = 0
+        self.total_threat_detection_flee = 0
+        self.threat_perception_sum_flee_last_tick = 0.0
+        self.total_threat_perception_sum_flee = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -145,6 +157,12 @@ class HungerSimulation:
         self.fleeing_creatures_last_tick = []
         self.flee_threat_distance_last_tick = {}
         self.avg_flee_threat_distance_last_tick = 0.0
+        self.food_detection_moves_last_tick = 0
+        self.food_perception_sum_detection_last_tick = 0.0
+        self.food_consumptions_last_tick = 0
+        self.food_perception_sum_consumption_last_tick = 0.0
+        self.threat_detection_flee_last_tick = 0
+        self.threat_perception_sum_flee_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -193,6 +211,21 @@ class HungerSimulation:
                 nearby_creatures=self.creatures,
             )
         self.last_intents = intents
+
+        for creature in self.creatures:
+            if not creature.alive:
+                continue
+            intent = intents[creature.creature_id]
+            if intent.action == HungerAI.ACTION_MOVE_TO_FOOD and intent.target_food_id is not None:
+                self.food_detection_moves_last_tick += 1
+                self.total_food_detection_moves += 1
+                self.food_perception_sum_detection_last_tick += creature.traits.food_perception
+                self.total_food_perception_sum_detection += creature.traits.food_perception
+            if intent.action == HungerAI.ACTION_FLEE:
+                self.threat_detection_flee_last_tick += 1
+                self.total_threat_detection_flee += 1
+                self.threat_perception_sum_flee_last_tick += creature.traits.threat_perception
+                self.total_threat_perception_sum_flee += creature.traits.threat_perception
 
         # 3) Execute movement and feeding behavior.
         creatures_by_id = {creature.creature_id: creature for creature in self.creatures}
@@ -253,6 +286,10 @@ class HungerSimulation:
                     eaten = self.food_field.consume(target.food_id, self.eat_rate * dt)
                     creature.add_energy(eaten)
                     if eaten > 0.0:
+                        self.food_consumptions_last_tick += 1
+                        self.total_food_consumptions += 1
+                        self.food_perception_sum_consumption_last_tick += creature.traits.food_perception
+                        self.total_food_perception_sum_consumption += creature.traits.food_perception
                         creature.remember_food_zone(target.x, target.y, ttl=self.food_memory_duration)
                 continue
 

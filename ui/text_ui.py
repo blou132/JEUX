@@ -287,20 +287,34 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "memory_focus_std": 0.0,
         "social_sensitivity_mean": 0.0,
         "social_sensitivity_std": 0.0,
+        "food_perception_mean": 0.0,
+        "food_perception_std": 0.0,
+        "threat_perception_mean": 0.0,
+        "threat_perception_std": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
         "social_sensitivity_flee_boost_bias": 0.0,
+        "food_perception_detection_bias": 0.0,
+        "food_perception_consumption_bias": 0.0,
+        "threat_perception_flee_bias": 0.0,
     }
     if isinstance(trait_impact_raw, dict):
         trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
         trait_impact["memory_focus_std"] = float(trait_impact_raw.get("memory_focus_std", 0.0))
         trait_impact["social_sensitivity_mean"] = float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
         trait_impact["social_sensitivity_std"] = float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+        trait_impact["food_perception_mean"] = float(trait_impact_raw.get("food_perception_mean", 0.0))
+        trait_impact["food_perception_std"] = float(trait_impact_raw.get("food_perception_std", 0.0))
+        trait_impact["threat_perception_mean"] = float(trait_impact_raw.get("threat_perception_mean", 0.0))
+        trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
         trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
         trait_impact["social_sensitivity_flee_boost_bias"] = float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+        trait_impact["food_perception_detection_bias"] = float(trait_impact_raw.get("food_perception_detection_bias", 0.0))
+        trait_impact["food_perception_consumption_bias"] = float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
+        trait_impact["threat_perception_flee_bias"] = float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
 
     return (
         "synthese_run: "
@@ -316,9 +330,9 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
-        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -358,10 +372,17 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         mem_sigma=trait_impact["memory_focus_std"],
         soc_mu=trait_impact["social_sensitivity_mean"],
         soc_sigma=trait_impact["social_sensitivity_std"],
+        fp_mu=trait_impact["food_perception_mean"],
+        fp_sigma=trait_impact["food_perception_std"],
+        tp_mu=trait_impact["threat_perception_mean"],
+        tp_sigma=trait_impact["threat_perception_std"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
         bias_soc_flee=trait_impact["social_sensitivity_flee_boost_bias"],
+        bias_fp_det=trait_impact["food_perception_detection_bias"],
+        bias_fp_eat=trait_impact["food_perception_consumption_bias"],
+        bias_tp_flee=trait_impact["threat_perception_flee_bias"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
 
@@ -441,20 +462,34 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "memory_focus_std": 0.0,
         "social_sensitivity_mean": 0.0,
         "social_sensitivity_std": 0.0,
+        "food_perception_mean": 0.0,
+        "food_perception_std": 0.0,
+        "threat_perception_mean": 0.0,
+        "threat_perception_std": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
         "social_sensitivity_flee_boost_bias": 0.0,
+        "food_perception_detection_bias": 0.0,
+        "food_perception_consumption_bias": 0.0,
+        "threat_perception_flee_bias": 0.0,
     }
     if isinstance(trait_impact_raw, dict):
         trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
         trait_impact["memory_focus_std"] = float(trait_impact_raw.get("memory_focus_std", 0.0))
         trait_impact["social_sensitivity_mean"] = float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
         trait_impact["social_sensitivity_std"] = float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+        trait_impact["food_perception_mean"] = float(trait_impact_raw.get("food_perception_mean", 0.0))
+        trait_impact["food_perception_std"] = float(trait_impact_raw.get("food_perception_std", 0.0))
+        trait_impact["threat_perception_mean"] = float(trait_impact_raw.get("threat_perception_mean", 0.0))
+        trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
         trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
         trait_impact["social_sensitivity_flee_boost_bias"] = float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+        trait_impact["food_perception_detection_bias"] = float(trait_impact_raw.get("food_perception_detection_bias", 0.0))
+        trait_impact["food_perception_consumption_bias"] = float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
+        trait_impact["threat_perception_flee_bias"] = float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
 
     seeds_text = ",".join(str(seed) for seed in seeds)
 
@@ -472,9 +507,9 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
-        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -511,10 +546,17 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         mem_sigma=trait_impact["memory_focus_std"],
         soc_mu=trait_impact["social_sensitivity_mean"],
         soc_sigma=trait_impact["social_sensitivity_std"],
+        fp_mu=trait_impact["food_perception_mean"],
+        fp_sigma=trait_impact["food_perception_std"],
+        tp_mu=trait_impact["threat_perception_mean"],
+        tp_sigma=trait_impact["threat_perception_std"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
         bias_soc_flee=trait_impact["social_sensitivity_flee_boost_bias"],
+        bias_fp_det=trait_impact["food_perception_detection_bias"],
+        bias_fp_eat=trait_impact["food_perception_consumption_bias"],
+        bias_tp_flee=trait_impact["threat_perception_flee_bias"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
@@ -553,6 +595,9 @@ def format_population_dynamics(
     current_total_social_follow = int(stats.get("total_social_follow_moves", 0))
     current_total_social_flee_boost = int(stats.get("total_social_flee_boosted", 0))
     current_total_social_influenced = int(stats.get("total_social_influenced_creatures", 0))
+    current_total_food_detection = int(stats.get("total_food_detection_moves", 0))
+    current_total_food_consumption = int(stats.get("total_food_consumptions", 0))
+    current_total_threat_detection = int(stats.get("total_threat_detection_flee", 0))
 
     fleeing_creatures_tick = _read_fleeing_ids(stats.get("fleeing_creatures_last_tick"))
     avg_flee_threat_distance_tick = float(stats.get("avg_flee_threat_distance_last_tick", 0.0))
@@ -576,6 +621,13 @@ def format_population_dynamics(
     avg_social_flee_multiplier_tick = float(stats.get("avg_social_flee_multiplier_last_tick", 1.0))
     avg_social_flee_multiplier_total = float(stats.get("social_flee_multiplier_avg_total", 1.0))
 
+    food_detection_tick = int(stats.get("food_detection_moves_last_tick", 0))
+    food_consumption_tick = int(stats.get("food_consumptions_last_tick", 0))
+    threat_detection_tick = int(stats.get("threat_detection_flee_last_tick", 0))
+    food_detection_usage_alive_tick = float(stats.get("food_detection_usage_per_alive_tick", 0.0))
+    food_consumption_usage_alive_tick = float(stats.get("food_consumption_usage_per_alive_tick", 0.0))
+    threat_detection_usage_alive_tick = float(stats.get("threat_detection_usage_per_alive_tick", 0.0))
+
     avg_prudence = float(stats.get("avg_prudence", 0.0))
     avg_dominance = float(stats.get("avg_dominance", 0.0))
     avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
@@ -591,6 +643,9 @@ def format_population_dynamics(
     memory_focus_danger_bias_tick = float(stats.get("memory_focus_danger_usage_bias_tick", 0.0))
     social_sensitivity_follow_bias_tick = float(stats.get("social_sensitivity_follow_usage_bias_tick", 0.0))
     social_sensitivity_flee_boost_bias_tick = float(stats.get("social_sensitivity_flee_boost_usage_bias_tick", 0.0))
+    food_perception_detection_bias_tick = float(stats.get("food_perception_detection_usage_bias_tick", 0.0))
+    food_perception_consumption_bias_tick = float(stats.get("food_perception_consumption_usage_bias_tick", 0.0))
+    threat_perception_flee_bias_tick = float(stats.get("threat_perception_flee_usage_bias_tick", 0.0))
 
     alive_delta = 0
     births_log = births_tick
@@ -601,6 +656,9 @@ def format_population_dynamics(
     social_follow_log = social_follow_tick
     social_flee_boost_log = social_flee_boost_tick
     social_influenced_log = social_influenced_tick
+    food_detection_log = food_detection_tick
+    food_consumption_log = food_consumption_tick
+    threat_detection_log = threat_detection_tick
 
     if previous_stats is not None:
         previous_alive = int(previous_stats.get("alive", alive))
@@ -623,6 +681,15 @@ def format_population_dynamics(
             previous_stats.get("total_social_influenced_creatures", current_total_social_influenced)
         )
 
+        previous_total_food_detection = int(
+            previous_stats.get("total_food_detection_moves", current_total_food_detection)
+        )
+        previous_total_food_consumption = int(
+            previous_stats.get("total_food_consumptions", current_total_food_consumption)
+        )
+        previous_total_threat_detection = int(
+            previous_stats.get("total_threat_detection_flee", current_total_threat_detection)
+        )
         alive_delta = alive - previous_alive
         births_log = max(0, current_total_births - previous_total_births)
         deaths_log = max(0, current_total_deaths - previous_total_deaths)
@@ -632,6 +699,9 @@ def format_population_dynamics(
         social_follow_log = max(0, current_total_social_follow - previous_total_social_follow)
         social_flee_boost_log = max(0, current_total_social_flee_boost - previous_total_social_flee_boost)
         social_influenced_log = max(0, current_total_social_influenced - previous_total_social_influenced)
+        food_detection_log = max(0, current_total_food_detection - previous_total_food_detection)
+        food_consumption_log = max(0, current_total_food_consumption - previous_total_food_consumption)
+        threat_detection_log = max(0, current_total_threat_detection - previous_total_threat_detection)
 
     net_log = births_log - deaths_log
     dynamic_log = _classify_trend(primary=alive_delta, secondary=net_log)
@@ -682,12 +752,16 @@ def format_population_dynamics(
         f"memoire_effet_tick:utile={food_memory_effect_tick:.2f} danger={danger_memory_effect_tick:.2f} "
         f"social_log:suivi={social_follow_log} fuite_boost={social_flee_boost_log} infl={social_influenced_log} "
         f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} infl={social_influenced_tick} "
+        f"perception_log:det={food_detection_log} eat={food_consumption_log} fuite={threat_detection_log} "
+        f"perception_tick:det={food_detection_tick} eat={food_consumption_tick} fuite={threat_detection_tick} "
+        f"perception_freq_tick:det={food_detection_usage_alive_tick:.2f} eat={food_consumption_usage_alive_tick:.2f} fuite={threat_detection_usage_alive_tick:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f} "
         f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
+        f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "
