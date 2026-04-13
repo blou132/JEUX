@@ -405,5 +405,106 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("donnees_traits: n/a", text)
 
 
+    def test_perception_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.8,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                    "avg_trait_impact": {
+                        "food_perception_detection_bias": 0.02,
+                        "food_perception_consumption_bias": 0.00,
+                        "threat_perception_flee_bias": 0.03,
+                        "food_perception_std": 0.04,
+                        "threat_perception_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "food_perception_detection_bias": 0.08,
+                        "food_perception_consumption_bias": 0.04,
+                        "threat_perception_flee_bias": 0.01,
+                        "food_perception_std": 0.10,
+                        "threat_perception_std": 0.12,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "food_perception_detection_bias": 0.06,
+                        "food_perception_consumption_bias": 0.02,
+                        "threat_perception_flee_bias": 0.09,
+                        "food_perception_std": 0.08,
+                        "threat_perception_std": 0.10,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("energy_drain_rate", scenarios)
+        perception = summary.get("perception_comparative")
+
+        self.assertIsInstance(perception, dict)
+        assert isinstance(perception, dict)
+        self.assertTrue(bool(perception.get("available", False)))
+        self.assertEqual(perception["best_food_perception_usage"]["winners"], [1.0])
+        self.assertEqual(perception["best_threat_perception_usage"]["winners"], [1.2])
+        self.assertEqual(perception["best_perception_dispersion"]["winners"], [1.0])
+        self.assertEqual(perception["most_stable_config"]["winners"], [1.0])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("perception_batch:", text)
+        self.assertIn("usage_food_perception_max:", text)
+        self.assertIn("usage_threat_perception_max:", text)
+        self.assertIn("dispersion_perception_max:", text)
+
+    def test_perception_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 1.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "food_perception_detection_bias": 0.02,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("energy_drain_rate", scenarios)
+        perception = summary.get("perception_comparative")
+
+        self.assertIsInstance(perception, dict)
+        assert isinstance(perception, dict)
+        self.assertFalse(bool(perception.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(perception.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("perception_batch:", text)
+        self.assertIn("donnees_perception: n/a", text)
 if __name__ == "__main__":
     unittest.main()
+

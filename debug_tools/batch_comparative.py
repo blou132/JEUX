@@ -28,6 +28,7 @@ def build_batch_comparative_summary(
     memory_candidates: list[Dict[str, float]] = []
     social_candidates: list[Dict[str, float]] = []
     trait_candidates: list[Dict[str, float]] = []
+    perception_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -66,6 +67,10 @@ def build_batch_comparative_summary(
             if trait_metrics is not None:
                 trait_candidates.append({"value": value, **trait_metrics})
 
+        perception_metrics = _read_perception_metrics(summary_raw)
+        if perception_metrics is not None:
+            perception_candidates.append({"value": value, **perception_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -85,6 +90,10 @@ def build_batch_comparative_summary(
                 trait_candidates,
                 stable_metric=None,
             )
+        empty["perception_comparative"] = _build_perception_comparative(
+            perception_candidates,
+            stable_metric=None,
+        )
         return empty
 
     lowest_ext_value = min(candidate["extinction_rate"] for candidate in candidates)
@@ -150,6 +159,10 @@ def build_batch_comparative_summary(
             trait_candidates,
             stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
         )
+    summary["perception_comparative"] = _build_perception_comparative(
+        perception_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -204,6 +217,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     trait_raw = summary.get("trait_comparative")
     if isinstance(trait_raw, dict):
         lines.extend(_format_trait_comparative(batch_param, trait_raw))
+
+    perception_raw = summary.get("perception_comparative")
+    if isinstance(perception_raw, dict):
+        lines.extend(_format_perception_comparative(batch_param, perception_raw))
 
     return "\n".join(lines)
 
@@ -416,6 +433,92 @@ def _build_trait_comparative(
     }
 
 
+def _format_perception_comparative(batch_param: str, perception_summary: Dict[str, object]) -> list[str]:
+    lines = ["perception_batch:"]
+
+    if not bool(perception_summary.get("available", False)):
+        note = str(perception_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_perception: n/a ({note})")
+        return lines
+
+    food_usage = _read_metric_result(perception_summary.get("best_food_perception_usage"))
+    threat_usage = _read_metric_result(perception_summary.get("best_threat_perception_usage"))
+    dispersion = _read_metric_result(perception_summary.get("best_perception_dispersion"))
+    stable_config = _read_metric_result(perception_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_food_perception_max: {label} (bias_usage_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, food_usage.get("winners")),
+            value=float(food_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_threat_perception_max: {label} (bias_usage_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, threat_usage.get("winners")),
+            value=float(threat_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_perception_max: {label} (disp_moy={value:.3f})".format(
+            label=_winner_label(batch_param, dispersion.get("winners")),
+            value=float(dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    lines.append(
+        "note_perception: usage_food=(bias_detection+bias_consommation)/2 usage_threat=bias_fuite dispersion=(std_food_perception+std_threat_perception)/2"
+    )
+    return lines
+
+
+def _build_perception_comparative(
+    perception_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(perception_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact perception",
+            "best_food_perception_usage": _insufficient_metric_result(),
+            "best_threat_perception_usage": _insufficient_metric_result(),
+            "best_perception_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    return {
+        "available": True,
+        "best_food_perception_usage": _build_peak_metric(perception_candidates, "food_perception_usage_bias"),
+        "best_threat_perception_usage": _build_peak_metric(perception_candidates, "threat_perception_usage_bias"),
+        "best_perception_dispersion": _build_peak_metric(perception_candidates, "perception_dispersion"),
+        "most_stable_config": stable_result,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -512,6 +615,34 @@ def _read_trait_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | No
     }
 
 
+def _read_perception_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "food_perception_detection_bias",
+        "food_perception_consumption_bias",
+        "threat_perception_flee_bias",
+        "food_perception_std",
+        "threat_perception_std",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    food_detection_bias = float(avg_trait_raw.get("food_perception_detection_bias", 0.0))
+    food_consumption_bias = float(avg_trait_raw.get("food_perception_consumption_bias", 0.0))
+    threat_flee_bias = float(avg_trait_raw.get("threat_perception_flee_bias", 0.0))
+    food_std = float(avg_trait_raw.get("food_perception_std", 0.0))
+    threat_std = float(avg_trait_raw.get("threat_perception_std", 0.0))
+
+    return {
+        "food_perception_usage_bias": (food_detection_bias + food_consumption_bias) / 2.0,
+        "threat_perception_usage_bias": threat_flee_bias,
+        "perception_dispersion": (food_std + threat_std) / 2.0,
+    }
+
+
 def _read_metric_result(raw: object) -> Dict[str, object]:
     if isinstance(raw, dict):
         return raw
@@ -556,3 +687,4 @@ def _empty_metric_result() -> Dict[str, object]:
 
 def _is_close(a: float, b: float, tolerance: float = 1e-9) -> bool:
     return abs(a - b) <= tolerance
+

@@ -437,6 +437,84 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("traits_batch:", summary)
         self.assertIn("bias_usage_social_max:", summary)
 
+    def test_batch_perception_analysis_shows_perception_comparative(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "energy_drain_rate",
+            "batch_values": [1.0, 1.2],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 1.0,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 22.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_trait_impact": {
+                            "food_perception_detection_bias": 0.06,
+                            "food_perception_consumption_bias": 0.04,
+                            "threat_perception_flee_bias": 0.02,
+                            "food_perception_std": 0.10,
+                            "threat_perception_std": 0.09,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 1.2,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 3.0,
+                        "avg_final_population": 20.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_trait_impact": {
+                            "food_perception_detection_bias": 0.03,
+                            "food_perception_consumption_bias": 0.01,
+                            "threat_perception_flee_bias": 0.08,
+                            "food_perception_std": 0.07,
+                            "threat_perception_std": 0.12,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_perception.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_export_payload(str(path))
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        self.assertIn("perception_batch:", summary)
+        self.assertIn("usage_food_perception_max:", summary)
+        self.assertIn("usage_threat_perception_max:", summary)
+        self.assertIn("dispersion_perception_max:", summary)
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
@@ -492,3 +570,4 @@ class ExportAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

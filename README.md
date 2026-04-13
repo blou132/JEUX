@@ -37,6 +37,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
+- Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -185,6 +186,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - plus forte dispersion utile des biais individuels (`(std_mem + std_soc) / 2`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `perception_batch`:
+  - configuration qui maximise l'usage reel de `food_perception` (proxy: `(bias_detection + bias_consommation) / 2`)
+  - configuration qui maximise l'usage reel de `threat_perception` (proxy: `bias_fuite`)
+  - configuration avec la plus forte dispersion perception utile (`(std_food_perception + std_threat_perception) / 2`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -280,6 +287,11 @@ py main.py --batch-param food_memory_duration --batch-values 0,8 --batch-runs 3 
 Exemple lecture des biais individuels en batch (`traits_batch`):
 ```powershell
 py main.py --batch-param social_follow_strength --batch-values 0,0.35,0.7 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative perception en batch (`perception_batch`):
+```powershell
+py main.py --batch-param energy_drain_rate --batch-values 0.9,1.1,1.3 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple batch experimental:
@@ -391,6 +403,11 @@ bias_usage_memoire_max: social_follow_strength=0.35 (bias_moy=+0.06)
 bias_usage_social_max: social_follow_strength=0.7 (bias_moy=+0.07)
 dispersion_traits_max: social_follow_strength=0.7 (disp_moy=0.12)
 configuration_plus_stable: social_follow_strength=0.35 (taux_ext=0.00, pop_finale_moy=43.00, gen_max_moy=2.90)
+perception_batch:
+usage_food_perception_max: energy_drain_rate=1.0 (bias_usage_moy=+0.06)
+usage_threat_perception_max: energy_drain_rate=1.2 (bias_usage_moy=+0.08)
+dispersion_perception_max: energy_drain_rate=1.0 (disp_moy=0.11)
+configuration_plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -553,6 +570,7 @@ Lecture rapide conseillee:
 - Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
+- Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
