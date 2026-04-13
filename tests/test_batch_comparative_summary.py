@@ -102,6 +102,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "food_effect_avg_distance": 0.3,
                         "danger_effect_avg_distance": 0.1,
                     },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": -0.05,
+                        "memory_focus_danger_bias": -0.02,
+                        "social_sensitivity_follow_bias": -0.02,
+                        "social_sensitivity_flee_boost_bias": -0.01,
+                        "memory_focus_std": 0.03,
+                        "social_sensitivity_std": 0.04,
+                    },
                 },
             },
             {
@@ -116,6 +124,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "food_effect_avg_distance": 1.2,
                         "danger_effect_avg_distance": 0.8,
                     },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": 0.09,
+                        "memory_focus_danger_bias": 0.07,
+                        "social_sensitivity_follow_bias": 0.04,
+                        "social_sensitivity_flee_boost_bias": 0.02,
+                        "memory_focus_std": 0.10,
+                        "social_sensitivity_std": 0.09,
+                    },
                 },
             },
             {
@@ -129,6 +145,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "danger_usage_total": 5.0,
                         "food_effect_avg_distance": 1.2,
                         "danger_effect_avg_distance": 1.1,
+                    },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": 0.04,
+                        "memory_focus_danger_bias": 0.11,
+                        "social_sensitivity_follow_bias": 0.06,
+                        "social_sensitivity_flee_boost_bias": 0.01,
+                        "memory_focus_std": 0.12,
+                        "social_sensitivity_std": 0.10,
                     },
                 },
             },
@@ -159,12 +183,25 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertEqual(best_food_effect["winners"], [8.0, 12.0])
         self.assertTrue(bool(best_food_effect["tie"]))
 
+        trait = summary.get("trait_comparative")
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertTrue(bool(trait.get("available", False)))
+        self.assertEqual(trait["best_memory_usage_bias"]["winners"], [8.0])
+        self.assertEqual(trait["best_social_usage_bias"]["winners"], [12.0])
+        self.assertEqual(trait["best_trait_dispersion"]["winners"], [12.0])
+        self.assertEqual(trait["most_stable_config"]["winners"], [8.0])
+
         text = format_batch_comparative_summary(summary)
         self.assertIn("memoire_batch:", text)
         self.assertIn("usage_memoire_utile_max:", text)
         self.assertIn("usage_memoire_dangereuse_max:", text)
         self.assertIn("effet_memoire_utile_max:", text)
         self.assertIn("effet_memoire_dangereuse_max:", text)
+        self.assertIn("traits_batch:", text)
+        self.assertIn("bias_usage_memoire_max:", text)
+        self.assertIn("bias_usage_social_max:", text)
+        self.assertIn("dispersion_traits_max:", text)
 
     def test_memory_param_with_insufficient_data_is_reported(self) -> None:
         scenarios = [
@@ -188,15 +225,23 @@ class BatchComparativeSummaryTests(unittest.TestCase):
 
         summary = build_batch_comparative_summary("food_memory_duration", scenarios)
         memory = summary.get("memory_comparative")
+        trait = summary.get("trait_comparative")
 
         self.assertIsInstance(memory, dict)
         assert isinstance(memory, dict)
         self.assertFalse(bool(memory.get("available", True)))
         self.assertIn("donnees insuffisantes", str(memory.get("note", "")))
 
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertFalse(bool(trait.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(trait.get("note", "")))
+
         text = format_batch_comparative_summary(summary)
         self.assertIn("memoire_batch:", text)
         self.assertIn("donnees_memoire: n/a", text)
+        self.assertIn("traits_batch:", text)
+        self.assertIn("donnees_traits: n/a", text)
 
     def test_social_param_summary_includes_social_comparatives(self) -> None:
         scenarios = [
@@ -212,6 +257,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "influenced_share_last_tick": 0.08,
                         "flee_multiplier_avg_total": 1.02,
                     },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": -0.02,
+                        "memory_focus_danger_bias": -0.01,
+                        "social_sensitivity_follow_bias": -0.01,
+                        "social_sensitivity_flee_boost_bias": -0.02,
+                        "memory_focus_std": 0.04,
+                        "social_sensitivity_std": 0.03,
+                    },
                 },
             },
             {
@@ -226,6 +279,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "influenced_share_last_tick": 0.35,
                         "flee_multiplier_avg_total": 1.18,
                     },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": 0.03,
+                        "memory_focus_danger_bias": 0.02,
+                        "social_sensitivity_follow_bias": 0.08,
+                        "social_sensitivity_flee_boost_bias": 0.05,
+                        "memory_focus_std": 0.11,
+                        "social_sensitivity_std": 0.12,
+                    },
                 },
             },
             {
@@ -239,6 +300,14 @@ class BatchComparativeSummaryTests(unittest.TestCase):
                         "flee_boost_usage_per_tick": 0.18,
                         "influenced_share_last_tick": 0.32,
                         "flee_multiplier_avg_total": 1.22,
+                    },
+                    "avg_trait_impact": {
+                        "memory_focus_food_bias": 0.01,
+                        "memory_focus_danger_bias": 0.01,
+                        "social_sensitivity_follow_bias": 0.10,
+                        "social_sensitivity_flee_boost_bias": 0.04,
+                        "memory_focus_std": 0.15,
+                        "social_sensitivity_std": 0.14,
                     },
                 },
             },
@@ -275,12 +344,25 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertEqual(flee_effect["winners"], [0.7])
         self.assertAlmostEqual(float(flee_effect["value"]), 1.22)
 
+        trait = summary.get("trait_comparative")
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertTrue(bool(trait.get("available", False)))
+        self.assertEqual(trait["best_memory_usage_bias"]["winners"], [0.35])
+        self.assertEqual(trait["best_social_usage_bias"]["winners"], [0.7])
+        self.assertEqual(trait["best_trait_dispersion"]["winners"], [0.7])
+        self.assertEqual(trait["most_stable_config"]["winners"], [0.35])
+
         text = format_batch_comparative_summary(summary)
         self.assertIn("social_batch:", text)
         self.assertIn("usage_suivi_social_max:", text)
         self.assertIn("usage_boost_fuite_social_max:", text)
         self.assertIn("part_creatures_influencees_max:", text)
         self.assertIn("effet_multiplicateur_fuite_max:", text)
+        self.assertIn("traits_batch:", text)
+        self.assertIn("bias_usage_memoire_max:", text)
+        self.assertIn("bias_usage_social_max:", text)
+        self.assertIn("dispersion_traits_max:", text)
 
     def test_social_param_with_insufficient_data_is_reported(self) -> None:
         scenarios = [
@@ -304,15 +386,23 @@ class BatchComparativeSummaryTests(unittest.TestCase):
 
         summary = build_batch_comparative_summary("social_follow_strength", scenarios)
         social = summary.get("social_comparative")
+        trait = summary.get("trait_comparative")
 
         self.assertIsInstance(social, dict)
         assert isinstance(social, dict)
         self.assertFalse(bool(social.get("available", True)))
         self.assertIn("donnees insuffisantes", str(social.get("note", "")))
 
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertFalse(bool(trait.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(trait.get("note", "")))
+
         text = format_batch_comparative_summary(summary)
         self.assertIn("social_batch:", text)
         self.assertIn("donnees_sociales: n/a", text)
+        self.assertIn("traits_batch:", text)
+        self.assertIn("donnees_traits: n/a", text)
 
 
 if __name__ == "__main__":

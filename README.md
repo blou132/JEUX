@@ -25,6 +25,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Interpretation batch memoire (pour parametres memoire) avec comparatifs usage/effet.
 - Interpretation batch sociale (pour parametres sociaux) avec comparatifs usage/part/effet.
+- Interpretation batch des biais individuels (`memory_focus`, `social_sensitivity`) pour les parametres memoire/sociaux.
 - Lecture comparative legere memoire vs social dans l'historique batch (effets observes + metriques comportementales).
 - Synthese comparative automatique en batch (plus stable, meilleure generation, meilleure population, plus faible extinction).
 - Historique leger des campagnes batch (archivage multi-experiences + lecture dediee).
@@ -156,6 +157,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - plus grande part de creatures influencees
   - plus grand effet moyen du multiplicateur de fuite social
   - signalement explicite si donnees insuffisantes
+- Pour les batchs sur parametres memoire/sociaux, la synthese inclut aussi `traits_batch` (si donnees presentes):
+  - plus fort biais moyen d'usage memoire (`(bias_food + bias_danger) / 2`)
+  - plus fort biais moyen d'usage social (`(bias_suivi + bias_fuite) / 2`)
+  - plus forte dispersion utile des biais individuels (`(std_mem + std_soc) / 2`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -184,6 +191,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais d'usage calcules simplement (sans statistique lourde):
   - `memory_focus` vs usages reels memoire utile/dangereuse
   - `social_sensitivity` vs usages reels suivi social/boost de fuite
+- En batch memoire/social, un bloc `traits_batch` compare automatiquement:
+  - la configuration qui maximise le biais d'usage memoire
+  - la configuration qui maximise le biais d'usage social
+  - la configuration avec la plus forte dispersion de traits utile
+  - la configuration la plus stable (reprise de la regle batch existante)
+  - avec signalement explicite si donnees insuffisantes
 - Ces indicateurs sont visibles dans:
   - la ligne `dynamique_*` (`traits_disp`, `traits_bias_tick`)
   - la `Run Summary` (`traits_impact:`)
@@ -240,6 +253,11 @@ py main.py --batch-param social_follow_strength --batch-values 0,0.35,0.7 --batc
 Exemple comparaison memoire via batch (meme seed de base):
 ```powershell
 py main.py --batch-param food_memory_duration --batch-values 0,8 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture des biais individuels en batch (`traits_batch`):
+```powershell
+py main.py --batch-param social_follow_strength --batch-values 0,0.35,0.7 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple batch experimental:
@@ -346,6 +364,11 @@ usage_suivi_social_max: social_follow_strength=0.7 (usage_moy=0.31)
 usage_boost_fuite_social_max: social_follow_strength=0.35 (usage_moy=0.21)
 part_creatures_influencees_max: social_follow_strength=0.7 (part_moy=0.28)
 effet_multiplicateur_fuite_max: social_follow_strength=0.7 (multiplicateur_moy=1.18)
+traits_batch:
+bias_usage_memoire_max: social_follow_strength=0.35 (bias_moy=+0.06)
+bias_usage_social_max: social_follow_strength=0.7 (bias_moy=+0.07)
+dispersion_traits_max: social_follow_strength=0.7 (disp_moy=0.12)
+configuration_plus_stable: social_follow_strength=0.35 (taux_ext=0.00, pop_finale_moy=43.00, gen_max_moy=2.90)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -443,6 +466,7 @@ En mode batch:
 - bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
 - si le parametre batch est un parametre memoire, le bloc inclut aussi les comparatifs memoire (`memoire_batch`).
 - si le parametre batch est un parametre social, le bloc inclut aussi les comparatifs sociaux (`social_batch`).
+- si le parametre batch est memoire ou social et que les metriques existent, le bloc inclut aussi `traits_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -488,6 +512,7 @@ Lecture rapide conseillee:
 - Interpretation automatique legere des resultats batch (comparative summary).
 - Interpretation batch memoire (usage/effet utiles et dangereux) pour les parametres memoire.
 - Interpretation batch sociale (suivi/fuite/part influencee/effet multiplicateur) pour les parametres sociaux.
+- Interpretation batch des biais individuels (`traits_batch`) pour les parametres memoire/sociaux.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

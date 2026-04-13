@@ -262,6 +262,14 @@ class ExportAnalysisTests(unittest.TestCase):
                             "food_usage_per_tick": 0.1,
                             "danger_usage_per_tick": 0.05,
                         },
+                        "avg_trait_impact": {
+                            "memory_focus_food_bias": -0.04,
+                            "memory_focus_danger_bias": -0.01,
+                            "social_sensitivity_follow_bias": -0.02,
+                            "social_sensitivity_flee_boost_bias": -0.01,
+                            "memory_focus_std": 0.03,
+                            "social_sensitivity_std": 0.04,
+                        },
                         "most_frequent_final_dominant_group": "gA",
                         "most_frequent_final_dominant_group_count": 1,
                         "most_frequent_final_dominant_group_share": 0.5,
@@ -293,6 +301,14 @@ class ExportAnalysisTests(unittest.TestCase):
                             "food_usage_per_tick": 0.4,
                             "danger_usage_per_tick": 0.2,
                         },
+                        "avg_trait_impact": {
+                            "memory_focus_food_bias": 0.08,
+                            "memory_focus_danger_bias": 0.06,
+                            "social_sensitivity_follow_bias": 0.03,
+                            "social_sensitivity_flee_boost_bias": 0.02,
+                            "memory_focus_std": 0.10,
+                            "social_sensitivity_std": 0.09,
+                        },
                         "most_frequent_final_dominant_group": "gB",
                         "most_frequent_final_dominant_group_count": 1,
                         "most_frequent_final_dominant_group_share": 0.5,
@@ -312,6 +328,8 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("memoire_batch:", summary)
         self.assertIn("usage_memoire_utile_max:", summary)
         self.assertIn("effet_memoire_dangereuse_max:", summary)
+        self.assertIn("traits_batch:", summary)
+        self.assertIn("bias_usage_memoire_max:", summary)
 
     def test_batch_social_analysis_shows_social_comparative(self) -> None:
         payload = {
@@ -347,6 +365,14 @@ class ExportAnalysisTests(unittest.TestCase):
                             "flee_multiplier_avg_tick": 1.01,
                             "flee_multiplier_avg_total": 1.02,
                         },
+                        "avg_trait_impact": {
+                            "memory_focus_food_bias": -0.01,
+                            "memory_focus_danger_bias": -0.01,
+                            "social_sensitivity_follow_bias": -0.02,
+                            "social_sensitivity_flee_boost_bias": -0.01,
+                            "memory_focus_std": 0.04,
+                            "social_sensitivity_std": 0.03,
+                        },
                         "most_frequent_final_dominant_group": "gA",
                         "most_frequent_final_dominant_group_count": 1,
                         "most_frequent_final_dominant_group_share": 0.5,
@@ -379,6 +405,14 @@ class ExportAnalysisTests(unittest.TestCase):
                             "flee_multiplier_avg_tick": 1.08,
                             "flee_multiplier_avg_total": 1.16,
                         },
+                        "avg_trait_impact": {
+                            "memory_focus_food_bias": 0.02,
+                            "memory_focus_danger_bias": 0.01,
+                            "social_sensitivity_follow_bias": 0.08,
+                            "social_sensitivity_flee_boost_bias": 0.04,
+                            "memory_focus_std": 0.11,
+                            "social_sensitivity_std": 0.12,
+                        },
                         "most_frequent_final_dominant_group": "gB",
                         "most_frequent_final_dominant_group_count": 1,
                         "most_frequent_final_dominant_group_share": 0.5,
@@ -400,6 +434,8 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("usage_boost_fuite_social_max:", summary)
         self.assertIn("part_creatures_influencees_max:", summary)
         self.assertIn("effet_multiplicateur_fuite_max:", summary)
+        self.assertIn("traits_batch:", summary)
+        self.assertIn("bias_usage_social_max:", summary)
 
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

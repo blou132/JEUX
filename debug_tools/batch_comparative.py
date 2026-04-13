@@ -17,6 +17,8 @@ _SOCIAL_BATCH_PARAMS = {
     "social_flee_boost_max",
 }
 
+_TRAIT_RELATED_BATCH_PARAMS = _MEMORY_BATCH_PARAMS | _SOCIAL_BATCH_PARAMS
+
 
 def build_batch_comparative_summary(
     batch_param: str,
@@ -25,9 +27,11 @@ def build_batch_comparative_summary(
     candidates: list[Dict[str, float]] = []
     memory_candidates: list[Dict[str, float]] = []
     social_candidates: list[Dict[str, float]] = []
+    trait_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
+    is_trait_related_param = batch_param in _TRAIT_RELATED_BATCH_PARAMS
 
     for scenario in scenarios:
         if not isinstance(scenario, dict):
@@ -49,15 +53,18 @@ def build_batch_comparative_summary(
 
         if is_memory_param:
             memory_metrics = _read_memory_metrics(summary_raw)
-            if memory_metrics is None:
-                continue
-            memory_candidates.append({"value": value, **memory_metrics})
+            if memory_metrics is not None:
+                memory_candidates.append({"value": value, **memory_metrics})
 
         if is_social_param:
             social_metrics = _read_social_metrics(summary_raw)
-            if social_metrics is None:
-                continue
-            social_candidates.append({"value": value, **social_metrics})
+            if social_metrics is not None:
+                social_candidates.append({"value": value, **social_metrics})
+
+        if is_trait_related_param:
+            trait_metrics = _read_trait_metrics(summary_raw)
+            if trait_metrics is not None:
+                trait_candidates.append({"value": value, **trait_metrics})
 
     if len(candidates) == 0:
         empty: Dict[str, object] = {
@@ -73,6 +80,11 @@ def build_batch_comparative_summary(
             empty["memory_comparative"] = _build_memory_comparative(memory_candidates)
         if is_social_param:
             empty["social_comparative"] = _build_social_comparative(social_candidates)
+        if is_trait_related_param:
+            empty["trait_comparative"] = _build_trait_comparative(
+                trait_candidates,
+                stable_metric=None,
+            )
         return empty
 
     lowest_ext_value = min(candidate["extinction_rate"] for candidate in candidates)
@@ -100,13 +112,14 @@ def build_batch_comparative_summary(
         candidate for candidate in candidates if _is_close(candidate["avg_final_population"], best_pop_value)
     ]
 
+    stable_winners = _sorted_unique_values(stable_candidates)
     summary: Dict[str, object] = {
         "batch_param": str(batch_param),
         "evaluated_values_count": len(candidates),
         "stability_rule": "extinction_rate asc, avg_final_population desc, avg_max_generation desc",
         "most_stable": {
-            "winners": _sorted_unique_values(stable_candidates),
-            "tie": len(_sorted_unique_values(stable_candidates)) > 1,
+            "winners": stable_winners,
+            "tie": len(stable_winners) > 1,
             "extinction_rate": lowest_ext_value,
             "avg_final_population": stable_best_pop,
             "avg_max_generation": stable_best_gen,
@@ -132,6 +145,11 @@ def build_batch_comparative_summary(
         summary["memory_comparative"] = _build_memory_comparative(memory_candidates)
     if is_social_param:
         summary["social_comparative"] = _build_social_comparative(social_candidates)
+    if is_trait_related_param:
+        summary["trait_comparative"] = _build_trait_comparative(
+            trait_candidates,
+            stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+        )
 
     return summary
 
@@ -182,6 +200,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     social_raw = summary.get("social_comparative")
     if isinstance(social_raw, dict):
         lines.extend(_format_social_comparative(batch_param, social_raw))
+
+    trait_raw = summary.get("trait_comparative")
+    if isinstance(trait_raw, dict):
+        lines.extend(_format_trait_comparative(batch_param, trait_raw))
 
     return "\n".join(lines)
 
@@ -308,6 +330,92 @@ def _build_social_comparative(social_candidates: list[Dict[str, float]]) -> Dict
     }
 
 
+def _format_trait_comparative(batch_param: str, trait_summary: Dict[str, object]) -> list[str]:
+    lines = ["traits_batch:"]
+
+    if not bool(trait_summary.get("available", False)):
+        note = str(trait_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_traits: n/a ({note})")
+        return lines
+
+    memory_bias = _read_metric_result(trait_summary.get("best_memory_usage_bias"))
+    social_bias = _read_metric_result(trait_summary.get("best_social_usage_bias"))
+    dispersion = _read_metric_result(trait_summary.get("best_trait_dispersion"))
+    stable_config = _read_metric_result(trait_summary.get("most_stable_config"))
+
+    lines.append(
+        "bias_usage_memoire_max: {label} (bias_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, memory_bias.get("winners")),
+            value=float(memory_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "bias_usage_social_max: {label} (bias_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, social_bias.get("winners")),
+            value=float(social_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_traits_max: {label} (disp_moy={value:.3f})".format(
+            label=_winner_label(batch_param, dispersion.get("winners")),
+            value=float(dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    lines.append(
+        "note_traits: biais_memoire=(bias_food+bias_danger)/2 biais_social=(bias_suivi+bias_fuite)/2 dispersion=(std_mem+std_soc)/2"
+    )
+    return lines
+
+
+def _build_trait_comparative(
+    trait_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(trait_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact des biais individuels",
+            "best_memory_usage_bias": _insufficient_metric_result(),
+            "best_social_usage_bias": _insufficient_metric_result(),
+            "best_trait_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    return {
+        "available": True,
+        "best_memory_usage_bias": _build_peak_metric(trait_candidates, "memory_usage_bias"),
+        "best_social_usage_bias": _build_peak_metric(trait_candidates, "social_usage_bias"),
+        "best_trait_dispersion": _build_peak_metric(trait_candidates, "trait_dispersion"),
+        "most_stable_config": stable_result,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -371,6 +479,36 @@ def _read_social_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | N
         "flee_boost_usage_per_tick": float(avg_social_raw.get("flee_boost_usage_per_tick", 0.0)),
         "influenced_share_last_tick": float(avg_social_raw.get("influenced_share_last_tick", 0.0)),
         "flee_multiplier_avg_total": float(avg_social_raw.get("flee_multiplier_avg_total", 1.0)),
+    }
+
+
+def _read_trait_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "memory_focus_food_bias",
+        "memory_focus_danger_bias",
+        "social_sensitivity_follow_bias",
+        "social_sensitivity_flee_boost_bias",
+        "memory_focus_std",
+        "social_sensitivity_std",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    memory_food_bias = float(avg_trait_raw.get("memory_focus_food_bias", 0.0))
+    memory_danger_bias = float(avg_trait_raw.get("memory_focus_danger_bias", 0.0))
+    social_follow_bias = float(avg_trait_raw.get("social_sensitivity_follow_bias", 0.0))
+    social_flee_bias = float(avg_trait_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+    memory_std = float(avg_trait_raw.get("memory_focus_std", 0.0))
+    social_std = float(avg_trait_raw.get("social_sensitivity_std", 0.0))
+
+    return {
+        "memory_usage_bias": (memory_food_bias + memory_danger_bias) / 2.0,
+        "social_usage_bias": (social_follow_bias + social_flee_bias) / 2.0,
+        "trait_dispersion": (memory_std + social_std) / 2.0,
     }
 
 

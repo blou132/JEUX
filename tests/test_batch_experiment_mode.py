@@ -153,6 +153,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("usage_memoire_dangereuse_max:", output)
         self.assertIn("effet_memoire_utile_max:", output)
         self.assertIn("effet_memoire_dangereuse_max:", output)
+        self.assertIn("traits_batch:", output)
+        self.assertIn("bias_usage_memoire_max:", output)
+        self.assertIn("bias_usage_social_max:", output)
+        self.assertIn("dispersion_traits_max:", output)
 
     def test_memory_batch_json_export_contains_memory_comparative(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -204,6 +208,11 @@ class BatchExperimentModeTests(unittest.TestCase):
         assert isinstance(memory, dict)
         self.assertIn("available", memory)
 
+        trait = comparative.get("trait_comparative")
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertIn("available", trait)
+
     def test_cli_social_batch_outputs_social_comparative(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         cmd = [
@@ -242,6 +251,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("usage_boost_fuite_social_max:", output)
         self.assertIn("part_creatures_influencees_max:", output)
         self.assertIn("effet_multiplicateur_fuite_max:", output)
+        self.assertIn("traits_batch:", output)
+        self.assertIn("bias_usage_memoire_max:", output)
+        self.assertIn("bias_usage_social_max:", output)
+        self.assertIn("dispersion_traits_max:", output)
 
     def test_social_batch_json_export_contains_social_comparative(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -292,6 +305,11 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIsInstance(social, dict)
         assert isinstance(social, dict)
         self.assertIn("available", social)
+
+        trait = comparative.get("trait_comparative")
+        self.assertIsInstance(trait, dict)
+        assert isinstance(trait, dict)
+        self.assertIn("available", trait)
 
 
 if __name__ == "__main__":
