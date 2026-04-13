@@ -113,8 +113,8 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Heredite simple + mutation legere via le pipeline genetique existant.
 - Observation dans les logs/syntheses:
   - ligne principale: `efficacite_energie_moy`, `resistance_epuisement_moy`
-  - `dynamique_*`: `traits_comp_moy` (`ee`, `er`), `traits_disp` (`ee_sigma`, `er_sigma`), `energie_traits_effets` (`drain_mult`, `repro_mult`)
-  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ee`, `er`) et `traits_impact` / `traits_impact_moy` (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`)
+  - `dynamique_*`: `traits_comp_moy` (`ee`, `er`), `traits_disp` (`ee_sigma`, `er_sigma`), `energie_traits_effets` (`drain_mult`, `repro_mult`, `drain_obs_mult`, `repro_obs_mult`, `drain_obs`, `repro_obs`) et `traits_bias_tick` (`ee_drain`, `er_repro`)
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ee`, `er`) et `traits_impact` / `traits_impact_moy` (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, biais `ee`/`er`)
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
 - Affichage du nombre de groupes, groupe dominant, top groupes et moyennes de traits.
@@ -489,6 +489,7 @@ py -m unittest tests.test_trait_impact_metrics
 py -m unittest tests.test_individual_behavior_bias
 py -m unittest tests.test_perception_traits
 py -m unittest tests.test_perception_impact_metrics
+py -m unittest tests.test_energy_traits
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -505,16 +506,16 @@ Chaque bloc de log periodique contient:
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`).
-- `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens observes de drain passif (`drain_mult`) et de cout de reproduction (`repro_mult`).
+- `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens de drain/cout (`drain_mult`, `repro_mult`) + effets observes (`drain_obs_mult`, `repro_obs_mult`, `drain_obs`, `repro_obs`), avec biais tick associes (`ee_drain`, `er_repro`).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -582,6 +583,7 @@ Lecture rapide conseillee:
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
 - Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.
+- Evaluation legere de l'impact energetique (`energy_efficiency`, `exhaustion_resistance`): moyenne/dispersion + effet observe sur drain/cout reproduction + biais d'usage, visible en stats, synthese run, multi-runs, export et analyse.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

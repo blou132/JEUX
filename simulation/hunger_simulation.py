@@ -136,6 +136,23 @@ class HungerSimulation:
         self.social_sensitivity_sum_flee_boost_last_tick = 0.0
         self.total_social_sensitivity_sum_flee_boost = 0.0
 
+        self.energy_drain_events_last_tick = 0
+        self.total_energy_drain_events = 0
+        self.energy_drain_amount_last_tick = 0.0
+        self.total_energy_drain_amount = 0.0
+        self.energy_drain_multiplier_sum_last_tick = 0.0
+        self.total_energy_drain_multiplier_sum = 0.0
+        self.energy_efficiency_sum_drain_last_tick = 0.0
+        self.total_energy_efficiency_sum_drain = 0.0
+        self.reproduction_cost_events_last_tick = 0
+        self.total_reproduction_cost_events = 0
+        self.reproduction_cost_amount_last_tick = 0.0
+        self.total_reproduction_cost_amount = 0.0
+        self.reproduction_cost_multiplier_sum_last_tick = 0.0
+        self.total_reproduction_cost_multiplier_sum = 0.0
+        self.exhaustion_resistance_sum_reproduction_last_tick = 0.0
+        self.total_exhaustion_resistance_sum_reproduction = 0.0
+
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -178,6 +195,14 @@ class HungerSimulation:
         self.social_flee_multiplier_sum_last_tick = 0.0
         self.avg_social_flee_multiplier_last_tick = 1.0
         self.social_influenced_creatures_last_tick = 0
+        self.energy_drain_events_last_tick = 0
+        self.energy_drain_amount_last_tick = 0.0
+        self.energy_drain_multiplier_sum_last_tick = 0.0
+        self.energy_efficiency_sum_drain_last_tick = 0.0
+        self.reproduction_cost_events_last_tick = 0
+        self.reproduction_cost_amount_last_tick = 0.0
+        self.reproduction_cost_multiplier_sum_last_tick = 0.0
+        self.exhaustion_resistance_sum_reproduction_last_tick = 0.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -191,6 +216,17 @@ class HungerSimulation:
         for creature in self.creatures:
             creature.grow_older(dt)
             creature.decay_memory(dt)
+            if creature.alive:
+                drain_multiplier = self._compute_energy_efficiency_drain_multiplier(creature)
+                effective_drain = self.energy_drain_rate * creature.traits.metabolism * drain_multiplier
+                self.energy_drain_events_last_tick += 1
+                self.total_energy_drain_events += 1
+                self.energy_drain_amount_last_tick += effective_drain * dt
+                self.total_energy_drain_amount += effective_drain * dt
+                self.energy_drain_multiplier_sum_last_tick += drain_multiplier
+                self.total_energy_drain_multiplier_sum += drain_multiplier
+                self.energy_efficiency_sum_drain_last_tick += creature.traits.energy_efficiency
+                self.total_energy_efficiency_sum_drain += creature.traits.energy_efficiency
             creature.drain_energy(dt=dt, drain_rate=self.energy_drain_rate)
 
         starvation_deaths = sum(
@@ -427,13 +463,33 @@ class HungerSimulation:
                 parent_a_alive_before = parent_a.alive
                 parent_b_alive_before = parent_b.alive
 
-                parent_a_resistance_multiplier = 1.0 - (0.3 * (parent_a.traits.exhaustion_resistance - 1.0))
-                parent_b_resistance_multiplier = 1.0 - (0.3 * (parent_b.traits.exhaustion_resistance - 1.0))
-                parent_a_cost = self.reproduction_cost * max(0.1, parent_a_resistance_multiplier)
-                parent_b_cost = self.reproduction_cost * max(0.1, parent_b_resistance_multiplier)
+                parent_a_resistance_multiplier = self._compute_exhaustion_resistance_reproduction_multiplier(
+                    parent_a
+                )
+                parent_b_resistance_multiplier = self._compute_exhaustion_resistance_reproduction_multiplier(
+                    parent_b
+                )
+                parent_a_cost = self.reproduction_cost * parent_a_resistance_multiplier
+                parent_b_cost = self.reproduction_cost * parent_b_resistance_multiplier
 
                 parent_a.spend_energy(parent_a_cost)
                 parent_b.spend_energy(parent_b_cost)
+                self.reproduction_cost_events_last_tick += 2
+                self.total_reproduction_cost_events += 2
+                self.reproduction_cost_amount_last_tick += parent_a_cost + parent_b_cost
+                self.total_reproduction_cost_amount += parent_a_cost + parent_b_cost
+                self.reproduction_cost_multiplier_sum_last_tick += (
+                    parent_a_resistance_multiplier + parent_b_resistance_multiplier
+                )
+                self.total_reproduction_cost_multiplier_sum += (
+                    parent_a_resistance_multiplier + parent_b_resistance_multiplier
+                )
+                self.exhaustion_resistance_sum_reproduction_last_tick += (
+                    parent_a.traits.exhaustion_resistance + parent_b.traits.exhaustion_resistance
+                )
+                self.total_exhaustion_resistance_sum_reproduction += (
+                    parent_a.traits.exhaustion_resistance + parent_b.traits.exhaustion_resistance
+                )
 
                 if parent_a_alive_before and not parent_a.alive:
                     exhaustion_deaths += 1
@@ -673,6 +729,14 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
+    @staticmethod
+    def _compute_energy_efficiency_drain_multiplier(creature: Creature) -> float:
+        return max(0.1, 1.0 - (0.25 * (creature.traits.energy_efficiency - 1.0)))
+
+    @staticmethod
+    def _compute_exhaustion_resistance_reproduction_multiplier(creature: Creature) -> float:
+        return max(0.1, 1.0 - (0.3 * (creature.traits.exhaustion_resistance - 1.0)))
 
 
 

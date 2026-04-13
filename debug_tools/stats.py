@@ -80,6 +80,26 @@ def build_population_stats(
             "std_exhaustion_resistance": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
+            "energy_drain_events_last_tick": 0,
+            "total_energy_drain_events": 0,
+            "avg_energy_drain_amount_last_tick": 0.0,
+            "avg_energy_drain_amount_total": 0.0,
+            "avg_energy_drain_multiplier_observed_last_tick": 0.0,
+            "avg_energy_drain_multiplier_observed_total": 0.0,
+            "energy_efficiency_drain_users_avg_tick": 0.0,
+            "energy_efficiency_drain_users_avg_total": 0.0,
+            "energy_efficiency_drain_usage_bias_tick": 0.0,
+            "energy_efficiency_drain_usage_bias_total": 0.0,
+            "reproduction_cost_events_last_tick": 0,
+            "total_reproduction_cost_events": 0,
+            "avg_reproduction_cost_amount_last_tick": 0.0,
+            "avg_reproduction_cost_amount_total": 0.0,
+            "avg_reproduction_cost_multiplier_observed_last_tick": 0.0,
+            "avg_reproduction_cost_multiplier_observed_total": 0.0,
+            "exhaustion_resistance_reproduction_users_avg_tick": 0.0,
+            "exhaustion_resistance_reproduction_users_avg_total": 0.0,
+            "exhaustion_resistance_reproduction_usage_bias_tick": 0.0,
+            "exhaustion_resistance_reproduction_usage_bias_total": 0.0,
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
@@ -185,6 +205,86 @@ def build_population_stats(
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
+    avg_energy_drain_amount_last_tick = (
+        simulation.energy_drain_amount_last_tick / simulation.energy_drain_events_last_tick
+        if simulation.energy_drain_events_last_tick > 0
+        else 0.0
+    )
+    avg_energy_drain_amount_total = (
+        simulation.total_energy_drain_amount / simulation.total_energy_drain_events
+        if simulation.total_energy_drain_events > 0
+        else 0.0
+    )
+    avg_energy_drain_multiplier_observed_last_tick = (
+        simulation.energy_drain_multiplier_sum_last_tick / simulation.energy_drain_events_last_tick
+        if simulation.energy_drain_events_last_tick > 0
+        else 0.0
+    )
+    avg_energy_drain_multiplier_observed_total = (
+        simulation.total_energy_drain_multiplier_sum / simulation.total_energy_drain_events
+        if simulation.total_energy_drain_events > 0
+        else 0.0
+    )
+    avg_energy_efficiency_drain_users_tick = (
+        simulation.energy_efficiency_sum_drain_last_tick / simulation.energy_drain_events_last_tick
+        if simulation.energy_drain_events_last_tick > 0
+        else 0.0
+    )
+    avg_energy_efficiency_drain_users_total = (
+        simulation.total_energy_efficiency_sum_drain / simulation.total_energy_drain_events
+        if simulation.total_energy_drain_events > 0
+        else 0.0
+    )
+    energy_efficiency_drain_usage_bias_tick = (
+        avg_energy_efficiency_drain_users_tick - avg_energy_efficiency
+        if simulation.energy_drain_events_last_tick > 0
+        else 0.0
+    )
+    energy_efficiency_drain_usage_bias_total = (
+        avg_energy_efficiency_drain_users_total - avg_energy_efficiency
+        if simulation.total_energy_drain_events > 0
+        else 0.0
+    )
+    avg_reproduction_cost_amount_last_tick = (
+        simulation.reproduction_cost_amount_last_tick / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    avg_reproduction_cost_amount_total = (
+        simulation.total_reproduction_cost_amount / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    avg_reproduction_cost_multiplier_observed_last_tick = (
+        simulation.reproduction_cost_multiplier_sum_last_tick / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    avg_reproduction_cost_multiplier_observed_total = (
+        simulation.total_reproduction_cost_multiplier_sum / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    avg_exhaustion_resistance_reproduction_users_tick = (
+        simulation.exhaustion_resistance_sum_reproduction_last_tick / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    avg_exhaustion_resistance_reproduction_users_total = (
+        simulation.total_exhaustion_resistance_sum_reproduction / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    exhaustion_resistance_reproduction_usage_bias_tick = (
+        avg_exhaustion_resistance_reproduction_users_tick - avg_exhaustion_resistance
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    exhaustion_resistance_reproduction_usage_bias_total = (
+        avg_exhaustion_resistance_reproduction_users_total - avg_exhaustion_resistance
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
 
     memory_focus_values = [c.traits.memory_focus for c in simulation.creatures]
     social_sensitivity_values = [c.traits.social_sensitivity for c in simulation.creatures]
@@ -387,6 +487,26 @@ def build_population_stats(
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
+        "energy_drain_events_last_tick": simulation.energy_drain_events_last_tick,
+        "total_energy_drain_events": simulation.total_energy_drain_events,
+        "avg_energy_drain_amount_last_tick": avg_energy_drain_amount_last_tick,
+        "avg_energy_drain_amount_total": avg_energy_drain_amount_total,
+        "avg_energy_drain_multiplier_observed_last_tick": avg_energy_drain_multiplier_observed_last_tick,
+        "avg_energy_drain_multiplier_observed_total": avg_energy_drain_multiplier_observed_total,
+        "energy_efficiency_drain_users_avg_tick": avg_energy_efficiency_drain_users_tick,
+        "energy_efficiency_drain_users_avg_total": avg_energy_efficiency_drain_users_total,
+        "energy_efficiency_drain_usage_bias_tick": energy_efficiency_drain_usage_bias_tick,
+        "energy_efficiency_drain_usage_bias_total": energy_efficiency_drain_usage_bias_total,
+        "reproduction_cost_events_last_tick": simulation.reproduction_cost_events_last_tick,
+        "total_reproduction_cost_events": simulation.total_reproduction_cost_events,
+        "avg_reproduction_cost_amount_last_tick": avg_reproduction_cost_amount_last_tick,
+        "avg_reproduction_cost_amount_total": avg_reproduction_cost_amount_total,
+        "avg_reproduction_cost_multiplier_observed_last_tick": avg_reproduction_cost_multiplier_observed_last_tick,
+        "avg_reproduction_cost_multiplier_observed_total": avg_reproduction_cost_multiplier_observed_total,
+        "exhaustion_resistance_reproduction_users_avg_tick": avg_exhaustion_resistance_reproduction_users_tick,
+        "exhaustion_resistance_reproduction_users_avg_total": avg_exhaustion_resistance_reproduction_users_total,
+        "exhaustion_resistance_reproduction_usage_bias_tick": exhaustion_resistance_reproduction_usage_bias_tick,
+        "exhaustion_resistance_reproduction_usage_bias_total": exhaustion_resistance_reproduction_usage_bias_total,
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
@@ -571,6 +691,18 @@ def build_final_run_summary(
         "energy_efficiency_std": float(final_stats.get("std_energy_efficiency", 0.0)),
         "exhaustion_resistance_mean": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
         "exhaustion_resistance_std": float(final_stats.get("std_exhaustion_resistance", 0.0)),
+        "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
+        "exhaustion_resistance_reproduction_bias": float(
+            final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
+        ),
+        "energy_drain_multiplier_observed": float(
+            final_stats.get("avg_energy_drain_multiplier_observed_total", 0.0)
+        ),
+        "reproduction_cost_multiplier_observed": float(
+            final_stats.get("avg_reproduction_cost_multiplier_observed_total", 0.0)
+        ),
+        "energy_drain_amount_observed": float(final_stats.get("avg_energy_drain_amount_total", 0.0)),
+        "reproduction_cost_amount_observed": float(final_stats.get("avg_reproduction_cost_amount_total", 0.0)),
         "memory_focus_food_bias": float(final_stats.get("memory_focus_food_usage_bias_total", 0.0)),
         "memory_focus_danger_bias": float(final_stats.get("memory_focus_danger_usage_bias_total", 0.0)),
         "social_sensitivity_follow_bias": float(final_stats.get("social_sensitivity_follow_usage_bias_total", 0.0)),
@@ -654,6 +786,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "energy_efficiency_std": 0.0,
                 "exhaustion_resistance_mean": 0.0,
                 "exhaustion_resistance_std": 0.0,
+                "energy_efficiency_drain_bias": 0.0,
+                "exhaustion_resistance_reproduction_bias": 0.0,
+                "energy_drain_multiplier_observed": 0.0,
+                "reproduction_cost_multiplier_observed": 0.0,
+                "energy_drain_amount_observed": 0.0,
+                "reproduction_cost_amount_observed": 0.0,
                 "memory_focus_food_bias": 0.0,
                 "memory_focus_danger_bias": 0.0,
                 "social_sensitivity_follow_bias": 0.0,
@@ -717,6 +855,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
         "exhaustion_resistance_std": 0.0,
+        "energy_efficiency_drain_bias": 0.0,
+        "exhaustion_resistance_reproduction_bias": 0.0,
+        "energy_drain_multiplier_observed": 0.0,
+        "reproduction_cost_multiplier_observed": 0.0,
+        "energy_drain_amount_observed": 0.0,
+        "reproduction_cost_amount_observed": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -792,6 +936,24 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["energy_efficiency_std"] += float(trait_impact_raw.get("energy_efficiency_std", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_mean"] += float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_std"] += float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
+                avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
+                    trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
+                )
+                avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] += float(
+                    trait_impact_raw.get("exhaustion_resistance_reproduction_bias", 0.0)
+                )
+                avg_trait_impact_acc["energy_drain_multiplier_observed"] += float(
+                    trait_impact_raw.get("energy_drain_multiplier_observed", 0.0)
+                )
+                avg_trait_impact_acc["reproduction_cost_multiplier_observed"] += float(
+                    trait_impact_raw.get("reproduction_cost_multiplier_observed", 0.0)
+                )
+                avg_trait_impact_acc["energy_drain_amount_observed"] += float(
+                    trait_impact_raw.get("energy_drain_amount_observed", 0.0)
+                )
+                avg_trait_impact_acc["reproduction_cost_amount_observed"] += float(
+                    trait_impact_raw.get("reproduction_cost_amount_observed", 0.0)
+                )
                 avg_trait_impact_acc["memory_focus_food_bias"] += float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
                 avg_trait_impact_acc["memory_focus_danger_bias"] += float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
                 avg_trait_impact_acc["social_sensitivity_follow_bias"] += float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
@@ -860,6 +1022,20 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "energy_efficiency_std": avg_trait_impact_acc["energy_efficiency_std"] / run_count,
             "exhaustion_resistance_mean": avg_trait_impact_acc["exhaustion_resistance_mean"] / run_count,
             "exhaustion_resistance_std": avg_trait_impact_acc["exhaustion_resistance_std"] / run_count,
+            "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
+            "exhaustion_resistance_reproduction_bias": (
+                avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] / run_count
+            ),
+            "energy_drain_multiplier_observed": (
+                avg_trait_impact_acc["energy_drain_multiplier_observed"] / run_count
+            ),
+            "reproduction_cost_multiplier_observed": (
+                avg_trait_impact_acc["reproduction_cost_multiplier_observed"] / run_count
+            ),
+            "energy_drain_amount_observed": avg_trait_impact_acc["energy_drain_amount_observed"] / run_count,
+            "reproduction_cost_amount_observed": (
+                avg_trait_impact_acc["reproduction_cost_amount_observed"] / run_count
+            ),
             "memory_focus_food_bias": avg_trait_impact_acc["memory_focus_food_bias"] / run_count,
             "memory_focus_danger_bias": avg_trait_impact_acc["memory_focus_danger_bias"] / run_count,
             "social_sensitivity_follow_bias": avg_trait_impact_acc["social_sensitivity_follow_bias"] / run_count,

@@ -225,6 +225,24 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "energy_efficiency_std": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("run_summary.trait_impact.exhaustion_resistance_mean")),
             "exhaustion_resistance_std": _parse_float(row.get("run_summary.trait_impact.exhaustion_resistance_std")),
+            "energy_efficiency_drain_bias": _parse_float(
+                row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
+            ),
+            "exhaustion_resistance_reproduction_bias": _parse_float(
+                row.get("run_summary.trait_impact.exhaustion_resistance_reproduction_bias")
+            ),
+            "energy_drain_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.energy_drain_multiplier_observed")
+            ),
+            "reproduction_cost_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_cost_multiplier_observed")
+            ),
+            "energy_drain_amount_observed": _parse_float(
+                row.get("run_summary.trait_impact.energy_drain_amount_observed")
+            ),
+            "reproduction_cost_amount_observed": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_cost_amount_observed")
+            ),
             "memory_focus_food_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_food_bias")),
             "memory_focus_danger_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_danger_bias")),
             "social_sensitivity_follow_bias": _parse_float(row.get("run_summary.trait_impact.social_sensitivity_follow_bias")),
@@ -311,6 +329,24 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "energy_efficiency_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
             "exhaustion_resistance_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_std")),
+            "energy_efficiency_drain_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
+            ),
+            "exhaustion_resistance_reproduction_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_reproduction_bias")
+            ),
+            "energy_drain_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")
+            ),
+            "reproduction_cost_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_cost_multiplier_observed")
+            ),
+            "energy_drain_amount_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.energy_drain_amount_observed")
+            ),
+            "reproduction_cost_amount_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_cost_amount_observed")
+            ),
             "memory_focus_food_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
             "memory_focus_danger_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),
             "social_sensitivity_follow_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.social_sensitivity_follow_bias")),
@@ -399,6 +435,24 @@ def _build_batch_payload_from_csv(
                 "energy_efficiency_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
                 "exhaustion_resistance_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
                 "exhaustion_resistance_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_std")),
+                "energy_efficiency_drain_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
+                ),
+                "exhaustion_resistance_reproduction_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_reproduction_bias")
+                ),
+                "energy_drain_multiplier_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")
+                ),
+                "reproduction_cost_multiplier_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_cost_multiplier_observed")
+                ),
+                "energy_drain_amount_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.energy_drain_amount_observed")
+                ),
+                "reproduction_cost_amount_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_cost_amount_observed")
+                ),
                 "memory_focus_food_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
                 "memory_focus_danger_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),
                 "social_sensitivity_follow_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.social_sensitivity_follow_bias")),
