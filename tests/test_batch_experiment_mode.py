@@ -51,6 +51,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("meilleure_gen_max_moy:", output)
         self.assertIn("meilleure_pop_finale_moy:", output)
         self.assertIn("plus_faible_taux_extinction:", output)
+        self.assertIn("energie_batch:", output)
+        self.assertIn("effet_drain_energie_max:", output)
+        self.assertIn("effet_cout_reproduction_max:", output)
+        self.assertIn("dispersion_energie_max:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -114,6 +118,10 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertIn("best_avg_max_generation", comparative)
             self.assertIn("best_avg_final_population", comparative)
             self.assertIn("lowest_extinction_rate", comparative)
+            energy = comparative.get("energy_comparative")
+            self.assertIsInstance(energy, dict)
+            assert isinstance(energy, dict)
+            self.assertIn("available", energy)
 
     def test_cli_memory_batch_outputs_memory_comparative(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

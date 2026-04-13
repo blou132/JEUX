@@ -404,6 +404,108 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("traits_batch:", text)
         self.assertIn("donnees_traits: n/a", text)
 
+    def test_energy_param_summary_includes_energy_comparatives(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.9,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 15.0,
+                    "avg_trait_impact": {
+                        "energy_drain_multiplier_observed": 1.01,
+                        "reproduction_cost_multiplier_observed": 1.04,
+                        "energy_efficiency_std": 0.04,
+                        "exhaustion_resistance_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "energy_drain_multiplier_observed": 0.95,
+                        "reproduction_cost_multiplier_observed": 1.02,
+                        "energy_efficiency_std": 0.06,
+                        "exhaustion_resistance_std": 0.06,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 5.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "energy_drain_multiplier_observed": 0.98,
+                        "reproduction_cost_multiplier_observed": 0.92,
+                        "energy_efficiency_std": 0.11,
+                        "exhaustion_resistance_std": 0.09,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("energy_drain_rate", scenarios)
+        energy = summary.get("energy_comparative")
+
+        self.assertIsInstance(energy, dict)
+        assert isinstance(energy, dict)
+        self.assertTrue(bool(energy.get("available", False)))
+        self.assertEqual(energy["best_energy_drain_effect"]["winners"], [1.0])
+        self.assertAlmostEqual(float(energy["best_energy_drain_effect"]["value"]), 0.05)
+        self.assertEqual(energy["best_reproduction_cost_effect"]["winners"], [1.2])
+        self.assertAlmostEqual(float(energy["best_reproduction_cost_effect"]["value"]), 0.08)
+        self.assertEqual(energy["best_energy_trait_dispersion"]["winners"], [1.2])
+        self.assertAlmostEqual(float(energy["best_energy_trait_dispersion"]["value"]), 0.10)
+        self.assertEqual(energy["most_stable_config"]["winners"], [1.0])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("energie_batch:", text)
+        self.assertIn("effet_drain_energie_max:", text)
+        self.assertIn("effet_cout_reproduction_max:", text)
+        self.assertIn("dispersion_energie_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_energy_param_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.9,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 15.0,
+                    "avg_trait_impact": {
+                        "energy_drain_multiplier_observed": 1.01,
+                    },
+                },
+            },
+            {
+                "parameter_value": 1.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("energy_drain_rate", scenarios)
+        energy = summary.get("energy_comparative")
+
+        self.assertIsInstance(energy, dict)
+        assert isinstance(energy, dict)
+        self.assertFalse(bool(energy.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(energy.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("energie_batch:", text)
+        self.assertIn("donnees_energie: n/a", text)
+
 
     def test_perception_comparative_includes_expected_winners(self) -> None:
         scenarios = [

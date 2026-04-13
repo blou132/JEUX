@@ -437,6 +437,84 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("traits_batch:", summary)
         self.assertIn("bias_usage_social_max:", summary)
 
+    def test_batch_energy_analysis_shows_energy_comparative(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "energy_drain_rate",
+            "batch_values": [0.9, 1.1],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 0.9,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 20.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_trait_impact": {
+                            "energy_drain_multiplier_observed": 0.96,
+                            "reproduction_cost_multiplier_observed": 0.99,
+                            "energy_efficiency_std": 0.09,
+                            "exhaustion_resistance_std": 0.07,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 1.1,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 3.0,
+                        "avg_final_population": 12.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                        },
+                        "avg_trait_impact": {
+                            "energy_drain_multiplier_observed": 1.01,
+                            "reproduction_cost_multiplier_observed": 0.91,
+                            "energy_efficiency_std": 0.06,
+                            "exhaustion_resistance_std": 0.08,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_energy.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_export_payload(str(path))
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        self.assertIn("energie_batch:", summary)
+        self.assertIn("effet_drain_energie_max:", summary)
+        self.assertIn("effet_cout_reproduction_max:", summary)
+        self.assertIn("dispersion_energie_max:", summary)
+        self.assertIn("configuration_plus_stable:", summary)
+
     def test_batch_perception_analysis_shows_perception_comparative(self) -> None:
         payload = {
             "mode": "batch",

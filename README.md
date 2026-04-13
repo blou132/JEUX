@@ -38,6 +38,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
+- Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -202,6 +203,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration avec la plus forte dispersion perception utile (`(std_food_perception + std_threat_perception) / 2`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Pour les batchs sur parametres energetiques (`energy_drain_rate`, `reproduction_cost`, `reproduction_threshold`, `reproduction_min_age`, `mutation_variation`), la synthese inclut aussi `energie_batch`:
+  - configuration qui maximise l'effet observe sur le drain energetique (proxy: `abs(drain_mult_obs - 1)`)
+  - configuration qui maximise l'effet observe sur le cout de reproduction (proxy: `abs(repro_mult_obs - 1)`)
+  - configuration avec la plus forte dispersion energetique utile (`(std_ee + std_er) / 2`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -297,6 +304,11 @@ py main.py --batch-param food_memory_duration --batch-values 0,8 --batch-runs 3 
 Exemple lecture des biais individuels en batch (`traits_batch`):
 ```powershell
 py main.py --batch-param social_follow_strength --batch-values 0,0.35,0.7 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative energie en batch (`energie_batch`):
+```powershell
+py main.py --batch-param energy_drain_rate --batch-values 0.9,1.0,1.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple lecture comparative perception en batch (`perception_batch`):
@@ -413,6 +425,11 @@ bias_usage_memoire_max: social_follow_strength=0.35 (bias_moy=+0.06)
 bias_usage_social_max: social_follow_strength=0.7 (bias_moy=+0.07)
 dispersion_traits_max: social_follow_strength=0.7 (disp_moy=0.12)
 configuration_plus_stable: social_follow_strength=0.35 (taux_ext=0.00, pop_finale_moy=43.00, gen_max_moy=2.90)
+energie_batch:
+effet_drain_energie_max: energy_drain_rate=1.0 (effet_moy=0.05)
+effet_cout_reproduction_max: energy_drain_rate=1.2 (effet_moy=0.08)
+dispersion_energie_max: energy_drain_rate=1.2 (disp_moy=0.10)
+configuration_plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 perception_batch:
 usage_food_perception_max: energy_drain_rate=1.0 (bias_usage_moy=+0.06)
 usage_threat_perception_max: energy_drain_rate=1.2 (bias_usage_moy=+0.08)
@@ -523,6 +540,7 @@ En mode batch:
 - bloc `--- Batch Comparative Summary ---` avec interpretation automatique des meilleures valeurs.
 - si le parametre batch est un parametre memoire, le bloc inclut aussi les comparatifs memoire (`memoire_batch`).
 - si le parametre batch est un parametre social, le bloc inclut aussi les comparatifs sociaux (`social_batch`).
+- si le parametre batch est un parametre energetique, le bloc inclut aussi les comparatifs energie (`energie_batch`).
 - si le parametre batch est memoire ou social et que les metriques existent, le bloc inclut aussi `traits_batch`.
 
 En mode historique batch:
@@ -539,6 +557,7 @@ Avec les outils d'analyse:
 - pour comparer memoire active vs neutralisee: relancer avec `--food-memory-duration 0 --danger-memory-duration 0` puis comparer `memoire:*` et la synthese finale.
 - pour comparer influence sociale active vs neutralisee: relancer avec `--social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0` puis comparer `social_*` et les blocs `social:`/`social_moy:`.
 - pour un batch social, verifier dans `Batch Comparative Summary` le bloc `social_batch` (usage suivi, usage boost fuite, part influencee, effet multiplicateur).
+- pour un batch energetique, verifier dans `Batch Comparative Summary` le bloc `energie_batch` (effet drain/cout repro, dispersion energetique, stabilite).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -570,6 +589,7 @@ Lecture rapide conseillee:
 - Interpretation batch memoire (usage/effet utiles et dangereux) pour les parametres memoire.
 - Interpretation batch sociale (suivi/fuite/part influencee/effet multiplicateur) pour les parametres sociaux.
 - Interpretation batch des biais individuels (`traits_batch`) pour les parametres memoire/sociaux.
+- Interpretation batch energie (`energie_batch`) pour les parametres energetiques (effet drain/cout reproduction, dispersion, stabilite).
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

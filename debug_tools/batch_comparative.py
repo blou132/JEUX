@@ -17,6 +17,14 @@ _SOCIAL_BATCH_PARAMS = {
     "social_flee_boost_max",
 }
 
+_ENERGY_TRAIT_BATCH_PARAMS = {
+    "energy_drain_rate",
+    "reproduction_cost",
+    "reproduction_threshold",
+    "reproduction_min_age",
+    "mutation_variation",
+}
+
 _TRAIT_RELATED_BATCH_PARAMS = _MEMORY_BATCH_PARAMS | _SOCIAL_BATCH_PARAMS
 
 
@@ -27,11 +35,13 @@ def build_batch_comparative_summary(
     candidates: list[Dict[str, float]] = []
     memory_candidates: list[Dict[str, float]] = []
     social_candidates: list[Dict[str, float]] = []
+    energy_candidates: list[Dict[str, float]] = []
     trait_candidates: list[Dict[str, float]] = []
     perception_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
+    is_energy_param = batch_param in _ENERGY_TRAIT_BATCH_PARAMS
     is_trait_related_param = batch_param in _TRAIT_RELATED_BATCH_PARAMS
 
     for scenario in scenarios:
@@ -62,6 +72,11 @@ def build_batch_comparative_summary(
             if social_metrics is not None:
                 social_candidates.append({"value": value, **social_metrics})
 
+        if is_energy_param:
+            energy_metrics = _read_energy_metrics(summary_raw)
+            if energy_metrics is not None:
+                energy_candidates.append({"value": value, **energy_metrics})
+
         if is_trait_related_param:
             trait_metrics = _read_trait_metrics(summary_raw)
             if trait_metrics is not None:
@@ -85,6 +100,11 @@ def build_batch_comparative_summary(
             empty["memory_comparative"] = _build_memory_comparative(memory_candidates)
         if is_social_param:
             empty["social_comparative"] = _build_social_comparative(social_candidates)
+        if is_energy_param:
+            empty["energy_comparative"] = _build_energy_comparative(
+                energy_candidates,
+                stable_metric=None,
+            )
         if is_trait_related_param:
             empty["trait_comparative"] = _build_trait_comparative(
                 trait_candidates,
@@ -154,6 +174,11 @@ def build_batch_comparative_summary(
         summary["memory_comparative"] = _build_memory_comparative(memory_candidates)
     if is_social_param:
         summary["social_comparative"] = _build_social_comparative(social_candidates)
+    if is_energy_param:
+        summary["energy_comparative"] = _build_energy_comparative(
+            energy_candidates,
+            stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+        )
     if is_trait_related_param:
         summary["trait_comparative"] = _build_trait_comparative(
             trait_candidates,
@@ -213,6 +238,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     social_raw = summary.get("social_comparative")
     if isinstance(social_raw, dict):
         lines.extend(_format_social_comparative(batch_param, social_raw))
+
+    energy_raw = summary.get("energy_comparative")
+    if isinstance(energy_raw, dict):
+        lines.extend(_format_energy_comparative(batch_param, energy_raw))
 
     trait_raw = summary.get("trait_comparative")
     if isinstance(trait_raw, dict):
@@ -344,6 +373,95 @@ def _build_social_comparative(social_candidates: list[Dict[str, float]]) -> Dict
         "best_social_flee_boost_usage": _build_peak_metric(social_candidates, "flee_boost_usage_per_tick"),
         "best_social_influenced_share": _build_peak_metric(social_candidates, "influenced_share_last_tick"),
         "best_social_flee_multiplier_effect": _build_peak_metric(social_candidates, "flee_multiplier_avg_total"),
+    }
+
+
+def _format_energy_comparative(batch_param: str, energy_summary: Dict[str, object]) -> list[str]:
+    lines = ["energie_batch:"]
+
+    if not bool(energy_summary.get("available", False)):
+        note = str(energy_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_energie: n/a ({note})")
+        return lines
+
+    drain_effect = _read_metric_result(energy_summary.get("best_energy_drain_effect"))
+    repro_effect = _read_metric_result(energy_summary.get("best_reproduction_cost_effect"))
+    dispersion = _read_metric_result(energy_summary.get("best_energy_trait_dispersion"))
+    stable_config = _read_metric_result(energy_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_drain_energie_max: {label} (effet_moy={value:.3f})".format(
+            label=_winner_label(batch_param, drain_effect.get("winners")),
+            value=float(drain_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "effet_cout_reproduction_max: {label} (effet_moy={value:.3f})".format(
+            label=_winner_label(batch_param, repro_effect.get("winners")),
+            value=float(repro_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_energie_max: {label} (disp_moy={value:.3f})".format(
+            label=_winner_label(batch_param, dispersion.get("winners")),
+            value=float(dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    lines.append(
+        "note_energie: effet_drain=abs(drain_mult_obs-1) effet_repro=abs(repro_mult_obs-1) dispersion=(std_ee+std_er)/2"
+    )
+    return lines
+
+
+def _build_energy_comparative(
+    energy_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(energy_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact energetique",
+            "best_energy_drain_effect": _insufficient_metric_result(),
+            "best_reproduction_cost_effect": _insufficient_metric_result(),
+            "best_energy_trait_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    return {
+        "available": True,
+        "best_energy_drain_effect": _build_peak_metric(energy_candidates, "energy_drain_effect_strength"),
+        "best_reproduction_cost_effect": _build_peak_metric(
+            energy_candidates,
+            "reproduction_cost_effect_strength",
+        ),
+        "best_energy_trait_dispersion": _build_peak_metric(energy_candidates, "energy_trait_dispersion"),
+        "most_stable_config": stable_result,
     }
 
 
@@ -612,6 +730,32 @@ def _read_trait_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | No
         "memory_usage_bias": (memory_food_bias + memory_danger_bias) / 2.0,
         "social_usage_bias": (social_follow_bias + social_flee_bias) / 2.0,
         "trait_dispersion": (memory_std + social_std) / 2.0,
+    }
+
+
+def _read_energy_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "energy_drain_multiplier_observed",
+        "reproduction_cost_multiplier_observed",
+        "energy_efficiency_std",
+        "exhaustion_resistance_std",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    drain_multiplier = float(avg_trait_raw.get("energy_drain_multiplier_observed", 1.0))
+    reproduction_multiplier = float(avg_trait_raw.get("reproduction_cost_multiplier_observed", 1.0))
+    energy_efficiency_std = float(avg_trait_raw.get("energy_efficiency_std", 0.0))
+    exhaustion_resistance_std = float(avg_trait_raw.get("exhaustion_resistance_std", 0.0))
+
+    return {
+        "energy_drain_effect_strength": abs(drain_multiplier - 1.0),
+        "reproduction_cost_effect_strength": abs(reproduction_multiplier - 1.0),
+        "energy_trait_dispersion": (energy_efficiency_std + exhaustion_resistance_std) / 2.0,
     }
 
 
