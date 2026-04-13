@@ -35,6 +35,7 @@ def inherit_traits(
     avg_social_sensitivity = (parent_a.social_sensitivity + parent_b.social_sensitivity) / 2.0
     avg_food_perception = (parent_a.food_perception + parent_b.food_perception) / 2.0
     avg_threat_perception = (parent_a.threat_perception + parent_b.threat_perception) / 2.0
+    avg_risk_taking = (parent_a.risk_taking + parent_b.risk_taking) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -57,5 +58,6 @@ def inherit_traits(
         food_perception=_mutate_with_delta(avg_food_perception, delta_metabolism),
         social_sensitivity=_mutate_with_delta(avg_social_sensitivity, delta_max_energy),
         threat_perception=_mutate_with_delta(avg_threat_perception, delta_max_energy),
+        risk_taking=_mutate_with_delta(avg_risk_taking, behavior_delta),
     )
     return child_traits.clamp()

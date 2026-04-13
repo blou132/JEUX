@@ -23,6 +23,7 @@ class GeneticTraits:
     # - social_sensitivity: higher means stronger responsiveness to nearby social cues.
     # - food_perception: higher means slightly farther food detection.
     # - threat_perception: higher means slightly farther threat detection.
+    # - risk_taking: higher means lower threat sensitivity in borderline cases.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
@@ -30,6 +31,7 @@ class GeneticTraits:
     social_sensitivity: float = 1.0
     food_perception: float = 1.0
     threat_perception: float = 1.0
+    risk_taking: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -48,5 +50,6 @@ class GeneticTraits:
         self.social_sensitivity = max(0.5, min(1.5, self.social_sensitivity))
         self.food_perception = max(0.7, min(1.3, self.food_perception))
         self.threat_perception = max(0.7, min(1.3, self.threat_perception))
+        self.risk_taking = max(0.7, min(1.3, self.risk_taking))
         return self
 

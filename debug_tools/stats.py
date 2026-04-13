@@ -70,12 +70,14 @@ def build_population_stats(
             "avg_social_sensitivity": 0.0,
             "avg_food_perception": 0.0,
             "avg_threat_perception": 0.0,
+            "avg_risk_taking": 0.0,
             "avg_energy_efficiency": 0.0,
             "avg_exhaustion_resistance": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
             "std_threat_perception": 0.0,
+            "std_risk_taking": 0.0,
             "std_energy_efficiency": 0.0,
             "std_exhaustion_resistance": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
@@ -185,6 +187,10 @@ def build_population_stats(
             "threat_perception_flee_users_avg_total": 0.0,
             "threat_perception_flee_usage_bias_tick": 0.0,
             "threat_perception_flee_usage_bias_total": 0.0,
+            "risk_taking_flee_users_avg_tick": 0.0,
+            "risk_taking_flee_users_avg_total": 0.0,
+            "risk_taking_flee_usage_bias_tick": 0.0,
+            "risk_taking_flee_usage_bias_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -201,6 +207,7 @@ def build_population_stats(
     avg_social_sensitivity = sum(c.traits.social_sensitivity for c in simulation.creatures) / total
     avg_food_perception = sum(c.traits.food_perception for c in simulation.creatures) / total
     avg_threat_perception = sum(c.traits.threat_perception for c in simulation.creatures) / total
+    avg_risk_taking = sum(c.traits.risk_taking for c in simulation.creatures) / total
     avg_energy_efficiency = sum(c.traits.energy_efficiency for c in simulation.creatures) / total
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
@@ -290,6 +297,7 @@ def build_population_stats(
     social_sensitivity_values = [c.traits.social_sensitivity for c in simulation.creatures]
     food_perception_values = [c.traits.food_perception for c in simulation.creatures]
     threat_perception_values = [c.traits.threat_perception for c in simulation.creatures]
+    risk_taking_values = [c.traits.risk_taking for c in simulation.creatures]
     energy_efficiency_values = [c.traits.energy_efficiency for c in simulation.creatures]
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
 
@@ -297,6 +305,7 @@ def build_population_stats(
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
     std_food_perception = _stddev_from_mean(food_perception_values, avg_food_perception)
     std_threat_perception = _stddev_from_mean(threat_perception_values, avg_threat_perception)
+    std_risk_taking = _stddev_from_mean(risk_taking_values, avg_risk_taking)
     std_energy_efficiency = _stddev_from_mean(energy_efficiency_values, avg_energy_efficiency)
     std_exhaustion_resistance = _stddev_from_mean(exhaustion_resistance_values, avg_exhaustion_resistance)
 
@@ -445,6 +454,26 @@ def build_population_stats(
         if simulation.total_threat_detection_flee > 0
         else 0.0
     )
+    avg_risk_taking_flee_users_tick = (
+        simulation.risk_taking_sum_flee_last_tick / simulation.threat_detection_flee_last_tick
+        if simulation.threat_detection_flee_last_tick > 0
+        else 0.0
+    )
+    avg_risk_taking_flee_users_total = (
+        simulation.total_risk_taking_sum_flee / simulation.total_threat_detection_flee
+        if simulation.total_threat_detection_flee > 0
+        else 0.0
+    )
+    risk_taking_flee_usage_bias_tick = (
+        avg_risk_taking_flee_users_tick - avg_risk_taking
+        if simulation.threat_detection_flee_last_tick > 0
+        else 0.0
+    )
+    risk_taking_flee_usage_bias_total = (
+        avg_risk_taking_flee_users_total - avg_risk_taking
+        if simulation.total_threat_detection_flee > 0
+        else 0.0
+    )
 
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
@@ -477,12 +506,14 @@ def build_population_stats(
         "avg_social_sensitivity": avg_social_sensitivity,
         "avg_food_perception": avg_food_perception,
         "avg_threat_perception": avg_threat_perception,
+        "avg_risk_taking": avg_risk_taking,
         "avg_energy_efficiency": avg_energy_efficiency,
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
         "std_threat_perception": std_threat_perception,
+        "std_risk_taking": std_risk_taking,
         "std_energy_efficiency": std_energy_efficiency,
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
@@ -592,6 +623,10 @@ def build_population_stats(
         "threat_perception_flee_users_avg_total": avg_threat_perception_flee_users_total,
         "threat_perception_flee_usage_bias_tick": threat_perception_flee_usage_bias_tick,
         "threat_perception_flee_usage_bias_total": threat_perception_flee_usage_bias_total,
+        "risk_taking_flee_users_avg_tick": avg_risk_taking_flee_users_tick,
+        "risk_taking_flee_users_avg_total": avg_risk_taking_flee_users_total,
+        "risk_taking_flee_usage_bias_tick": risk_taking_flee_usage_bias_tick,
+        "risk_taking_flee_usage_bias_total": risk_taking_flee_usage_bias_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -687,6 +722,8 @@ def build_final_run_summary(
         "food_perception_std": float(final_stats.get("std_food_perception", 0.0)),
         "threat_perception_mean": float(final_stats.get("avg_threat_perception", 0.0)),
         "threat_perception_std": float(final_stats.get("std_threat_perception", 0.0)),
+        "risk_taking_mean": float(final_stats.get("avg_risk_taking", 0.0)),
+        "risk_taking_std": float(final_stats.get("std_risk_taking", 0.0)),
         "energy_efficiency_mean": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "energy_efficiency_std": float(final_stats.get("std_energy_efficiency", 0.0)),
         "exhaustion_resistance_mean": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
@@ -710,6 +747,7 @@ def build_final_run_summary(
         "food_perception_detection_bias": float(final_stats.get("food_perception_detection_usage_bias_total", 0.0)),
         "food_perception_consumption_bias": float(final_stats.get("food_perception_consumption_usage_bias_total", 0.0)),
         "threat_perception_flee_bias": float(final_stats.get("threat_perception_flee_usage_bias_total", 0.0)),
+        "risk_taking_flee_bias": float(final_stats.get("risk_taking_flee_usage_bias_total", 0.0)),
     }
 
     return {
@@ -749,6 +787,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "repro_drive": 0.0,
                 "food_perception": 0.0,
                 "threat_perception": 0.0,
+                "risk_taking": 0.0,
                 "energy_efficiency": 0.0,
                 "exhaustion_resistance": 0.0,
             },
@@ -782,6 +821,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_perception_std": 0.0,
                 "threat_perception_mean": 0.0,
                 "threat_perception_std": 0.0,
+                "risk_taking_mean": 0.0,
+                "risk_taking_std": 0.0,
                 "energy_efficiency_mean": 0.0,
                 "energy_efficiency_std": 0.0,
                 "exhaustion_resistance_mean": 0.0,
@@ -799,6 +840,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_perception_detection_bias": 0.0,
                 "food_perception_consumption_bias": 0.0,
                 "threat_perception_flee_bias": 0.0,
+                "risk_taking_flee_bias": 0.0,
             },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
@@ -818,6 +860,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "repro_drive": 0.0,
         "food_perception": 0.0,
         "threat_perception": 0.0,
+        "risk_taking": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
     }
@@ -851,6 +894,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "food_perception_std": 0.0,
         "threat_perception_mean": 0.0,
         "threat_perception_std": 0.0,
+        "risk_taking_mean": 0.0,
+        "risk_taking_std": 0.0,
         "energy_efficiency_mean": 0.0,
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
@@ -868,6 +913,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "food_perception_detection_bias": 0.0,
         "food_perception_consumption_bias": 0.0,
         "threat_perception_flee_bias": 0.0,
+        "risk_taking_flee_bias": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -896,6 +942,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["repro_drive"] += float(traits_raw.get("repro_drive", 0.0))
                 avg_traits_acc["food_perception"] += float(traits_raw.get("food_perception", 0.0))
                 avg_traits_acc["threat_perception"] += float(traits_raw.get("threat_perception", 0.0))
+                avg_traits_acc["risk_taking"] += float(traits_raw.get("risk_taking", 0.0))
                 avg_traits_acc["energy_efficiency"] += float(traits_raw.get("energy_efficiency", 0.0))
                 avg_traits_acc["exhaustion_resistance"] += float(traits_raw.get("exhaustion_resistance", 0.0))
 
@@ -932,6 +979,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["food_perception_std"] += float(trait_impact_raw.get("food_perception_std", 0.0))
                 avg_trait_impact_acc["threat_perception_mean"] += float(trait_impact_raw.get("threat_perception_mean", 0.0))
                 avg_trait_impact_acc["threat_perception_std"] += float(trait_impact_raw.get("threat_perception_std", 0.0))
+                avg_trait_impact_acc["risk_taking_mean"] += float(trait_impact_raw.get("risk_taking_mean", 0.0))
+                avg_trait_impact_acc["risk_taking_std"] += float(trait_impact_raw.get("risk_taking_std", 0.0))
                 avg_trait_impact_acc["energy_efficiency_mean"] += float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
                 avg_trait_impact_acc["energy_efficiency_std"] += float(trait_impact_raw.get("energy_efficiency_std", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_mean"] += float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
@@ -961,6 +1010,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["food_perception_detection_bias"] += float(trait_impact_raw.get("food_perception_detection_bias", 0.0))
                 avg_trait_impact_acc["food_perception_consumption_bias"] += float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
                 avg_trait_impact_acc["threat_perception_flee_bias"] += float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
+                avg_trait_impact_acc["risk_taking_flee_bias"] += float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
 
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
@@ -985,6 +1035,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "repro_drive": avg_traits_acc["repro_drive"] / run_count,
             "food_perception": avg_traits_acc["food_perception"] / run_count,
             "threat_perception": avg_traits_acc["threat_perception"] / run_count,
+            "risk_taking": avg_traits_acc["risk_taking"] / run_count,
             "energy_efficiency": avg_traits_acc["energy_efficiency"] / run_count,
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
         },
@@ -1018,6 +1069,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "food_perception_std": avg_trait_impact_acc["food_perception_std"] / run_count,
             "threat_perception_mean": avg_trait_impact_acc["threat_perception_mean"] / run_count,
             "threat_perception_std": avg_trait_impact_acc["threat_perception_std"] / run_count,
+            "risk_taking_mean": avg_trait_impact_acc["risk_taking_mean"] / run_count,
+            "risk_taking_std": avg_trait_impact_acc["risk_taking_std"] / run_count,
             "energy_efficiency_mean": avg_trait_impact_acc["energy_efficiency_mean"] / run_count,
             "energy_efficiency_std": avg_trait_impact_acc["energy_efficiency_std"] / run_count,
             "exhaustion_resistance_mean": avg_trait_impact_acc["exhaustion_resistance_mean"] / run_count,
@@ -1043,6 +1096,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "food_perception_detection_bias": avg_trait_impact_acc["food_perception_detection_bias"] / run_count,
             "food_perception_consumption_bias": avg_trait_impact_acc["food_perception_consumption_bias"] / run_count,
             "threat_perception_flee_bias": avg_trait_impact_acc["threat_perception_flee_bias"] / run_count,
+            "risk_taking_flee_bias": avg_trait_impact_acc["risk_taking_flee_bias"] / run_count,
         },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,
@@ -1274,6 +1328,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "repro_drive": float(final_stats.get("avg_repro_drive", 0.0)),
         "food_perception": float(final_stats.get("avg_food_perception", 0.0)),
         "threat_perception": float(final_stats.get("avg_threat_perception", 0.0)),
+        "risk_taking": float(final_stats.get("avg_risk_taking", 0.0)),
         "energy_efficiency": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
     }

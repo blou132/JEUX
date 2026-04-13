@@ -106,6 +106,8 @@ class HungerSimulation:
         self.total_threat_detection_flee = 0
         self.threat_perception_sum_flee_last_tick = 0.0
         self.total_threat_perception_sum_flee = 0.0
+        self.risk_taking_sum_flee_last_tick = 0.0
+        self.total_risk_taking_sum_flee = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -180,6 +182,7 @@ class HungerSimulation:
         self.food_perception_sum_consumption_last_tick = 0.0
         self.threat_detection_flee_last_tick = 0
         self.threat_perception_sum_flee_last_tick = 0.0
+        self.risk_taking_sum_flee_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -262,6 +265,8 @@ class HungerSimulation:
                 self.total_threat_detection_flee += 1
                 self.threat_perception_sum_flee_last_tick += creature.traits.threat_perception
                 self.total_threat_perception_sum_flee += creature.traits.threat_perception
+                self.risk_taking_sum_flee_last_tick += creature.traits.risk_taking
+                self.total_risk_taking_sum_flee += creature.traits.risk_taking
 
         # 3) Execute movement and feeding behavior.
         creatures_by_id = {creature.creature_id: creature for creature in self.creatures}

@@ -132,7 +132,11 @@ class HungerAI:
         other_power = other.traits.speed * other.traits.max_energy
 
         behavior_bias = 0.25 * (creature.traits.dominance - creature.traits.prudence)
-        effective_ratio = max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias))
+        # Light individual risk bias:
+        # - higher risk_taking -> slightly less sensitive to borderline threats.
+        # - lower risk_taking -> slightly more sensitive.
+        risk_bias = 0.15 * (creature.traits.risk_taking - 1.0)
+        effective_ratio = max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias + risk_bias))
         return other_power >= creature_power * effective_ratio
 
     def _effective_food_detection_range(self, creature: Creature) -> float:
