@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | repro_moy | memoire_trait_moy | social_trait_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | repro_moy | memoire_trait_moy | social_trait_moy | efficacite_energie_moy | resistance_epuisement_moy"
     )
 
 
@@ -41,7 +41,9 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{float(stats['avg_dominance']):13.3f} | "
         f"{float(stats['avg_repro_drive']):9.3f} | "
         f"{float(stats.get('avg_memory_focus', 0.0)):17.3f} | "
-        f"{float(stats.get('avg_social_sensitivity', 0.0)):16.3f}"
+        f"{float(stats.get('avg_social_sensitivity', 0.0)):16.3f} | "
+        f"{float(stats.get('avg_energy_efficiency', 0.0)):22.3f} | "
+        f"{float(stats.get('avg_exhaustion_resistance', 0.0)):25.3f}"
     )
 
 
@@ -230,6 +232,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "repro_drive": 0.0,
         "food_perception": 0.0,
         "threat_perception": 0.0,
+        "energy_efficiency": 0.0,
+        "exhaustion_resistance": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -239,6 +243,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
+        traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
+        traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
 
     memory = {
         "food_usage_total": 0,
@@ -291,6 +297,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "food_perception_std": 0.0,
         "threat_perception_mean": 0.0,
         "threat_perception_std": 0.0,
+        "energy_efficiency_mean": 0.0,
+        "energy_efficiency_std": 0.0,
+        "exhaustion_resistance_mean": 0.0,
+        "exhaustion_resistance_std": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -308,6 +318,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["food_perception_std"] = float(trait_impact_raw.get("food_perception_std", 0.0))
         trait_impact["threat_perception_mean"] = float(trait_impact_raw.get("threat_perception_mean", 0.0))
         trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
+        trait_impact["energy_efficiency_mean"] = float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
+        trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
+        trait_impact["exhaustion_resistance_mean"] = float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
+        trait_impact["exhaustion_resistance_std"] = float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
         trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
@@ -322,7 +336,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -330,7 +344,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} "
         "logs_obs={observed_logs}"
@@ -351,6 +365,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         repro=traits["repro_drive"],
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
+        energy_efficiency=traits["energy_efficiency"],
+        exhaustion_resistance=traits["exhaustion_resistance"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -376,6 +392,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         fp_sigma=trait_impact["food_perception_std"],
         tp_mu=trait_impact["threat_perception_mean"],
         tp_sigma=trait_impact["threat_perception_std"],
+        ee_mu=trait_impact["energy_efficiency_mean"],
+        ee_sigma=trait_impact["energy_efficiency_std"],
+        er_mu=trait_impact["exhaustion_resistance_mean"],
+        er_sigma=trait_impact["exhaustion_resistance_std"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
@@ -405,6 +425,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "repro_drive": 0.0,
         "food_perception": 0.0,
         "threat_perception": 0.0,
+        "energy_efficiency": 0.0,
+        "exhaustion_resistance": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -414,6 +436,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
+        traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
+        traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
 
     memory = {
         "food_usage_total": 0.0,
@@ -466,6 +490,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "food_perception_std": 0.0,
         "threat_perception_mean": 0.0,
         "threat_perception_std": 0.0,
+        "energy_efficiency_mean": 0.0,
+        "energy_efficiency_std": 0.0,
+        "exhaustion_resistance_mean": 0.0,
+        "exhaustion_resistance_std": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -483,6 +511,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["food_perception_std"] = float(trait_impact_raw.get("food_perception_std", 0.0))
         trait_impact["threat_perception_mean"] = float(trait_impact_raw.get("threat_perception_mean", 0.0))
         trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
+        trait_impact["energy_efficiency_mean"] = float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
+        trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
+        trait_impact["exhaustion_resistance_mean"] = float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
+        trait_impact["exhaustion_resistance_std"] = float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
         trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
@@ -498,7 +530,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -507,7 +539,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
@@ -525,6 +557,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         repro=traits["repro_drive"],
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
+        energy_efficiency=traits["energy_efficiency"],
+        exhaustion_resistance=traits["exhaustion_resistance"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -550,6 +584,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         fp_sigma=trait_impact["food_perception_std"],
         tp_mu=trait_impact["threat_perception_mean"],
         tp_sigma=trait_impact["threat_perception_std"],
+        ee_mu=trait_impact["energy_efficiency_mean"],
+        ee_sigma=trait_impact["energy_efficiency_std"],
+        er_mu=trait_impact["exhaustion_resistance_mean"],
+        er_sigma=trait_impact["exhaustion_resistance_std"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
@@ -635,10 +673,16 @@ def format_population_dynamics(
     avg_social_sensitivity = float(stats.get("avg_social_sensitivity", 0.0))
     avg_food_perception = float(stats.get("avg_food_perception", 0.0))
     avg_threat_perception = float(stats.get("avg_threat_perception", 0.0))
+    avg_energy_efficiency = float(stats.get("avg_energy_efficiency", 0.0))
+    avg_exhaustion_resistance = float(stats.get("avg_exhaustion_resistance", 0.0))
     std_memory_focus = float(stats.get("std_memory_focus", 0.0))
     std_social_sensitivity = float(stats.get("std_social_sensitivity", 0.0))
     std_food_perception = float(stats.get("std_food_perception", 0.0))
     std_threat_perception = float(stats.get("std_threat_perception", 0.0))
+    std_energy_efficiency = float(stats.get("std_energy_efficiency", 0.0))
+    std_exhaustion_resistance = float(stats.get("std_exhaustion_resistance", 0.0))
+    avg_effective_energy_drain_multiplier = float(stats.get("avg_effective_energy_drain_multiplier", 0.0))
+    avg_reproduction_cost_multiplier = float(stats.get("avg_reproduction_cost_multiplier", 0.0))
     memory_focus_food_bias_tick = float(stats.get("memory_focus_food_usage_bias_tick", 0.0))
     memory_focus_danger_bias_tick = float(stats.get("memory_focus_danger_usage_bias_tick", 0.0))
     social_sensitivity_follow_bias_tick = float(stats.get("social_sensitivity_follow_usage_bias_tick", 0.0))
@@ -757,8 +801,9 @@ def format_population_dynamics(
         f"perception_freq_tick:det={food_detection_usage_alive_tick:.2f} eat={food_consumption_usage_alive_tick:.2f} fuite={threat_detection_usage_alive_tick:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} "
+        f"energie_traits_effets:drain_mult={avg_effective_energy_drain_multiplier:.2f} repro_mult={avg_reproduction_cost_multiplier:.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
         f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} "
@@ -857,3 +902,4 @@ def _format_fleeing_ids(creature_ids: list[str], max_ids: int) -> str:
     if hidden <= 0:
         return ",".join(shown)
     return f"{','.join(shown)},+{hidden}"
+

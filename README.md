@@ -105,6 +105,16 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - `dynamique_*`: `perception_log`, `perception_tick`, `perception_freq_tick`, `perception_bias_tick`
   - `Run Summary` / `Multi-Run Summary`: bloc `traits_impact` / `traits_impact_moy` (inclut `fp_mu`, `tp_mu`, biais perception)
 
+### Variabilite individuelle d'endurance / cout energetique
+- Traits legers ajoutes: `energy_efficiency` et `exhaustion_resistance`.
+- Effet volontairement limite:
+  - `energy_efficiency` module legerement la depense energetique passive (drain).
+  - `exhaustion_resistance` module legerement le cout energetique de reproduction.
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - ligne principale: `efficacite_energie_moy`, `resistance_epuisement_moy`
+  - `dynamique_*`: `traits_comp_moy` (`ee`, `er`), `traits_disp` (`ee_sigma`, `er_sigma`), `energie_traits_effets` (`drain_mult`, `repro_mult`)
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ee`, `er`) et `traits_impact` / `traits_impact_moy` (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`)
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
 - Affichage du nombre de groupes, groupe dominant, top groupes et moyennes de traits.
@@ -483,7 +493,7 @@ py -m unittest tests.test_perception_impact_metrics
 
 ## Lire les logs debug (indicateurs utiles)
 Chaque bloc de log periodique contient:
-- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `repro_drive`, `memory_focus`, `social_sensitivity`).
+- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `repro_drive`, `memory_focus`, `social_sensitivity`, `energy_efficiency`, `exhaustion_resistance`).
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
 - `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
@@ -493,17 +503,18 @@ Chaque bloc de log periodique contient:
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
-- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`.
+- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`).
+- `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens observes de drain passif (`drain_mult`) et de cout de reproduction (`repro_mult`).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -588,3 +599,5 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
+
+

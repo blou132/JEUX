@@ -88,7 +88,8 @@ class Creature:
         if drain_rate < 0:
             raise ValueError("drain_rate must be >= 0")
 
-        effective_drain = drain_rate * self.traits.metabolism
+        efficiency_multiplier = 1.0 - (0.25 * (self.traits.energy_efficiency - 1.0))
+        effective_drain = drain_rate * self.traits.metabolism * max(0.1, efficiency_multiplier)
         self.energy = max(0.0, self.energy - (effective_drain * dt))
         if self.energy == 0.0:
             self.alive = False
@@ -131,4 +132,6 @@ class Creature:
         self.x += (target_x - self.x) * ratio
         self.y += (target_y - self.y) * ratio
         return False
+
+
 

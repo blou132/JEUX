@@ -20,6 +20,8 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             speed=random_source.uniform(0.8, 1.2),
             metabolism=random_source.uniform(0.9, 1.1),
             max_energy=random_source.uniform(90.0, 110.0),
+            energy_efficiency=random_source.uniform(0.97, 1.03),
+            exhaustion_resistance=random_source.uniform(0.97, 1.03),
             prudence=random_source.uniform(0.8, 1.2),
             dominance=random_source.uniform(0.8, 1.2),
             repro_drive=random_source.uniform(0.8, 1.2),

@@ -427,8 +427,13 @@ class HungerSimulation:
                 parent_a_alive_before = parent_a.alive
                 parent_b_alive_before = parent_b.alive
 
-                parent_a.spend_energy(self.reproduction_cost)
-                parent_b.spend_energy(self.reproduction_cost)
+                parent_a_resistance_multiplier = 1.0 - (0.3 * (parent_a.traits.exhaustion_resistance - 1.0))
+                parent_b_resistance_multiplier = 1.0 - (0.3 * (parent_b.traits.exhaustion_resistance - 1.0))
+                parent_a_cost = self.reproduction_cost * max(0.1, parent_a_resistance_multiplier)
+                parent_b_cost = self.reproduction_cost * max(0.1, parent_b_resistance_multiplier)
+
+                parent_a.spend_energy(parent_a_cost)
+                parent_b.spend_energy(parent_b_cost)
 
                 if parent_a_alive_before and not parent_a.alive:
                     exhaustion_deaths += 1
@@ -668,3 +673,7 @@ class HungerSimulation:
 
     def get_total_count(self) -> int:
         return len(self.creatures)
+
+
+
+

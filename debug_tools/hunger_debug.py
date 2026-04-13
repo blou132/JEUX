@@ -23,6 +23,8 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "speed": round(creature.traits.speed, 3),
                     "metabolism": round(creature.traits.metabolism, 3),
                     "max_energy": round(creature.traits.max_energy, 3),
+                    "energy_efficiency": round(creature.traits.energy_efficiency, 3),
+                    "exhaustion_resistance": round(creature.traits.exhaustion_resistance, 3),
                     "prudence": round(creature.traits.prudence, 3),
                     "dominance": round(creature.traits.dominance, 3),
                     "repro_drive": round(creature.traits.repro_drive, 3),

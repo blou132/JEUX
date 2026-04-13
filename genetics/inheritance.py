@@ -24,6 +24,10 @@ def inherit_traits(
     avg_speed = (parent_a.speed + parent_b.speed) / 2.0
     avg_metabolism = (parent_a.metabolism + parent_b.metabolism) / 2.0
     avg_max_energy = (parent_a.max_energy + parent_b.max_energy) / 2.0
+    avg_energy_efficiency = (parent_a.energy_efficiency + parent_b.energy_efficiency) / 2.0
+    avg_exhaustion_resistance = (
+        parent_a.exhaustion_resistance + parent_b.exhaustion_resistance
+    ) / 2.0
     avg_prudence = (parent_a.prudence + parent_b.prudence) / 2.0
     avg_dominance = (parent_a.dominance + parent_b.dominance) / 2.0
     avg_repro_drive = (parent_a.repro_drive + parent_b.repro_drive) / 2.0
@@ -44,6 +48,8 @@ def inherit_traits(
         speed=_mutate_with_delta(avg_speed, delta_speed),
         metabolism=_mutate_with_delta(avg_metabolism, delta_metabolism),
         max_energy=_mutate_with_delta(avg_max_energy, delta_max_energy),
+        energy_efficiency=_mutate_with_delta(avg_energy_efficiency, delta_metabolism),
+        exhaustion_resistance=_mutate_with_delta(avg_exhaustion_resistance, delta_max_energy),
         prudence=_mutate_with_delta(avg_prudence, behavior_delta),
         dominance=_mutate_with_delta(avg_dominance, delta_speed),
         repro_drive=_mutate_with_delta(avg_repro_drive, delta_metabolism),
@@ -53,4 +59,3 @@ def inherit_traits(
         threat_perception=_mutate_with_delta(avg_threat_perception, delta_max_energy),
     )
     return child_traits.clamp()
-
