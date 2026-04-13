@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable, Optional
@@ -77,7 +77,8 @@ class HungerAI:
             return CreatureIntent(action=self.ACTION_SEARCH_FOOD)
 
         food_distance = creature.distance_to(nearest_food.x, nearest_food.y)
-        if food_distance <= self.food_detection_range:
+        effective_food_detection_range = self._effective_food_detection_range(creature)
+        if food_distance <= effective_food_detection_range:
             return CreatureIntent(action=self.ACTION_MOVE_TO_FOOD, target_food_id=nearest_food.food_id)
 
         return CreatureIntent(action=self.ACTION_SEARCH_FOOD)
@@ -88,13 +89,17 @@ class HungerAI:
         creature: Creature,
         nearby_creatures: Iterable[Creature] | None,
     ) -> Creature | None:
-        if nearby_creatures is None or self.threat_detection_range <= 0.0:
+        if nearby_creatures is None:
+            return None
+
+        effective_threat_detection_range = self._effective_threat_detection_range(creature)
+        if effective_threat_detection_range <= 0.0:
             return None
 
         best_threat: Creature | None = None
         best_distance_sq = float("inf")
-        max_axis_distance = self.threat_detection_range
-        max_distance_sq = self.threat_detection_range * self.threat_detection_range
+        max_axis_distance = effective_threat_detection_range
+        max_distance_sq = effective_threat_detection_range * effective_threat_detection_range
 
         for other in nearby_creatures:
             if not other.alive or other.creature_id == creature.creature_id:
@@ -129,6 +134,12 @@ class HungerAI:
         behavior_bias = 0.25 * (creature.traits.dominance - creature.traits.prudence)
         effective_ratio = max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias))
         return other_power >= creature_power * effective_ratio
+
+    def _effective_food_detection_range(self, creature: Creature) -> float:
+        return max(0.0, self.food_detection_range * creature.traits.food_perception)
+
+    def _effective_threat_detection_range(self, creature: Creature) -> float:
+        return max(0.0, self.threat_detection_range * creature.traits.threat_perception)
 
     def _effective_hunger_seek_threshold(self, creature: Creature) -> float:
         threshold = self.hunger_seek_threshold

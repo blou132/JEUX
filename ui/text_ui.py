@@ -228,6 +228,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "prudence": 0.0,
         "dominance": 0.0,
         "repro_drive": 0.0,
+        "food_perception": 0.0,
+        "threat_perception": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -235,6 +237,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["prudence"] = float(traits_raw.get("prudence", 0.0))
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
+        traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
+        traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
 
     memory = {
         "food_usage_total": 0,
@@ -304,7 +308,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -331,6 +335,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         repro=traits["repro_drive"],
+        food_perception=traits["food_perception"],
+        threat_perception=traits["threat_perception"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -376,6 +382,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "prudence": 0.0,
         "dominance": 0.0,
         "repro_drive": 0.0,
+        "food_perception": 0.0,
+        "threat_perception": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -383,6 +391,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["prudence"] = float(traits_raw.get("prudence", 0.0))
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
+        traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
+        traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
 
     memory = {
         "food_usage_total": 0.0,
@@ -453,7 +463,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -478,6 +488,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         repro=traits["repro_drive"],
+        food_perception=traits["food_perception"],
+        threat_perception=traits["threat_perception"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -569,8 +581,12 @@ def format_population_dynamics(
     avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
     avg_memory_focus = float(stats.get("avg_memory_focus", 0.0))
     avg_social_sensitivity = float(stats.get("avg_social_sensitivity", 0.0))
+    avg_food_perception = float(stats.get("avg_food_perception", 0.0))
+    avg_threat_perception = float(stats.get("avg_threat_perception", 0.0))
     std_memory_focus = float(stats.get("std_memory_focus", 0.0))
     std_social_sensitivity = float(stats.get("std_social_sensitivity", 0.0))
+    std_food_perception = float(stats.get("std_food_perception", 0.0))
+    std_threat_perception = float(stats.get("std_threat_perception", 0.0))
     memory_focus_food_bias_tick = float(stats.get("memory_focus_food_usage_bias_tick", 0.0))
     memory_focus_danger_bias_tick = float(stats.get("memory_focus_danger_usage_bias_tick", 0.0))
     social_sensitivity_follow_bias_tick = float(stats.get("social_sensitivity_follow_usage_bias_tick", 0.0))
@@ -668,8 +684,8 @@ def format_population_dynamics(
         f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} infl={social_influenced_tick} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "

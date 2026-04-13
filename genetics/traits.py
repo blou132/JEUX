@@ -15,11 +15,15 @@ class GeneticTraits:
     # - repro_drive: higher means more willingness to prioritize reproduction.
     # - memory_focus: higher means stronger tendency to reuse local memories.
     # - social_sensitivity: higher means stronger responsiveness to nearby social cues.
+    # - food_perception: higher means slightly farther food detection.
+    # - threat_perception: higher means slightly farther threat detection.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
     memory_focus: float = 1.0
     social_sensitivity: float = 1.0
+    food_perception: float = 1.0
+    threat_perception: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -32,4 +36,6 @@ class GeneticTraits:
         self.repro_drive = max(0.2, min(2.0, self.repro_drive))
         self.memory_focus = max(0.5, min(1.5, self.memory_focus))
         self.social_sensitivity = max(0.5, min(1.5, self.social_sensitivity))
+        self.food_perception = max(0.7, min(1.3, self.food_perception))
+        self.threat_perception = max(0.7, min(1.3, self.threat_perception))
         return self

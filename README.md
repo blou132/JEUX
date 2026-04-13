@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, et biais individuels legers sur memoire/social.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, et variabilite individuelle de perception.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -35,6 +35,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, part influencee, multiplicateur de fuite tick/moyen).
 - Indicateurs d'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyennes, dispersion et biais d'usage memoire/social visibles en stats/syntheses.
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
+- Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -81,6 +82,16 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs:
   - moyennes globales: `memoire_trait_moy`, `social_trait_moy`
   - composantes traits: `traits_comp_moy` (inclut `mem` et `soc`).
+
+### Variabilite individuelle de perception
+- Traits legers ajoutes: `food_perception` et `threat_perception`.
+- Effet volontairement limite:
+  - `food_perception` ajuste legerement la portee de detection de nourriture.
+  - `threat_perception` ajuste legerement la portee de detection de menace.
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - `dynamique_*` via `traits_comp_moy` (`fp`, `tp`) et `traits_disp` (`fp_sigma`, `tp_sigma`)
+  - `Run Summary` et `Multi-Run Summary` via `traits_moy` / `traits_finaux_moy` (`fp`, `tp`).
 
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
@@ -438,6 +449,7 @@ py -m unittest tests.test_social_influence_behavior
 py -m unittest tests.test_social_impact_metrics
 py -m unittest tests.test_trait_impact_metrics
 py -m unittest tests.test_individual_behavior_bias
+py -m unittest tests.test_perception_traits
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -452,6 +464,7 @@ Chaque bloc de log periodique contient:
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
+- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`.
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
@@ -523,6 +536,7 @@ Lecture rapide conseillee:
 - Evaluation legere de l'impact social (frequences, part influencee, multiplicateur de fuite tick/moyen) dans stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyenne/dispersion + biais d'usage memoire/social en stats, synthese run, multi-runs, export et analyse.
 - Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
+- Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).
@@ -540,5 +554,3 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
-
-

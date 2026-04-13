@@ -186,6 +186,8 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("run_summary.avg_traits.prudence")),
             "dominance": _parse_float(row.get("run_summary.avg_traits.dominance")),
             "repro_drive": _parse_float(row.get("run_summary.avg_traits.repro_drive")),
+            "food_perception": _parse_float(row.get("run_summary.avg_traits.food_perception")),
+            "threat_perception": _parse_float(row.get("run_summary.avg_traits.threat_perception")),
         },
         "memory_impact": {
             "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
@@ -247,6 +249,8 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("multi_run_summary.avg_final_traits.prudence")),
             "dominance": _parse_float(row.get("multi_run_summary.avg_final_traits.dominance")),
             "repro_drive": _parse_float(row.get("multi_run_summary.avg_final_traits.repro_drive")),
+            "food_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.food_perception")),
+            "threat_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.threat_perception")),
         },
         "most_frequent_final_dominant_group": row.get(
             "multi_run_summary.most_frequent_final_dominant_group",
@@ -320,6 +324,8 @@ def _build_batch_payload_from_csv(
                 "prudence": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.prudence")),
                 "dominance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.dominance")),
                 "repro_drive": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.repro_drive")),
+                "food_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.food_perception")),
+                "threat_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.threat_perception")),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
                 "multi_run_summary.most_frequent_final_dominant_group",

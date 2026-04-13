@@ -28,6 +28,8 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "repro_drive": round(creature.traits.repro_drive, 3),
                     "memory_focus": round(creature.traits.memory_focus, 3),
                     "social_sensitivity": round(creature.traits.social_sensitivity, 3),
+                    "food_perception": round(creature.traits.food_perception, 3),
+                    "threat_perception": round(creature.traits.threat_perception, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),

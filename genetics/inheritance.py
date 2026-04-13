@@ -29,6 +29,8 @@ def inherit_traits(
     avg_repro_drive = (parent_a.repro_drive + parent_b.repro_drive) / 2.0
     avg_memory_focus = (parent_a.memory_focus + parent_b.memory_focus) / 2.0
     avg_social_sensitivity = (parent_a.social_sensitivity + parent_b.social_sensitivity) / 2.0
+    avg_food_perception = (parent_a.food_perception + parent_b.food_perception) / 2.0
+    avg_threat_perception = (parent_a.threat_perception + parent_b.threat_perception) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -46,6 +48,9 @@ def inherit_traits(
         dominance=_mutate_with_delta(avg_dominance, delta_speed),
         repro_drive=_mutate_with_delta(avg_repro_drive, delta_metabolism),
         memory_focus=_mutate_with_delta(avg_memory_focus, behavior_delta),
+        food_perception=_mutate_with_delta(avg_food_perception, delta_metabolism),
         social_sensitivity=_mutate_with_delta(avg_social_sensitivity, delta_max_energy),
+        threat_perception=_mutate_with_delta(avg_threat_perception, delta_max_energy),
     )
     return child_traits.clamp()
+

@@ -24,7 +24,9 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             dominance=random_source.uniform(0.8, 1.2),
             repro_drive=random_source.uniform(0.8, 1.2),
             memory_focus=random_source.uniform(0.9, 1.1),
+            food_perception=random_source.uniform(0.95, 1.05),
             social_sensitivity=random_source.uniform(0.9, 1.1),
+            threat_perception=random_source.uniform(0.95, 1.05),
         ).clamp()
 
         creature = Creature(
@@ -38,3 +40,4 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
         population.append(creature)
 
     return population
+
