@@ -320,6 +320,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "food_perception_consumption_bias": 0.0,
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
+        "borderline_threat_encounters": 0.0,
+        "borderline_threat_flees": 0.0,
+        "borderline_threat_flee_rate": 0.0,
+        "risk_taking_borderline_encounter_mean": 0.0,
+        "risk_taking_borderline_flee_mean": 0.0,
+        "risk_taking_borderline_flee_bias": 0.0,
     }
     if isinstance(trait_impact_raw, dict):
         trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
@@ -362,6 +368,24 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["food_perception_consumption_bias"] = float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
         trait_impact["threat_perception_flee_bias"] = float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
         trait_impact["risk_taking_flee_bias"] = float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
+        trait_impact["borderline_threat_encounters"] = float(
+            trait_impact_raw.get("borderline_threat_encounters", 0.0)
+        )
+        trait_impact["borderline_threat_flees"] = float(
+            trait_impact_raw.get("borderline_threat_flees", 0.0)
+        )
+        trait_impact["borderline_threat_flee_rate"] = float(
+            trait_impact_raw.get("borderline_threat_flee_rate", 0.0)
+        )
+        trait_impact["risk_taking_borderline_encounter_mean"] = float(
+            trait_impact_raw.get("risk_taking_borderline_encounter_mean", 0.0)
+        )
+        trait_impact["risk_taking_borderline_flee_mean"] = float(
+            trait_impact_raw.get("risk_taking_borderline_flee_mean", 0.0)
+        )
+        trait_impact["risk_taking_borderline_flee_bias"] = float(
+            trait_impact_raw.get("risk_taking_borderline_flee_bias", 0.0)
+        )
 
     return (
         "synthese_run: "
@@ -381,6 +405,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} "
+        "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "logs_obs={observed_logs}"
     ).format(
@@ -446,6 +471,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         bias_fp_eat=trait_impact["food_perception_consumption_bias"],
         bias_tp_flee=trait_impact["threat_perception_flee_bias"],
         bias_rk_flee=trait_impact["risk_taking_flee_bias"],
+        rk_border_cases=trait_impact["borderline_threat_encounters"],
+        rk_border_flees=trait_impact["borderline_threat_flees"],
+        rk_border_rate=trait_impact["borderline_threat_flee_rate"],
+        rk_border_mu=trait_impact["risk_taking_borderline_encounter_mean"],
+        rk_border_flee_mu=trait_impact["risk_taking_borderline_flee_mean"],
+        rk_border_bias=trait_impact["risk_taking_borderline_flee_bias"],
         bias_ee_drain=trait_impact["energy_efficiency_drain_bias"],
         bias_er_repro=trait_impact["exhaustion_resistance_reproduction_bias"],
         observed_logs=int(summary.get("observed_logs", 0)),

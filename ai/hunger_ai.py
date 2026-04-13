@@ -21,6 +21,7 @@ class HungerAI:
     ACTION_MOVE_TO_FOOD = "move_to_food"
     ACTION_REPRODUCE = "reproduce"
     ACTION_WANDER = "wander"
+    BORDERLINE_THREAT_MARGIN = 0.08
 
     def __init__(
         self,
@@ -123,6 +124,49 @@ class HungerAI:
 
         return best_threat
 
+    def find_nearest_borderline_threat(
+        self,
+        creature: Creature,
+        nearby_creatures: Iterable[Creature] | None,
+        margin: float = BORDERLINE_THREAT_MARGIN,
+    ) -> Creature | None:
+        """Nearest nearby threat in a narrow power-ratio band around flee threshold."""
+        if nearby_creatures is None:
+            return None
+        if margin < 0.0:
+            raise ValueError("margin must be >= 0")
+
+        effective_threat_detection_range = self._effective_threat_detection_range(creature)
+        if effective_threat_detection_range <= 0.0:
+            return None
+
+        best_threat: Creature | None = None
+        best_distance_sq = float("inf")
+        max_axis_distance = effective_threat_detection_range
+        max_distance_sq = effective_threat_detection_range * effective_threat_detection_range
+
+        for other in nearby_creatures:
+            if not other.alive or other.creature_id == creature.creature_id:
+                continue
+            if not self._is_borderline_threat(creature, other, margin=margin):
+                continue
+
+            dx = other.x - creature.x
+            if dx > max_axis_distance or dx < -max_axis_distance:
+                continue
+            dy = other.y - creature.y
+            if dy > max_axis_distance or dy < -max_axis_distance:
+                continue
+
+            distance_sq = (dx * dx) + (dy * dy)
+            if distance_sq > max_distance_sq:
+                continue
+            if distance_sq < best_distance_sq:
+                best_threat = other
+                best_distance_sq = distance_sq
+
+        return best_threat
+
     # THREAT/FLEE: simple threat model based on hunger and power ratio.
     def _is_threat(self, creature: Creature, other: Creature) -> bool:
         if other.hunger < self.hunger_seek_threshold:
@@ -131,13 +175,34 @@ class HungerAI:
         creature_power = creature.traits.speed * creature.traits.max_energy
         other_power = other.traits.speed * other.traits.max_energy
 
+        if creature_power <= 0.0:
+            return False
+
+        effective_ratio = self._effective_threat_strength_ratio(creature)
+        return other_power >= creature_power * effective_ratio
+
+    def _is_borderline_threat(self, creature: Creature, other: Creature, margin: float) -> bool:
+        if other.hunger < self.hunger_seek_threshold:
+            return False
+
+        creature_power = creature.traits.speed * creature.traits.max_energy
+        other_power = other.traits.speed * other.traits.max_energy
+        if creature_power <= 0.0:
+            return False
+
+        effective_ratio = self._effective_threat_strength_ratio(creature)
+        power_ratio = other_power / creature_power
+        lower_ratio = max(1.0, effective_ratio * (1.0 - margin))
+        upper_ratio = effective_ratio * (1.0 + margin)
+        return lower_ratio <= power_ratio <= upper_ratio
+
+    def _effective_threat_strength_ratio(self, creature: Creature) -> float:
         behavior_bias = 0.25 * (creature.traits.dominance - creature.traits.prudence)
         # Light individual risk bias:
         # - higher risk_taking -> slightly less sensitive to borderline threats.
         # - lower risk_taking -> slightly more sensitive.
         risk_bias = 0.15 * (creature.traits.risk_taking - 1.0)
-        effective_ratio = max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias + risk_bias))
-        return other_power >= creature_power * effective_ratio
+        return max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias + risk_bias))
 
     def _effective_food_detection_range(self, creature: Creature) -> float:
         return max(0.0, self.food_detection_range * creature.traits.food_perception)

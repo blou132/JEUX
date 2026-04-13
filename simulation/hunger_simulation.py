@@ -108,6 +108,14 @@ class HungerSimulation:
         self.total_threat_perception_sum_flee = 0.0
         self.risk_taking_sum_flee_last_tick = 0.0
         self.total_risk_taking_sum_flee = 0.0
+        self.borderline_threat_encounters_last_tick = 0
+        self.total_borderline_threat_encounters = 0
+        self.borderline_threat_flees_last_tick = 0
+        self.total_borderline_threat_flees = 0
+        self.risk_taking_sum_borderline_encounters_last_tick = 0.0
+        self.total_risk_taking_sum_borderline_encounters = 0.0
+        self.risk_taking_sum_borderline_flees_last_tick = 0.0
+        self.total_risk_taking_sum_borderline_flees = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -183,6 +191,10 @@ class HungerSimulation:
         self.threat_detection_flee_last_tick = 0
         self.threat_perception_sum_flee_last_tick = 0.0
         self.risk_taking_sum_flee_last_tick = 0.0
+        self.borderline_threat_encounters_last_tick = 0
+        self.borderline_threat_flees_last_tick = 0
+        self.risk_taking_sum_borderline_encounters_last_tick = 0.0
+        self.risk_taking_sum_borderline_flees_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -267,6 +279,22 @@ class HungerSimulation:
                 self.total_threat_perception_sum_flee += creature.traits.threat_perception
                 self.risk_taking_sum_flee_last_tick += creature.traits.risk_taking
                 self.total_risk_taking_sum_flee += creature.traits.risk_taking
+
+            borderline_threat = self.ai_system.find_nearest_borderline_threat(
+                creature,
+                self.creatures,
+            )
+            if borderline_threat is not None:
+                self.borderline_threat_encounters_last_tick += 1
+                self.total_borderline_threat_encounters += 1
+                self.risk_taking_sum_borderline_encounters_last_tick += creature.traits.risk_taking
+                self.total_risk_taking_sum_borderline_encounters += creature.traits.risk_taking
+
+                if intent.action == HungerAI.ACTION_FLEE:
+                    self.borderline_threat_flees_last_tick += 1
+                    self.total_borderline_threat_flees += 1
+                    self.risk_taking_sum_borderline_flees_last_tick += creature.traits.risk_taking
+                    self.total_risk_taking_sum_borderline_flees += creature.traits.risk_taking
 
         # 3) Execute movement and feeding behavior.
         creatures_by_id = {creature.creature_id: creature for creature in self.creatures}

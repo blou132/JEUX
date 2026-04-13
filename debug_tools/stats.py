@@ -191,6 +191,18 @@ def build_population_stats(
             "risk_taking_flee_users_avg_total": 0.0,
             "risk_taking_flee_usage_bias_tick": 0.0,
             "risk_taking_flee_usage_bias_total": 0.0,
+            "borderline_threat_encounters_last_tick": 0,
+            "total_borderline_threat_encounters": 0,
+            "borderline_threat_flees_last_tick": 0,
+            "total_borderline_threat_flees": 0,
+            "borderline_threat_flee_rate_last_tick": 0.0,
+            "borderline_threat_flee_rate_total": 0.0,
+            "risk_taking_borderline_encounter_users_avg_tick": 0.0,
+            "risk_taking_borderline_encounter_users_avg_total": 0.0,
+            "risk_taking_borderline_flee_users_avg_tick": 0.0,
+            "risk_taking_borderline_flee_users_avg_total": 0.0,
+            "risk_taking_borderline_flee_usage_bias_tick": 0.0,
+            "risk_taking_borderline_flee_usage_bias_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -474,6 +486,50 @@ def build_population_stats(
         if simulation.total_threat_detection_flee > 0
         else 0.0
     )
+    borderline_threat_flee_rate_tick = (
+        simulation.borderline_threat_flees_last_tick / simulation.borderline_threat_encounters_last_tick
+        if simulation.borderline_threat_encounters_last_tick > 0
+        else 0.0
+    )
+    borderline_threat_flee_rate_total = (
+        simulation.total_borderline_threat_flees / simulation.total_borderline_threat_encounters
+        if simulation.total_borderline_threat_encounters > 0
+        else 0.0
+    )
+    avg_risk_taking_borderline_encounter_users_tick = (
+        simulation.risk_taking_sum_borderline_encounters_last_tick
+        / simulation.borderline_threat_encounters_last_tick
+        if simulation.borderline_threat_encounters_last_tick > 0
+        else 0.0
+    )
+    avg_risk_taking_borderline_encounter_users_total = (
+        simulation.total_risk_taking_sum_borderline_encounters
+        / simulation.total_borderline_threat_encounters
+        if simulation.total_borderline_threat_encounters > 0
+        else 0.0
+    )
+    avg_risk_taking_borderline_flee_users_tick = (
+        simulation.risk_taking_sum_borderline_flees_last_tick
+        / simulation.borderline_threat_flees_last_tick
+        if simulation.borderline_threat_flees_last_tick > 0
+        else 0.0
+    )
+    avg_risk_taking_borderline_flee_users_total = (
+        simulation.total_risk_taking_sum_borderline_flees
+        / simulation.total_borderline_threat_flees
+        if simulation.total_borderline_threat_flees > 0
+        else 0.0
+    )
+    risk_taking_borderline_flee_usage_bias_tick = (
+        avg_risk_taking_borderline_flee_users_tick - avg_risk_taking_borderline_encounter_users_tick
+        if simulation.borderline_threat_flees_last_tick > 0
+        else 0.0
+    )
+    risk_taking_borderline_flee_usage_bias_total = (
+        avg_risk_taking_borderline_flee_users_total - avg_risk_taking_borderline_encounter_users_total
+        if simulation.total_borderline_threat_flees > 0
+        else 0.0
+    )
 
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
@@ -627,6 +683,18 @@ def build_population_stats(
         "risk_taking_flee_users_avg_total": avg_risk_taking_flee_users_total,
         "risk_taking_flee_usage_bias_tick": risk_taking_flee_usage_bias_tick,
         "risk_taking_flee_usage_bias_total": risk_taking_flee_usage_bias_total,
+        "borderline_threat_encounters_last_tick": simulation.borderline_threat_encounters_last_tick,
+        "total_borderline_threat_encounters": simulation.total_borderline_threat_encounters,
+        "borderline_threat_flees_last_tick": simulation.borderline_threat_flees_last_tick,
+        "total_borderline_threat_flees": simulation.total_borderline_threat_flees,
+        "borderline_threat_flee_rate_last_tick": borderline_threat_flee_rate_tick,
+        "borderline_threat_flee_rate_total": borderline_threat_flee_rate_total,
+        "risk_taking_borderline_encounter_users_avg_tick": avg_risk_taking_borderline_encounter_users_tick,
+        "risk_taking_borderline_encounter_users_avg_total": avg_risk_taking_borderline_encounter_users_total,
+        "risk_taking_borderline_flee_users_avg_tick": avg_risk_taking_borderline_flee_users_tick,
+        "risk_taking_borderline_flee_users_avg_total": avg_risk_taking_borderline_flee_users_total,
+        "risk_taking_borderline_flee_usage_bias_tick": risk_taking_borderline_flee_usage_bias_tick,
+        "risk_taking_borderline_flee_usage_bias_total": risk_taking_borderline_flee_usage_bias_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -748,6 +816,18 @@ def build_final_run_summary(
         "food_perception_consumption_bias": float(final_stats.get("food_perception_consumption_usage_bias_total", 0.0)),
         "threat_perception_flee_bias": float(final_stats.get("threat_perception_flee_usage_bias_total", 0.0)),
         "risk_taking_flee_bias": float(final_stats.get("risk_taking_flee_usage_bias_total", 0.0)),
+        "borderline_threat_encounters": int(final_stats.get("total_borderline_threat_encounters", 0)),
+        "borderline_threat_flees": int(final_stats.get("total_borderline_threat_flees", 0)),
+        "borderline_threat_flee_rate": float(final_stats.get("borderline_threat_flee_rate_total", 0.0)),
+        "risk_taking_borderline_encounter_mean": float(
+            final_stats.get("risk_taking_borderline_encounter_users_avg_total", 0.0)
+        ),
+        "risk_taking_borderline_flee_mean": float(
+            final_stats.get("risk_taking_borderline_flee_users_avg_total", 0.0)
+        ),
+        "risk_taking_borderline_flee_bias": float(
+            final_stats.get("risk_taking_borderline_flee_usage_bias_total", 0.0)
+        ),
     }
 
     return {
@@ -841,6 +921,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_perception_consumption_bias": 0.0,
                 "threat_perception_flee_bias": 0.0,
                 "risk_taking_flee_bias": 0.0,
+                "borderline_threat_encounters": 0.0,
+                "borderline_threat_flees": 0.0,
+                "borderline_threat_flee_rate": 0.0,
+                "risk_taking_borderline_encounter_mean": 0.0,
+                "risk_taking_borderline_flee_mean": 0.0,
+                "risk_taking_borderline_flee_bias": 0.0,
             },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
@@ -914,6 +1000,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "food_perception_consumption_bias": 0.0,
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
+        "borderline_threat_encounters": 0.0,
+        "borderline_threat_flees": 0.0,
+        "borderline_threat_flee_rate": 0.0,
+        "risk_taking_borderline_encounter_mean": 0.0,
+        "risk_taking_borderline_flee_mean": 0.0,
+        "risk_taking_borderline_flee_bias": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -1011,6 +1103,24 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["food_perception_consumption_bias"] += float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
                 avg_trait_impact_acc["threat_perception_flee_bias"] += float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
                 avg_trait_impact_acc["risk_taking_flee_bias"] += float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
+                avg_trait_impact_acc["borderline_threat_encounters"] += float(
+                    trait_impact_raw.get("borderline_threat_encounters", 0.0)
+                )
+                avg_trait_impact_acc["borderline_threat_flees"] += float(
+                    trait_impact_raw.get("borderline_threat_flees", 0.0)
+                )
+                avg_trait_impact_acc["borderline_threat_flee_rate"] += float(
+                    trait_impact_raw.get("borderline_threat_flee_rate", 0.0)
+                )
+                avg_trait_impact_acc["risk_taking_borderline_encounter_mean"] += float(
+                    trait_impact_raw.get("risk_taking_borderline_encounter_mean", 0.0)
+                )
+                avg_trait_impact_acc["risk_taking_borderline_flee_mean"] += float(
+                    trait_impact_raw.get("risk_taking_borderline_flee_mean", 0.0)
+                )
+                avg_trait_impact_acc["risk_taking_borderline_flee_bias"] += float(
+                    trait_impact_raw.get("risk_taking_borderline_flee_bias", 0.0)
+                )
 
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
@@ -1097,6 +1207,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "food_perception_consumption_bias": avg_trait_impact_acc["food_perception_consumption_bias"] / run_count,
             "threat_perception_flee_bias": avg_trait_impact_acc["threat_perception_flee_bias"] / run_count,
             "risk_taking_flee_bias": avg_trait_impact_acc["risk_taking_flee_bias"] / run_count,
+            "borderline_threat_encounters": avg_trait_impact_acc["borderline_threat_encounters"] / run_count,
+            "borderline_threat_flees": avg_trait_impact_acc["borderline_threat_flees"] / run_count,
+            "borderline_threat_flee_rate": avg_trait_impact_acc["borderline_threat_flee_rate"] / run_count,
+            "risk_taking_borderline_encounter_mean": (
+                avg_trait_impact_acc["risk_taking_borderline_encounter_mean"] / run_count
+            ),
+            "risk_taking_borderline_flee_mean": (
+                avg_trait_impact_acc["risk_taking_borderline_flee_mean"] / run_count
+            ),
+            "risk_taking_borderline_flee_bias": (
+                avg_trait_impact_acc["risk_taking_borderline_flee_bias"] / run_count
+            ),
         },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,

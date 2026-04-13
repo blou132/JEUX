@@ -63,11 +63,20 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "flees_last_tick": simulation.flees_last_tick,
         "fleeing_creatures_last_tick": list(simulation.fleeing_creatures_last_tick),
         "avg_flee_threat_distance_last_tick": simulation.avg_flee_threat_distance_last_tick,
+        "borderline_threat_encounters_last_tick": simulation.borderline_threat_encounters_last_tick,
+        "borderline_threat_flees_last_tick": simulation.borderline_threat_flees_last_tick,
+        "borderline_threat_flee_rate_last_tick": (
+            simulation.borderline_threat_flees_last_tick / simulation.borderline_threat_encounters_last_tick
+            if simulation.borderline_threat_encounters_last_tick > 0
+            else 0.0
+        ),
         "food_memory_guided_moves_last_tick": simulation.food_memory_guided_moves_last_tick,
         "danger_memory_avoid_moves_last_tick": simulation.danger_memory_avoid_moves_last_tick,
         "total_births": simulation.total_births,
         "total_deaths": simulation.total_deaths,
         "total_flees": simulation.total_flees,
+        "total_borderline_threat_encounters": simulation.total_borderline_threat_encounters,
+        "total_borderline_threat_flees": simulation.total_borderline_threat_flees,
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
         "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
