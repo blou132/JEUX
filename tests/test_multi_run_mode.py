@@ -105,6 +105,7 @@ class MultiRunModeTests(unittest.TestCase):
         self.assertIn("pop_finale_moy=", text)
         self.assertIn("traits_finaux_moy:", text)
         self.assertIn("social_moy:", text)
+        self.assertIn("traits_impact_moy:", text)
         self.assertIn("dominant_final_freq=gA", text)
 
     def test_multi_run_summary_includes_avg_memory_impact(self) -> None:
@@ -132,6 +133,16 @@ class MultiRunModeTests(unittest.TestCase):
                         "danger_effect_avg_distance": 0.6,
                         "food_usage_per_tick": 0.5,
                         "danger_usage_per_tick": 0.2,
+                    },
+                    "trait_impact": {
+                        "memory_focus_mean": 1.05,
+                        "memory_focus_std": 0.10,
+                        "social_sensitivity_mean": 0.95,
+                        "social_sensitivity_std": 0.08,
+                        "memory_focus_food_bias": 0.04,
+                        "memory_focus_danger_bias": 0.01,
+                        "social_sensitivity_follow_bias": 0.03,
+                        "social_sensitivity_flee_boost_bias": 0.02,
                     },
                     "social_impact": {
                         "follow_usage_total": 8,
@@ -170,6 +181,16 @@ class MultiRunModeTests(unittest.TestCase):
                         "food_usage_per_tick": 0.2,
                         "danger_usage_per_tick": 0.1,
                     },
+                    "trait_impact": {
+                        "memory_focus_mean": 0.95,
+                        "memory_focus_std": 0.07,
+                        "social_sensitivity_mean": 1.05,
+                        "social_sensitivity_std": 0.12,
+                        "memory_focus_food_bias": -0.02,
+                        "memory_focus_danger_bias": 0.00,
+                        "social_sensitivity_follow_bias": -0.01,
+                        "social_sensitivity_flee_boost_bias": 0.01,
+                    },
                     "social_impact": {
                         "follow_usage_total": 2,
                         "flee_boost_usage_total": 1,
@@ -194,6 +215,12 @@ class MultiRunModeTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_memory["danger_usage_total"]), 3.0)
         self.assertAlmostEqual(float(avg_memory["food_active_share"]), 0.3)
         self.assertAlmostEqual(float(avg_memory["danger_active_share"]), 0.15)
+
+        avg_trait_impact = summary.get("avg_trait_impact")
+        self.assertIsInstance(avg_trait_impact, dict)
+        assert isinstance(avg_trait_impact, dict)
+        self.assertAlmostEqual(float(avg_trait_impact["memory_focus_mean"]), 1.0)
+        self.assertAlmostEqual(float(avg_trait_impact["social_sensitivity_mean"]), 1.0)
 
         avg_social = summary.get("avg_social_impact")
         self.assertIsInstance(avg_social, dict)

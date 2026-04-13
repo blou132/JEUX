@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import sqrt
 from typing import Dict, Iterable
 
 from creatures import Creature
@@ -67,6 +68,8 @@ def build_population_stats(
             "avg_repro_drive": 0.0,
             "avg_memory_focus": 0.0,
             "avg_social_sensitivity": 0.0,
+            "std_memory_focus": 0.0,
+            "std_social_sensitivity": 0.0,
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
@@ -112,6 +115,22 @@ def build_population_stats(
             "social_influenced_share_last_tick": 0.0,
             "social_influenced_per_tick_total": 0.0,
             "social_flee_multiplier_avg_total": avg_social_flee_multiplier_total,
+            "memory_focus_food_users_avg_tick": 0.0,
+            "memory_focus_food_users_avg_total": 0.0,
+            "memory_focus_food_usage_bias_tick": 0.0,
+            "memory_focus_food_usage_bias_total": 0.0,
+            "memory_focus_danger_users_avg_tick": 0.0,
+            "memory_focus_danger_users_avg_total": 0.0,
+            "memory_focus_danger_usage_bias_tick": 0.0,
+            "memory_focus_danger_usage_bias_total": 0.0,
+            "social_sensitivity_follow_users_avg_tick": 0.0,
+            "social_sensitivity_follow_users_avg_total": 0.0,
+            "social_sensitivity_follow_usage_bias_tick": 0.0,
+            "social_sensitivity_follow_usage_bias_total": 0.0,
+            "social_sensitivity_flee_boost_users_avg_tick": 0.0,
+            "social_sensitivity_flee_boost_users_avg_total": 0.0,
+            "social_sensitivity_flee_boost_usage_bias_tick": 0.0,
+            "social_sensitivity_flee_boost_usage_bias_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -126,6 +145,96 @@ def build_population_stats(
     avg_repro_drive = sum(c.traits.repro_drive for c in simulation.creatures) / total
     avg_memory_focus = sum(c.traits.memory_focus for c in simulation.creatures) / total
     avg_social_sensitivity = sum(c.traits.social_sensitivity for c in simulation.creatures) / total
+
+    memory_focus_values = [c.traits.memory_focus for c in simulation.creatures]
+    social_sensitivity_values = [c.traits.social_sensitivity for c in simulation.creatures]
+
+    std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
+    std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
+
+    avg_memory_focus_food_users_tick = (
+        simulation.memory_focus_sum_food_memory_last_tick / simulation.food_memory_guided_moves_last_tick
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 0.0
+    )
+    avg_memory_focus_food_users_total = (
+        simulation.total_memory_focus_sum_food_memory / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    avg_memory_focus_danger_users_tick = (
+        simulation.memory_focus_sum_danger_memory_last_tick / simulation.danger_memory_avoid_moves_last_tick
+        if simulation.danger_memory_avoid_moves_last_tick > 0
+        else 0.0
+    )
+    avg_memory_focus_danger_users_total = (
+        simulation.total_memory_focus_sum_danger_memory / simulation.total_danger_memory_avoid_moves
+        if simulation.total_danger_memory_avoid_moves > 0
+        else 0.0
+    )
+
+    memory_focus_food_usage_bias_tick = (
+        avg_memory_focus_food_users_tick - avg_memory_focus
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 0.0
+    )
+    memory_focus_food_usage_bias_total = (
+        avg_memory_focus_food_users_total - avg_memory_focus
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    memory_focus_danger_usage_bias_tick = (
+        avg_memory_focus_danger_users_tick - avg_memory_focus
+        if simulation.danger_memory_avoid_moves_last_tick > 0
+        else 0.0
+    )
+    memory_focus_danger_usage_bias_total = (
+        avg_memory_focus_danger_users_total - avg_memory_focus
+        if simulation.total_danger_memory_avoid_moves > 0
+        else 0.0
+    )
+
+    avg_social_sensitivity_follow_users_tick = (
+        simulation.social_sensitivity_sum_follow_last_tick / simulation.social_follow_moves_last_tick
+        if simulation.social_follow_moves_last_tick > 0
+        else 0.0
+    )
+    avg_social_sensitivity_follow_users_total = (
+        simulation.total_social_sensitivity_sum_follow / simulation.total_social_follow_moves
+        if simulation.total_social_follow_moves > 0
+        else 0.0
+    )
+    avg_social_sensitivity_flee_boost_users_tick = (
+        simulation.social_sensitivity_sum_flee_boost_last_tick / simulation.social_flee_boosted_last_tick
+        if simulation.social_flee_boosted_last_tick > 0
+        else 0.0
+    )
+    avg_social_sensitivity_flee_boost_users_total = (
+        simulation.total_social_sensitivity_sum_flee_boost / simulation.total_social_flee_boosted
+        if simulation.total_social_flee_boosted > 0
+        else 0.0
+    )
+
+    social_sensitivity_follow_usage_bias_tick = (
+        avg_social_sensitivity_follow_users_tick - avg_social_sensitivity
+        if simulation.social_follow_moves_last_tick > 0
+        else 0.0
+    )
+    social_sensitivity_follow_usage_bias_total = (
+        avg_social_sensitivity_follow_users_total - avg_social_sensitivity
+        if simulation.total_social_follow_moves > 0
+        else 0.0
+    )
+    social_sensitivity_flee_boost_usage_bias_tick = (
+        avg_social_sensitivity_flee_boost_users_tick - avg_social_sensitivity
+        if simulation.social_flee_boosted_last_tick > 0
+        else 0.0
+    )
+    social_sensitivity_flee_boost_usage_bias_total = (
+        avg_social_sensitivity_flee_boost_users_total - avg_social_sensitivity
+        if simulation.total_social_flee_boosted > 0
+        else 0.0
+    )
 
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
@@ -156,6 +265,8 @@ def build_population_stats(
         "avg_repro_drive": avg_repro_drive,
         "avg_memory_focus": avg_memory_focus,
         "avg_social_sensitivity": avg_social_sensitivity,
+        "std_memory_focus": std_memory_focus,
+        "std_social_sensitivity": std_social_sensitivity,
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
@@ -201,6 +312,22 @@ def build_population_stats(
         "social_influenced_share_last_tick": simulation.social_influenced_creatures_last_tick / alive,
         "social_influenced_per_tick_total": simulation.total_social_influenced_creatures / max(1, simulation.tick_count),
         "social_flee_multiplier_avg_total": avg_social_flee_multiplier_total,
+        "memory_focus_food_users_avg_tick": avg_memory_focus_food_users_tick,
+        "memory_focus_food_users_avg_total": avg_memory_focus_food_users_total,
+        "memory_focus_food_usage_bias_tick": memory_focus_food_usage_bias_tick,
+        "memory_focus_food_usage_bias_total": memory_focus_food_usage_bias_total,
+        "memory_focus_danger_users_avg_tick": avg_memory_focus_danger_users_tick,
+        "memory_focus_danger_users_avg_total": avg_memory_focus_danger_users_total,
+        "memory_focus_danger_usage_bias_tick": memory_focus_danger_usage_bias_tick,
+        "memory_focus_danger_usage_bias_total": memory_focus_danger_usage_bias_total,
+        "social_sensitivity_follow_users_avg_tick": avg_social_sensitivity_follow_users_tick,
+        "social_sensitivity_follow_users_avg_total": avg_social_sensitivity_follow_users_total,
+        "social_sensitivity_follow_usage_bias_tick": social_sensitivity_follow_usage_bias_tick,
+        "social_sensitivity_follow_usage_bias_total": social_sensitivity_follow_usage_bias_total,
+        "social_sensitivity_flee_boost_users_avg_tick": avg_social_sensitivity_flee_boost_users_tick,
+        "social_sensitivity_flee_boost_users_avg_total": avg_social_sensitivity_flee_boost_users_total,
+        "social_sensitivity_flee_boost_usage_bias_tick": social_sensitivity_flee_boost_usage_bias_tick,
+        "social_sensitivity_flee_boost_usage_bias_total": social_sensitivity_flee_boost_usage_bias_total,
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -287,6 +414,16 @@ def build_final_run_summary(
         "flee_multiplier_avg_tick": float(final_stats.get("avg_social_flee_multiplier_last_tick", 1.0)),
         "flee_multiplier_avg_total": float(final_stats.get("social_flee_multiplier_avg_total", 1.0)),
     }
+    trait_impact = {
+        "memory_focus_mean": float(final_stats.get("avg_memory_focus", 0.0)),
+        "memory_focus_std": float(final_stats.get("std_memory_focus", 0.0)),
+        "social_sensitivity_mean": float(final_stats.get("avg_social_sensitivity", 0.0)),
+        "social_sensitivity_std": float(final_stats.get("std_social_sensitivity", 0.0)),
+        "memory_focus_food_bias": float(final_stats.get("memory_focus_food_usage_bias_total", 0.0)),
+        "memory_focus_danger_bias": float(final_stats.get("memory_focus_danger_usage_bias_total", 0.0)),
+        "social_sensitivity_follow_bias": float(final_stats.get("social_sensitivity_follow_usage_bias_total", 0.0)),
+        "social_sensitivity_flee_boost_bias": float(final_stats.get("social_sensitivity_flee_boost_usage_bias_total", 0.0)),
+    }
 
     return {
         "final_dominant_group_signature": dominant_signature,
@@ -301,6 +438,7 @@ def build_final_run_summary(
         "avg_traits": _read_avg_traits(final_stats),
         "memory_impact": memory_impact,
         "social_impact": social_impact,
+        "trait_impact": trait_impact,
         "observed_logs": int(temporal_tracker.get("observations", 0)),
     }
 
@@ -344,6 +482,16 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "flee_multiplier_avg_tick": 1.0,
                 "flee_multiplier_avg_total": 1.0,
             },
+            "avg_trait_impact": {
+                "memory_focus_mean": 0.0,
+                "memory_focus_std": 0.0,
+                "social_sensitivity_mean": 0.0,
+                "social_sensitivity_std": 0.0,
+                "memory_focus_food_bias": 0.0,
+                "memory_focus_danger_bias": 0.0,
+                "social_sensitivity_follow_bias": 0.0,
+                "social_sensitivity_flee_boost_bias": 0.0,
+            },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
             "most_frequent_final_dominant_group_share": 0.0,
@@ -381,6 +529,16 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "flee_boost_usage_per_tick": 0.0,
         "flee_multiplier_avg_tick": 0.0,
         "flee_multiplier_avg_total": 0.0,
+    }
+    avg_trait_impact_acc = {
+        "memory_focus_mean": 0.0,
+        "memory_focus_std": 0.0,
+        "social_sensitivity_mean": 0.0,
+        "social_sensitivity_std": 0.0,
+        "memory_focus_food_bias": 0.0,
+        "memory_focus_danger_bias": 0.0,
+        "social_sensitivity_follow_bias": 0.0,
+        "social_sensitivity_flee_boost_bias": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -431,6 +589,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_social_acc["flee_multiplier_avg_tick"] += float(social_raw.get("flee_multiplier_avg_tick", 1.0))
                 avg_social_acc["flee_multiplier_avg_total"] += float(social_raw.get("flee_multiplier_avg_total", 1.0))
 
+            trait_impact_raw = run_summary.get("trait_impact")
+            if isinstance(trait_impact_raw, dict):
+                avg_trait_impact_acc["memory_focus_mean"] += float(trait_impact_raw.get("memory_focus_mean", 0.0))
+                avg_trait_impact_acc["memory_focus_std"] += float(trait_impact_raw.get("memory_focus_std", 0.0))
+                avg_trait_impact_acc["social_sensitivity_mean"] += float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
+                avg_trait_impact_acc["social_sensitivity_std"] += float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+                avg_trait_impact_acc["memory_focus_food_bias"] += float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
+                avg_trait_impact_acc["memory_focus_danger_bias"] += float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
+                avg_trait_impact_acc["social_sensitivity_follow_bias"] += float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
+                avg_trait_impact_acc["social_sensitivity_flee_boost_bias"] += float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
             dominant_frequency.items(),
@@ -473,6 +642,16 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "flee_boost_usage_per_tick": avg_social_acc["flee_boost_usage_per_tick"] / run_count,
             "flee_multiplier_avg_tick": avg_social_acc["flee_multiplier_avg_tick"] / run_count,
             "flee_multiplier_avg_total": avg_social_acc["flee_multiplier_avg_total"] / run_count,
+        },
+        "avg_trait_impact": {
+            "memory_focus_mean": avg_trait_impact_acc["memory_focus_mean"] / run_count,
+            "memory_focus_std": avg_trait_impact_acc["memory_focus_std"] / run_count,
+            "social_sensitivity_mean": avg_trait_impact_acc["social_sensitivity_mean"] / run_count,
+            "social_sensitivity_std": avg_trait_impact_acc["social_sensitivity_std"] / run_count,
+            "memory_focus_food_bias": avg_trait_impact_acc["memory_focus_food_bias"] / run_count,
+            "memory_focus_danger_bias": avg_trait_impact_acc["memory_focus_danger_bias"] / run_count,
+            "social_sensitivity_follow_bias": avg_trait_impact_acc["social_sensitivity_follow_bias"] / run_count,
+            "social_sensitivity_flee_boost_bias": avg_trait_impact_acc["social_sensitivity_flee_boost_bias"] / run_count,
         },
         "most_frequent_final_dominant_group": dominant_signature,
         "most_frequent_final_dominant_group_count": dominant_count,
@@ -775,3 +954,11 @@ def _quantize(value: float, width: float) -> int:
 
 def _proto_signature(key: tuple[int, int, int, int, int]) -> str:
     return f"s{key[0]}m{key[1]}p{key[2]}d{key[3]}r{key[4]}"
+
+
+def _stddev_from_mean(values: Iterable[float], mean: float) -> float:
+    values_list = list(values)
+    if len(values_list) <= 1:
+        return 0.0
+    variance = sum((value - mean) ** 2 for value in values_list) / len(values_list)
+    return sqrt(variance)

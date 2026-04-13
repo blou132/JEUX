@@ -214,6 +214,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
     traits_raw = summary.get("avg_traits")
     memory_raw = summary.get("memory_impact")
     social_raw = summary.get("social_impact")
+    trait_impact_raw = summary.get("trait_impact")
 
     zones = {"rich": 0, "neutral": 0, "poor": 0}
     if isinstance(zones_raw, dict):
@@ -277,6 +278,26 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         social["flee_multiplier_avg_tick"] = float(social_raw.get("flee_multiplier_avg_tick", 1.0))
         social["flee_multiplier_avg_total"] = float(social_raw.get("flee_multiplier_avg_total", 1.0))
 
+    trait_impact = {
+        "memory_focus_mean": 0.0,
+        "memory_focus_std": 0.0,
+        "social_sensitivity_mean": 0.0,
+        "social_sensitivity_std": 0.0,
+        "memory_focus_food_bias": 0.0,
+        "memory_focus_danger_bias": 0.0,
+        "social_sensitivity_follow_bias": 0.0,
+        "social_sensitivity_flee_boost_bias": 0.0,
+    }
+    if isinstance(trait_impact_raw, dict):
+        trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
+        trait_impact["memory_focus_std"] = float(trait_impact_raw.get("memory_focus_std", 0.0))
+        trait_impact["social_sensitivity_mean"] = float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
+        trait_impact["social_sensitivity_std"] = float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+        trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
+        trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
+        trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
+        trait_impact["social_sensitivity_flee_boost_bias"] = float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+
     return (
         "synthese_run: "
         "dominant_final={dominant}(part={dominant_share:.2f}) "
@@ -291,6 +312,9 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} "
+        "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -324,6 +348,14 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         social_boost_freq=social["flee_boost_usage_per_tick"],
         social_mult_tick=social["flee_multiplier_avg_tick"],
         social_mult_total=social["flee_multiplier_avg_total"],
+        mem_mu=trait_impact["memory_focus_mean"],
+        mem_sigma=trait_impact["memory_focus_std"],
+        soc_mu=trait_impact["social_sensitivity_mean"],
+        soc_sigma=trait_impact["social_sensitivity_std"],
+        bias_mem_u=trait_impact["memory_focus_food_bias"],
+        bias_mem_d=trait_impact["memory_focus_danger_bias"],
+        bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
+        bias_soc_flee=trait_impact["social_sensitivity_flee_boost_bias"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
 
@@ -332,6 +364,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
     traits_raw = summary.get("avg_final_traits")
     memory_raw = summary.get("avg_memory_impact")
     social_raw = summary.get("avg_social_impact")
+    trait_impact_raw = summary.get("avg_trait_impact")
 
     seeds: list[int] = []
     if isinstance(seeds_raw, list):
@@ -393,6 +426,26 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         social["flee_multiplier_avg_tick"] = float(social_raw.get("flee_multiplier_avg_tick", 1.0))
         social["flee_multiplier_avg_total"] = float(social_raw.get("flee_multiplier_avg_total", 1.0))
 
+    trait_impact = {
+        "memory_focus_mean": 0.0,
+        "memory_focus_std": 0.0,
+        "social_sensitivity_mean": 0.0,
+        "social_sensitivity_std": 0.0,
+        "memory_focus_food_bias": 0.0,
+        "memory_focus_danger_bias": 0.0,
+        "social_sensitivity_follow_bias": 0.0,
+        "social_sensitivity_flee_boost_bias": 0.0,
+    }
+    if isinstance(trait_impact_raw, dict):
+        trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
+        trait_impact["memory_focus_std"] = float(trait_impact_raw.get("memory_focus_std", 0.0))
+        trait_impact["social_sensitivity_mean"] = float(trait_impact_raw.get("social_sensitivity_mean", 0.0))
+        trait_impact["social_sensitivity_std"] = float(trait_impact_raw.get("social_sensitivity_std", 0.0))
+        trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
+        trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
+        trait_impact["social_sensitivity_follow_bias"] = float(trait_impact_raw.get("social_sensitivity_follow_bias", 0.0))
+        trait_impact["social_sensitivity_flee_boost_bias"] = float(trait_impact_raw.get("social_sensitivity_flee_boost_bias", 0.0))
+
     seeds_text = ",".join(str(seed) for seed in seeds)
 
     return (
@@ -409,6 +462,9 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} "
+        "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -439,6 +495,14 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         social_boost_freq=social["flee_boost_usage_per_tick"],
         social_mult_tick=social["flee_multiplier_avg_tick"],
         social_mult_total=social["flee_multiplier_avg_total"],
+        mem_mu=trait_impact["memory_focus_mean"],
+        mem_sigma=trait_impact["memory_focus_std"],
+        soc_mu=trait_impact["social_sensitivity_mean"],
+        soc_sigma=trait_impact["social_sensitivity_std"],
+        bias_mem_u=trait_impact["memory_focus_food_bias"],
+        bias_mem_d=trait_impact["memory_focus_danger_bias"],
+        bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
+        bias_soc_flee=trait_impact["social_sensitivity_flee_boost_bias"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
@@ -505,6 +569,12 @@ def format_population_dynamics(
     avg_repro_drive = float(stats.get("avg_repro_drive", 0.0))
     avg_memory_focus = float(stats.get("avg_memory_focus", 0.0))
     avg_social_sensitivity = float(stats.get("avg_social_sensitivity", 0.0))
+    std_memory_focus = float(stats.get("std_memory_focus", 0.0))
+    std_social_sensitivity = float(stats.get("std_social_sensitivity", 0.0))
+    memory_focus_food_bias_tick = float(stats.get("memory_focus_food_usage_bias_tick", 0.0))
+    memory_focus_danger_bias_tick = float(stats.get("memory_focus_danger_usage_bias_tick", 0.0))
+    social_sensitivity_follow_bias_tick = float(stats.get("social_sensitivity_follow_usage_bias_tick", 0.0))
+    social_sensitivity_flee_boost_bias_tick = float(stats.get("social_sensitivity_flee_boost_usage_bias_tick", 0.0))
 
     alive_delta = 0
     births_log = births_tick
@@ -599,6 +669,9 @@ def format_population_dynamics(
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} "
+        f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
+        f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "

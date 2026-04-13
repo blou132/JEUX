@@ -208,6 +208,16 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "flee_multiplier_avg_tick": _parse_float(row.get("run_summary.social_impact.flee_multiplier_avg_tick"), default=1.0),
             "flee_multiplier_avg_total": _parse_float(row.get("run_summary.social_impact.flee_multiplier_avg_total"), default=1.0),
         },
+        "trait_impact": {
+            "memory_focus_mean": _parse_float(row.get("run_summary.trait_impact.memory_focus_mean")),
+            "memory_focus_std": _parse_float(row.get("run_summary.trait_impact.memory_focus_std")),
+            "social_sensitivity_mean": _parse_float(row.get("run_summary.trait_impact.social_sensitivity_mean")),
+            "social_sensitivity_std": _parse_float(row.get("run_summary.trait_impact.social_sensitivity_std")),
+            "memory_focus_food_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_food_bias")),
+            "memory_focus_danger_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_danger_bias")),
+            "social_sensitivity_follow_bias": _parse_float(row.get("run_summary.trait_impact.social_sensitivity_follow_bias")),
+            "social_sensitivity_flee_boost_bias": _parse_float(row.get("run_summary.trait_impact.social_sensitivity_flee_boost_bias")),
+        },
         "observed_logs": _parse_int(row.get("run_summary.observed_logs")),
     }
 
@@ -268,6 +278,16 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "flee_boost_usage_per_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_boost_usage_per_tick")),
             "flee_multiplier_avg_tick": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_tick"), default=1.0),
             "flee_multiplier_avg_total": _parse_float(row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_total"), default=1.0),
+        },
+        "avg_trait_impact": {
+            "memory_focus_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_mean")),
+            "memory_focus_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_std")),
+            "social_sensitivity_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.social_sensitivity_mean")),
+            "social_sensitivity_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.social_sensitivity_std")),
+            "memory_focus_food_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
+            "memory_focus_danger_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),
+            "social_sensitivity_follow_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.social_sensitivity_follow_bias")),
+            "social_sensitivity_flee_boost_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.social_sensitivity_flee_boost_bias")),
         },
     }
     run_count = _parse_int(row.get("run_count"), default=multi_summary["runs"])
@@ -331,6 +351,16 @@ def _build_batch_payload_from_csv(
                 "flee_boost_usage_per_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_boost_usage_per_tick")),
                 "flee_multiplier_avg_tick": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_tick"), default=1.0),
                 "flee_multiplier_avg_total": _parse_float(scenario_row.get("multi_run_summary.avg_social_impact.flee_multiplier_avg_total"), default=1.0),
+            },
+            "avg_trait_impact": {
+                "memory_focus_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_mean")),
+                "memory_focus_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_std")),
+                "social_sensitivity_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.social_sensitivity_mean")),
+                "social_sensitivity_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.social_sensitivity_std")),
+                "memory_focus_food_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
+                "memory_focus_danger_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),
+                "social_sensitivity_follow_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.social_sensitivity_follow_bias")),
+                "social_sensitivity_flee_boost_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.social_sensitivity_flee_boost_bias")),
             },
         }
         scenarios.append(

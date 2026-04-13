@@ -99,6 +99,10 @@ class HungerSimulation:
         self.total_food_memory_guided_moves = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.total_danger_memory_avoid_moves = 0
+        self.memory_focus_sum_food_memory_last_tick = 0.0
+        self.total_memory_focus_sum_food_memory = 0.0
+        self.memory_focus_sum_danger_memory_last_tick = 0.0
+        self.total_memory_focus_sum_danger_memory = 0.0
         self.food_memory_distance_gain_last_tick = 0.0
         self.total_food_memory_distance_gain = 0.0
         self.avg_food_memory_distance_gain_last_tick = 0.0
@@ -115,6 +119,10 @@ class HungerSimulation:
         self.social_influenced_creatures_last_tick = 0
         self.total_social_influenced_creatures = 0
         self.total_social_flee_multiplier_sum = 0.0
+        self.social_sensitivity_sum_follow_last_tick = 0.0
+        self.total_social_sensitivity_sum_follow = 0.0
+        self.social_sensitivity_sum_flee_boost_last_tick = 0.0
+        self.total_social_sensitivity_sum_flee_boost = 0.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -139,12 +147,16 @@ class HungerSimulation:
         self.avg_flee_threat_distance_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
+        self.memory_focus_sum_food_memory_last_tick = 0.0
+        self.memory_focus_sum_danger_memory_last_tick = 0.0
         self.food_memory_distance_gain_last_tick = 0.0
         self.avg_food_memory_distance_gain_last_tick = 0.0
         self.danger_memory_distance_gain_last_tick = 0.0
         self.avg_danger_memory_distance_gain_last_tick = 0.0
         self.social_follow_moves_last_tick = 0
+        self.social_sensitivity_sum_follow_last_tick = 0.0
         self.social_flee_boosted_last_tick = 0
+        self.social_sensitivity_sum_flee_boost_last_tick = 0.0
         self.social_flee_multiplier_sum_last_tick = 0.0
         self.avg_social_flee_multiplier_last_tick = 1.0
         self.social_influenced_creatures_last_tick = 0
@@ -213,6 +225,8 @@ class HungerSimulation:
                     self.total_social_flee_boosted += 1
                     self.social_flee_multiplier_sum_last_tick += flee_boost_multiplier
                     self.total_social_flee_multiplier_sum += flee_boost_multiplier
+                    self.social_sensitivity_sum_flee_boost_last_tick += creature.traits.social_sensitivity
+                    self.total_social_sensitivity_sum_flee_boost += creature.traits.social_sensitivity
                     social_influenced_ids.add(creature.creature_id)
                 creature.remember_danger_zone(threat.x, threat.y, ttl=self.danger_memory_duration)
 
@@ -430,6 +444,8 @@ class HungerSimulation:
 
         self.food_memory_guided_moves_last_tick += 1
         self.total_food_memory_guided_moves += 1
+        self.memory_focus_sum_food_memory_last_tick += creature.traits.memory_focus
+        self.total_memory_focus_sum_food_memory += creature.traits.memory_focus
         self.food_memory_distance_gain_last_tick += distance_gain
         self.total_food_memory_distance_gain += distance_gain
         return True
@@ -467,6 +483,8 @@ class HungerSimulation:
 
         self.danger_memory_avoid_moves_last_tick += 1
         self.total_danger_memory_avoid_moves += 1
+        self.memory_focus_sum_danger_memory_last_tick += creature.traits.memory_focus
+        self.total_memory_focus_sum_danger_memory += creature.traits.memory_focus
         self.danger_memory_distance_gain_last_tick += distance_gain
         self.total_danger_memory_distance_gain += distance_gain
         return True
@@ -525,6 +543,8 @@ class HungerSimulation:
         self._clamp_creature_position(creature)
         self.social_follow_moves_last_tick += 1
         self.total_social_follow_moves += 1
+        self.social_sensitivity_sum_follow_last_tick += creature.traits.social_sensitivity
+        self.total_social_sensitivity_sum_follow += creature.traits.social_sensitivity
         return True
 
     def _social_flee_boost_multiplier(

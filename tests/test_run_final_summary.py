@@ -55,6 +55,14 @@ class RunFinalSummaryTests(unittest.TestCase):
             "avg_prudence": 1.01,
             "avg_dominance": 1.08,
             "avg_repro_drive": 0.95,
+            "avg_memory_focus": 1.03,
+            "std_memory_focus": 0.11,
+            "avg_social_sensitivity": 0.98,
+            "std_social_sensitivity": 0.09,
+            "memory_focus_food_usage_bias_total": 0.06,
+            "memory_focus_danger_usage_bias_total": 0.02,
+            "social_sensitivity_follow_usage_bias_total": 0.05,
+            "social_sensitivity_flee_boost_usage_bias_total": 0.01,
             "total_food_memory_guided_moves": 12,
             "total_danger_memory_avoid_moves": 5,
             "food_memory_active_share": 0.4,
@@ -98,6 +106,10 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(float(memory_impact["food_active_share"]), 0.4)
         self.assertAlmostEqual(float(memory_impact["danger_active_share"]), 0.2)
 
+        trait_impact = summary["trait_impact"]
+        self.assertAlmostEqual(float(trait_impact["memory_focus_mean"]), 1.03)
+        self.assertAlmostEqual(float(trait_impact["social_sensitivity_mean"]), 0.98)
+
         social_impact = summary["social_impact"]
         self.assertEqual(int(social_impact["follow_usage_total"]), 8)
         self.assertEqual(int(social_impact["flee_boost_usage_total"]), 3)
@@ -130,6 +142,16 @@ class RunFinalSummaryTests(unittest.TestCase):
                 "food_usage_per_tick": 0.55,
                 "danger_usage_per_tick": 0.22,
             },
+            "trait_impact": {
+                "memory_focus_mean": 1.02,
+                "memory_focus_std": 0.10,
+                "social_sensitivity_mean": 0.98,
+                "social_sensitivity_std": 0.09,
+                "memory_focus_food_bias": 0.05,
+                "memory_focus_danger_bias": 0.01,
+                "social_sensitivity_follow_bias": 0.04,
+                "social_sensitivity_flee_boost_bias": 0.02,
+            },
             "social_impact": {
                 "follow_usage_total": 10,
                 "flee_boost_usage_total": 4,
@@ -153,6 +175,7 @@ class RunFinalSummaryTests(unittest.TestCase):
         self.assertIn("traits_moy:", text)
         self.assertIn("memoire:", text)
         self.assertIn("social:", text)
+        self.assertIn("traits_impact:", text)
 
     def test_short_run_stays_stable_with_final_summary(self) -> None:
         rng = random.Random(123)
@@ -214,6 +237,7 @@ class RunFinalSummaryTests(unittest.TestCase):
             "avg_traits",
             "memory_impact",
             "social_impact",
+            "trait_impact",
             "observed_logs",
         }
         self.assertTrue(required_fields.issubset(set(summary.keys())))

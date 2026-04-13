@@ -32,6 +32,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Indicateurs d'impact memoire (usage, part active, effet moyen distance) visibles en stats/syntheses.
 - Influence sociale locale minimale (suivi social vers nourriture + renforcement local de fuite).
 - Indicateurs sociaux visibles dans le debug (`social_log`, `social_tick`, part influencee, multiplicateur de fuite tick/moyen).
+- Indicateurs d'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyennes, dispersion et biais d'usage memoire/social visibles en stats/syntheses.
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
@@ -178,6 +179,16 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - la `Run Summary` (`social:`)
   - la `Multi-Run Summary` (`social_moy:`)
 - Neutralisation simple via CLI (sans refactor): mettre les parametres sociaux a 0 (par exemple `--social-influence-distance 0`).
+### Evaluation legere de l'impact des biais individuels
+- Mesures exposees en stats/synthese: moyenne et dispersion de `memory_focus`/`social_sensitivity`, plus biais d'usage observables.
+- Biais d'usage calcules simplement (sans statistique lourde):
+  - `memory_focus` vs usages reels memoire utile/dangereuse
+  - `social_sensitivity` vs usages reels suivi social/boost de fuite
+- Ces indicateurs sont visibles dans:
+  - la ligne `dynamique_*` (`traits_disp`, `traits_bias_tick`)
+  - la `Run Summary` (`traits_impact:`)
+  - la `Multi-Run Summary` (`traits_impact_moy:`), utile pour comparer plusieurs runs/batchs.
+
 
 ### Historique batch (archive d'experiences)
 - Possibilite d'enregistrer plusieurs campagnes batch dans un fichier JSON d'historique.
@@ -402,6 +413,7 @@ py -m unittest tests.test_batch_comparative_summary
 py -m unittest tests.test_batch_history
 py -m unittest tests.test_social_influence_behavior
 py -m unittest tests.test_social_impact_metrics
+py -m unittest tests.test_trait_impact_metrics
 py -m unittest tests.test_individual_behavior_bias
 ```
 
@@ -416,13 +428,14 @@ Chaque bloc de log periodique contient:
 - `dynamique_*:` croissance/declin/stagnation, pression nourriture, etat energie.
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
+- `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
 
 En fin de run:
-- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule et impact social (`social:`).
+- bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
 
 En mode multi-runs:
-- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen et impact social moyen (`social_moy:`).
+- bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -483,6 +496,7 @@ Lecture rapide conseillee:
 - Evaluation legere de l'impact memoire (usage/frequence/part active/effet distance) dans stats, synthese run, multi-runs, export et analyse.
 - Influence sociale locale minimale observable dans les stats/debug (suivi social + fuite renforcee).
 - Evaluation legere de l'impact social (frequences, part influencee, multiplicateur de fuite tick/moyen) dans stats, synthese run, multi-runs, export et analyse.
+- Evaluation legere de l'impact des biais individuels (`memory_focus`, `social_sensitivity`): moyenne/dispersion + biais d'usage memoire/social en stats, synthese run, multi-runs, export et analyse.
 - Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
 
 ### En cours / prochain ajout
@@ -501,3 +515,5 @@ Lecture rapide conseillee:
 - Pas de systeme de degats detaille.
 - Pas de machine learning.
 - Pas de refactor global dans la phase actuelle.
+
+
