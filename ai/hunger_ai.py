@@ -12,6 +12,7 @@ class CreatureIntent:
     action: str
     target_food_id: Optional[str] = None
     target_creature_id: Optional[str] = None
+    persisted_from_previous: bool = False
 
 
 class HungerAI:
@@ -50,6 +51,7 @@ class HungerAI:
         food_field: FoodField,
         can_reproduce: bool = False,
         nearby_creatures: Iterable[Creature] | None = None,
+        previous_intent: CreatureIntent | None = None,
     ) -> CreatureIntent:
         if not creature.alive:
             return CreatureIntent(action=self.ACTION_DEAD)
@@ -64,14 +66,25 @@ class HungerAI:
         hunger_threshold = self._effective_hunger_seek_threshold(creature)
         is_hungry = creature.hunger >= hunger_threshold
         if is_hungry:
-            return self._food_seeking_intent(creature, nearest_food)
+            return self._apply_behavior_persistence(
+                creature=creature,
+                intent=self._food_seeking_intent(creature, nearest_food),
+                previous_intent=previous_intent,
+                hunger_threshold=hunger_threshold,
+            )
 
         # Reproduction willingness differs slightly across individuals.
         reproduction_hunger_limit = self._effective_reproduction_hunger_limit(creature, hunger_threshold)
         if can_reproduce and creature.hunger <= reproduction_hunger_limit:
             return CreatureIntent(action=self.ACTION_REPRODUCE)
 
-        return CreatureIntent(action=self.ACTION_WANDER)
+        intent = CreatureIntent(action=self.ACTION_WANDER)
+        return self._apply_behavior_persistence(
+            creature=creature,
+            intent=intent,
+            previous_intent=previous_intent,
+            hunger_threshold=hunger_threshold,
+        )
 
     def _food_seeking_intent(self, creature: Creature, nearest_food: Optional[FoodSource]) -> CreatureIntent:
         if nearest_food is None:
@@ -83,6 +96,33 @@ class HungerAI:
             return CreatureIntent(action=self.ACTION_MOVE_TO_FOOD, target_food_id=nearest_food.food_id)
 
         return CreatureIntent(action=self.ACTION_SEARCH_FOOD)
+
+    def _apply_behavior_persistence(
+        self,
+        creature: Creature,
+        intent: CreatureIntent,
+        previous_intent: CreatureIntent | None,
+        hunger_threshold: float,
+    ) -> CreatureIntent:
+        if previous_intent is None:
+            return intent
+
+        if previous_intent.action == intent.action:
+            return intent
+
+        if previous_intent.action == self.ACTION_SEARCH_FOOD and intent.action == self.ACTION_WANDER:
+            margin = self._behavior_persistence_margin(creature)
+            if creature.hunger >= max(0.0, hunger_threshold - margin):
+                return CreatureIntent(action=self.ACTION_SEARCH_FOOD, persisted_from_previous=True)
+            return intent
+
+        if previous_intent.action == self.ACTION_WANDER and intent.action == self.ACTION_SEARCH_FOOD:
+            margin = self._behavior_persistence_margin(creature)
+            if creature.hunger <= min(1.0, hunger_threshold + margin):
+                return CreatureIntent(action=self.ACTION_WANDER, persisted_from_previous=True)
+            return intent
+
+        return intent
 
     # THREAT/FLEE: perception helper to find the nearest valid threat.
     def _nearest_threat(
@@ -223,3 +263,6 @@ class HungerAI:
         limit *= 1.0 + (0.25 * (creature.traits.repro_drive - 1.0))
         limit -= 0.02 * (creature.traits.prudence - 1.0)
         return max(0.0, min(1.0, limit))
+
+    def _behavior_persistence_margin(self, creature: Creature) -> float:
+        return max(0.0, 0.12 * (creature.traits.behavior_persistence - 1.0))

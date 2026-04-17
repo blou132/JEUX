@@ -33,9 +33,11 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "food_perception": round(creature.traits.food_perception, 3),
                     "threat_perception": round(creature.traits.threat_perception, 3),
                     "risk_taking": round(creature.traits.risk_taking, 3),
+                    "behavior_persistence": round(creature.traits.behavior_persistence, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
+                "persisted_from_previous": False if intent is None else bool(intent.persisted_from_previous),
                 "threat_target_id": (
                     None
                     if intent is None or intent.action != HungerAI.ACTION_FLEE
@@ -77,6 +79,9 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_flees": simulation.total_flees,
         "total_borderline_threat_encounters": simulation.total_borderline_threat_encounters,
         "total_borderline_threat_flees": simulation.total_borderline_threat_flees,
+        "persistence_holds_last_tick": simulation.persistence_holds_last_tick,
+        "total_persistence_holds": simulation.total_persistence_holds,
+        "persistence_holding_creatures_last_tick": list(simulation.persistence_holding_creatures_last_tick),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
         "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
@@ -95,6 +100,8 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
 def _intent_reason(intent: CreatureIntent | None) -> str | None:
     if intent is None:
         return None
+    if intent.persisted_from_previous:
+        return "intent_inertia"
     if intent.action == HungerAI.ACTION_DEAD:
         return "dead"
     if intent.action == HungerAI.ACTION_FLEE:

@@ -116,6 +116,11 @@ class HungerSimulation:
         self.total_risk_taking_sum_borderline_encounters = 0.0
         self.risk_taking_sum_borderline_flees_last_tick = 0.0
         self.total_risk_taking_sum_borderline_flees = 0.0
+        self.persistence_holds_last_tick = 0
+        self.total_persistence_holds = 0
+        self.behavior_persistence_sum_holds_last_tick = 0.0
+        self.total_behavior_persistence_sum_holds = 0.0
+        self.persistence_holding_creatures_last_tick: list[str] = []
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -195,6 +200,9 @@ class HungerSimulation:
         self.borderline_threat_flees_last_tick = 0
         self.risk_taking_sum_borderline_encounters_last_tick = 0.0
         self.risk_taking_sum_borderline_flees_last_tick = 0.0
+        self.persistence_holds_last_tick = 0
+        self.behavior_persistence_sum_holds_last_tick = 0.0
+        self.persistence_holding_creatures_last_tick = []
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -255,11 +263,13 @@ class HungerSimulation:
         reproduction_candidates = self._build_reproduction_candidates()
         intents: Dict[str, CreatureIntent] = {}
         for creature in self.creatures:
+            previous_intent = self.last_intents.get(creature.creature_id)
             intents[creature.creature_id] = self.ai_system.decide(
                 creature,
                 self.food_field,
                 can_reproduce=(creature.creature_id in reproduction_candidates),
                 nearby_creatures=self.creatures,
+                previous_intent=previous_intent,
             )
         self.last_intents = intents
 
@@ -279,6 +289,13 @@ class HungerSimulation:
                 self.total_threat_perception_sum_flee += creature.traits.threat_perception
                 self.risk_taking_sum_flee_last_tick += creature.traits.risk_taking
                 self.total_risk_taking_sum_flee += creature.traits.risk_taking
+
+            if intent.persisted_from_previous:
+                self.persistence_holds_last_tick += 1
+                self.total_persistence_holds += 1
+                self.behavior_persistence_sum_holds_last_tick += creature.traits.behavior_persistence
+                self.total_behavior_persistence_sum_holds += creature.traits.behavior_persistence
+                self.persistence_holding_creatures_last_tick.append(creature.creature_id)
 
             borderline_threat = self.ai_system.find_nearest_borderline_threat(
                 creature,
