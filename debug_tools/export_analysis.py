@@ -186,6 +186,7 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("run_summary.avg_traits.prudence")),
             "dominance": _parse_float(row.get("run_summary.avg_traits.dominance")),
             "repro_drive": _parse_float(row.get("run_summary.avg_traits.repro_drive")),
+            "risk_taking": _parse_float(row.get("run_summary.avg_traits.risk_taking")),
             "food_perception": _parse_float(row.get("run_summary.avg_traits.food_perception")),
             "threat_perception": _parse_float(row.get("run_summary.avg_traits.threat_perception")),
             "energy_efficiency": _parse_float(row.get("run_summary.avg_traits.energy_efficiency")),
@@ -221,6 +222,8 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_std": _parse_float(row.get("run_summary.trait_impact.food_perception_std")),
             "threat_perception_mean": _parse_float(row.get("run_summary.trait_impact.threat_perception_mean")),
             "threat_perception_std": _parse_float(row.get("run_summary.trait_impact.threat_perception_std")),
+            "risk_taking_mean": _parse_float(row.get("run_summary.trait_impact.risk_taking_mean")),
+            "risk_taking_std": _parse_float(row.get("run_summary.trait_impact.risk_taking_std")),
             "energy_efficiency_mean": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_mean")),
             "energy_efficiency_std": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("run_summary.trait_impact.exhaustion_resistance_mean")),
@@ -250,6 +253,19 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_detection_bias": _parse_float(row.get("run_summary.trait_impact.food_perception_detection_bias")),
             "food_perception_consumption_bias": _parse_float(row.get("run_summary.trait_impact.food_perception_consumption_bias")),
             "threat_perception_flee_bias": _parse_float(row.get("run_summary.trait_impact.threat_perception_flee_bias")),
+            "risk_taking_flee_bias": _parse_float(row.get("run_summary.trait_impact.risk_taking_flee_bias")),
+            "borderline_threat_encounters": _parse_float(row.get("run_summary.trait_impact.borderline_threat_encounters")),
+            "borderline_threat_flees": _parse_float(row.get("run_summary.trait_impact.borderline_threat_flees")),
+            "borderline_threat_flee_rate": _parse_float(row.get("run_summary.trait_impact.borderline_threat_flee_rate")),
+            "risk_taking_borderline_encounter_mean": _parse_float(
+                row.get("run_summary.trait_impact.risk_taking_borderline_encounter_mean")
+            ),
+            "risk_taking_borderline_flee_mean": _parse_float(
+                row.get("run_summary.trait_impact.risk_taking_borderline_flee_mean")
+            ),
+            "risk_taking_borderline_flee_bias": _parse_float(
+                row.get("run_summary.trait_impact.risk_taking_borderline_flee_bias")
+            ),
         },
         "observed_logs": _parse_int(row.get("run_summary.observed_logs")),
     }
@@ -280,6 +296,7 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("multi_run_summary.avg_final_traits.prudence")),
             "dominance": _parse_float(row.get("multi_run_summary.avg_final_traits.dominance")),
             "repro_drive": _parse_float(row.get("multi_run_summary.avg_final_traits.repro_drive")),
+            "risk_taking": _parse_float(row.get("multi_run_summary.avg_final_traits.risk_taking")),
             "food_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.food_perception")),
             "threat_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.threat_perception")),
             "energy_efficiency": _parse_float(row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
@@ -325,6 +342,8 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.food_perception_std")),
             "threat_perception_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.threat_perception_mean")),
             "threat_perception_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.threat_perception_std")),
+            "risk_taking_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_mean")),
+            "risk_taking_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_std")),
             "energy_efficiency_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_mean")),
             "energy_efficiency_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
@@ -354,6 +373,25 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_detection_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.food_perception_detection_bias")),
             "food_perception_consumption_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.food_perception_consumption_bias")),
             "threat_perception_flee_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.threat_perception_flee_bias")),
+            "risk_taking_flee_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_flee_bias")),
+            "borderline_threat_encounters": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.borderline_threat_encounters")
+            ),
+            "borderline_threat_flees": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.borderline_threat_flees")
+            ),
+            "borderline_threat_flee_rate": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.borderline_threat_flee_rate")
+            ),
+            "risk_taking_borderline_encounter_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_encounter_mean")
+            ),
+            "risk_taking_borderline_flee_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_mean")
+            ),
+            "risk_taking_borderline_flee_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_bias")
+            ),
         },
     }
     run_count = _parse_int(row.get("run_count"), default=multi_summary["runs"])
@@ -386,6 +424,7 @@ def _build_batch_payload_from_csv(
                 "prudence": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.prudence")),
                 "dominance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.dominance")),
                 "repro_drive": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.repro_drive")),
+                "risk_taking": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.risk_taking")),
                 "food_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.food_perception")),
                 "threat_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.threat_perception")),
                 "energy_efficiency": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
@@ -431,6 +470,8 @@ def _build_batch_payload_from_csv(
                 "food_perception_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.food_perception_std")),
                 "threat_perception_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.threat_perception_mean")),
                 "threat_perception_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.threat_perception_std")),
+                "risk_taking_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_mean")),
+                "risk_taking_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_std")),
                 "energy_efficiency_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_mean")),
                 "energy_efficiency_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
                 "exhaustion_resistance_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
@@ -460,6 +501,25 @@ def _build_batch_payload_from_csv(
                 "food_perception_detection_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.food_perception_detection_bias")),
                 "food_perception_consumption_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.food_perception_consumption_bias")),
                 "threat_perception_flee_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.threat_perception_flee_bias")),
+                "risk_taking_flee_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_flee_bias")),
+                "borderline_threat_encounters": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.borderline_threat_encounters")
+                ),
+                "borderline_threat_flees": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.borderline_threat_flees")
+                ),
+                "borderline_threat_flee_rate": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.borderline_threat_flee_rate")
+                ),
+                "risk_taking_borderline_encounter_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_encounter_mean")
+                ),
+                "risk_taking_borderline_flee_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_mean")
+                ),
+                "risk_taking_borderline_flee_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_bias")
+                ),
             },
         }
         scenarios.append(

@@ -38,6 +38,7 @@ def build_batch_comparative_summary(
     energy_candidates: list[Dict[str, float]] = []
     trait_candidates: list[Dict[str, float]] = []
     perception_candidates: list[Dict[str, float]] = []
+    risk_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -86,6 +87,10 @@ def build_batch_comparative_summary(
         if perception_metrics is not None:
             perception_candidates.append({"value": value, **perception_metrics})
 
+        risk_metrics = _read_risk_metrics(summary_raw)
+        if risk_metrics is not None:
+            risk_candidates.append({"value": value, **risk_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -112,6 +117,10 @@ def build_batch_comparative_summary(
             )
         empty["perception_comparative"] = _build_perception_comparative(
             perception_candidates,
+            stable_metric=None,
+        )
+        empty["risk_comparative"] = _build_risk_comparative(
+            risk_candidates,
             stable_metric=None,
         )
         return empty
@@ -188,6 +197,10 @@ def build_batch_comparative_summary(
         perception_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["risk_comparative"] = _build_risk_comparative(
+        risk_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -250,6 +263,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     perception_raw = summary.get("perception_comparative")
     if isinstance(perception_raw, dict):
         lines.extend(_format_perception_comparative(batch_param, perception_raw))
+
+    risk_raw = summary.get("risk_comparative")
+    if isinstance(risk_raw, dict):
+        lines.extend(_format_risk_comparative(batch_param, risk_raw))
 
     return "\n".join(lines)
 
@@ -637,6 +654,112 @@ def _build_perception_comparative(
     }
 
 
+def _format_risk_comparative(batch_param: str, risk_summary: Dict[str, object]) -> list[str]:
+    lines = ["risque_batch:"]
+
+    if not bool(risk_summary.get("available", False)):
+        note = str(risk_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_risque: n/a ({note})")
+        return lines
+
+    flee_bias = _read_metric_result(risk_summary.get("best_risk_flee_usage_bias"))
+    borderline_effect = _read_metric_result(risk_summary.get("best_borderline_risk_effect"))
+    risk_dispersion = _read_metric_result(risk_summary.get("best_risk_dispersion"))
+    borderline_flee_rate = _read_metric_result(risk_summary.get("best_borderline_flee_rate"))
+    stable_config = _read_metric_result(risk_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_fuite_risque_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, flee_bias.get("winners")),
+            value=float(flee_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "effet_borderline_risque_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, borderline_effect.get("winners")),
+            value=float(borderline_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_risque_max: {label} (rk_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, risk_dispersion.get("winners")),
+            value=float(risk_dispersion.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "taux_fuite_borderline_max: {label} (taux_moy={value:.3f})".format(
+            label=_winner_label(batch_param, borderline_flee_rate.get("winners")),
+            value=float(borderline_flee_rate.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    borderline_note = str(risk_summary.get("borderline_note", "")).strip()
+    if borderline_note:
+        lines.append(f"note_risque: {borderline_note}")
+    else:
+        lines.append(
+            "note_risque: impact_abs=abs(bias_rk_fuite) et abs(rk_border_bias), dispersion=rk_sigma, interpretation_borderline via taux_fuite_borderline"
+        )
+    return lines
+
+
+def _build_risk_comparative(
+    risk_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(risk_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact risk_taking",
+            "best_risk_flee_usage_bias": _insufficient_metric_result(),
+            "best_borderline_risk_effect": _insufficient_metric_result(),
+            "best_risk_dispersion": _insufficient_metric_result(),
+            "best_borderline_flee_rate": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "borderline_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    borderline_signal_max = max(candidate["borderline_signal"] for candidate in risk_candidates)
+    borderline_note = ""
+    if borderline_signal_max <= 0.0:
+        borderline_note = "cas borderline absents: interpretation limitee (taux_fuite_borderline non representatif)"
+
+    return {
+        "available": True,
+        "best_risk_flee_usage_bias": _build_peak_metric(risk_candidates, "risk_flee_usage_bias_abs"),
+        "best_borderline_risk_effect": _build_peak_metric(risk_candidates, "borderline_effect_abs"),
+        "best_risk_dispersion": _build_peak_metric(risk_candidates, "risk_dispersion"),
+        "best_borderline_flee_rate": _build_peak_metric(risk_candidates, "borderline_flee_rate"),
+        "most_stable_config": stable_result,
+        "borderline_note": borderline_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -784,6 +907,36 @@ def _read_perception_metrics(summary_raw: Dict[str, object]) -> Dict[str, float]
         "food_perception_usage_bias": (food_detection_bias + food_consumption_bias) / 2.0,
         "threat_perception_usage_bias": threat_flee_bias,
         "perception_dispersion": (food_std + threat_std) / 2.0,
+    }
+
+
+def _read_risk_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "risk_taking_flee_bias",
+        "risk_taking_std",
+        "risk_taking_borderline_flee_bias",
+        "borderline_threat_flee_rate",
+        "borderline_threat_encounters",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    risk_flee_bias = float(avg_trait_raw.get("risk_taking_flee_bias", 0.0))
+    risk_std = float(avg_trait_raw.get("risk_taking_std", 0.0))
+    borderline_bias = float(avg_trait_raw.get("risk_taking_borderline_flee_bias", 0.0))
+    borderline_flee_rate = float(avg_trait_raw.get("borderline_threat_flee_rate", 0.0))
+    borderline_signal = float(avg_trait_raw.get("borderline_threat_encounters", 0.0))
+
+    return {
+        "risk_flee_usage_bias_abs": abs(risk_flee_bias),
+        "risk_dispersion": risk_std,
+        "borderline_effect_abs": abs(borderline_bias),
+        "borderline_flee_rate": borderline_flee_rate,
+        "borderline_signal": borderline_signal,
     }
 
 

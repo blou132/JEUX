@@ -37,6 +37,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Biais individuel leger de prise de risque (`risk_taking`) heritable, mutante et visible en stats/synthese/debug.
+- Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
 - Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
@@ -106,6 +107,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs/syntheses:
   - `dynamique_*`: `traits_comp_moy` (`rk`), `traits_disp` (`rk_sigma`) et `perception_bias_tick` (`rk_fuite`).
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`rk`) et `traits_impact` / `traits_impact_moy` (`rk_mu`, `rk_sigma`, `bias_rk_fuite`).
+  - indicateurs borderline lies au risque: `borderline_threat_encounters`, `borderline_threat_flees`, `borderline_threat_flee_rate`, `risk_taking_borderline_encounter_mean`, `risk_taking_borderline_flee_mean`, `risk_taking_borderline_flee_bias`.
 
 ### Evaluation legere de l'impact perception
 - Indicateurs exposes en stats/synthese:
@@ -214,6 +216,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration avec la plus forte dispersion perception utile (`(std_food_perception + std_threat_perception) / 2`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `risque_batch`:
+  - configuration qui maximise l'intensite d'usage observee du risque en fuite (proxy: `abs(bias_rk_fuite)`)
+  - configuration qui maximise l'effet risque sur menaces borderline (proxy: `abs(rk_border_bias)`)
+  - configuration avec la plus forte dispersion utile de `risk_taking` (`rk_sigma`)
+  - configuration avec le plus haut taux de fuite en cas borderline (`rk_border_rate`)
+  - signalement explicite si les cas borderline sont absents (interpretation limitee)
 - Pour les batchs sur parametres energetiques (`energy_drain_rate`, `reproduction_cost`, `reproduction_threshold`, `reproduction_min_age`, `mutation_variation`), la synthese inclut aussi `energie_batch`:
   - configuration qui maximise l'effet observe sur le drain energetique (proxy: `abs(drain_mult_obs - 1)`)
   - configuration qui maximise l'effet observe sur le cout de reproduction (proxy: `abs(repro_mult_obs - 1)`)
@@ -446,6 +454,12 @@ usage_food_perception_max: energy_drain_rate=1.0 (bias_usage_moy=+0.06)
 usage_threat_perception_max: energy_drain_rate=1.2 (bias_usage_moy=+0.08)
 dispersion_perception_max: energy_drain_rate=1.0 (disp_moy=0.11)
 configuration_plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+risque_batch:
+usage_fuite_risque_max: energy_drain_rate=1.0 (impact_abs_moy=0.09)
+effet_borderline_risque_max: energy_drain_rate=1.0 (impact_abs_moy=0.07)
+dispersion_risque_max: energy_drain_rate=1.2 (rk_sigma_moy=0.12)
+taux_fuite_borderline_max: energy_drain_rate=1.2 (taux_moy=0.61)
+configuration_plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -519,6 +533,7 @@ py -m unittest tests.test_perception_traits
 py -m unittest tests.test_perception_impact_metrics
 py -m unittest tests.test_energy_traits
 py -m unittest tests.test_risk_taking_trait
+py -m unittest tests.test_risk_taking_impact_metrics
 ```
 
 ## Lire les logs debug (indicateurs utiles)
@@ -570,6 +585,7 @@ Avec les outils d'analyse:
 - pour comparer influence sociale active vs neutralisee: relancer avec `--social-influence-distance 0 --social-follow-strength 0 --social-flee-boost-per-neighbor 0 --social-flee-boost-max 0` puis comparer `social_*` et les blocs `social:`/`social_moy:`.
 - pour un batch social, verifier dans `Batch Comparative Summary` le bloc `social_batch` (usage suivi, usage boost fuite, part influencee, effet multiplicateur).
 - pour un batch energetique, verifier dans `Batch Comparative Summary` le bloc `energie_batch` (effet drain/cout repro, dispersion energetique, stabilite).
+- pour l'impact `risk_taking`, verifier dans `Batch Comparative Summary` le bloc `risque_batch` (usage fuite, effet borderline, dispersion `rk`, taux borderline).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -577,7 +593,7 @@ Lecture rapide conseillee:
 3. verifier `proto_groupes` + `proto_tendance` + `proto_zones_creatures` pour les tendances evolutives locales,
 4. verifier `Run Summary` pour comparer rapidement plusieurs seeds,
 5. en mode multi-runs, verifier `Multi-Run Summary` pour comparer plusieurs seeds,
-6. en mode batch, comparer les lignes du `Batch Summary` puis valider `Batch Comparative Summary`,
+6. en mode batch, comparer les lignes du `Batch Summary` puis valider `Batch Comparative Summary` (incluant `risque_batch` quand les metriques existent),
 7. en mode historique, suivre les campagnes via `analyze_batch_history.py`,
 8. si export actif, utiliser le fichier JSON/CSV puis `analyze_export.py` pour exploitation hors console.
 
