@@ -201,6 +201,16 @@ def build_population_stats(
             "behavior_persistence_hold_users_avg_total": 0.0,
             "behavior_persistence_hold_usage_bias_tick": 0.0,
             "behavior_persistence_hold_usage_bias_total": 0.0,
+            "search_wander_switches_last_tick": 0,
+            "total_search_wander_switches": 0,
+            "search_wander_switches_prevented_last_tick": 0,
+            "total_search_wander_switches_prevented": 0,
+            "search_wander_oscillation_events_last_tick": 0,
+            "total_search_wander_oscillation_events": 0,
+            "search_wander_switch_rate_last_tick": 0.0,
+            "search_wander_switch_rate_total": 0.0,
+            "search_wander_prevented_rate_last_tick": 0.0,
+            "search_wander_prevented_rate_total": 0.0,
             "borderline_threat_encounters_last_tick": 0,
             "total_borderline_threat_encounters": 0,
             "borderline_threat_flees_last_tick": 0,
@@ -519,6 +529,27 @@ def build_population_stats(
         if simulation.total_persistence_holds > 0
         else 0.0
     )
+    search_wander_switch_rate_last_tick = (
+        simulation.search_wander_switches_last_tick / simulation.search_wander_oscillation_events_last_tick
+        if simulation.search_wander_oscillation_events_last_tick > 0
+        else 0.0
+    )
+    search_wander_switch_rate_total = (
+        simulation.total_search_wander_switches / simulation.total_search_wander_oscillation_events
+        if simulation.total_search_wander_oscillation_events > 0
+        else 0.0
+    )
+    search_wander_prevented_rate_last_tick = (
+        simulation.search_wander_switches_prevented_last_tick
+        / simulation.search_wander_oscillation_events_last_tick
+        if simulation.search_wander_oscillation_events_last_tick > 0
+        else 0.0
+    )
+    search_wander_prevented_rate_total = (
+        simulation.total_search_wander_switches_prevented / simulation.total_search_wander_oscillation_events
+        if simulation.total_search_wander_oscillation_events > 0
+        else 0.0
+    )
     borderline_threat_flee_rate_tick = (
         simulation.borderline_threat_flees_last_tick / simulation.borderline_threat_encounters_last_tick
         if simulation.borderline_threat_encounters_last_tick > 0
@@ -726,6 +757,16 @@ def build_population_stats(
         "behavior_persistence_hold_users_avg_total": avg_behavior_persistence_hold_users_total,
         "behavior_persistence_hold_usage_bias_tick": behavior_persistence_hold_usage_bias_tick,
         "behavior_persistence_hold_usage_bias_total": behavior_persistence_hold_usage_bias_total,
+        "search_wander_switches_last_tick": simulation.search_wander_switches_last_tick,
+        "total_search_wander_switches": simulation.total_search_wander_switches,
+        "search_wander_switches_prevented_last_tick": simulation.search_wander_switches_prevented_last_tick,
+        "total_search_wander_switches_prevented": simulation.total_search_wander_switches_prevented,
+        "search_wander_oscillation_events_last_tick": simulation.search_wander_oscillation_events_last_tick,
+        "total_search_wander_oscillation_events": simulation.total_search_wander_oscillation_events,
+        "search_wander_switch_rate_last_tick": search_wander_switch_rate_last_tick,
+        "search_wander_switch_rate_total": search_wander_switch_rate_total,
+        "search_wander_prevented_rate_last_tick": search_wander_prevented_rate_last_tick,
+        "search_wander_prevented_rate_total": search_wander_prevented_rate_total,
         "borderline_threat_encounters_last_tick": simulation.borderline_threat_encounters_last_tick,
         "total_borderline_threat_encounters": simulation.total_borderline_threat_encounters,
         "borderline_threat_flees_last_tick": simulation.borderline_threat_flees_last_tick,
@@ -865,6 +906,19 @@ def build_final_run_summary(
             final_stats.get("behavior_persistence_hold_usage_bias_total", 0.0)
         ),
         "persistence_holds_total": int(final_stats.get("total_persistence_holds", 0)),
+        "behavior_persistence_oscillation_switch_rate": float(
+            final_stats.get("search_wander_switch_rate_total", 0.0)
+        ),
+        "behavior_persistence_oscillation_prevented_rate": float(
+            final_stats.get("search_wander_prevented_rate_total", 0.0)
+        ),
+        "search_wander_switches_total": int(final_stats.get("total_search_wander_switches", 0)),
+        "search_wander_switches_prevented_total": int(
+            final_stats.get("total_search_wander_switches_prevented", 0)
+        ),
+        "search_wander_oscillation_events_total": int(
+            final_stats.get("total_search_wander_oscillation_events", 0)
+        ),
         "borderline_threat_encounters": int(final_stats.get("total_borderline_threat_encounters", 0)),
         "borderline_threat_flees": int(final_stats.get("total_borderline_threat_flees", 0)),
         "borderline_threat_flee_rate": float(final_stats.get("borderline_threat_flee_rate_total", 0.0)),
@@ -975,6 +1029,11 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "risk_taking_flee_bias": 0.0,
                 "behavior_persistence_hold_bias": 0.0,
                 "persistence_holds_total": 0.0,
+                "behavior_persistence_oscillation_switch_rate": 0.0,
+                "behavior_persistence_oscillation_prevented_rate": 0.0,
+                "search_wander_switches_total": 0.0,
+                "search_wander_switches_prevented_total": 0.0,
+                "search_wander_oscillation_events_total": 0.0,
                 "borderline_threat_encounters": 0.0,
                 "borderline_threat_flees": 0.0,
                 "borderline_threat_flee_rate": 0.0,
@@ -1059,6 +1118,11 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "risk_taking_flee_bias": 0.0,
         "behavior_persistence_hold_bias": 0.0,
         "persistence_holds_total": 0.0,
+        "behavior_persistence_oscillation_switch_rate": 0.0,
+        "behavior_persistence_oscillation_prevented_rate": 0.0,
+        "search_wander_switches_total": 0.0,
+        "search_wander_switches_prevented_total": 0.0,
+        "search_wander_oscillation_events_total": 0.0,
         "borderline_threat_encounters": 0.0,
         "borderline_threat_flees": 0.0,
         "borderline_threat_flee_rate": 0.0,
@@ -1177,6 +1241,21 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["persistence_holds_total"] += float(
                     trait_impact_raw.get("persistence_holds_total", 0.0)
                 )
+                avg_trait_impact_acc["behavior_persistence_oscillation_switch_rate"] += float(
+                    trait_impact_raw.get("behavior_persistence_oscillation_switch_rate", 0.0)
+                )
+                avg_trait_impact_acc["behavior_persistence_oscillation_prevented_rate"] += float(
+                    trait_impact_raw.get("behavior_persistence_oscillation_prevented_rate", 0.0)
+                )
+                avg_trait_impact_acc["search_wander_switches_total"] += float(
+                    trait_impact_raw.get("search_wander_switches_total", 0.0)
+                )
+                avg_trait_impact_acc["search_wander_switches_prevented_total"] += float(
+                    trait_impact_raw.get("search_wander_switches_prevented_total", 0.0)
+                )
+                avg_trait_impact_acc["search_wander_oscillation_events_total"] += float(
+                    trait_impact_raw.get("search_wander_oscillation_events_total", 0.0)
+                )
                 avg_trait_impact_acc["borderline_threat_encounters"] += float(
                     trait_impact_raw.get("borderline_threat_encounters", 0.0)
                 )
@@ -1286,6 +1365,19 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "risk_taking_flee_bias": avg_trait_impact_acc["risk_taking_flee_bias"] / run_count,
             "behavior_persistence_hold_bias": avg_trait_impact_acc["behavior_persistence_hold_bias"] / run_count,
             "persistence_holds_total": avg_trait_impact_acc["persistence_holds_total"] / run_count,
+            "behavior_persistence_oscillation_switch_rate": (
+                avg_trait_impact_acc["behavior_persistence_oscillation_switch_rate"] / run_count
+            ),
+            "behavior_persistence_oscillation_prevented_rate": (
+                avg_trait_impact_acc["behavior_persistence_oscillation_prevented_rate"] / run_count
+            ),
+            "search_wander_switches_total": avg_trait_impact_acc["search_wander_switches_total"] / run_count,
+            "search_wander_switches_prevented_total": (
+                avg_trait_impact_acc["search_wander_switches_prevented_total"] / run_count
+            ),
+            "search_wander_oscillation_events_total": (
+                avg_trait_impact_acc["search_wander_oscillation_events_total"] / run_count
+            ),
             "borderline_threat_encounters": avg_trait_impact_acc["borderline_threat_encounters"] / run_count,
             "borderline_threat_flees": avg_trait_impact_acc["borderline_threat_flees"] / run_count,
             "borderline_threat_flee_rate": avg_trait_impact_acc["borderline_threat_flee_rate"] / run_count,

@@ -131,6 +131,10 @@ class BehaviorPersistenceTraitTests(unittest.TestCase):
         self.assertIn("persistence_holds_last_tick", stats)
         self.assertIn("behavior_persistence_hold_users_avg_tick", stats)
         self.assertIn("behavior_persistence_hold_usage_bias_tick", stats)
+        self.assertIn("search_wander_switches_last_tick", stats)
+        self.assertIn("search_wander_switches_prevented_last_tick", stats)
+        self.assertIn("search_wander_switch_rate_last_tick", stats)
+        self.assertIn("search_wander_prevented_rate_last_tick", stats)
 
         self.assertGreater(float(stats["std_behavior_persistence"]), 0.0)
         self.assertGreaterEqual(int(stats["persistence_holds_last_tick"]), 1)
@@ -139,6 +143,10 @@ class BehaviorPersistenceTraitTests(unittest.TestCase):
             float(stats["avg_behavior_persistence"]),
         )
         self.assertGreater(float(stats["behavior_persistence_hold_usage_bias_tick"]), 0.0)
+        self.assertEqual(int(stats["search_wander_switches_last_tick"]), 1)
+        self.assertEqual(int(stats["search_wander_switches_prevented_last_tick"]), 1)
+        self.assertAlmostEqual(float(stats["search_wander_switch_rate_last_tick"]), 0.5)
+        self.assertAlmostEqual(float(stats["search_wander_prevented_rate_last_tick"]), 0.5)
 
         by_id = {str(row["id"]): row for row in snapshot["creatures"]}
         high_row = by_id["high_persistence"]

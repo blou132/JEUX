@@ -38,6 +38,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Biais individuel leger de prise de risque (`risk_taking`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable, mutante et visible en stats/synthese/debug.
+- Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
@@ -118,7 +119,8 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Heredite simple + mutation legere via le pipeline genetique existant.
 - Observation dans les logs/syntheses:
   - `dynamique_*`: `inertie_tick`, `inertie_log`, `traits_comp_moy` (`bp`), `traits_disp` (`bp_sigma`) et `traits_bias_tick` (`bp_inertie`).
-  - `Run Summary` / `Multi-Run Summary`: `traits_impact` / `traits_impact_moy` (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`/`inertie_total_moy`).
+  - `dynamique_*`: `oscill_tick` / `oscill_log` pour observer les bascules reelles vs bascules evitees entre `search_food` et `wander`.
+  - `Run Summary` / `Multi-Run Summary`: `traits_impact` / `traits_impact_moy` (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`/`inertie_total_moy`, `osc_bp`/`osc_bp_moy`).
 
 ### Evaluation legere de l'impact perception
 - Indicateurs exposes en stats/synthese:
@@ -562,6 +564,7 @@ Chaque bloc de log periodique contient:
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
+- `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
 - `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens de drain/cout (`drain_mult`, `repro_mult`) + effets observes (`drain_obs_mult`, `repro_obs_mult`, `drain_obs`, `repro_obs`), avec biais tick associes (`ee_drain`, `er_repro`).
 - `zones_nourriture:` `riches`, `neutres`, `pauvres`, `fert_moy`.
@@ -569,10 +572,12 @@ Chaque bloc de log periodique contient:
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
 - le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
+- le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
 - le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
+- le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:
 - bloc `=== Batch Experimental Mode ===` puis un resume par valeur testee.
@@ -644,6 +649,7 @@ Lecture rapide conseillee:
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
 - Biais individuel leger de prise de risque (`risk_taking`) heritable et mutante, avec effet leger sur la fuite face aux menaces borderline et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable et mutante, avec effet leger d'inertie entre intentions compatibles et visibilite en stats/synthese/debug.
+- Evaluation legere de l'impact `behavior_persistence` (frequence inertie, biais d'usage et impact oscillation `search_food`<->`wander`) visible en stats/synthese/debug/export.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
 - Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.
 - Evaluation legere de l'impact energetique (`energy_efficiency`, `exhaustion_resistance`): moyenne/dispersion + effet observe sur drain/cout reproduction + biais d'usage, visible en stats, synthese run, multi-runs, export et analyse.

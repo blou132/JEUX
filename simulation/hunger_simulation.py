@@ -121,6 +121,12 @@ class HungerSimulation:
         self.behavior_persistence_sum_holds_last_tick = 0.0
         self.total_behavior_persistence_sum_holds = 0.0
         self.persistence_holding_creatures_last_tick: list[str] = []
+        self.search_wander_switches_last_tick = 0
+        self.total_search_wander_switches = 0
+        self.search_wander_switches_prevented_last_tick = 0
+        self.total_search_wander_switches_prevented = 0
+        self.search_wander_oscillation_events_last_tick = 0
+        self.total_search_wander_oscillation_events = 0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -203,6 +209,9 @@ class HungerSimulation:
         self.persistence_holds_last_tick = 0
         self.behavior_persistence_sum_holds_last_tick = 0.0
         self.persistence_holding_creatures_last_tick = []
+        self.search_wander_switches_last_tick = 0
+        self.search_wander_switches_prevented_last_tick = 0
+        self.search_wander_oscillation_events_last_tick = 0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -261,9 +270,10 @@ class HungerSimulation:
 
         # 2) Decide behavior for each creature.
         reproduction_candidates = self._build_reproduction_candidates()
+        previous_intents = self.last_intents
         intents: Dict[str, CreatureIntent] = {}
         for creature in self.creatures:
-            previous_intent = self.last_intents.get(creature.creature_id)
+            previous_intent = previous_intents.get(creature.creature_id)
             intents[creature.creature_id] = self.ai_system.decide(
                 creature,
                 self.food_field,
@@ -277,6 +287,7 @@ class HungerSimulation:
             if not creature.alive:
                 continue
             intent = intents[creature.creature_id]
+            previous_intent = previous_intents.get(creature.creature_id)
             if intent.action == HungerAI.ACTION_MOVE_TO_FOOD and intent.target_food_id is not None:
                 self.food_detection_moves_last_tick += 1
                 self.total_food_detection_moves += 1
@@ -296,6 +307,21 @@ class HungerSimulation:
                 self.behavior_persistence_sum_holds_last_tick += creature.traits.behavior_persistence
                 self.total_behavior_persistence_sum_holds += creature.traits.behavior_persistence
                 self.persistence_holding_creatures_last_tick.append(creature.creature_id)
+
+            if previous_intent is not None:
+                if self._is_search_wander_switch(previous_intent.action, intent.action):
+                    self.search_wander_switches_last_tick += 1
+                    self.total_search_wander_switches += 1
+                    self.search_wander_oscillation_events_last_tick += 1
+                    self.total_search_wander_oscillation_events += 1
+                elif (
+                    intent.persisted_from_previous
+                    and self._is_search_wander_action(previous_intent.action)
+                ):
+                    self.search_wander_switches_prevented_last_tick += 1
+                    self.total_search_wander_switches_prevented += 1
+                    self.search_wander_oscillation_events_last_tick += 1
+                    self.total_search_wander_oscillation_events += 1
 
             borderline_threat = self.ai_system.find_nearest_borderline_threat(
                 creature,
@@ -787,6 +813,18 @@ class HungerSimulation:
     @staticmethod
     def _compute_exhaustion_resistance_reproduction_multiplier(creature: Creature) -> float:
         return max(0.1, 1.0 - (0.3 * (creature.traits.exhaustion_resistance - 1.0)))
+
+    @staticmethod
+    def _is_search_wander_action(action: str) -> bool:
+        return action in (HungerAI.ACTION_SEARCH_FOOD, HungerAI.ACTION_WANDER)
+
+    @classmethod
+    def _is_search_wander_switch(cls, previous_action: str, next_action: str) -> bool:
+        return (
+            previous_action != next_action
+            and cls._is_search_wander_action(previous_action)
+            and cls._is_search_wander_action(next_action)
+        )
 
 
 

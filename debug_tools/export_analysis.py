@@ -267,6 +267,21 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "persistence_holds_total": _parse_float(
                 row.get("run_summary.trait_impact.persistence_holds_total")
             ),
+            "behavior_persistence_oscillation_switch_rate": _parse_float(
+                row.get("run_summary.trait_impact.behavior_persistence_oscillation_switch_rate")
+            ),
+            "behavior_persistence_oscillation_prevented_rate": _parse_float(
+                row.get("run_summary.trait_impact.behavior_persistence_oscillation_prevented_rate")
+            ),
+            "search_wander_switches_total": _parse_float(
+                row.get("run_summary.trait_impact.search_wander_switches_total")
+            ),
+            "search_wander_switches_prevented_total": _parse_float(
+                row.get("run_summary.trait_impact.search_wander_switches_prevented_total")
+            ),
+            "search_wander_oscillation_events_total": _parse_float(
+                row.get("run_summary.trait_impact.search_wander_oscillation_events_total")
+            ),
             "borderline_threat_encounters": _parse_float(row.get("run_summary.trait_impact.borderline_threat_encounters")),
             "borderline_threat_flees": _parse_float(row.get("run_summary.trait_impact.borderline_threat_flees")),
             "borderline_threat_flee_rate": _parse_float(row.get("run_summary.trait_impact.borderline_threat_flee_rate")),
@@ -401,6 +416,21 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "persistence_holds_total": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.persistence_holds_total")
+            ),
+            "behavior_persistence_oscillation_switch_rate": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.behavior_persistence_oscillation_switch_rate")
+            ),
+            "behavior_persistence_oscillation_prevented_rate": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.behavior_persistence_oscillation_prevented_rate")
+            ),
+            "search_wander_switches_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.search_wander_switches_total")
+            ),
+            "search_wander_switches_prevented_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.search_wander_switches_prevented_total")
+            ),
+            "search_wander_oscillation_events_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.search_wander_oscillation_events_total")
             ),
             "borderline_threat_encounters": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.borderline_threat_encounters")
@@ -544,6 +574,29 @@ def _build_batch_payload_from_csv(
                 ),
                 "persistence_holds_total": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.persistence_holds_total")
+                ),
+                "behavior_persistence_oscillation_switch_rate": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.behavior_persistence_oscillation_switch_rate"
+                    )
+                ),
+                "behavior_persistence_oscillation_prevented_rate": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.behavior_persistence_oscillation_prevented_rate"
+                    )
+                ),
+                "search_wander_switches_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.search_wander_switches_total")
+                ),
+                "search_wander_switches_prevented_total": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.search_wander_switches_prevented_total"
+                    )
+                ),
+                "search_wander_oscillation_events_total": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.search_wander_oscillation_events_total"
+                    )
                 ),
                 "borderline_threat_encounters": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.borderline_threat_encounters")
