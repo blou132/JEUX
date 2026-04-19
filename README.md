@@ -43,6 +43,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
 - Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
+- Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites, taux de switch et taux de blocage utile.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -241,6 +242,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration avec la plus forte dispersion energetique utile (`(std_ee + std_er) / 2`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `behavior_persistence_batch`:
+  - configuration qui maximise les switchs evites (`search_wander_switches_prevented_total`)
+  - configuration qui minimise le taux de switch (`behavior_persistence_oscillation_switch_rate`)
+  - configuration qui maximise le taux de blocage utile (`behavior_persistence_oscillation_prevented_rate`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -346,6 +353,11 @@ py main.py --batch-param energy_drain_rate --batch-values 0.9,1.0,1.2 --batch-ru
 Exemple lecture comparative perception en batch (`perception_batch`):
 ```powershell
 py main.py --batch-param energy_drain_rate --batch-values 0.9,1.1,1.3 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `behavior_persistence` en batch (`behavior_persistence_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
 
 Exemple batch experimental:
@@ -473,6 +485,11 @@ effet_borderline_risque_max: energy_drain_rate=1.0 (impact_abs_moy=0.07)
 dispersion_risque_max: energy_drain_rate=1.2 (rk_sigma_moy=0.12)
 taux_fuite_borderline_max: energy_drain_rate=1.2 (taux_moy=0.61)
 configuration_plus_stable: energy_drain_rate=1.0 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+behavior_persistence_batch:
+switchs_evites_max: mutation_variation=0.1 (switchs_evites_moy=8.00)
+taux_switch_min: mutation_variation=0.1 (taux_moy=0.350)
+taux_blocage_utile_max: mutation_variation=0.1 (taux_moy=0.650)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -546,6 +563,7 @@ py -m unittest tests.test_perception_traits
 py -m unittest tests.test_perception_impact_metrics
 py -m unittest tests.test_energy_traits
 py -m unittest tests.test_behavior_persistence_trait
+py -m unittest tests.test_behavior_persistence_impact_metrics
 py -m unittest tests.test_risk_taking_trait
 py -m unittest tests.test_risk_taking_impact_metrics
 ```
@@ -587,6 +605,7 @@ En mode batch:
 - si le parametre batch est un parametre social, le bloc inclut aussi les comparatifs sociaux (`social_batch`).
 - si le parametre batch est un parametre energetique, le bloc inclut aussi les comparatifs energie (`energie_batch`).
 - si le parametre batch est memoire ou social et que les metriques existent, le bloc inclut aussi `traits_batch`.
+- quand les metriques existent, le bloc inclut aussi `behavior_persistence_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -604,6 +623,7 @@ Avec les outils d'analyse:
 - pour un batch social, verifier dans `Batch Comparative Summary` le bloc `social_batch` (usage suivi, usage boost fuite, part influencee, effet multiplicateur).
 - pour un batch energetique, verifier dans `Batch Comparative Summary` le bloc `energie_batch` (effet drain/cout repro, dispersion energetique, stabilite).
 - pour l'impact `risk_taking`, verifier dans `Batch Comparative Summary` le bloc `risque_batch` (usage fuite, effet borderline, dispersion `rk`, taux borderline).
+- pour l'impact `behavior_persistence`, verifier dans `Batch Comparative Summary` le bloc `behavior_persistence_batch` (switchs evites, taux de switch, taux de blocage utile).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -636,6 +656,7 @@ Lecture rapide conseillee:
 - Interpretation batch sociale (suivi/fuite/part influencee/effet multiplicateur) pour les parametres sociaux.
 - Interpretation batch des biais individuels (`traits_batch`) pour les parametres memoire/sociaux.
 - Interpretation batch energie (`energie_batch`) pour les parametres energetiques (effet drain/cout reproduction, dispersion, stabilite).
+- Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites / taux de switch / taux de blocage utile et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

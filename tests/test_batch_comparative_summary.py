@@ -607,6 +607,109 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         text = format_batch_comparative_summary(summary)
         self.assertIn("perception_batch:", text)
         self.assertIn("donnees_perception: n/a", text)
+
+    def test_behavior_persistence_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "search_wander_switches_prevented_total": 2.0,
+                        "behavior_persistence_oscillation_switch_rate": 0.85,
+                        "behavior_persistence_oscillation_prevented_rate": 0.15,
+                        "search_wander_oscillation_events_total": 12.0,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 22.0,
+                    "avg_trait_impact": {
+                        "search_wander_switches_prevented_total": 8.0,
+                        "behavior_persistence_oscillation_switch_rate": 0.35,
+                        "behavior_persistence_oscillation_prevented_rate": 0.65,
+                        "search_wander_oscillation_events_total": 20.0,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "search_wander_switches_prevented_total": 6.0,
+                        "behavior_persistence_oscillation_switch_rate": 0.40,
+                        "behavior_persistence_oscillation_prevented_rate": 0.60,
+                        "search_wander_oscillation_events_total": 18.0,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        bp = summary.get("behavior_persistence_comparative")
+
+        self.assertIsInstance(bp, dict)
+        assert isinstance(bp, dict)
+        self.assertTrue(bool(bp.get("available", False)))
+        self.assertEqual(bp["best_switches_prevented"]["winners"], [0.1])
+        self.assertAlmostEqual(float(bp["best_switches_prevented"]["value"]), 8.0)
+        self.assertEqual(bp["lowest_switch_rate"]["winners"], [0.1])
+        self.assertAlmostEqual(float(bp["lowest_switch_rate"]["value"]), 0.35)
+        self.assertEqual(bp["best_prevented_rate"]["winners"], [0.1])
+        self.assertAlmostEqual(float(bp["best_prevented_rate"]["value"]), 0.65)
+        self.assertEqual(bp["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("behavior_persistence_batch:", text)
+        self.assertIn("switchs_evites_max:", text)
+        self.assertIn("taux_switch_min:", text)
+        self.assertIn("taux_blocage_utile_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_behavior_persistence_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.0,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 14.0,
+                    "avg_trait_impact": {
+                        "behavior_persistence_oscillation_switch_rate": 0.5,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 19.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        bp = summary.get("behavior_persistence_comparative")
+
+        self.assertIsInstance(bp, dict)
+        assert isinstance(bp, dict)
+        self.assertFalse(bool(bp.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(bp.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("behavior_persistence_batch:", text)
+        self.assertIn("donnees_behavior_persistence: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

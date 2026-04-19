@@ -37,6 +37,7 @@ def build_batch_comparative_summary(
     social_candidates: list[Dict[str, float]] = []
     energy_candidates: list[Dict[str, float]] = []
     trait_candidates: list[Dict[str, float]] = []
+    behavior_persistence_candidates: list[Dict[str, float]] = []
     perception_candidates: list[Dict[str, float]] = []
     risk_candidates: list[Dict[str, float]] = []
 
@@ -83,6 +84,10 @@ def build_batch_comparative_summary(
             if trait_metrics is not None:
                 trait_candidates.append({"value": value, **trait_metrics})
 
+        behavior_persistence_metrics = _read_behavior_persistence_metrics(summary_raw)
+        if behavior_persistence_metrics is not None:
+            behavior_persistence_candidates.append({"value": value, **behavior_persistence_metrics})
+
         perception_metrics = _read_perception_metrics(summary_raw)
         if perception_metrics is not None:
             perception_candidates.append({"value": value, **perception_metrics})
@@ -115,6 +120,10 @@ def build_batch_comparative_summary(
                 trait_candidates,
                 stable_metric=None,
             )
+        empty["behavior_persistence_comparative"] = _build_behavior_persistence_comparative(
+            behavior_persistence_candidates,
+            stable_metric=None,
+        )
         empty["perception_comparative"] = _build_perception_comparative(
             perception_candidates,
             stable_metric=None,
@@ -193,6 +202,10 @@ def build_batch_comparative_summary(
             trait_candidates,
             stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
         )
+    summary["behavior_persistence_comparative"] = _build_behavior_persistence_comparative(
+        behavior_persistence_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
     summary["perception_comparative"] = _build_perception_comparative(
         perception_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
@@ -259,6 +272,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     trait_raw = summary.get("trait_comparative")
     if isinstance(trait_raw, dict):
         lines.extend(_format_trait_comparative(batch_param, trait_raw))
+
+    behavior_persistence_raw = summary.get("behavior_persistence_comparative")
+    if isinstance(behavior_persistence_raw, dict):
+        lines.extend(_format_behavior_persistence_comparative(batch_param, behavior_persistence_raw))
 
     perception_raw = summary.get("perception_comparative")
     if isinstance(perception_raw, dict):
@@ -568,6 +585,119 @@ def _build_trait_comparative(
     }
 
 
+def _format_behavior_persistence_comparative(
+    batch_param: str,
+    behavior_persistence_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["behavior_persistence_batch:"]
+
+    if not bool(behavior_persistence_summary.get("available", False)):
+        note = str(behavior_persistence_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_behavior_persistence: n/a ({note})")
+        return lines
+
+    switches_prevented = _read_metric_result(
+        behavior_persistence_summary.get("best_switches_prevented")
+    )
+    switch_rate = _read_metric_result(behavior_persistence_summary.get("lowest_switch_rate"))
+    prevented_rate = _read_metric_result(behavior_persistence_summary.get("best_prevented_rate"))
+    stable_config = _read_metric_result(behavior_persistence_summary.get("most_stable_config"))
+
+    lines.append(
+        "switchs_evites_max: {label} (switchs_evites_moy={value:.2f})".format(
+            label=_winner_label(batch_param, switches_prevented.get("winners")),
+            value=float(switches_prevented.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "taux_switch_min: {label} (taux_moy={value:.3f})".format(
+            label=_winner_label(batch_param, switch_rate.get("winners")),
+            value=float(switch_rate.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "taux_blocage_utile_max: {label} (taux_moy={value:.3f})".format(
+            label=_winner_label(batch_param, prevented_rate.get("winners")),
+            value=float(prevented_rate.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    oscillation_note = str(behavior_persistence_summary.get("oscillation_note", "")).strip()
+    if oscillation_note:
+        lines.append(f"note_behavior_persistence: {oscillation_note}")
+    else:
+        lines.append(
+            "note_behavior_persistence: switchs_evites=events evites, taux_switch=switch/events, taux_blocage=evites/events"
+        )
+    return lines
+
+
+def _build_behavior_persistence_comparative(
+    behavior_persistence_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(behavior_persistence_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact behavior_persistence",
+            "best_switches_prevented": _insufficient_metric_result(),
+            "lowest_switch_rate": _insufficient_metric_result(),
+            "best_prevented_rate": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "oscillation_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    oscillation_signal_max = max(candidate["oscillation_events_total"] for candidate in behavior_persistence_candidates)
+    oscillation_note = ""
+    if oscillation_signal_max <= 0.0:
+        oscillation_note = (
+            "oscillations search_food/wander absentes: interpretation limitee (taux et switchs evites peu representatifs)"
+        )
+
+    return {
+        "available": True,
+        "best_switches_prevented": _build_peak_metric(
+            behavior_persistence_candidates,
+            "switches_prevented_total",
+        ),
+        "lowest_switch_rate": _build_low_metric(
+            behavior_persistence_candidates,
+            "switch_rate",
+        ),
+        "best_prevented_rate": _build_peak_metric(
+            behavior_persistence_candidates,
+            "prevented_rate",
+        ),
+        "most_stable_config": stable_result,
+        "oscillation_note": oscillation_note,
+    }
+
+
 def _format_perception_comparative(batch_param: str, perception_summary: Dict[str, object]) -> list[str]:
     lines = ["perception_batch:"]
 
@@ -773,6 +903,19 @@ def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[s
     }
 
 
+def _build_low_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
+    best_value = min(candidate[field] for candidate in candidates)
+    winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
+    winner_values = _sorted_unique_values(winners)
+
+    return {
+        "winners": winner_values,
+        "tie": len(winner_values) > 1,
+        "value": best_value,
+        "insufficient": False,
+    }
+
+
 def _insufficient_metric_result() -> Dict[str, object]:
     return {
         "winners": [],
@@ -853,6 +996,28 @@ def _read_trait_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | No
         "memory_usage_bias": (memory_food_bias + memory_danger_bias) / 2.0,
         "social_usage_bias": (social_follow_bias + social_flee_bias) / 2.0,
         "trait_dispersion": (memory_std + social_std) / 2.0,
+    }
+
+
+def _read_behavior_persistence_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "search_wander_switches_prevented_total",
+        "behavior_persistence_oscillation_switch_rate",
+        "behavior_persistence_oscillation_prevented_rate",
+        "search_wander_oscillation_events_total",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    return {
+        "switches_prevented_total": float(avg_trait_raw.get("search_wander_switches_prevented_total", 0.0)),
+        "switch_rate": float(avg_trait_raw.get("behavior_persistence_oscillation_switch_rate", 0.0)),
+        "prevented_rate": float(avg_trait_raw.get("behavior_persistence_oscillation_prevented_rate", 0.0)),
+        "oscillation_events_total": float(avg_trait_raw.get("search_wander_oscillation_events_total", 0.0)),
     }
 
 
