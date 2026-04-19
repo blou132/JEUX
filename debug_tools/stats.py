@@ -72,6 +72,7 @@ def build_population_stats(
             "avg_threat_perception": 0.0,
             "avg_risk_taking": 0.0,
             "avg_behavior_persistence": 0.0,
+            "avg_exploration_bias": 0.0,
             "avg_energy_efficiency": 0.0,
             "avg_exhaustion_resistance": 0.0,
             "std_memory_focus": 0.0,
@@ -80,6 +81,7 @@ def build_population_stats(
             "std_threat_perception": 0.0,
             "std_risk_taking": 0.0,
             "std_behavior_persistence": 0.0,
+            "std_exploration_bias": 0.0,
             "std_energy_efficiency": 0.0,
             "std_exhaustion_resistance": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
@@ -201,6 +203,24 @@ def build_population_stats(
             "behavior_persistence_hold_users_avg_total": 0.0,
             "behavior_persistence_hold_usage_bias_tick": 0.0,
             "behavior_persistence_hold_usage_bias_total": 0.0,
+            "exploration_bias_guided_moves_last_tick": 0,
+            "total_exploration_bias_guided_moves": 0,
+            "exploration_bias_usage_per_alive_tick": 0.0,
+            "exploration_bias_usage_per_tick_total": 0.0,
+            "exploration_bias_guided_users_avg_tick": 0.0,
+            "exploration_bias_guided_users_avg_total": 0.0,
+            "exploration_bias_guided_usage_bias_tick": 0.0,
+            "exploration_bias_guided_usage_bias_total": 0.0,
+            "exploration_bias_explore_moves_last_tick": 0,
+            "total_exploration_bias_explore_moves": 0,
+            "exploration_bias_settle_moves_last_tick": 0,
+            "total_exploration_bias_settle_moves": 0,
+            "exploration_bias_explore_share_last_tick": 0.0,
+            "exploration_bias_explore_share_total": 0.0,
+            "avg_exploration_bias_anchor_distance_delta_last_tick": (
+                simulation.avg_exploration_bias_anchor_distance_delta_last_tick
+            ),
+            "avg_exploration_bias_anchor_distance_delta_total": 0.0,
             "search_wander_switches_last_tick": 0,
             "total_search_wander_switches": 0,
             "search_wander_switches_prevented_last_tick": 0,
@@ -241,6 +261,7 @@ def build_population_stats(
     avg_threat_perception = sum(c.traits.threat_perception for c in simulation.creatures) / total
     avg_risk_taking = sum(c.traits.risk_taking for c in simulation.creatures) / total
     avg_behavior_persistence = sum(c.traits.behavior_persistence for c in simulation.creatures) / total
+    avg_exploration_bias = sum(c.traits.exploration_bias for c in simulation.creatures) / total
     avg_energy_efficiency = sum(c.traits.energy_efficiency for c in simulation.creatures) / total
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
@@ -332,6 +353,7 @@ def build_population_stats(
     threat_perception_values = [c.traits.threat_perception for c in simulation.creatures]
     risk_taking_values = [c.traits.risk_taking for c in simulation.creatures]
     behavior_persistence_values = [c.traits.behavior_persistence for c in simulation.creatures]
+    exploration_bias_values = [c.traits.exploration_bias for c in simulation.creatures]
     energy_efficiency_values = [c.traits.energy_efficiency for c in simulation.creatures]
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
 
@@ -341,6 +363,7 @@ def build_population_stats(
     std_threat_perception = _stddev_from_mean(threat_perception_values, avg_threat_perception)
     std_risk_taking = _stddev_from_mean(risk_taking_values, avg_risk_taking)
     std_behavior_persistence = _stddev_from_mean(behavior_persistence_values, avg_behavior_persistence)
+    std_exploration_bias = _stddev_from_mean(exploration_bias_values, avg_exploration_bias)
     std_energy_efficiency = _stddev_from_mean(energy_efficiency_values, avg_energy_efficiency)
     std_exhaustion_resistance = _stddev_from_mean(exhaustion_resistance_values, avg_exhaustion_resistance)
 
@@ -529,6 +552,41 @@ def build_population_stats(
         if simulation.total_persistence_holds > 0
         else 0.0
     )
+    avg_exploration_bias_guided_users_tick = (
+        simulation.exploration_bias_sum_guided_last_tick / simulation.exploration_bias_guided_moves_last_tick
+        if simulation.exploration_bias_guided_moves_last_tick > 0
+        else 0.0
+    )
+    avg_exploration_bias_guided_users_total = (
+        simulation.total_exploration_bias_sum_guided / simulation.total_exploration_bias_guided_moves
+        if simulation.total_exploration_bias_guided_moves > 0
+        else 0.0
+    )
+    exploration_bias_guided_usage_bias_tick = (
+        avg_exploration_bias_guided_users_tick - avg_exploration_bias
+        if simulation.exploration_bias_guided_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_guided_usage_bias_total = (
+        avg_exploration_bias_guided_users_total - avg_exploration_bias
+        if simulation.total_exploration_bias_guided_moves > 0
+        else 0.0
+    )
+    exploration_bias_explore_share_last_tick = (
+        simulation.exploration_bias_explore_moves_last_tick / simulation.exploration_bias_guided_moves_last_tick
+        if simulation.exploration_bias_guided_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_explore_share_total = (
+        simulation.total_exploration_bias_explore_moves / simulation.total_exploration_bias_guided_moves
+        if simulation.total_exploration_bias_guided_moves > 0
+        else 0.0
+    )
+    avg_exploration_bias_anchor_distance_delta_total = (
+        simulation.total_exploration_bias_anchor_distance_delta / simulation.total_exploration_bias_guided_moves
+        if simulation.total_exploration_bias_guided_moves > 0
+        else 0.0
+    )
     search_wander_switch_rate_last_tick = (
         simulation.search_wander_switches_last_tick / simulation.search_wander_oscillation_events_last_tick
         if simulation.search_wander_oscillation_events_last_tick > 0
@@ -628,6 +686,7 @@ def build_population_stats(
         "avg_threat_perception": avg_threat_perception,
         "avg_risk_taking": avg_risk_taking,
         "avg_behavior_persistence": avg_behavior_persistence,
+        "avg_exploration_bias": avg_exploration_bias,
         "avg_energy_efficiency": avg_energy_efficiency,
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
         "std_memory_focus": std_memory_focus,
@@ -636,6 +695,7 @@ def build_population_stats(
         "std_threat_perception": std_threat_perception,
         "std_risk_taking": std_risk_taking,
         "std_behavior_persistence": std_behavior_persistence,
+        "std_exploration_bias": std_exploration_bias,
         "std_energy_efficiency": std_energy_efficiency,
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
@@ -757,6 +817,26 @@ def build_population_stats(
         "behavior_persistence_hold_users_avg_total": avg_behavior_persistence_hold_users_total,
         "behavior_persistence_hold_usage_bias_tick": behavior_persistence_hold_usage_bias_tick,
         "behavior_persistence_hold_usage_bias_total": behavior_persistence_hold_usage_bias_total,
+        "exploration_bias_guided_moves_last_tick": simulation.exploration_bias_guided_moves_last_tick,
+        "total_exploration_bias_guided_moves": simulation.total_exploration_bias_guided_moves,
+        "exploration_bias_usage_per_alive_tick": simulation.exploration_bias_guided_moves_last_tick / alive,
+        "exploration_bias_usage_per_tick_total": (
+            simulation.total_exploration_bias_guided_moves / max(1, simulation.tick_count)
+        ),
+        "exploration_bias_guided_users_avg_tick": avg_exploration_bias_guided_users_tick,
+        "exploration_bias_guided_users_avg_total": avg_exploration_bias_guided_users_total,
+        "exploration_bias_guided_usage_bias_tick": exploration_bias_guided_usage_bias_tick,
+        "exploration_bias_guided_usage_bias_total": exploration_bias_guided_usage_bias_total,
+        "exploration_bias_explore_moves_last_tick": simulation.exploration_bias_explore_moves_last_tick,
+        "total_exploration_bias_explore_moves": simulation.total_exploration_bias_explore_moves,
+        "exploration_bias_settle_moves_last_tick": simulation.exploration_bias_settle_moves_last_tick,
+        "total_exploration_bias_settle_moves": simulation.total_exploration_bias_settle_moves,
+        "exploration_bias_explore_share_last_tick": exploration_bias_explore_share_last_tick,
+        "exploration_bias_explore_share_total": exploration_bias_explore_share_total,
+        "avg_exploration_bias_anchor_distance_delta_last_tick": (
+            simulation.avg_exploration_bias_anchor_distance_delta_last_tick
+        ),
+        "avg_exploration_bias_anchor_distance_delta_total": avg_exploration_bias_anchor_distance_delta_total,
         "search_wander_switches_last_tick": simulation.search_wander_switches_last_tick,
         "total_search_wander_switches": simulation.total_search_wander_switches,
         "search_wander_switches_prevented_last_tick": simulation.search_wander_switches_prevented_last_tick,
@@ -878,6 +958,8 @@ def build_final_run_summary(
         "risk_taking_std": float(final_stats.get("std_risk_taking", 0.0)),
         "behavior_persistence_mean": float(final_stats.get("avg_behavior_persistence", 0.0)),
         "behavior_persistence_std": float(final_stats.get("std_behavior_persistence", 0.0)),
+        "exploration_bias_mean": float(final_stats.get("avg_exploration_bias", 0.0)),
+        "exploration_bias_std": float(final_stats.get("std_exploration_bias", 0.0)),
         "energy_efficiency_mean": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "energy_efficiency_std": float(final_stats.get("std_energy_efficiency", 0.0)),
         "exhaustion_resistance_mean": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
@@ -904,6 +986,16 @@ def build_final_run_summary(
         "risk_taking_flee_bias": float(final_stats.get("risk_taking_flee_usage_bias_total", 0.0)),
         "behavior_persistence_hold_bias": float(
             final_stats.get("behavior_persistence_hold_usage_bias_total", 0.0)
+        ),
+        "exploration_bias_guided_bias": float(
+            final_stats.get("exploration_bias_guided_usage_bias_total", 0.0)
+        ),
+        "exploration_bias_guided_total": int(final_stats.get("total_exploration_bias_guided_moves", 0)),
+        "exploration_bias_explore_share": float(
+            final_stats.get("exploration_bias_explore_share_total", 0.0)
+        ),
+        "exploration_bias_anchor_distance_delta": float(
+            final_stats.get("avg_exploration_bias_anchor_distance_delta_total", 0.0)
         ),
         "persistence_holds_total": int(final_stats.get("total_persistence_holds", 0)),
         "behavior_persistence_oscillation_switch_rate": float(
@@ -972,6 +1064,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "threat_perception": 0.0,
                 "risk_taking": 0.0,
                 "behavior_persistence": 0.0,
+                "exploration_bias": 0.0,
                 "energy_efficiency": 0.0,
                 "exhaustion_resistance": 0.0,
             },
@@ -1009,6 +1102,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "risk_taking_std": 0.0,
                 "behavior_persistence_mean": 0.0,
                 "behavior_persistence_std": 0.0,
+                "exploration_bias_mean": 0.0,
+                "exploration_bias_std": 0.0,
                 "energy_efficiency_mean": 0.0,
                 "energy_efficiency_std": 0.0,
                 "exhaustion_resistance_mean": 0.0,
@@ -1028,6 +1123,10 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "threat_perception_flee_bias": 0.0,
                 "risk_taking_flee_bias": 0.0,
                 "behavior_persistence_hold_bias": 0.0,
+                "exploration_bias_guided_bias": 0.0,
+                "exploration_bias_guided_total": 0.0,
+                "exploration_bias_explore_share": 0.0,
+                "exploration_bias_anchor_distance_delta": 0.0,
                 "persistence_holds_total": 0.0,
                 "behavior_persistence_oscillation_switch_rate": 0.0,
                 "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -1061,6 +1160,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "threat_perception": 0.0,
         "risk_taking": 0.0,
         "behavior_persistence": 0.0,
+        "exploration_bias": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
     }
@@ -1098,6 +1198,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "risk_taking_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
+        "exploration_bias_mean": 0.0,
+        "exploration_bias_std": 0.0,
         "energy_efficiency_mean": 0.0,
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
@@ -1117,6 +1219,10 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
         "behavior_persistence_hold_bias": 0.0,
+        "exploration_bias_guided_bias": 0.0,
+        "exploration_bias_guided_total": 0.0,
+        "exploration_bias_explore_share": 0.0,
+        "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
         "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -1161,6 +1267,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["behavior_persistence"] += float(
                     traits_raw.get("behavior_persistence", 0.0)
                 )
+                avg_traits_acc["exploration_bias"] += float(traits_raw.get("exploration_bias", 0.0))
                 avg_traits_acc["energy_efficiency"] += float(traits_raw.get("energy_efficiency", 0.0))
                 avg_traits_acc["exhaustion_resistance"] += float(traits_raw.get("exhaustion_resistance", 0.0))
 
@@ -1205,6 +1312,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["behavior_persistence_std"] += float(
                     trait_impact_raw.get("behavior_persistence_std", 0.0)
                 )
+                avg_trait_impact_acc["exploration_bias_mean"] += float(
+                    trait_impact_raw.get("exploration_bias_mean", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_std"] += float(
+                    trait_impact_raw.get("exploration_bias_std", 0.0)
+                )
                 avg_trait_impact_acc["energy_efficiency_mean"] += float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
                 avg_trait_impact_acc["energy_efficiency_std"] += float(trait_impact_raw.get("energy_efficiency_std", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_mean"] += float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
@@ -1237,6 +1350,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["risk_taking_flee_bias"] += float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
                 avg_trait_impact_acc["behavior_persistence_hold_bias"] += float(
                     trait_impact_raw.get("behavior_persistence_hold_bias", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_guided_bias"] += float(
+                    trait_impact_raw.get("exploration_bias_guided_bias", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_guided_total"] += float(
+                    trait_impact_raw.get("exploration_bias_guided_total", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_explore_share"] += float(
+                    trait_impact_raw.get("exploration_bias_explore_share", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_anchor_distance_delta"] += float(
+                    trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
                 )
                 avg_trait_impact_acc["persistence_holds_total"] += float(
                     trait_impact_raw.get("persistence_holds_total", 0.0)
@@ -1300,6 +1425,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "threat_perception": avg_traits_acc["threat_perception"] / run_count,
             "risk_taking": avg_traits_acc["risk_taking"] / run_count,
             "behavior_persistence": avg_traits_acc["behavior_persistence"] / run_count,
+            "exploration_bias": avg_traits_acc["exploration_bias"] / run_count,
             "energy_efficiency": avg_traits_acc["energy_efficiency"] / run_count,
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
         },
@@ -1337,6 +1463,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "risk_taking_std": avg_trait_impact_acc["risk_taking_std"] / run_count,
             "behavior_persistence_mean": avg_trait_impact_acc["behavior_persistence_mean"] / run_count,
             "behavior_persistence_std": avg_trait_impact_acc["behavior_persistence_std"] / run_count,
+            "exploration_bias_mean": avg_trait_impact_acc["exploration_bias_mean"] / run_count,
+            "exploration_bias_std": avg_trait_impact_acc["exploration_bias_std"] / run_count,
             "energy_efficiency_mean": avg_trait_impact_acc["energy_efficiency_mean"] / run_count,
             "energy_efficiency_std": avg_trait_impact_acc["energy_efficiency_std"] / run_count,
             "exhaustion_resistance_mean": avg_trait_impact_acc["exhaustion_resistance_mean"] / run_count,
@@ -1364,6 +1492,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "threat_perception_flee_bias": avg_trait_impact_acc["threat_perception_flee_bias"] / run_count,
             "risk_taking_flee_bias": avg_trait_impact_acc["risk_taking_flee_bias"] / run_count,
             "behavior_persistence_hold_bias": avg_trait_impact_acc["behavior_persistence_hold_bias"] / run_count,
+            "exploration_bias_guided_bias": (
+                avg_trait_impact_acc["exploration_bias_guided_bias"] / run_count
+            ),
+            "exploration_bias_guided_total": (
+                avg_trait_impact_acc["exploration_bias_guided_total"] / run_count
+            ),
+            "exploration_bias_explore_share": (
+                avg_trait_impact_acc["exploration_bias_explore_share"] / run_count
+            ),
+            "exploration_bias_anchor_distance_delta": (
+                avg_trait_impact_acc["exploration_bias_anchor_distance_delta"] / run_count
+            ),
             "persistence_holds_total": avg_trait_impact_acc["persistence_holds_total"] / run_count,
             "behavior_persistence_oscillation_switch_rate": (
                 avg_trait_impact_acc["behavior_persistence_oscillation_switch_rate"] / run_count
@@ -1623,6 +1763,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "threat_perception": float(final_stats.get("avg_threat_perception", 0.0)),
         "risk_taking": float(final_stats.get("avg_risk_taking", 0.0)),
         "behavior_persistence": float(final_stats.get("avg_behavior_persistence", 0.0)),
+        "exploration_bias": float(final_stats.get("avg_exploration_bias", 0.0)),
         "energy_efficiency": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
     }

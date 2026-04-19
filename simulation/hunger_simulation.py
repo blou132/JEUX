@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from math import cos, pi, sin
+from math import cos, hypot, pi, sin
 from typing import Dict, Iterable, Set
 
 from ai import CreatureIntent, HungerAI
@@ -127,6 +127,17 @@ class HungerSimulation:
         self.total_search_wander_switches_prevented = 0
         self.search_wander_oscillation_events_last_tick = 0
         self.total_search_wander_oscillation_events = 0
+        self.exploration_bias_guided_moves_last_tick = 0
+        self.total_exploration_bias_guided_moves = 0
+        self.exploration_bias_sum_guided_last_tick = 0.0
+        self.total_exploration_bias_sum_guided = 0.0
+        self.exploration_bias_explore_moves_last_tick = 0
+        self.total_exploration_bias_explore_moves = 0
+        self.exploration_bias_settle_moves_last_tick = 0
+        self.total_exploration_bias_settle_moves = 0
+        self.exploration_bias_anchor_distance_delta_last_tick = 0.0
+        self.total_exploration_bias_anchor_distance_delta = 0.0
+        self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -212,6 +223,12 @@ class HungerSimulation:
         self.search_wander_switches_last_tick = 0
         self.search_wander_switches_prevented_last_tick = 0
         self.search_wander_oscillation_events_last_tick = 0
+        self.exploration_bias_guided_moves_last_tick = 0
+        self.exploration_bias_sum_guided_last_tick = 0.0
+        self.exploration_bias_explore_moves_last_tick = 0
+        self.exploration_bias_settle_moves_last_tick = 0
+        self.exploration_bias_anchor_distance_delta_last_tick = 0.0
+        self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -355,7 +372,7 @@ class HungerSimulation:
                     threat = creatures_by_id.get(intent.target_creature_id)
 
                 if threat is None or not threat.alive:
-                    self._wander(creature, dt, activity=1.0)
+                    self._wander(creature, dt, activity=1.0, allow_exploration_bias=False)
                     continue
 
                 threat_distance = creature.distance_to(threat.x, threat.y)
@@ -452,6 +469,14 @@ class HungerSimulation:
             )
         else:
             self.avg_social_flee_multiplier_last_tick = 1.0
+
+        if self.exploration_bias_guided_moves_last_tick > 0:
+            self.avg_exploration_bias_anchor_distance_delta_last_tick = (
+                self.exploration_bias_anchor_distance_delta_last_tick
+                / self.exploration_bias_guided_moves_last_tick
+            )
+        else:
+            self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
 
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
@@ -646,7 +671,7 @@ class HungerSimulation:
         dx = creature.x - danger_x
         dy = creature.y - danger_y
         if dx == 0.0 and dy == 0.0:
-            self._wander(creature, dt, activity=1.0)
+            self._wander(creature, dt, activity=1.0, allow_exploration_bias=False)
         else:
             target_x = creature.x + dx
             target_y = creature.y + dy
@@ -755,7 +780,13 @@ class HungerSimulation:
         boost = min(effective_boost_max, nearby_fleeing * effective_boost_per_neighbor)
         return 1.0 + boost
 
-    def _wander(self, creature: Creature, dt: float, activity: float = 0.5) -> None:
+    def _wander(
+        self,
+        creature: Creature,
+        dt: float,
+        activity: float = 0.5,
+        allow_exploration_bias: bool = True,
+    ) -> None:
         if activity < 0:
             raise ValueError("activity must be >= 0")
 
@@ -764,10 +795,64 @@ class HungerSimulation:
             return
 
         angle = self.random_source.uniform(0.0, 2.0 * pi)
-        target_x = creature.x + cos(angle) * distance
-        target_y = creature.y + sin(angle) * distance
+        dir_x = cos(angle)
+        dir_y = sin(angle)
+
+        anchor: tuple[float, float] | None = None
+        direction_mode: str | None = None
+        before_anchor_distance = 0.0
+        if allow_exploration_bias and creature.has_food_memory and creature.last_food_zone is not None:
+            strength = min(0.35, abs(creature.traits.exploration_bias - 1.0))
+            if strength > 0.0:
+                anchor = creature.last_food_zone
+                dx = creature.x - anchor[0]
+                dy = creature.y - anchor[1]
+                anchor_norm = hypot(dx, dy)
+                if anchor_norm > 1e-9:
+                    away_x = dx / anchor_norm
+                    away_y = dy / anchor_norm
+                    if creature.traits.exploration_bias >= 1.0:
+                        bias_x = away_x
+                        bias_y = away_y
+                        direction_mode = "explore"
+                    else:
+                        bias_x = -away_x
+                        bias_y = -away_y
+                        direction_mode = "settle"
+
+                    blended_x = ((1.0 - strength) * dir_x) + (strength * bias_x)
+                    blended_y = ((1.0 - strength) * dir_y) + (strength * bias_y)
+                    blended_norm = hypot(blended_x, blended_y)
+                    if blended_norm > 1e-9:
+                        dir_x = blended_x / blended_norm
+                        dir_y = blended_y / blended_norm
+                        before_anchor_distance = creature.distance_to(anchor[0], anchor[1])
+                    else:
+                        anchor = None
+                        direction_mode = None
+                else:
+                    anchor = None
+
+        target_x = creature.x + (dir_x * distance)
+        target_y = creature.y + (dir_y * distance)
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
         self._clamp_creature_position(creature)
+
+        if anchor is not None and direction_mode is not None:
+            after_anchor_distance = creature.distance_to(anchor[0], anchor[1])
+            distance_delta = after_anchor_distance - before_anchor_distance
+            self.exploration_bias_guided_moves_last_tick += 1
+            self.total_exploration_bias_guided_moves += 1
+            self.exploration_bias_sum_guided_last_tick += creature.traits.exploration_bias
+            self.total_exploration_bias_sum_guided += creature.traits.exploration_bias
+            self.exploration_bias_anchor_distance_delta_last_tick += distance_delta
+            self.total_exploration_bias_anchor_distance_delta += distance_delta
+            if direction_mode == "explore":
+                self.exploration_bias_explore_moves_last_tick += 1
+                self.total_exploration_bias_explore_moves += 1
+            else:
+                self.exploration_bias_settle_moves_last_tick += 1
+                self.total_exploration_bias_settle_moves += 1
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(
@@ -785,7 +870,7 @@ class HungerSimulation:
         dy = creature.y - threat.y
 
         if dx == 0.0 and dy == 0.0:
-            self._wander(creature, dt, activity=1.2)
+            self._wander(creature, dt, activity=1.2, allow_exploration_bias=False)
             return
 
         target_x = creature.x + dx

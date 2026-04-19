@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | efficacite_energie_moy | resistance_epuisement_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | efficacite_energie_moy | resistance_epuisement_moy"
     )
 
 
@@ -44,6 +44,7 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{float(stats.get('avg_memory_focus', 0.0)):17.3f} | "
         f"{float(stats.get('avg_social_sensitivity', 0.0)):16.3f} | "
         f"{float(stats.get('avg_behavior_persistence', 0.0)):21.3f} | "
+        f"{float(stats.get('avg_exploration_bias', 0.0)):20.3f} | "
         f"{float(stats.get('avg_energy_efficiency', 0.0)):22.3f} | "
         f"{float(stats.get('avg_exhaustion_resistance', 0.0)):25.3f}"
     )
@@ -236,6 +237,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "food_perception": 0.0,
         "threat_perception": 0.0,
         "behavior_persistence": 0.0,
+        "exploration_bias": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
     }
@@ -249,6 +251,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
         traits["behavior_persistence"] = float(traits_raw.get("behavior_persistence", 0.0))
+        traits["exploration_bias"] = float(traits_raw.get("exploration_bias", 0.0))
         traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
         traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
 
@@ -307,6 +310,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "risk_taking_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
+        "exploration_bias_mean": 0.0,
+        "exploration_bias_std": 0.0,
         "energy_efficiency_mean": 0.0,
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
@@ -326,6 +331,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
         "behavior_persistence_hold_bias": 0.0,
+        "exploration_bias_guided_bias": 0.0,
+        "exploration_bias_guided_total": 0.0,
+        "exploration_bias_explore_share": 0.0,
+        "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
         "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -355,6 +364,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["behavior_persistence_std"] = float(
             trait_impact_raw.get("behavior_persistence_std", 0.0)
+        )
+        trait_impact["exploration_bias_mean"] = float(
+            trait_impact_raw.get("exploration_bias_mean", 0.0)
+        )
+        trait_impact["exploration_bias_std"] = float(
+            trait_impact_raw.get("exploration_bias_std", 0.0)
         )
         trait_impact["energy_efficiency_mean"] = float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
         trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
@@ -388,6 +403,18 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["risk_taking_flee_bias"] = float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
         trait_impact["behavior_persistence_hold_bias"] = float(
             trait_impact_raw.get("behavior_persistence_hold_bias", 0.0)
+        )
+        trait_impact["exploration_bias_guided_bias"] = float(
+            trait_impact_raw.get("exploration_bias_guided_bias", 0.0)
+        )
+        trait_impact["exploration_bias_guided_total"] = float(
+            trait_impact_raw.get("exploration_bias_guided_total", 0.0)
+        )
+        trait_impact["exploration_bias_explore_share"] = float(
+            trait_impact_raw.get("exploration_bias_explore_share", 0.0)
+        )
+        trait_impact["exploration_bias_anchor_distance_delta"] = float(
+            trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
         )
         trait_impact["persistence_holds_total"] = float(
             trait_impact_raw.get("persistence_holds_total", 0.0)
@@ -432,7 +459,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -440,11 +467,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
         "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
-        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} inertie_total={bp_holds_total:.0f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total={bp_holds_total:.0f} "
         "osc_bp:switch={bp_sw_total:.0f} bloc={bp_prev_total:.0f} events={bp_events_total:.0f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
+        "exploration:guides={ex_guided_total:.0f} part_explore={ex_explore_share:.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "logs_obs={observed_logs}"
@@ -467,6 +495,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
         behavior_persistence=traits["behavior_persistence"],
+        exploration_bias=traits["exploration_bias"],
         energy_efficiency=traits["energy_efficiency"],
         exhaustion_resistance=traits["exhaustion_resistance"],
         mem_food=memory["food_usage_total"],
@@ -498,6 +527,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         rk_sigma=trait_impact["risk_taking_std"],
         bp_mu=trait_impact["behavior_persistence_mean"],
         bp_sigma=trait_impact["behavior_persistence_std"],
+        ex_mu=trait_impact["exploration_bias_mean"],
+        ex_sigma=trait_impact["exploration_bias_std"],
         ee_mu=trait_impact["energy_efficiency_mean"],
         ee_sigma=trait_impact["energy_efficiency_std"],
         er_mu=trait_impact["exhaustion_resistance_mean"],
@@ -515,12 +546,16 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         bias_tp_flee=trait_impact["threat_perception_flee_bias"],
         bias_rk_flee=trait_impact["risk_taking_flee_bias"],
         bias_bp_hold=trait_impact["behavior_persistence_hold_bias"],
+        bias_explore=trait_impact["exploration_bias_guided_bias"],
         bp_holds_total=trait_impact["persistence_holds_total"],
         bp_sw_total=trait_impact["search_wander_switches_total"],
         bp_prev_total=trait_impact["search_wander_switches_prevented_total"],
         bp_events_total=trait_impact["search_wander_oscillation_events_total"],
         bp_sw_rate=trait_impact["behavior_persistence_oscillation_switch_rate"],
         bp_prev_rate=trait_impact["behavior_persistence_oscillation_prevented_rate"],
+        ex_guided_total=trait_impact["exploration_bias_guided_total"],
+        ex_explore_share=trait_impact["exploration_bias_explore_share"],
+        ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         rk_border_cases=trait_impact["borderline_threat_encounters"],
         rk_border_flees=trait_impact["borderline_threat_flees"],
         rk_border_rate=trait_impact["borderline_threat_flee_rate"],
@@ -553,6 +588,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "food_perception": 0.0,
         "threat_perception": 0.0,
         "behavior_persistence": 0.0,
+        "exploration_bias": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
     }
@@ -566,6 +602,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
         traits["behavior_persistence"] = float(traits_raw.get("behavior_persistence", 0.0))
+        traits["exploration_bias"] = float(traits_raw.get("exploration_bias", 0.0))
         traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
         traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
 
@@ -624,6 +661,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "risk_taking_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
+        "exploration_bias_mean": 0.0,
+        "exploration_bias_std": 0.0,
         "energy_efficiency_mean": 0.0,
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
@@ -643,6 +682,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
         "behavior_persistence_hold_bias": 0.0,
+        "exploration_bias_guided_bias": 0.0,
+        "exploration_bias_guided_total": 0.0,
+        "exploration_bias_explore_share": 0.0,
+        "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
         "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -666,6 +709,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["behavior_persistence_std"] = float(
             trait_impact_raw.get("behavior_persistence_std", 0.0)
+        )
+        trait_impact["exploration_bias_mean"] = float(
+            trait_impact_raw.get("exploration_bias_mean", 0.0)
+        )
+        trait_impact["exploration_bias_std"] = float(
+            trait_impact_raw.get("exploration_bias_std", 0.0)
         )
         trait_impact["energy_efficiency_mean"] = float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
         trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
@@ -700,6 +749,18 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["behavior_persistence_hold_bias"] = float(
             trait_impact_raw.get("behavior_persistence_hold_bias", 0.0)
         )
+        trait_impact["exploration_bias_guided_bias"] = float(
+            trait_impact_raw.get("exploration_bias_guided_bias", 0.0)
+        )
+        trait_impact["exploration_bias_guided_total"] = float(
+            trait_impact_raw.get("exploration_bias_guided_total", 0.0)
+        )
+        trait_impact["exploration_bias_explore_share"] = float(
+            trait_impact_raw.get("exploration_bias_explore_share", 0.0)
+        )
+        trait_impact["exploration_bias_anchor_distance_delta"] = float(
+            trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
+        )
         trait_impact["persistence_holds_total"] = float(
             trait_impact_raw.get("persistence_holds_total", 0.0)
         )
@@ -726,7 +787,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -735,11 +796,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
         "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
-        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} inertie_total_moy={bp_holds_total:.2f} "
+        "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total_moy={bp_holds_total:.2f} "
         "osc_bp_moy:switch={bp_sw_total:.2f} bloc={bp_prev_total:.2f} events={bp_events_total:.2f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
+        "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
@@ -758,6 +820,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
         behavior_persistence=traits["behavior_persistence"],
+        exploration_bias=traits["exploration_bias"],
         energy_efficiency=traits["energy_efficiency"],
         exhaustion_resistance=traits["exhaustion_resistance"],
         mem_food=memory["food_usage_total"],
@@ -789,6 +852,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         rk_sigma=trait_impact["risk_taking_std"],
         bp_mu=trait_impact["behavior_persistence_mean"],
         bp_sigma=trait_impact["behavior_persistence_std"],
+        ex_mu=trait_impact["exploration_bias_mean"],
+        ex_sigma=trait_impact["exploration_bias_std"],
         ee_mu=trait_impact["energy_efficiency_mean"],
         ee_sigma=trait_impact["energy_efficiency_std"],
         er_mu=trait_impact["exhaustion_resistance_mean"],
@@ -806,12 +871,16 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         bias_tp_flee=trait_impact["threat_perception_flee_bias"],
         bias_rk_flee=trait_impact["risk_taking_flee_bias"],
         bias_bp_hold=trait_impact["behavior_persistence_hold_bias"],
+        bias_explore=trait_impact["exploration_bias_guided_bias"],
         bp_holds_total=trait_impact["persistence_holds_total"],
         bp_sw_total=trait_impact["search_wander_switches_total"],
         bp_prev_total=trait_impact["search_wander_switches_prevented_total"],
         bp_events_total=trait_impact["search_wander_oscillation_events_total"],
         bp_sw_rate=trait_impact["behavior_persistence_oscillation_switch_rate"],
         bp_prev_rate=trait_impact["behavior_persistence_oscillation_prevented_rate"],
+        ex_guided_total=trait_impact["exploration_bias_guided_total"],
+        ex_explore_share=trait_impact["exploration_bias_explore_share"],
+        ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         bias_ee_drain=trait_impact["energy_efficiency_drain_bias"],
         bias_er_repro=trait_impact["exhaustion_resistance_reproduction_bias"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
@@ -856,6 +925,9 @@ def format_population_dynamics(
     current_total_food_consumption = int(stats.get("total_food_consumptions", 0))
     current_total_threat_detection = int(stats.get("total_threat_detection_flee", 0))
     current_total_persistence_holds = int(stats.get("total_persistence_holds", 0))
+    current_total_exploration_guided = int(stats.get("total_exploration_bias_guided_moves", 0))
+    current_total_exploration_explore = int(stats.get("total_exploration_bias_explore_moves", 0))
+    current_total_exploration_settle = int(stats.get("total_exploration_bias_settle_moves", 0))
     current_total_search_wander_switches = int(stats.get("total_search_wander_switches", 0))
     current_total_search_wander_switches_prevented = int(
         stats.get("total_search_wander_switches_prevented", 0)
@@ -887,6 +959,13 @@ def format_population_dynamics(
     food_consumption_tick = int(stats.get("food_consumptions_last_tick", 0))
     threat_detection_tick = int(stats.get("threat_detection_flee_last_tick", 0))
     persistence_holds_tick = int(stats.get("persistence_holds_last_tick", 0))
+    exploration_guided_tick = int(stats.get("exploration_bias_guided_moves_last_tick", 0))
+    exploration_explore_tick = int(stats.get("exploration_bias_explore_moves_last_tick", 0))
+    exploration_settle_tick = int(stats.get("exploration_bias_settle_moves_last_tick", 0))
+    exploration_explore_share_tick = float(stats.get("exploration_bias_explore_share_last_tick", 0.0))
+    exploration_anchor_delta_tick = float(
+        stats.get("avg_exploration_bias_anchor_distance_delta_last_tick", 0.0)
+    )
     search_wander_switches_tick = int(stats.get("search_wander_switches_last_tick", 0))
     search_wander_switches_prevented_tick = int(
         stats.get("search_wander_switches_prevented_last_tick", 0)
@@ -907,6 +986,7 @@ def format_population_dynamics(
     avg_food_perception = float(stats.get("avg_food_perception", 0.0))
     avg_threat_perception = float(stats.get("avg_threat_perception", 0.0))
     avg_behavior_persistence = float(stats.get("avg_behavior_persistence", 0.0))
+    avg_exploration_bias = float(stats.get("avg_exploration_bias", 0.0))
     avg_energy_efficiency = float(stats.get("avg_energy_efficiency", 0.0))
     avg_exhaustion_resistance = float(stats.get("avg_exhaustion_resistance", 0.0))
     std_memory_focus = float(stats.get("std_memory_focus", 0.0))
@@ -915,6 +995,7 @@ def format_population_dynamics(
     std_threat_perception = float(stats.get("std_threat_perception", 0.0))
     std_risk_taking = float(stats.get("std_risk_taking", 0.0))
     std_behavior_persistence = float(stats.get("std_behavior_persistence", 0.0))
+    std_exploration_bias = float(stats.get("std_exploration_bias", 0.0))
     std_energy_efficiency = float(stats.get("std_energy_efficiency", 0.0))
     std_exhaustion_resistance = float(stats.get("std_exhaustion_resistance", 0.0))
     avg_effective_energy_drain_multiplier = float(stats.get("avg_effective_energy_drain_multiplier", 0.0))
@@ -942,6 +1023,9 @@ def format_population_dynamics(
     behavior_persistence_hold_bias_tick = float(
         stats.get("behavior_persistence_hold_usage_bias_tick", 0.0)
     )
+    exploration_bias_guided_usage_bias_tick = float(
+        stats.get("exploration_bias_guided_usage_bias_tick", 0.0)
+    )
 
     alive_delta = 0
     births_log = births_tick
@@ -956,6 +1040,9 @@ def format_population_dynamics(
     food_consumption_log = food_consumption_tick
     threat_detection_log = threat_detection_tick
     persistence_holds_log = persistence_holds_tick
+    exploration_guided_log = exploration_guided_tick
+    exploration_explore_log = exploration_explore_tick
+    exploration_settle_log = exploration_settle_tick
     search_wander_switches_log = search_wander_switches_tick
     search_wander_switches_prevented_log = search_wander_switches_prevented_tick
 
@@ -992,6 +1079,15 @@ def format_population_dynamics(
         previous_total_persistence_holds = int(
             previous_stats.get("total_persistence_holds", current_total_persistence_holds)
         )
+        previous_total_exploration_guided = int(
+            previous_stats.get("total_exploration_bias_guided_moves", current_total_exploration_guided)
+        )
+        previous_total_exploration_explore = int(
+            previous_stats.get("total_exploration_bias_explore_moves", current_total_exploration_explore)
+        )
+        previous_total_exploration_settle = int(
+            previous_stats.get("total_exploration_bias_settle_moves", current_total_exploration_settle)
+        )
         previous_total_search_wander_switches = int(
             previous_stats.get("total_search_wander_switches", current_total_search_wander_switches)
         )
@@ -1016,6 +1112,18 @@ def format_population_dynamics(
         persistence_holds_log = max(
             0,
             current_total_persistence_holds - previous_total_persistence_holds,
+        )
+        exploration_guided_log = max(
+            0,
+            current_total_exploration_guided - previous_total_exploration_guided,
+        )
+        exploration_explore_log = max(
+            0,
+            current_total_exploration_explore - previous_total_exploration_explore,
+        )
+        exploration_settle_log = max(
+            0,
+            current_total_exploration_settle - previous_total_exploration_settle,
         )
         search_wander_switches_log = max(
             0,
@@ -1084,20 +1192,22 @@ def format_population_dynamics(
         f"social_tick:suivi={social_follow_tick} fuite_boost={social_flee_boost_tick} infl={social_influenced_tick} "
         f"perception_log:det={food_detection_log} eat={food_consumption_log} fuite={threat_detection_log} "
         f"perception_tick:det={food_detection_tick} eat={food_consumption_tick} fuite={threat_detection_tick} "
+        f"exploration_log:guides={exploration_guided_log} explore={exploration_explore_log} settle={exploration_settle_log} "
+        f"exploration_tick:guides={exploration_guided_tick} explore={exploration_explore_tick} settle={exploration_settle_tick} part_explore={exploration_explore_share_tick:.2f} delta_ancre={exploration_anchor_delta_tick:+.2f} "
         f"inertie_log:{persistence_holds_log} inertie_tick:{persistence_holds_tick} "
         f"oscill_log:sw={search_wander_switches_log} bloc={search_wander_switches_prevented_log} evts={search_wander_events_log} taux_sw={search_wander_switch_rate_log:.2f} taux_bloc={search_wander_prevented_rate_log:.2f} "
         f"oscill_tick:sw={search_wander_switches_tick} bloc={search_wander_switches_prevented_tick} evts={search_wander_events_tick} taux_sw={search_wander_switch_rate_tick:.2f} taux_bloc={search_wander_prevented_rate_tick:.2f} "
         f"perception_freq_tick:det={food_detection_usage_alive_tick:.2f} eat={food_consumption_usage_alive_tick:.2f} fuite={threat_detection_usage_alive_tick:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} bp_sigma={std_behavior_persistence:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} "
         f"energie_traits_effets:drain_mult={avg_effective_energy_drain_multiplier:.2f} repro_mult={avg_reproduction_cost_multiplier:.2f} "
         f"drain_obs_mult={avg_energy_drain_multiplier_observed_tick:.2f} repro_obs_mult={avg_reproduction_cost_multiplier_observed_tick:.2f} "
         f"drain_obs={avg_energy_drain_amount_last_tick:.2f} repro_obs={avg_reproduction_cost_amount_last_tick:.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
-        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} "
+        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} "
         f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} rk_fuite={risk_taking_flee_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "

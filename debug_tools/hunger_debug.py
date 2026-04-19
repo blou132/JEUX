@@ -34,6 +34,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "threat_perception": round(creature.traits.threat_perception, 3),
                     "risk_taking": round(creature.traits.risk_taking, 3),
                     "behavior_persistence": round(creature.traits.behavior_persistence, 3),
+                    "exploration_bias": round(creature.traits.exploration_bias, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -88,6 +89,15 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_search_wander_switches_prevented": simulation.total_search_wander_switches_prevented,
         "search_wander_oscillation_events_last_tick": simulation.search_wander_oscillation_events_last_tick,
         "total_search_wander_oscillation_events": simulation.total_search_wander_oscillation_events,
+        "exploration_bias_guided_moves_last_tick": simulation.exploration_bias_guided_moves_last_tick,
+        "total_exploration_bias_guided_moves": simulation.total_exploration_bias_guided_moves,
+        "exploration_bias_explore_moves_last_tick": simulation.exploration_bias_explore_moves_last_tick,
+        "total_exploration_bias_explore_moves": simulation.total_exploration_bias_explore_moves,
+        "exploration_bias_settle_moves_last_tick": simulation.exploration_bias_settle_moves_last_tick,
+        "total_exploration_bias_settle_moves": simulation.total_exploration_bias_settle_moves,
+        "avg_exploration_bias_anchor_distance_delta_last_tick": (
+            simulation.avg_exploration_bias_anchor_distance_delta_last_tick
+        ),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
         "social_follow_moves_last_tick": simulation.social_follow_moves_last_tick,
