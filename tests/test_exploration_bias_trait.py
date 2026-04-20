@@ -94,11 +94,17 @@ class ExplorationBiasTraitTests(unittest.TestCase):
         self.assertIn("std_exploration_bias", stats)
         self.assertIn("exploration_bias_guided_moves_last_tick", stats)
         self.assertIn("exploration_bias_guided_usage_bias_tick", stats)
+        self.assertIn("exploration_bias_explore_users_avg_tick", stats)
+        self.assertIn("exploration_bias_explore_usage_bias_tick", stats)
+        self.assertIn("exploration_bias_settle_users_avg_tick", stats)
+        self.assertIn("exploration_bias_settle_usage_bias_tick", stats)
         self.assertIn("avg_exploration_bias_anchor_distance_delta_last_tick", stats)
         self.assertGreater(float(stats["std_exploration_bias"]), 0.0)
         self.assertGreater(int(stats["exploration_bias_guided_moves_last_tick"]), 0)
 
         self.assertIn("exploration_bias_guided_moves_last_tick", snapshot)
+        self.assertIn("exploration_bias_explore_users_avg_last_tick", snapshot)
+        self.assertIn("exploration_bias_settle_users_avg_last_tick", snapshot)
         creature_traits = snapshot["creatures"][0]["traits"]
         self.assertIn("exploration_bias", creature_traits)
 
@@ -125,6 +131,10 @@ class ExplorationBiasTraitTests(unittest.TestCase):
             "exploration_bias_guided_usage_bias_total": 0.04,
             "total_exploration_bias_guided_moves": 12,
             "exploration_bias_explore_share_total": 0.58,
+            "exploration_bias_explore_users_avg_total": 1.08,
+            "exploration_bias_explore_usage_bias_total": 0.06,
+            "exploration_bias_settle_users_avg_total": 0.94,
+            "exploration_bias_settle_usage_bias_total": -0.08,
             "avg_exploration_bias_anchor_distance_delta_total": 0.11,
         }
 
@@ -135,10 +145,15 @@ class ExplorationBiasTraitTests(unittest.TestCase):
         self.assertAlmostEqual(float(impact["exploration_bias_guided_bias"]), 0.04)
         self.assertEqual(int(impact["exploration_bias_guided_total"]), 12)
         self.assertAlmostEqual(float(impact["exploration_bias_explore_share"]), 0.58)
+        self.assertAlmostEqual(float(impact["exploration_bias_explore_users_avg"]), 1.08)
+        self.assertAlmostEqual(float(impact["exploration_bias_explore_usage_bias"]), 0.06)
+        self.assertAlmostEqual(float(impact["exploration_bias_settle_users_avg"]), 0.94)
+        self.assertAlmostEqual(float(impact["exploration_bias_settle_usage_bias"]), -0.08)
         self.assertAlmostEqual(float(impact["exploration_bias_anchor_distance_delta"]), 0.11)
 
         run_text = format_final_run_summary(run_summary)
         self.assertIn("ex_mu=", run_text)
+        self.assertIn("st_mu=", run_text)
         self.assertIn("exploration:", run_text)
 
         multi_summary = build_multi_run_summary(
@@ -156,6 +171,10 @@ class ExplorationBiasTraitTests(unittest.TestCase):
                             "exploration_bias_mean": 0.98,
                             "exploration_bias_guided_bias": -0.02,
                             "exploration_bias_explore_share": 0.42,
+                            "exploration_bias_explore_users_avg": 1.02,
+                            "exploration_bias_explore_usage_bias": 0.03,
+                            "exploration_bias_settle_users_avg": 0.97,
+                            "exploration_bias_settle_usage_bias": -0.02,
                         },
                     },
                 },
@@ -166,9 +185,14 @@ class ExplorationBiasTraitTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_impact["exploration_bias_mean"]), 1.0)
         self.assertAlmostEqual(float(avg_impact["exploration_bias_guided_bias"]), 0.01)
         self.assertAlmostEqual(float(avg_impact["exploration_bias_explore_share"]), 0.5)
+        self.assertAlmostEqual(float(avg_impact["exploration_bias_explore_users_avg"]), 1.05)
+        self.assertAlmostEqual(float(avg_impact["exploration_bias_explore_usage_bias"]), 0.045)
+        self.assertAlmostEqual(float(avg_impact["exploration_bias_settle_users_avg"]), 0.955)
+        self.assertAlmostEqual(float(avg_impact["exploration_bias_settle_usage_bias"]), -0.05)
 
         multi_text = format_multi_run_summary(multi_summary)
         self.assertIn("ex_mu=", multi_text)
+        self.assertIn("st_mu=", multi_text)
         self.assertIn("exploration_moy:", multi_text)
 
 

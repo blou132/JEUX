@@ -213,8 +213,16 @@ def build_population_stats(
             "exploration_bias_guided_usage_bias_total": 0.0,
             "exploration_bias_explore_moves_last_tick": 0,
             "total_exploration_bias_explore_moves": 0,
+            "exploration_bias_explore_users_avg_tick": 0.0,
+            "exploration_bias_explore_users_avg_total": 0.0,
+            "exploration_bias_explore_usage_bias_tick": 0.0,
+            "exploration_bias_explore_usage_bias_total": 0.0,
             "exploration_bias_settle_moves_last_tick": 0,
             "total_exploration_bias_settle_moves": 0,
+            "exploration_bias_settle_users_avg_tick": 0.0,
+            "exploration_bias_settle_users_avg_total": 0.0,
+            "exploration_bias_settle_usage_bias_tick": 0.0,
+            "exploration_bias_settle_usage_bias_total": 0.0,
             "exploration_bias_explore_share_last_tick": 0.0,
             "exploration_bias_explore_share_total": 0.0,
             "avg_exploration_bias_anchor_distance_delta_last_tick": (
@@ -582,6 +590,46 @@ def build_population_stats(
         if simulation.total_exploration_bias_guided_moves > 0
         else 0.0
     )
+    avg_exploration_bias_explore_users_tick = (
+        simulation.exploration_bias_sum_explore_last_tick / simulation.exploration_bias_explore_moves_last_tick
+        if simulation.exploration_bias_explore_moves_last_tick > 0
+        else 0.0
+    )
+    avg_exploration_bias_explore_users_total = (
+        simulation.total_exploration_bias_sum_explore / simulation.total_exploration_bias_explore_moves
+        if simulation.total_exploration_bias_explore_moves > 0
+        else 0.0
+    )
+    exploration_bias_explore_usage_bias_tick = (
+        avg_exploration_bias_explore_users_tick - avg_exploration_bias
+        if simulation.exploration_bias_explore_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_explore_usage_bias_total = (
+        avg_exploration_bias_explore_users_total - avg_exploration_bias
+        if simulation.total_exploration_bias_explore_moves > 0
+        else 0.0
+    )
+    avg_exploration_bias_settle_users_tick = (
+        simulation.exploration_bias_sum_settle_last_tick / simulation.exploration_bias_settle_moves_last_tick
+        if simulation.exploration_bias_settle_moves_last_tick > 0
+        else 0.0
+    )
+    avg_exploration_bias_settle_users_total = (
+        simulation.total_exploration_bias_sum_settle / simulation.total_exploration_bias_settle_moves
+        if simulation.total_exploration_bias_settle_moves > 0
+        else 0.0
+    )
+    exploration_bias_settle_usage_bias_tick = (
+        avg_exploration_bias_settle_users_tick - avg_exploration_bias
+        if simulation.exploration_bias_settle_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_settle_usage_bias_total = (
+        avg_exploration_bias_settle_users_total - avg_exploration_bias
+        if simulation.total_exploration_bias_settle_moves > 0
+        else 0.0
+    )
     avg_exploration_bias_anchor_distance_delta_total = (
         simulation.total_exploration_bias_anchor_distance_delta / simulation.total_exploration_bias_guided_moves
         if simulation.total_exploration_bias_guided_moves > 0
@@ -829,8 +877,16 @@ def build_population_stats(
         "exploration_bias_guided_usage_bias_total": exploration_bias_guided_usage_bias_total,
         "exploration_bias_explore_moves_last_tick": simulation.exploration_bias_explore_moves_last_tick,
         "total_exploration_bias_explore_moves": simulation.total_exploration_bias_explore_moves,
+        "exploration_bias_explore_users_avg_tick": avg_exploration_bias_explore_users_tick,
+        "exploration_bias_explore_users_avg_total": avg_exploration_bias_explore_users_total,
+        "exploration_bias_explore_usage_bias_tick": exploration_bias_explore_usage_bias_tick,
+        "exploration_bias_explore_usage_bias_total": exploration_bias_explore_usage_bias_total,
         "exploration_bias_settle_moves_last_tick": simulation.exploration_bias_settle_moves_last_tick,
         "total_exploration_bias_settle_moves": simulation.total_exploration_bias_settle_moves,
+        "exploration_bias_settle_users_avg_tick": avg_exploration_bias_settle_users_tick,
+        "exploration_bias_settle_users_avg_total": avg_exploration_bias_settle_users_total,
+        "exploration_bias_settle_usage_bias_tick": exploration_bias_settle_usage_bias_tick,
+        "exploration_bias_settle_usage_bias_total": exploration_bias_settle_usage_bias_total,
         "exploration_bias_explore_share_last_tick": exploration_bias_explore_share_last_tick,
         "exploration_bias_explore_share_total": exploration_bias_explore_share_total,
         "avg_exploration_bias_anchor_distance_delta_last_tick": (
@@ -994,6 +1050,18 @@ def build_final_run_summary(
         "exploration_bias_explore_share": float(
             final_stats.get("exploration_bias_explore_share_total", 0.0)
         ),
+        "exploration_bias_explore_users_avg": float(
+            final_stats.get("exploration_bias_explore_users_avg_total", 0.0)
+        ),
+        "exploration_bias_explore_usage_bias": float(
+            final_stats.get("exploration_bias_explore_usage_bias_total", 0.0)
+        ),
+        "exploration_bias_settle_users_avg": float(
+            final_stats.get("exploration_bias_settle_users_avg_total", 0.0)
+        ),
+        "exploration_bias_settle_usage_bias": float(
+            final_stats.get("exploration_bias_settle_usage_bias_total", 0.0)
+        ),
         "exploration_bias_anchor_distance_delta": float(
             final_stats.get("avg_exploration_bias_anchor_distance_delta_total", 0.0)
         ),
@@ -1126,6 +1194,10 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "exploration_bias_guided_bias": 0.0,
                 "exploration_bias_guided_total": 0.0,
                 "exploration_bias_explore_share": 0.0,
+                "exploration_bias_explore_users_avg": 0.0,
+                "exploration_bias_explore_usage_bias": 0.0,
+                "exploration_bias_settle_users_avg": 0.0,
+                "exploration_bias_settle_usage_bias": 0.0,
                 "exploration_bias_anchor_distance_delta": 0.0,
                 "persistence_holds_total": 0.0,
                 "behavior_persistence_oscillation_switch_rate": 0.0,
@@ -1222,6 +1294,10 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "exploration_bias_guided_bias": 0.0,
         "exploration_bias_guided_total": 0.0,
         "exploration_bias_explore_share": 0.0,
+        "exploration_bias_explore_users_avg": 0.0,
+        "exploration_bias_explore_usage_bias": 0.0,
+        "exploration_bias_settle_users_avg": 0.0,
+        "exploration_bias_settle_usage_bias": 0.0,
         "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
@@ -1359,6 +1435,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["exploration_bias_explore_share"] += float(
                     trait_impact_raw.get("exploration_bias_explore_share", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_explore_users_avg"] += float(
+                    trait_impact_raw.get("exploration_bias_explore_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_explore_usage_bias"] += float(
+                    trait_impact_raw.get("exploration_bias_explore_usage_bias", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_settle_users_avg"] += float(
+                    trait_impact_raw.get("exploration_bias_settle_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["exploration_bias_settle_usage_bias"] += float(
+                    trait_impact_raw.get("exploration_bias_settle_usage_bias", 0.0)
                 )
                 avg_trait_impact_acc["exploration_bias_anchor_distance_delta"] += float(
                     trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
@@ -1500,6 +1588,18 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "exploration_bias_explore_share": (
                 avg_trait_impact_acc["exploration_bias_explore_share"] / run_count
+            ),
+            "exploration_bias_explore_users_avg": (
+                avg_trait_impact_acc["exploration_bias_explore_users_avg"] / run_count
+            ),
+            "exploration_bias_explore_usage_bias": (
+                avg_trait_impact_acc["exploration_bias_explore_usage_bias"] / run_count
+            ),
+            "exploration_bias_settle_users_avg": (
+                avg_trait_impact_acc["exploration_bias_settle_users_avg"] / run_count
+            ),
+            "exploration_bias_settle_usage_bias": (
+                avg_trait_impact_acc["exploration_bias_settle_usage_bias"] / run_count
             ),
             "exploration_bias_anchor_distance_delta": (
                 avg_trait_impact_acc["exploration_bias_anchor_distance_delta"] / run_count

@@ -280,6 +280,18 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias_explore_share": _parse_float(
                 row.get("run_summary.trait_impact.exploration_bias_explore_share")
             ),
+            "exploration_bias_explore_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.exploration_bias_explore_users_avg")
+            ),
+            "exploration_bias_explore_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.exploration_bias_explore_usage_bias")
+            ),
+            "exploration_bias_settle_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.exploration_bias_settle_users_avg")
+            ),
+            "exploration_bias_settle_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.exploration_bias_settle_usage_bias")
+            ),
             "exploration_bias_anchor_distance_delta": _parse_float(
                 row.get("run_summary.trait_impact.exploration_bias_anchor_distance_delta")
             ),
@@ -450,6 +462,18 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "exploration_bias_explore_share": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_share")
+            ),
+            "exploration_bias_explore_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_users_avg")
+            ),
+            "exploration_bias_explore_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_usage_bias")
+            ),
+            "exploration_bias_settle_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.exploration_bias_settle_users_avg")
+            ),
+            "exploration_bias_settle_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.exploration_bias_settle_usage_bias")
             ),
             "exploration_bias_anchor_distance_delta": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exploration_bias_anchor_distance_delta")
@@ -629,6 +653,18 @@ def _build_batch_payload_from_csv(
                 ),
                 "exploration_bias_explore_share": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_share")
+                ),
+                "exploration_bias_explore_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_users_avg")
+                ),
+                "exploration_bias_explore_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_explore_usage_bias")
+                ),
+                "exploration_bias_settle_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_settle_users_avg")
+                ),
+                "exploration_bias_settle_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_settle_usage_bias")
                 ),
                 "exploration_bias_anchor_distance_delta": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_anchor_distance_delta")

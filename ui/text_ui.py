@@ -334,6 +334,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "exploration_bias_guided_bias": 0.0,
         "exploration_bias_guided_total": 0.0,
         "exploration_bias_explore_share": 0.0,
+        "exploration_bias_explore_users_avg": 0.0,
+        "exploration_bias_explore_usage_bias": 0.0,
+        "exploration_bias_settle_users_avg": 0.0,
+        "exploration_bias_settle_usage_bias": 0.0,
         "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
@@ -413,6 +417,18 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["exploration_bias_explore_share"] = float(
             trait_impact_raw.get("exploration_bias_explore_share", 0.0)
         )
+        trait_impact["exploration_bias_explore_users_avg"] = float(
+            trait_impact_raw.get("exploration_bias_explore_users_avg", 0.0)
+        )
+        trait_impact["exploration_bias_explore_usage_bias"] = float(
+            trait_impact_raw.get("exploration_bias_explore_usage_bias", 0.0)
+        )
+        trait_impact["exploration_bias_settle_users_avg"] = float(
+            trait_impact_raw.get("exploration_bias_settle_users_avg", 0.0)
+        )
+        trait_impact["exploration_bias_settle_usage_bias"] = float(
+            trait_impact_raw.get("exploration_bias_settle_usage_bias", 0.0)
+        )
         trait_impact["exploration_bias_anchor_distance_delta"] = float(
             trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
         )
@@ -472,7 +488,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total={bp_holds_total:.0f} "
         "osc_bp:switch={bp_sw_total:.0f} bloc={bp_prev_total:.0f} events={bp_events_total:.0f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
-        "exploration:guides={ex_guided_total:.0f} part_explore={ex_explore_share:.3f} delta_ancre={ex_anchor_delta:+.3f} "
+        "exploration:guides={ex_guided_total:.0f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "logs_obs={observed_logs}"
@@ -555,6 +571,10 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         bp_prev_rate=trait_impact["behavior_persistence_oscillation_prevented_rate"],
         ex_guided_total=trait_impact["exploration_bias_guided_total"],
         ex_explore_share=trait_impact["exploration_bias_explore_share"],
+        ex_explore_mu=trait_impact["exploration_bias_explore_users_avg"],
+        ex_settle_mu=trait_impact["exploration_bias_settle_users_avg"],
+        ex_explore_bias=trait_impact["exploration_bias_explore_usage_bias"],
+        ex_settle_bias=trait_impact["exploration_bias_settle_usage_bias"],
         ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         rk_border_cases=trait_impact["borderline_threat_encounters"],
         rk_border_flees=trait_impact["borderline_threat_flees"],
@@ -685,6 +705,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "exploration_bias_guided_bias": 0.0,
         "exploration_bias_guided_total": 0.0,
         "exploration_bias_explore_share": 0.0,
+        "exploration_bias_explore_users_avg": 0.0,
+        "exploration_bias_explore_usage_bias": 0.0,
+        "exploration_bias_settle_users_avg": 0.0,
+        "exploration_bias_settle_usage_bias": 0.0,
         "exploration_bias_anchor_distance_delta": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
@@ -758,6 +782,18 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["exploration_bias_explore_share"] = float(
             trait_impact_raw.get("exploration_bias_explore_share", 0.0)
         )
+        trait_impact["exploration_bias_explore_users_avg"] = float(
+            trait_impact_raw.get("exploration_bias_explore_users_avg", 0.0)
+        )
+        trait_impact["exploration_bias_explore_usage_bias"] = float(
+            trait_impact_raw.get("exploration_bias_explore_usage_bias", 0.0)
+        )
+        trait_impact["exploration_bias_settle_users_avg"] = float(
+            trait_impact_raw.get("exploration_bias_settle_users_avg", 0.0)
+        )
+        trait_impact["exploration_bias_settle_usage_bias"] = float(
+            trait_impact_raw.get("exploration_bias_settle_usage_bias", 0.0)
+        )
         trait_impact["exploration_bias_anchor_distance_delta"] = float(
             trait_impact_raw.get("exploration_bias_anchor_distance_delta", 0.0)
         )
@@ -801,7 +837,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total_moy={bp_holds_total:.2f} "
         "osc_bp_moy:switch={bp_sw_total:.2f} bloc={bp_prev_total:.2f} events={bp_events_total:.2f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
-        "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} delta_ancre={ex_anchor_delta:+.3f} "
+        "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
@@ -880,6 +916,10 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         bp_prev_rate=trait_impact["behavior_persistence_oscillation_prevented_rate"],
         ex_guided_total=trait_impact["exploration_bias_guided_total"],
         ex_explore_share=trait_impact["exploration_bias_explore_share"],
+        ex_explore_mu=trait_impact["exploration_bias_explore_users_avg"],
+        ex_settle_mu=trait_impact["exploration_bias_settle_users_avg"],
+        ex_explore_bias=trait_impact["exploration_bias_explore_usage_bias"],
+        ex_settle_bias=trait_impact["exploration_bias_settle_usage_bias"],
         ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         bias_ee_drain=trait_impact["energy_efficiency_drain_bias"],
         bias_er_repro=trait_impact["exhaustion_resistance_reproduction_bias"],
@@ -963,6 +1003,10 @@ def format_population_dynamics(
     exploration_explore_tick = int(stats.get("exploration_bias_explore_moves_last_tick", 0))
     exploration_settle_tick = int(stats.get("exploration_bias_settle_moves_last_tick", 0))
     exploration_explore_share_tick = float(stats.get("exploration_bias_explore_share_last_tick", 0.0))
+    exploration_explore_users_avg_tick = float(stats.get("exploration_bias_explore_users_avg_tick", 0.0))
+    exploration_settle_users_avg_tick = float(stats.get("exploration_bias_settle_users_avg_tick", 0.0))
+    exploration_explore_usage_bias_tick = float(stats.get("exploration_bias_explore_usage_bias_tick", 0.0))
+    exploration_settle_usage_bias_tick = float(stats.get("exploration_bias_settle_usage_bias_tick", 0.0))
     exploration_anchor_delta_tick = float(
         stats.get("avg_exploration_bias_anchor_distance_delta_last_tick", 0.0)
     )
@@ -1193,7 +1237,7 @@ def format_population_dynamics(
         f"perception_log:det={food_detection_log} eat={food_consumption_log} fuite={threat_detection_log} "
         f"perception_tick:det={food_detection_tick} eat={food_consumption_tick} fuite={threat_detection_tick} "
         f"exploration_log:guides={exploration_guided_log} explore={exploration_explore_log} settle={exploration_settle_log} "
-        f"exploration_tick:guides={exploration_guided_tick} explore={exploration_explore_tick} settle={exploration_settle_tick} part_explore={exploration_explore_share_tick:.2f} delta_ancre={exploration_anchor_delta_tick:+.2f} "
+        f"exploration_tick:guides={exploration_guided_tick} explore={exploration_explore_tick} settle={exploration_settle_tick} part_explore={exploration_explore_share_tick:.2f} ex_mu={exploration_explore_users_avg_tick:.2f} st_mu={exploration_settle_users_avg_tick:.2f} ex_bias={exploration_explore_usage_bias_tick:+.2f} st_bias={exploration_settle_usage_bias_tick:+.2f} delta_ancre={exploration_anchor_delta_tick:+.2f} "
         f"inertie_log:{persistence_holds_log} inertie_tick:{persistence_holds_tick} "
         f"oscill_log:sw={search_wander_switches_log} bloc={search_wander_switches_prevented_log} evts={search_wander_events_log} taux_sw={search_wander_switch_rate_log:.2f} taux_bloc={search_wander_prevented_rate_log:.2f} "
         f"oscill_tick:sw={search_wander_switches_tick} bloc={search_wander_switches_prevented_tick} evts={search_wander_events_tick} taux_sw={search_wander_switch_rate_tick:.2f} taux_bloc={search_wander_prevented_rate_tick:.2f} "
@@ -1207,7 +1251,7 @@ def format_population_dynamics(
         f"drain_obs={avg_energy_drain_amount_last_tick:.2f} repro_obs={avg_reproduction_cost_amount_last_tick:.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
-        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} "
+        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ex_explore={exploration_explore_usage_bias_tick:+.2f} ex_settle={exploration_settle_usage_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} "
         f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} rk_fuite={risk_taking_flee_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "

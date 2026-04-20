@@ -133,8 +133,12 @@ class HungerSimulation:
         self.total_exploration_bias_sum_guided = 0.0
         self.exploration_bias_explore_moves_last_tick = 0
         self.total_exploration_bias_explore_moves = 0
+        self.exploration_bias_sum_explore_last_tick = 0.0
+        self.total_exploration_bias_sum_explore = 0.0
         self.exploration_bias_settle_moves_last_tick = 0
         self.total_exploration_bias_settle_moves = 0
+        self.exploration_bias_sum_settle_last_tick = 0.0
+        self.total_exploration_bias_sum_settle = 0.0
         self.exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.total_exploration_bias_anchor_distance_delta = 0.0
         self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
@@ -226,7 +230,9 @@ class HungerSimulation:
         self.exploration_bias_guided_moves_last_tick = 0
         self.exploration_bias_sum_guided_last_tick = 0.0
         self.exploration_bias_explore_moves_last_tick = 0
+        self.exploration_bias_sum_explore_last_tick = 0.0
         self.exploration_bias_settle_moves_last_tick = 0
+        self.exploration_bias_sum_settle_last_tick = 0.0
         self.exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
@@ -850,9 +856,13 @@ class HungerSimulation:
             if direction_mode == "explore":
                 self.exploration_bias_explore_moves_last_tick += 1
                 self.total_exploration_bias_explore_moves += 1
+                self.exploration_bias_sum_explore_last_tick += creature.traits.exploration_bias
+                self.total_exploration_bias_sum_explore += creature.traits.exploration_bias
             else:
                 self.exploration_bias_settle_moves_last_tick += 1
                 self.total_exploration_bias_settle_moves += 1
+                self.exploration_bias_sum_settle_last_tick += creature.traits.exploration_bias
+                self.total_exploration_bias_sum_settle += creature.traits.exploration_bias
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(

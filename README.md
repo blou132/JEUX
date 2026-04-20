@@ -39,6 +39,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais individuel leger de prise de risque (`risk_taking`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable, mutante et visible en stats/synthese/debug.
+- Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
@@ -132,8 +133,8 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - L'effet est applique uniquement en errance/recherche sans cible directe, pour ne pas casser les priorites existantes (fuite, mort, reproduction, cible nourriture visible).
 - Heredite simple + mutation legere via le pipeline genetique existant.
 - Observation dans les logs/syntheses:
-  - `dynamique_*`: `traits_comp_moy` (`ex`), `traits_disp` (`ex_sigma`), `traits_bias_tick` (`ex_guide`), `exploration_tick`/`exploration_log`.
-  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ex`) et `traits_impact` / `traits_impact_moy` (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`).
+  - `dynamique_*`: `traits_comp_moy` (`ex`), `traits_disp` (`ex_sigma`), `traits_bias_tick` (`ex_guide`, `ex_explore`, `ex_settle`), `exploration_tick`/`exploration_log`.
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ex`) et `traits_impact` / `traits_impact_moy` (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*` avec `ex_mu`/`st_mu` et biais associes).
 
 ### Evaluation legere de l'impact perception
 - Indicateurs exposes en stats/synthese:
@@ -594,7 +595,7 @@ Chaque bloc de log periodique contient:
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
-- `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `delta_ancre`).
+- `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `ex_mu`, `st_mu`, `ex_bias`, `st_bias`, `delta_ancre`).
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
 - `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
@@ -603,12 +604,12 @@ Chaque bloc de log periodique contient:
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
 - le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
 - le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:

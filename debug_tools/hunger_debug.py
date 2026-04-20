@@ -58,6 +58,33 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
             }
         )
 
+    total_creatures = len(simulation.creatures)
+    avg_exploration_bias_population = (
+        sum(creature.traits.exploration_bias for creature in simulation.creatures) / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    exploration_bias_explore_users_avg_last_tick = (
+        simulation.exploration_bias_sum_explore_last_tick / simulation.exploration_bias_explore_moves_last_tick
+        if simulation.exploration_bias_explore_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_explore_users_avg_total = (
+        simulation.total_exploration_bias_sum_explore / simulation.total_exploration_bias_explore_moves
+        if simulation.total_exploration_bias_explore_moves > 0
+        else 0.0
+    )
+    exploration_bias_settle_users_avg_last_tick = (
+        simulation.exploration_bias_sum_settle_last_tick / simulation.exploration_bias_settle_moves_last_tick
+        if simulation.exploration_bias_settle_moves_last_tick > 0
+        else 0.0
+    )
+    exploration_bias_settle_users_avg_total = (
+        simulation.total_exploration_bias_sum_settle / simulation.total_exploration_bias_settle_moves
+        if simulation.total_exploration_bias_settle_moves > 0
+        else 0.0
+    )
+
     return {
         "alive_count": simulation.get_alive_count(),
         "dead_count": simulation.get_dead_count(),
@@ -93,8 +120,32 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_exploration_bias_guided_moves": simulation.total_exploration_bias_guided_moves,
         "exploration_bias_explore_moves_last_tick": simulation.exploration_bias_explore_moves_last_tick,
         "total_exploration_bias_explore_moves": simulation.total_exploration_bias_explore_moves,
+        "exploration_bias_explore_users_avg_last_tick": exploration_bias_explore_users_avg_last_tick,
+        "exploration_bias_explore_users_avg_total": exploration_bias_explore_users_avg_total,
+        "exploration_bias_explore_usage_bias_last_tick": (
+            exploration_bias_explore_users_avg_last_tick - avg_exploration_bias_population
+            if simulation.exploration_bias_explore_moves_last_tick > 0
+            else 0.0
+        ),
+        "exploration_bias_explore_usage_bias_total": (
+            exploration_bias_explore_users_avg_total - avg_exploration_bias_population
+            if simulation.total_exploration_bias_explore_moves > 0
+            else 0.0
+        ),
         "exploration_bias_settle_moves_last_tick": simulation.exploration_bias_settle_moves_last_tick,
         "total_exploration_bias_settle_moves": simulation.total_exploration_bias_settle_moves,
+        "exploration_bias_settle_users_avg_last_tick": exploration_bias_settle_users_avg_last_tick,
+        "exploration_bias_settle_users_avg_total": exploration_bias_settle_users_avg_total,
+        "exploration_bias_settle_usage_bias_last_tick": (
+            exploration_bias_settle_users_avg_last_tick - avg_exploration_bias_population
+            if simulation.exploration_bias_settle_moves_last_tick > 0
+            else 0.0
+        ),
+        "exploration_bias_settle_usage_bias_total": (
+            exploration_bias_settle_users_avg_total - avg_exploration_bias_population
+            if simulation.total_exploration_bias_settle_moves > 0
+            else 0.0
+        ),
         "avg_exploration_bias_anchor_distance_delta_last_tick": (
             simulation.avg_exploration_bias_anchor_distance_delta_last_tick
         ),
