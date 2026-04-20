@@ -76,6 +76,7 @@ def build_population_stats(
             "avg_density_preference": 0.0,
             "avg_energy_efficiency": 0.0,
             "avg_exhaustion_resistance": 0.0,
+            "avg_longevity_factor": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
@@ -86,6 +87,7 @@ def build_population_stats(
             "std_density_preference": 0.0,
             "std_energy_efficiency": 0.0,
             "std_exhaustion_resistance": 0.0,
+            "std_longevity_factor": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
             "energy_drain_events_last_tick": 0,
@@ -94,6 +96,16 @@ def build_population_stats(
             "avg_energy_drain_amount_total": 0.0,
             "avg_energy_drain_multiplier_observed_last_tick": 0.0,
             "avg_energy_drain_multiplier_observed_total": 0.0,
+            "age_wear_active_events_last_tick": 0,
+            "total_age_wear_active_events": 0,
+            "age_wear_usage_per_alive_tick": 0.0,
+            "age_wear_usage_per_tick_total": 0.0,
+            "avg_age_wear_multiplier_observed_last_tick": 1.0,
+            "avg_age_wear_multiplier_observed_total": 1.0,
+            "longevity_factor_age_wear_users_avg_tick": 0.0,
+            "longevity_factor_age_wear_users_avg_total": 0.0,
+            "longevity_factor_age_wear_usage_bias_tick": 0.0,
+            "longevity_factor_age_wear_usage_bias_total": 0.0,
             "energy_efficiency_drain_users_avg_tick": 0.0,
             "energy_efficiency_drain_users_avg_total": 0.0,
             "energy_efficiency_drain_usage_bias_tick": 0.0,
@@ -307,6 +319,7 @@ def build_population_stats(
     avg_density_preference = sum(c.traits.density_preference for c in simulation.creatures) / total
     avg_energy_efficiency = sum(c.traits.energy_efficiency for c in simulation.creatures) / total
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
+    avg_longevity_factor = sum(c.traits.longevity_factor for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
     avg_energy_drain_amount_last_tick = (
@@ -327,6 +340,36 @@ def build_population_stats(
     avg_energy_drain_multiplier_observed_total = (
         simulation.total_energy_drain_multiplier_sum / simulation.total_energy_drain_events
         if simulation.total_energy_drain_events > 0
+        else 0.0
+    )
+    avg_age_wear_multiplier_observed_last_tick = (
+        simulation.age_wear_multiplier_sum_last_tick / simulation.age_wear_active_events_last_tick
+        if simulation.age_wear_active_events_last_tick > 0
+        else 1.0
+    )
+    avg_age_wear_multiplier_observed_total = (
+        simulation.total_age_wear_multiplier_sum / simulation.total_age_wear_active_events
+        if simulation.total_age_wear_active_events > 0
+        else 1.0
+    )
+    avg_longevity_factor_age_wear_users_tick = (
+        simulation.longevity_factor_sum_age_wear_last_tick / simulation.age_wear_active_events_last_tick
+        if simulation.age_wear_active_events_last_tick > 0
+        else 0.0
+    )
+    avg_longevity_factor_age_wear_users_total = (
+        simulation.total_longevity_factor_sum_age_wear / simulation.total_age_wear_active_events
+        if simulation.total_age_wear_active_events > 0
+        else 0.0
+    )
+    longevity_factor_age_wear_usage_bias_tick = (
+        avg_longevity_factor_age_wear_users_tick - avg_longevity_factor
+        if simulation.age_wear_active_events_last_tick > 0
+        else 0.0
+    )
+    longevity_factor_age_wear_usage_bias_total = (
+        avg_longevity_factor_age_wear_users_total - avg_longevity_factor
+        if simulation.total_age_wear_active_events > 0
         else 0.0
     )
     avg_energy_efficiency_drain_users_tick = (
@@ -400,6 +443,7 @@ def build_population_stats(
     density_preference_values = [c.traits.density_preference for c in simulation.creatures]
     energy_efficiency_values = [c.traits.energy_efficiency for c in simulation.creatures]
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
+    longevity_factor_values = [c.traits.longevity_factor for c in simulation.creatures]
 
     std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
@@ -411,6 +455,7 @@ def build_population_stats(
     std_density_preference = _stddev_from_mean(density_preference_values, avg_density_preference)
     std_energy_efficiency = _stddev_from_mean(energy_efficiency_values, avg_energy_efficiency)
     std_exhaustion_resistance = _stddev_from_mean(exhaustion_resistance_values, avg_exhaustion_resistance)
+    std_longevity_factor = _stddev_from_mean(longevity_factor_values, avg_longevity_factor)
 
     avg_memory_focus_food_users_tick = (
         simulation.memory_focus_sum_food_memory_last_tick / simulation.food_memory_guided_moves_last_tick
@@ -860,6 +905,7 @@ def build_population_stats(
         "avg_density_preference": avg_density_preference,
         "avg_energy_efficiency": avg_energy_efficiency,
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
+        "avg_longevity_factor": avg_longevity_factor,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
@@ -870,6 +916,7 @@ def build_population_stats(
         "std_density_preference": std_density_preference,
         "std_energy_efficiency": std_energy_efficiency,
         "std_exhaustion_resistance": std_exhaustion_resistance,
+        "std_longevity_factor": std_longevity_factor,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
         "energy_drain_events_last_tick": simulation.energy_drain_events_last_tick,
@@ -878,6 +925,18 @@ def build_population_stats(
         "avg_energy_drain_amount_total": avg_energy_drain_amount_total,
         "avg_energy_drain_multiplier_observed_last_tick": avg_energy_drain_multiplier_observed_last_tick,
         "avg_energy_drain_multiplier_observed_total": avg_energy_drain_multiplier_observed_total,
+        "age_wear_active_events_last_tick": simulation.age_wear_active_events_last_tick,
+        "total_age_wear_active_events": simulation.total_age_wear_active_events,
+        "age_wear_usage_per_alive_tick": simulation.age_wear_active_events_last_tick / max(1, alive),
+        "age_wear_usage_per_tick_total": (
+            simulation.total_age_wear_active_events / max(1, simulation.tick_count)
+        ),
+        "avg_age_wear_multiplier_observed_last_tick": avg_age_wear_multiplier_observed_last_tick,
+        "avg_age_wear_multiplier_observed_total": avg_age_wear_multiplier_observed_total,
+        "longevity_factor_age_wear_users_avg_tick": avg_longevity_factor_age_wear_users_tick,
+        "longevity_factor_age_wear_users_avg_total": avg_longevity_factor_age_wear_users_total,
+        "longevity_factor_age_wear_usage_bias_tick": longevity_factor_age_wear_usage_bias_tick,
+        "longevity_factor_age_wear_usage_bias_total": longevity_factor_age_wear_usage_bias_total,
         "energy_efficiency_drain_users_avg_tick": avg_energy_efficiency_drain_users_tick,
         "energy_efficiency_drain_users_avg_total": avg_energy_efficiency_drain_users_total,
         "energy_efficiency_drain_usage_bias_tick": energy_efficiency_drain_usage_bias_tick,
@@ -1200,6 +1259,8 @@ def build_final_run_summary(
         "energy_efficiency_std": float(final_stats.get("std_energy_efficiency", 0.0)),
         "exhaustion_resistance_mean": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
         "exhaustion_resistance_std": float(final_stats.get("std_exhaustion_resistance", 0.0)),
+        "longevity_factor_mean": float(final_stats.get("avg_longevity_factor", 0.0)),
+        "longevity_factor_std": float(final_stats.get("std_longevity_factor", 0.0)),
         "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
         "exhaustion_resistance_reproduction_bias": float(
             final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
@@ -1212,6 +1273,13 @@ def build_final_run_summary(
         ),
         "energy_drain_amount_observed": float(final_stats.get("avg_energy_drain_amount_total", 0.0)),
         "reproduction_cost_amount_observed": float(final_stats.get("avg_reproduction_cost_amount_total", 0.0)),
+        "age_wear_usage_per_tick": float(final_stats.get("age_wear_usage_per_tick_total", 0.0)),
+        "age_wear_multiplier_observed": float(
+            final_stats.get("avg_age_wear_multiplier_observed_total", 1.0)
+        ),
+        "longevity_factor_age_wear_bias": float(
+            final_stats.get("longevity_factor_age_wear_usage_bias_total", 0.0)
+        ),
         "memory_focus_food_bias": float(final_stats.get("memory_focus_food_usage_bias_total", 0.0)),
         "memory_focus_danger_bias": float(final_stats.get("memory_focus_danger_usage_bias_total", 0.0)),
         "social_sensitivity_follow_bias": float(final_stats.get("social_sensitivity_follow_usage_bias_total", 0.0)),
@@ -1350,6 +1418,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "density_preference": 0.0,
                 "energy_efficiency": 0.0,
                 "exhaustion_resistance": 0.0,
+                "longevity_factor": 0.0,
             },
             "avg_memory_impact": {
                 "food_usage_total": 0.0,
@@ -1393,12 +1462,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "energy_efficiency_std": 0.0,
                 "exhaustion_resistance_mean": 0.0,
                 "exhaustion_resistance_std": 0.0,
+                "longevity_factor_mean": 0.0,
+                "longevity_factor_std": 0.0,
                 "energy_efficiency_drain_bias": 0.0,
                 "exhaustion_resistance_reproduction_bias": 0.0,
                 "energy_drain_multiplier_observed": 0.0,
                 "reproduction_cost_multiplier_observed": 0.0,
                 "energy_drain_amount_observed": 0.0,
                 "reproduction_cost_amount_observed": 0.0,
+                "age_wear_usage_per_tick": 0.0,
+                "age_wear_multiplier_observed": 1.0,
+                "longevity_factor_age_wear_bias": 0.0,
                 "memory_focus_food_bias": 0.0,
                 "memory_focus_danger_bias": 0.0,
                 "social_sensitivity_follow_bias": 0.0,
@@ -1467,6 +1541,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "density_preference": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
+        "longevity_factor": 0.0,
     }
     avg_memory_acc = {
         "food_usage_total": 0.0,
@@ -1510,12 +1585,17 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
         "exhaustion_resistance_std": 0.0,
+        "longevity_factor_mean": 0.0,
+        "longevity_factor_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "energy_drain_amount_observed": 0.0,
         "reproduction_cost_amount_observed": 0.0,
+        "age_wear_usage_per_tick": 0.0,
+        "age_wear_multiplier_observed": 0.0,
+        "longevity_factor_age_wear_bias": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -1597,6 +1677,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_traits_acc["energy_efficiency"] += float(traits_raw.get("energy_efficiency", 0.0))
                 avg_traits_acc["exhaustion_resistance"] += float(traits_raw.get("exhaustion_resistance", 0.0))
+                avg_traits_acc["longevity_factor"] += float(traits_raw.get("longevity_factor", 0.0))
 
             memory_raw = run_summary.get("memory_impact")
             if isinstance(memory_raw, dict):
@@ -1655,6 +1736,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["energy_efficiency_std"] += float(trait_impact_raw.get("energy_efficiency_std", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_mean"] += float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
                 avg_trait_impact_acc["exhaustion_resistance_std"] += float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
+                avg_trait_impact_acc["longevity_factor_mean"] += float(
+                    trait_impact_raw.get("longevity_factor_mean", 0.0)
+                )
+                avg_trait_impact_acc["longevity_factor_std"] += float(
+                    trait_impact_raw.get("longevity_factor_std", 0.0)
+                )
                 avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
                     trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
                 )
@@ -1672,6 +1759,15 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["reproduction_cost_amount_observed"] += float(
                     trait_impact_raw.get("reproduction_cost_amount_observed", 0.0)
+                )
+                avg_trait_impact_acc["age_wear_usage_per_tick"] += float(
+                    trait_impact_raw.get("age_wear_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["age_wear_multiplier_observed"] += float(
+                    trait_impact_raw.get("age_wear_multiplier_observed", 1.0)
+                )
+                avg_trait_impact_acc["longevity_factor_age_wear_bias"] += float(
+                    trait_impact_raw.get("longevity_factor_age_wear_bias", 0.0)
                 )
                 avg_trait_impact_acc["memory_focus_food_bias"] += float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
                 avg_trait_impact_acc["memory_focus_danger_bias"] += float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
@@ -1816,6 +1912,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "density_preference": avg_traits_acc["density_preference"] / run_count,
             "energy_efficiency": avg_traits_acc["energy_efficiency"] / run_count,
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
+            "longevity_factor": avg_traits_acc["longevity_factor"] / run_count,
         },
         "avg_memory_impact": {
             "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
@@ -1859,6 +1956,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "energy_efficiency_std": avg_trait_impact_acc["energy_efficiency_std"] / run_count,
             "exhaustion_resistance_mean": avg_trait_impact_acc["exhaustion_resistance_mean"] / run_count,
             "exhaustion_resistance_std": avg_trait_impact_acc["exhaustion_resistance_std"] / run_count,
+            "longevity_factor_mean": avg_trait_impact_acc["longevity_factor_mean"] / run_count,
+            "longevity_factor_std": avg_trait_impact_acc["longevity_factor_std"] / run_count,
             "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
             "exhaustion_resistance_reproduction_bias": (
                 avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] / run_count
@@ -1872,6 +1971,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "energy_drain_amount_observed": avg_trait_impact_acc["energy_drain_amount_observed"] / run_count,
             "reproduction_cost_amount_observed": (
                 avg_trait_impact_acc["reproduction_cost_amount_observed"] / run_count
+            ),
+            "age_wear_usage_per_tick": avg_trait_impact_acc["age_wear_usage_per_tick"] / run_count,
+            "age_wear_multiplier_observed": (
+                avg_trait_impact_acc["age_wear_multiplier_observed"] / run_count
+            ),
+            "longevity_factor_age_wear_bias": (
+                avg_trait_impact_acc["longevity_factor_age_wear_bias"] / run_count
             ),
             "memory_focus_food_bias": avg_trait_impact_acc["memory_focus_food_bias"] / run_count,
             "memory_focus_danger_bias": avg_trait_impact_acc["memory_focus_danger_bias"] / run_count,
@@ -2211,6 +2317,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "density_preference": float(final_stats.get("avg_density_preference", 0.0)),
         "energy_efficiency": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
+        "longevity_factor": float(final_stats.get("avg_longevity_factor", 0.0)),
     }
 
 

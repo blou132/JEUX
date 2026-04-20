@@ -80,16 +80,23 @@ class Creature:
         self.last_danger_zone = (x, y)
         self.danger_memory_ttl = ttl
 
-    def drain_energy(self, dt: float, drain_rate: float) -> None:
+    def drain_energy(self, dt: float, drain_rate: float, extra_multiplier: float = 1.0) -> None:
         if not self.alive:
             return
         if dt < 0:
             raise ValueError("dt must be >= 0")
         if drain_rate < 0:
             raise ValueError("drain_rate must be >= 0")
+        if extra_multiplier < 0:
+            raise ValueError("extra_multiplier must be >= 0")
 
         efficiency_multiplier = 1.0 - (0.25 * (self.traits.energy_efficiency - 1.0))
-        effective_drain = drain_rate * self.traits.metabolism * max(0.1, efficiency_multiplier)
+        effective_drain = (
+            drain_rate
+            * self.traits.metabolism
+            * max(0.1, efficiency_multiplier)
+            * max(0.1, extra_multiplier)
+        )
         self.energy = max(0.0, self.energy - (effective_drain * dt))
         if self.energy == 0.0:
             self.alive = False

@@ -14,6 +14,9 @@ class HungerSimulation:
     DEATH_CAUSE_STARVATION = "starvation"
     DEATH_CAUSE_EXHAUSTION = "exhaustion"
     DEATH_CAUSE_UNKNOWN = "unknown"
+    AGE_WEAR_START = 22.0
+    AGE_WEAR_RATE = 0.012
+    AGE_WEAR_MAX_EXTRA_MULTIPLIER = 0.35
 
     def __init__(
         self,
@@ -197,6 +200,12 @@ class HungerSimulation:
         self.total_energy_drain_multiplier_sum = 0.0
         self.energy_efficiency_sum_drain_last_tick = 0.0
         self.total_energy_efficiency_sum_drain = 0.0
+        self.age_wear_active_events_last_tick = 0
+        self.total_age_wear_active_events = 0
+        self.age_wear_multiplier_sum_last_tick = 0.0
+        self.total_age_wear_multiplier_sum = 0.0
+        self.longevity_factor_sum_age_wear_last_tick = 0.0
+        self.total_longevity_factor_sum_age_wear = 0.0
         self.reproduction_cost_events_last_tick = 0
         self.total_reproduction_cost_events = 0
         self.reproduction_cost_amount_last_tick = 0.0
@@ -280,6 +289,9 @@ class HungerSimulation:
         self.energy_drain_amount_last_tick = 0.0
         self.energy_drain_multiplier_sum_last_tick = 0.0
         self.energy_efficiency_sum_drain_last_tick = 0.0
+        self.age_wear_active_events_last_tick = 0
+        self.age_wear_multiplier_sum_last_tick = 0.0
+        self.longevity_factor_sum_age_wear_last_tick = 0.0
         self.reproduction_cost_events_last_tick = 0
         self.reproduction_cost_amount_last_tick = 0.0
         self.reproduction_cost_multiplier_sum_last_tick = 0.0
@@ -299,16 +311,35 @@ class HungerSimulation:
             creature.decay_memory(dt)
             if creature.alive:
                 drain_multiplier = self._compute_energy_efficiency_drain_multiplier(creature)
-                effective_drain = self.energy_drain_rate * creature.traits.metabolism * drain_multiplier
+                age_wear_multiplier = self._compute_age_wear_multiplier(creature)
+                effective_drain = (
+                    self.energy_drain_rate
+                    * creature.traits.metabolism
+                    * drain_multiplier
+                    * age_wear_multiplier
+                )
                 self.energy_drain_events_last_tick += 1
                 self.total_energy_drain_events += 1
                 self.energy_drain_amount_last_tick += effective_drain * dt
                 self.total_energy_drain_amount += effective_drain * dt
-                self.energy_drain_multiplier_sum_last_tick += drain_multiplier
-                self.total_energy_drain_multiplier_sum += drain_multiplier
+                self.energy_drain_multiplier_sum_last_tick += drain_multiplier * age_wear_multiplier
+                self.total_energy_drain_multiplier_sum += drain_multiplier * age_wear_multiplier
                 self.energy_efficiency_sum_drain_last_tick += creature.traits.energy_efficiency
                 self.total_energy_efficiency_sum_drain += creature.traits.energy_efficiency
-            creature.drain_energy(dt=dt, drain_rate=self.energy_drain_rate)
+                if age_wear_multiplier > 1.0:
+                    self.age_wear_active_events_last_tick += 1
+                    self.total_age_wear_active_events += 1
+                    self.age_wear_multiplier_sum_last_tick += age_wear_multiplier
+                    self.total_age_wear_multiplier_sum += age_wear_multiplier
+                    self.longevity_factor_sum_age_wear_last_tick += creature.traits.longevity_factor
+                    self.total_longevity_factor_sum_age_wear += creature.traits.longevity_factor
+            else:
+                age_wear_multiplier = 1.0
+            creature.drain_energy(
+                dt=dt,
+                drain_rate=self.energy_drain_rate,
+                extra_multiplier=age_wear_multiplier,
+            )
 
         starvation_deaths = sum(
             1
@@ -1014,6 +1045,15 @@ class HungerSimulation:
     @staticmethod
     def _compute_energy_efficiency_drain_multiplier(creature: Creature) -> float:
         return max(0.1, 1.0 - (0.25 * (creature.traits.energy_efficiency - 1.0)))
+
+    @classmethod
+    def _compute_age_wear_multiplier(cls, creature: Creature) -> float:
+        longevity = max(0.1, creature.traits.longevity_factor)
+        start_age = cls.AGE_WEAR_START * longevity
+        extra_age = max(0.0, creature.age - start_age)
+        wear_rate = cls.AGE_WEAR_RATE / longevity
+        wear_bonus = min(cls.AGE_WEAR_MAX_EXTRA_MULTIPLIER, extra_age * wear_rate)
+        return 1.0 + wear_bonus
 
     @staticmethod
     def _compute_exhaustion_resistance_reproduction_multiplier(creature: Creature) -> float:

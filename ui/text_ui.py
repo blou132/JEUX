@@ -242,6 +242,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "density_preference": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
+        "longevity_factor": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -257,6 +258,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["density_preference"] = float(traits_raw.get("density_preference", 0.0))
         traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
         traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
+        traits["longevity_factor"] = float(traits_raw.get("longevity_factor", 0.0))
 
     memory = {
         "food_usage_total": 0,
@@ -321,12 +323,17 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
         "exhaustion_resistance_std": 0.0,
+        "longevity_factor_mean": 0.0,
+        "longevity_factor_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "energy_drain_amount_observed": 0.0,
         "reproduction_cost_amount_observed": 0.0,
+        "age_wear_usage_per_tick": 0.0,
+        "age_wear_multiplier_observed": 1.0,
+        "longevity_factor_age_wear_bias": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -404,6 +411,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
         trait_impact["exhaustion_resistance_mean"] = float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
         trait_impact["exhaustion_resistance_std"] = float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
+        trait_impact["longevity_factor_mean"] = float(trait_impact_raw.get("longevity_factor_mean", 0.0))
+        trait_impact["longevity_factor_std"] = float(trait_impact_raw.get("longevity_factor_std", 0.0))
         trait_impact["energy_efficiency_drain_bias"] = float(
             trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
         )
@@ -421,6 +430,15 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["reproduction_cost_amount_observed"] = float(
             trait_impact_raw.get("reproduction_cost_amount_observed", 0.0)
+        )
+        trait_impact["age_wear_usage_per_tick"] = float(
+            trait_impact_raw.get("age_wear_usage_per_tick", 0.0)
+        )
+        trait_impact["age_wear_multiplier_observed"] = float(
+            trait_impact_raw.get("age_wear_multiplier_observed", 1.0)
+        )
+        trait_impact["longevity_factor_age_wear_bias"] = float(
+            trait_impact_raw.get("longevity_factor_age_wear_bias", 0.0)
         )
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
@@ -542,7 +560,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -550,8 +568,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
-        "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} "
+        "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total={bp_holds_total:.0f} "
         "osc_bp:switch={bp_sw_total:.0f} bloc={bp_prev_total:.0f} events={bp_events_total:.0f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
@@ -583,6 +601,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         density_preference=traits["density_preference"],
         energy_efficiency=traits["energy_efficiency"],
         exhaustion_resistance=traits["exhaustion_resistance"],
+        longevity_factor=traits["longevity_factor"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -620,10 +639,15 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         ee_sigma=trait_impact["energy_efficiency_std"],
         er_mu=trait_impact["exhaustion_resistance_mean"],
         er_sigma=trait_impact["exhaustion_resistance_std"],
+        lg_mu=trait_impact["longevity_factor_mean"],
+        lg_sigma=trait_impact["longevity_factor_std"],
         drain_mult_obs=trait_impact["energy_drain_multiplier_observed"],
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         drain_amt_obs=trait_impact["energy_drain_amount_observed"],
         repro_amt_obs=trait_impact["reproduction_cost_amount_observed"],
+        agewear_freq=trait_impact["age_wear_usage_per_tick"],
+        agewear_mult=trait_impact["age_wear_multiplier_observed"],
+        lg_age_bias=trait_impact["longevity_factor_age_wear_bias"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
@@ -697,6 +721,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "density_preference": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
+        "longevity_factor": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -712,6 +737,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["density_preference"] = float(traits_raw.get("density_preference", 0.0))
         traits["energy_efficiency"] = float(traits_raw.get("energy_efficiency", 0.0))
         traits["exhaustion_resistance"] = float(traits_raw.get("exhaustion_resistance", 0.0))
+        traits["longevity_factor"] = float(traits_raw.get("longevity_factor", 0.0))
 
     memory = {
         "food_usage_total": 0.0,
@@ -776,12 +802,17 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
         "exhaustion_resistance_std": 0.0,
+        "longevity_factor_mean": 0.0,
+        "longevity_factor_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "energy_drain_amount_observed": 0.0,
         "reproduction_cost_amount_observed": 0.0,
+        "age_wear_usage_per_tick": 0.0,
+        "age_wear_multiplier_observed": 1.0,
+        "longevity_factor_age_wear_bias": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -853,6 +884,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["energy_efficiency_std"] = float(trait_impact_raw.get("energy_efficiency_std", 0.0))
         trait_impact["exhaustion_resistance_mean"] = float(trait_impact_raw.get("exhaustion_resistance_mean", 0.0))
         trait_impact["exhaustion_resistance_std"] = float(trait_impact_raw.get("exhaustion_resistance_std", 0.0))
+        trait_impact["longevity_factor_mean"] = float(trait_impact_raw.get("longevity_factor_mean", 0.0))
+        trait_impact["longevity_factor_std"] = float(trait_impact_raw.get("longevity_factor_std", 0.0))
         trait_impact["energy_efficiency_drain_bias"] = float(
             trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
         )
@@ -870,6 +903,15 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["reproduction_cost_amount_observed"] = float(
             trait_impact_raw.get("reproduction_cost_amount_observed", 0.0)
+        )
+        trait_impact["age_wear_usage_per_tick"] = float(
+            trait_impact_raw.get("age_wear_usage_per_tick", 0.0)
+        )
+        trait_impact["age_wear_multiplier_observed"] = float(
+            trait_impact_raw.get("age_wear_multiplier_observed", 1.0)
+        )
+        trait_impact["longevity_factor_age_wear_bias"] = float(
+            trait_impact_raw.get("longevity_factor_age_wear_bias", 0.0)
         )
         trait_impact["memory_focus_food_bias"] = float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
         trait_impact["memory_focus_danger_bias"] = float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
@@ -974,7 +1016,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -983,8 +1025,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} "
-        "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} "
+        "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total_moy={bp_holds_total:.2f} "
         "osc_bp_moy:switch={bp_sw_total:.2f} bloc={bp_prev_total:.2f} events={bp_events_total:.2f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
@@ -1012,6 +1054,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         density_preference=traits["density_preference"],
         energy_efficiency=traits["energy_efficiency"],
         exhaustion_resistance=traits["exhaustion_resistance"],
+        longevity_factor=traits["longevity_factor"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -1049,10 +1092,15 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         ee_sigma=trait_impact["energy_efficiency_std"],
         er_mu=trait_impact["exhaustion_resistance_mean"],
         er_sigma=trait_impact["exhaustion_resistance_std"],
+        lg_mu=trait_impact["longevity_factor_mean"],
+        lg_sigma=trait_impact["longevity_factor_std"],
         drain_mult_obs=trait_impact["energy_drain_multiplier_observed"],
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         drain_amt_obs=trait_impact["energy_drain_amount_observed"],
         repro_amt_obs=trait_impact["reproduction_cost_amount_observed"],
+        agewear_freq=trait_impact["age_wear_usage_per_tick"],
+        agewear_mult=trait_impact["age_wear_multiplier_observed"],
+        lg_age_bias=trait_impact["longevity_factor_age_wear_bias"],
         bias_mem_u=trait_impact["memory_focus_food_bias"],
         bias_mem_d=trait_impact["memory_focus_danger_bias"],
         bias_soc_follow=trait_impact["social_sensitivity_follow_bias"],
@@ -1226,6 +1274,7 @@ def format_population_dynamics(
     avg_density_preference = float(stats.get("avg_density_preference", 0.0))
     avg_energy_efficiency = float(stats.get("avg_energy_efficiency", 0.0))
     avg_exhaustion_resistance = float(stats.get("avg_exhaustion_resistance", 0.0))
+    avg_longevity_factor = float(stats.get("avg_longevity_factor", 0.0))
     std_memory_focus = float(stats.get("std_memory_focus", 0.0))
     std_social_sensitivity = float(stats.get("std_social_sensitivity", 0.0))
     std_food_perception = float(stats.get("std_food_perception", 0.0))
@@ -1236,6 +1285,7 @@ def format_population_dynamics(
     std_density_preference = float(stats.get("std_density_preference", 0.0))
     std_energy_efficiency = float(stats.get("std_energy_efficiency", 0.0))
     std_exhaustion_resistance = float(stats.get("std_exhaustion_resistance", 0.0))
+    std_longevity_factor = float(stats.get("std_longevity_factor", 0.0))
     avg_effective_energy_drain_multiplier = float(stats.get("avg_effective_energy_drain_multiplier", 0.0))
     avg_reproduction_cost_multiplier = float(stats.get("avg_reproduction_cost_multiplier", 0.0))
     avg_energy_drain_multiplier_observed_tick = float(
@@ -1246,6 +1296,14 @@ def format_population_dynamics(
     )
     avg_energy_drain_amount_last_tick = float(stats.get("avg_energy_drain_amount_last_tick", 0.0))
     avg_reproduction_cost_amount_last_tick = float(stats.get("avg_reproduction_cost_amount_last_tick", 0.0))
+    age_wear_active_tick = int(stats.get("age_wear_active_events_last_tick", 0))
+    age_wear_usage_alive_tick = float(stats.get("age_wear_usage_per_alive_tick", 0.0))
+    avg_age_wear_multiplier_observed_tick = float(
+        stats.get("avg_age_wear_multiplier_observed_last_tick", 1.0)
+    )
+    longevity_factor_age_wear_usage_bias_tick = float(
+        stats.get("longevity_factor_age_wear_usage_bias_tick", 0.0)
+    )
     energy_efficiency_drain_bias_tick = float(stats.get("energy_efficiency_drain_usage_bias_tick", 0.0))
     exhaustion_resistance_reproduction_bias_tick = float(
         stats.get("exhaustion_resistance_reproduction_usage_bias_tick", 0.0)
@@ -1455,11 +1513,12 @@ def format_population_dynamics(
         f"perception_freq_tick:det={food_detection_usage_alive_tick:.2f} eat={food_consumption_usage_alive_tick:.2f} fuite={threat_detection_usage_alive_tick:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} lg_sigma={std_longevity_factor:.2f} "
         f"energie_traits_effets:drain_mult={avg_effective_energy_drain_multiplier:.2f} repro_mult={avg_reproduction_cost_multiplier:.2f} "
         f"drain_obs_mult={avg_energy_drain_multiplier_observed_tick:.2f} repro_obs_mult={avg_reproduction_cost_multiplier_observed_tick:.2f} "
         f"drain_obs={avg_energy_drain_amount_last_tick:.2f} repro_obs={avg_reproduction_cost_amount_last_tick:.2f} "
+        f"vieillissement_tick:act={age_wear_active_tick} freq={age_wear_usage_alive_tick:.2f} mult={avg_age_wear_multiplier_observed_tick:.2f} lg_bias={longevity_factor_age_wear_usage_bias_tick:+.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
         f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ex_explore={exploration_explore_usage_bias_tick:+.2f} ex_settle={exploration_settle_usage_bias_tick:+.2f} dp_guide={density_guided_usage_bias_tick:+.2f} dp_seek={density_seek_usage_bias_tick:+.2f} dp_avoid={density_avoid_usage_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} "
