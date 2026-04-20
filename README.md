@@ -49,6 +49,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites, taux de switch et taux de blocage utile.
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usages `explore`/`settle`/`guided` et stabilite.
+- Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usages `seek`/`avoid`, part `avoid` et stabilite.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -292,6 +293,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration qui maximise le guidage `guided` (`exploration_bias_guided_total`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `density_preference_batch`:
+  - configuration qui maximise l'usage `seek` (`density_preference_seek_usage_per_tick`)
+  - configuration qui maximise l'usage `avoid` (`density_preference_avoid_usage_per_tick`)
+  - configuration qui maximise la part `avoid` (`density_preference_avoid_share`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -405,6 +412,11 @@ py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-
 ```
 
 Exemple lecture comparative `exploration_bias` en batch (`exploration_bias_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `density_preference` en batch (`density_preference_batch`):
 ```powershell
 py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
@@ -544,6 +556,11 @@ usage_explore_max: mutation_variation=0.05 (part_explore_moy=0.750)
 usage_settle_max: mutation_variation=0.2 (part_settle_moy=0.800)
 usage_guided_max: mutation_variation=0.2 (guided_moy=11.00)
 configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+density_preference_batch:
+usage_seek_max: mutation_variation=0.05 (freq_seek_moy=0.310)
+usage_avoid_max: mutation_variation=0.2 (freq_avoid_moy=0.280)
+part_avoid_max: mutation_variation=0.2 (part_avoid_moy=0.640)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -664,6 +681,7 @@ En mode batch:
 - si le parametre batch est memoire ou social et que les metriques existent, le bloc inclut aussi `traits_batch`.
 - quand les metriques existent, le bloc inclut aussi `behavior_persistence_batch`.
 - quand les metriques existent, le bloc inclut aussi `exploration_bias_batch`.
+- quand les metriques existent, le bloc inclut aussi `density_preference_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -682,6 +700,7 @@ Avec les outils d'analyse:
 - pour un batch energetique, verifier dans `Batch Comparative Summary` le bloc `energie_batch` (effet drain/cout repro, dispersion energetique, stabilite).
 - pour l'impact `risk_taking`, verifier dans `Batch Comparative Summary` le bloc `risque_batch` (usage fuite, effet borderline, dispersion `rk`, taux borderline).
 - pour l'impact `behavior_persistence`, verifier dans `Batch Comparative Summary` le bloc `behavior_persistence_batch` (switchs evites, taux de switch, taux de blocage utile).
+- pour l'impact `density_preference`, verifier dans `Batch Comparative Summary` le bloc `density_preference_batch` (usage `seek`, usage `avoid`, part `avoid`, stabilite).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -716,6 +735,7 @@ Lecture rapide conseillee:
 - Interpretation batch energie (`energie_batch`) pour les parametres energetiques (effet drain/cout reproduction, dispersion, stabilite).
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites / taux de switch / taux de blocage utile et stabilite.
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usage `explore`/`settle`/`guided` et stabilite.
+- Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usage `seek`/`avoid`, part `avoid` et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

@@ -41,6 +41,7 @@ def build_batch_comparative_summary(
     perception_candidates: list[Dict[str, float]] = []
     risk_candidates: list[Dict[str, float]] = []
     exploration_candidates: list[Dict[str, float]] = []
+    density_preference_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -101,6 +102,10 @@ def build_batch_comparative_summary(
         if exploration_metrics is not None:
             exploration_candidates.append({"value": value, **exploration_metrics})
 
+        density_preference_metrics = _read_density_preference_metrics(summary_raw)
+        if density_preference_metrics is not None:
+            density_preference_candidates.append({"value": value, **density_preference_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -139,6 +144,10 @@ def build_batch_comparative_summary(
         )
         empty["exploration_comparative"] = _build_exploration_comparative(
             exploration_candidates,
+            stable_metric=None,
+        )
+        empty["density_preference_comparative"] = _build_density_preference_comparative(
+            density_preference_candidates,
             stable_metric=None,
         )
         return empty
@@ -227,6 +236,10 @@ def build_batch_comparative_summary(
         exploration_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["density_preference_comparative"] = _build_density_preference_comparative(
+        density_preference_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -301,6 +314,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     exploration_raw = summary.get("exploration_comparative")
     if isinstance(exploration_raw, dict):
         lines.extend(_format_exploration_comparative(batch_param, exploration_raw))
+
+    density_preference_raw = summary.get("density_preference_comparative")
+    if isinstance(density_preference_raw, dict):
+        lines.extend(_format_density_preference_comparative(batch_param, density_preference_raw))
 
     return "\n".join(lines)
 
@@ -1006,6 +1023,105 @@ def _build_exploration_comparative(
     }
 
 
+def _format_density_preference_comparative(
+    batch_param: str,
+    density_preference_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["density_preference_batch:"]
+
+    if not bool(density_preference_summary.get("available", False)):
+        note = str(density_preference_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_density_preference: n/a ({note})")
+        return lines
+
+    seek_usage = _read_metric_result(density_preference_summary.get("best_seek_usage"))
+    avoid_usage = _read_metric_result(density_preference_summary.get("best_avoid_usage"))
+    avoid_share = _read_metric_result(density_preference_summary.get("best_avoid_share"))
+    stable_config = _read_metric_result(density_preference_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_seek_max: {label} (freq_seek_moy={value:.3f})".format(
+            label=_winner_label(batch_param, seek_usage.get("winners")),
+            value=float(seek_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_avoid_max: {label} (freq_avoid_moy={value:.3f})".format(
+            label=_winner_label(batch_param, avoid_usage.get("winners")),
+            value=float(avoid_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "part_avoid_max: {label} (part_avoid_moy={value:.3f})".format(
+            label=_winner_label(batch_param, avoid_share.get("winners")),
+            value=float(avoid_share.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    usage_note = str(density_preference_summary.get("usage_note", "")).strip()
+    if usage_note:
+        lines.append(f"note_density_preference: {usage_note}")
+    else:
+        lines.append("note_density_preference: freq_* en usages moyens/tick, part_avoid en part moyenne des usages guides")
+
+    return lines
+
+
+def _build_density_preference_comparative(
+    density_preference_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(density_preference_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact density_preference",
+            "best_seek_usage": _insufficient_metric_result(),
+            "best_avoid_usage": _insufficient_metric_result(),
+            "best_avoid_share": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "usage_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    guided_signal_max = max(candidate["guided_usage_total"] for candidate in density_preference_candidates)
+    usage_note = ""
+    if guided_signal_max <= 0.0:
+        usage_note = "usage seek/avoid nul: interpretation limitee (aucun guidage density_preference observe)"
+
+    return {
+        "available": True,
+        "best_seek_usage": _build_peak_metric(density_preference_candidates, "seek_usage_per_tick"),
+        "best_avoid_usage": _build_peak_metric(density_preference_candidates, "avoid_usage_per_tick"),
+        "best_avoid_share": _build_peak_metric(density_preference_candidates, "avoid_usage_share"),
+        "most_stable_config": stable_result,
+        "usage_note": usage_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -1245,6 +1361,33 @@ def _read_exploration_metrics(summary_raw: Dict[str, object]) -> Dict[str, float
         "explore_usage_share": explore_share,
         "settle_usage_share": settle_share,
         "guided_usage_total": max(0.0, guided_total),
+    }
+
+
+def _read_density_preference_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "density_preference_guided_total",
+        "density_preference_seek_usage_per_tick",
+        "density_preference_avoid_usage_per_tick",
+        "density_preference_avoid_share",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    guided_total = float(avg_trait_raw.get("density_preference_guided_total", 0.0))
+    seek_usage = float(avg_trait_raw.get("density_preference_seek_usage_per_tick", 0.0))
+    avoid_usage = float(avg_trait_raw.get("density_preference_avoid_usage_per_tick", 0.0))
+    avoid_share = float(avg_trait_raw.get("density_preference_avoid_share", 0.0))
+
+    return {
+        "guided_usage_total": max(0.0, guided_total),
+        "seek_usage_per_tick": max(0.0, seek_usage),
+        "avoid_usage_per_tick": max(0.0, avoid_usage),
+        "avoid_usage_share": max(0.0, min(1.0, avoid_share)),
     }
 
 

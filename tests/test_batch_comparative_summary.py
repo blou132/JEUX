@@ -806,6 +806,108 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("exploration_bias_batch:", text)
         self.assertIn("donnees_exploration_bias: n/a", text)
 
+    def test_density_preference_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "density_preference_guided_total": 6.0,
+                        "density_preference_seek_usage_per_tick": 0.45,
+                        "density_preference_avoid_usage_per_tick": 0.10,
+                        "density_preference_avoid_share": 0.25,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 22.0,
+                    "avg_trait_impact": {
+                        "density_preference_guided_total": 11.0,
+                        "density_preference_seek_usage_per_tick": 0.30,
+                        "density_preference_avoid_usage_per_tick": 0.40,
+                        "density_preference_avoid_share": 0.65,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "density_preference_guided_total": 9.0,
+                        "density_preference_seek_usage_per_tick": 0.20,
+                        "density_preference_avoid_usage_per_tick": 0.35,
+                        "density_preference_avoid_share": 0.70,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        density = summary.get("density_preference_comparative")
+
+        self.assertIsInstance(density, dict)
+        assert isinstance(density, dict)
+        self.assertTrue(bool(density.get("available", False)))
+        self.assertEqual(density["best_seek_usage"]["winners"], [0.05])
+        self.assertAlmostEqual(float(density["best_seek_usage"]["value"]), 0.45)
+        self.assertEqual(density["best_avoid_usage"]["winners"], [0.1])
+        self.assertAlmostEqual(float(density["best_avoid_usage"]["value"]), 0.4)
+        self.assertEqual(density["best_avoid_share"]["winners"], [0.2])
+        self.assertAlmostEqual(float(density["best_avoid_share"]["value"]), 0.7)
+        self.assertEqual(density["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("density_preference_batch:", text)
+        self.assertIn("usage_seek_max:", text)
+        self.assertIn("usage_avoid_max:", text)
+        self.assertIn("part_avoid_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_density_preference_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                    "avg_trait_impact": {
+                        "density_preference_avoid_share": 0.6,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        density = summary.get("density_preference_comparative")
+
+        self.assertIsInstance(density, dict)
+        assert isinstance(density, dict)
+        self.assertFalse(bool(density.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(density.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("density_preference_batch:", text)
+        self.assertIn("donnees_density_preference: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

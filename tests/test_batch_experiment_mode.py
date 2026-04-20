@@ -59,6 +59,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("usage_explore_max:", output)
         self.assertIn("usage_settle_max:", output)
         self.assertIn("usage_guided_max:", output)
+        self.assertIn("density_preference_batch:", output)
+        self.assertIn("usage_seek_max:", output)
+        self.assertIn("usage_avoid_max:", output)
+        self.assertIn("part_avoid_max:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -124,6 +128,8 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertIn("lowest_extinction_rate", comparative)
             energy = comparative.get("energy_comparative")
             self.assertIsInstance(energy, dict)
+            density = comparative.get("density_preference_comparative")
+            self.assertIsInstance(density, dict)
             assert isinstance(energy, dict)
             self.assertIn("available", energy)
 
