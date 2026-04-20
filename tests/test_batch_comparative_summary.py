@@ -1007,6 +1007,111 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("longevity_factor_batch:", text)
         self.assertIn("donnees_longevity_factor: n/a", text)
 
+    def test_environmental_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "environmental_tolerance_std": 0.03,
+                        "poor_zone_drain_usage_per_tick": 0.20,
+                        "rich_zone_drain_usage_per_tick": 0.10,
+                        "environmental_tolerance_poor_drain_bias": 0.04,
+                        "environmental_tolerance_rich_drain_bias": 0.02,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "environmental_tolerance_std": 0.06,
+                        "poor_zone_drain_usage_per_tick": 0.30,
+                        "rich_zone_drain_usage_per_tick": 0.40,
+                        "environmental_tolerance_poor_drain_bias": 0.02,
+                        "environmental_tolerance_rich_drain_bias": 0.09,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "environmental_tolerance_std": 0.08,
+                        "poor_zone_drain_usage_per_tick": 0.50,
+                        "rich_zone_drain_usage_per_tick": 0.20,
+                        "environmental_tolerance_poor_drain_bias": 0.12,
+                        "environmental_tolerance_rich_drain_bias": 0.03,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        environmental = summary.get("environmental_comparative")
+
+        self.assertIsInstance(environmental, dict)
+        assert isinstance(environmental, dict)
+        self.assertTrue(bool(environmental.get("available", False)))
+        self.assertEqual(environmental["best_poor_zone_effect"]["winners"], [0.2])
+        self.assertAlmostEqual(float(environmental["best_poor_zone_effect"]["value"]), 0.12)
+        self.assertEqual(environmental["best_rich_zone_effect"]["winners"], [0.1])
+        self.assertAlmostEqual(float(environmental["best_rich_zone_effect"]["value"]), 0.09)
+        self.assertEqual(environmental["best_environmental_dispersion"]["winners"], [0.2])
+        self.assertAlmostEqual(float(environmental["best_environmental_dispersion"]["value"]), 0.08)
+        self.assertEqual(environmental["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("environmental_tolerance_batch:", text)
+        self.assertIn("effet_zone_pauvre_max:", text)
+        self.assertIn("effet_zone_riche_max:", text)
+        self.assertIn("dispersion_tolerance_env_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_environmental_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "poor_zone_drain_usage_per_tick": 0.2,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        environmental = summary.get("environmental_comparative")
+
+        self.assertIsInstance(environmental, dict)
+        assert isinstance(environmental, dict)
+        self.assertFalse(bool(environmental.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(environmental.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("environmental_tolerance_batch:", text)
+        self.assertIn("donnees_environmental_tolerance: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

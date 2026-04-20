@@ -43,6 +43,7 @@ def build_batch_comparative_summary(
     exploration_candidates: list[Dict[str, float]] = []
     density_preference_candidates: list[Dict[str, float]] = []
     longevity_candidates: list[Dict[str, float]] = []
+    environmental_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -111,6 +112,10 @@ def build_batch_comparative_summary(
         if longevity_metrics is not None:
             longevity_candidates.append({"value": value, **longevity_metrics})
 
+        environmental_metrics = _read_environmental_metrics(summary_raw)
+        if environmental_metrics is not None:
+            environmental_candidates.append({"value": value, **environmental_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -157,6 +162,10 @@ def build_batch_comparative_summary(
         )
         empty["longevity_comparative"] = _build_longevity_comparative(
             longevity_candidates,
+            stable_metric=None,
+        )
+        empty["environmental_comparative"] = _build_environmental_comparative(
+            environmental_candidates,
             stable_metric=None,
         )
         return empty
@@ -253,6 +262,10 @@ def build_batch_comparative_summary(
         longevity_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["environmental_comparative"] = _build_environmental_comparative(
+        environmental_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -335,6 +348,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     longevity_raw = summary.get("longevity_comparative")
     if isinstance(longevity_raw, dict):
         lines.extend(_format_longevity_comparative(batch_param, longevity_raw))
+
+    environmental_raw = summary.get("environmental_comparative")
+    if isinstance(environmental_raw, dict):
+        lines.extend(_format_environmental_comparative(batch_param, environmental_raw))
 
     return "\n".join(lines)
 
@@ -1247,6 +1264,117 @@ def _build_longevity_comparative(
     }
 
 
+def _format_environmental_comparative(
+    batch_param: str,
+    environmental_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["environmental_tolerance_batch:"]
+
+    if not bool(environmental_summary.get("available", False)):
+        note = str(environmental_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_environmental_tolerance: n/a ({note})")
+        return lines
+
+    poor_effect = _read_metric_result(environmental_summary.get("best_poor_zone_effect"))
+    rich_effect = _read_metric_result(environmental_summary.get("best_rich_zone_effect"))
+    env_dispersion = _read_metric_result(environmental_summary.get("best_environmental_dispersion"))
+    stable_config = _read_metric_result(environmental_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_zone_pauvre_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, poor_effect.get("winners")),
+            value=float(poor_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "effet_zone_riche_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, rich_effect.get("winners")),
+            value=float(rich_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_tolerance_env_max: {label} (env_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, env_dispersion.get("winners")),
+            value=float(env_dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    environmental_note = str(environmental_summary.get("environmental_note", "")).strip()
+    if environmental_note:
+        lines.append(f"note_environmental_tolerance: {environmental_note}")
+    else:
+        lines.append(
+            "note_environmental_tolerance: effet_zone_*=abs(env_*_drain_bias), dispersion=std_environmental_tolerance"
+        )
+
+    return lines
+
+
+def _build_environmental_comparative(
+    environmental_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(environmental_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact environmental_tolerance",
+            "best_poor_zone_effect": _insufficient_metric_result(),
+            "best_rich_zone_effect": _insufficient_metric_result(),
+            "best_environmental_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "environmental_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    poor_signal_max = max(candidate["poor_zone_usage_per_tick"] for candidate in environmental_candidates)
+    rich_signal_max = max(candidate["rich_zone_usage_per_tick"] for candidate in environmental_candidates)
+    environmental_note = ""
+    if poor_signal_max <= 0.0 and rich_signal_max <= 0.0:
+        environmental_note = (
+            "drain par zone non observe: interpretation limitee (aucune mesure en zone pauvre/riche)"
+        )
+    elif poor_signal_max <= 0.0:
+        environmental_note = "signal zone pauvre absent: effet pauvre possiblement non representatif"
+    elif rich_signal_max <= 0.0:
+        environmental_note = "signal zone riche absent: effet riche possiblement non representatif"
+
+    return {
+        "available": True,
+        "best_poor_zone_effect": _build_peak_metric(environmental_candidates, "poor_zone_effect_strength"),
+        "best_rich_zone_effect": _build_peak_metric(environmental_candidates, "rich_zone_effect_strength"),
+        "best_environmental_dispersion": _build_peak_metric(
+            environmental_candidates,
+            "environmental_dispersion",
+        ),
+        "most_stable_config": stable_result,
+        "environmental_note": environmental_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -1538,6 +1666,36 @@ def _read_longevity_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] 
         "age_wear_usage_per_tick": max(0.0, age_wear_usage),
         "age_wear_effect_strength": abs(age_wear_multiplier - 1.0),
         "age_wear_reduction_strength": max(0.0, 1.0 - age_wear_multiplier),
+    }
+
+
+def _read_environmental_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "environmental_tolerance_std",
+        "poor_zone_drain_usage_per_tick",
+        "rich_zone_drain_usage_per_tick",
+        "environmental_tolerance_poor_drain_bias",
+        "environmental_tolerance_rich_drain_bias",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    environmental_std = float(avg_trait_raw.get("environmental_tolerance_std", 0.0))
+    poor_usage = float(avg_trait_raw.get("poor_zone_drain_usage_per_tick", 0.0))
+    rich_usage = float(avg_trait_raw.get("rich_zone_drain_usage_per_tick", 0.0))
+    poor_bias = float(avg_trait_raw.get("environmental_tolerance_poor_drain_bias", 0.0))
+    rich_bias = float(avg_trait_raw.get("environmental_tolerance_rich_drain_bias", 0.0))
+
+    return {
+        "environmental_dispersion": max(0.0, environmental_std),
+        "poor_zone_usage_per_tick": max(0.0, poor_usage),
+        "rich_zone_usage_per_tick": max(0.0, rich_usage),
+        "poor_zone_effect_strength": abs(poor_bias),
+        "rich_zone_effect_strength": abs(rich_bias),
     }
 
 

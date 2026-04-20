@@ -193,6 +193,10 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias": _parse_float(row.get("run_summary.avg_traits.exploration_bias")),
             "energy_efficiency": _parse_float(row.get("run_summary.avg_traits.energy_efficiency")),
             "exhaustion_resistance": _parse_float(row.get("run_summary.avg_traits.exhaustion_resistance")),
+            "longevity_factor": _parse_float(row.get("run_summary.avg_traits.longevity_factor")),
+            "environmental_tolerance": _parse_float(
+                row.get("run_summary.avg_traits.environmental_tolerance")
+            ),
         },
         "memory_impact": {
             "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
@@ -242,6 +246,14 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "energy_efficiency_std": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("run_summary.trait_impact.exhaustion_resistance_mean")),
             "exhaustion_resistance_std": _parse_float(row.get("run_summary.trait_impact.exhaustion_resistance_std")),
+            "longevity_factor_mean": _parse_float(row.get("run_summary.trait_impact.longevity_factor_mean")),
+            "longevity_factor_std": _parse_float(row.get("run_summary.trait_impact.longevity_factor_std")),
+            "environmental_tolerance_mean": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_mean")
+            ),
+            "environmental_tolerance_std": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
             ),
@@ -259,6 +271,34 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "reproduction_cost_amount_observed": _parse_float(
                 row.get("run_summary.trait_impact.reproduction_cost_amount_observed")
+            ),
+            "age_wear_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.age_wear_usage_per_tick")
+            ),
+            "age_wear_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.age_wear_multiplier_observed")
+            ),
+            "zone_drain_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.zone_drain_multiplier_observed"),
+                default=1.0,
+            ),
+            "poor_zone_drain_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.poor_zone_drain_usage_per_tick")
+            ),
+            "rich_zone_drain_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.rich_zone_drain_usage_per_tick")
+            ),
+            "environmental_tolerance_poor_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_poor_users_avg")
+            ),
+            "environmental_tolerance_poor_drain_bias": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_poor_drain_bias")
+            ),
+            "environmental_tolerance_rich_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_rich_users_avg")
+            ),
+            "environmental_tolerance_rich_drain_bias": _parse_float(
+                row.get("run_summary.trait_impact.environmental_tolerance_rich_drain_bias")
             ),
             "memory_focus_food_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_food_bias")),
             "memory_focus_danger_bias": _parse_float(row.get("run_summary.trait_impact.memory_focus_danger_bias")),
@@ -366,6 +406,10 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "energy_efficiency": _parse_float(row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
             "exhaustion_resistance": _parse_float(row.get("multi_run_summary.avg_final_traits.exhaustion_resistance")),
+            "longevity_factor": _parse_float(row.get("multi_run_summary.avg_final_traits.longevity_factor")),
+            "environmental_tolerance": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.environmental_tolerance")
+            ),
         },
         "most_frequent_final_dominant_group": row.get(
             "multi_run_summary.most_frequent_final_dominant_group",
@@ -425,6 +469,18 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "energy_efficiency_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
             "exhaustion_resistance_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
             "exhaustion_resistance_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_std")),
+            "longevity_factor_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.longevity_factor_mean")
+            ),
+            "longevity_factor_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.longevity_factor_std")
+            ),
+            "environmental_tolerance_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_mean")
+            ),
+            "environmental_tolerance_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
             ),
@@ -442,6 +498,34 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "reproduction_cost_amount_observed": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.reproduction_cost_amount_observed")
+            ),
+            "age_wear_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.age_wear_usage_per_tick")
+            ),
+            "age_wear_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.age_wear_multiplier_observed")
+            ),
+            "zone_drain_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.zone_drain_multiplier_observed"),
+                default=1.0,
+            ),
+            "poor_zone_drain_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.poor_zone_drain_usage_per_tick")
+            ),
+            "rich_zone_drain_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.rich_zone_drain_usage_per_tick")
+            ),
+            "environmental_tolerance_poor_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_poor_users_avg")
+            ),
+            "environmental_tolerance_poor_drain_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_poor_drain_bias")
+            ),
+            "environmental_tolerance_rich_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_rich_users_avg")
+            ),
+            "environmental_tolerance_rich_drain_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_rich_drain_bias")
             ),
             "memory_focus_food_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
             "memory_focus_danger_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),
@@ -557,6 +641,12 @@ def _build_batch_payload_from_csv(
                 ),
                 "energy_efficiency": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
                 "exhaustion_resistance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.exhaustion_resistance")),
+                "longevity_factor": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.longevity_factor")
+                ),
+                "environmental_tolerance": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.environmental_tolerance")
+                ),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
                 "multi_run_summary.most_frequent_final_dominant_group",
@@ -616,6 +706,18 @@ def _build_batch_payload_from_csv(
                 "energy_efficiency_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
                 "exhaustion_resistance_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_mean")),
                 "exhaustion_resistance_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_std")),
+                "longevity_factor_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.longevity_factor_mean")
+                ),
+                "longevity_factor_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.longevity_factor_std")
+                ),
+                "environmental_tolerance_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_mean")
+                ),
+                "environmental_tolerance_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_std")
+                ),
                 "energy_efficiency_drain_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
                 ),
@@ -633,6 +735,34 @@ def _build_batch_payload_from_csv(
                 ),
                 "reproduction_cost_amount_observed": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_cost_amount_observed")
+                ),
+                "age_wear_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.age_wear_usage_per_tick")
+                ),
+                "age_wear_multiplier_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.age_wear_multiplier_observed")
+                ),
+                "zone_drain_multiplier_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.zone_drain_multiplier_observed"),
+                    default=1.0,
+                ),
+                "poor_zone_drain_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.poor_zone_drain_usage_per_tick")
+                ),
+                "rich_zone_drain_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.rich_zone_drain_usage_per_tick")
+                ),
+                "environmental_tolerance_poor_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_poor_users_avg")
+                ),
+                "environmental_tolerance_poor_drain_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_poor_drain_bias")
+                ),
+                "environmental_tolerance_rich_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_rich_users_avg")
+                ),
+                "environmental_tolerance_rich_drain_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_rich_drain_bias")
                 ),
                 "memory_focus_food_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_food_bias")),
                 "memory_focus_danger_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.memory_focus_danger_bias")),

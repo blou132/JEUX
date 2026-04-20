@@ -53,6 +53,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usages `explore`/`settle`/`guided` et stabilite.
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usages `seek`/`avoid`, part `avoid` et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure d'age, reduction utile du drain age, dispersion et stabilite.
+- Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet observe zone pauvre/riche, dispersion utile et stabilite.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -329,6 +330,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration qui maximise la dispersion utile de `longevity_factor` (`std_longevity_factor`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `environmental_tolerance_batch`:
+  - configuration qui maximise l'effet observe en zone pauvre (proxy: `abs(environmental_tolerance_poor_drain_bias)`)
+  - configuration qui maximise l'effet observe en zone riche (proxy: `abs(environmental_tolerance_rich_drain_bias)`)
+  - configuration qui maximise la dispersion utile de `environmental_tolerance` (`environmental_tolerance_std`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -452,6 +459,11 @@ py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-
 ```
 
 Exemple lecture comparative `longevity_factor` en batch (`longevity_factor_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `environmental_tolerance` en batch (`environmental_tolerance_batch`):
 ```powershell
 py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
@@ -601,6 +613,11 @@ effet_usure_age_max: mutation_variation=0.2 (impact_abs_moy=0.180)
 reduction_drain_age_max: mutation_variation=0.2 (reduction_moy=0.120)
 dispersion_longevite_max: mutation_variation=0.1 (lg_sigma_moy=0.090)
 configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+environmental_tolerance_batch:
+effet_zone_pauvre_max: mutation_variation=0.2 (impact_abs_moy=0.120)
+effet_zone_riche_max: mutation_variation=0.1 (impact_abs_moy=0.090)
+dispersion_tolerance_env_max: mutation_variation=0.1 (env_sigma_moy=0.080)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -727,6 +744,7 @@ En mode batch:
 - quand les metriques existent, le bloc inclut aussi `exploration_bias_batch`.
 - quand les metriques existent, le bloc inclut aussi `density_preference_batch`.
 - quand les metriques existent, le bloc inclut aussi `longevity_factor_batch`.
+- quand les metriques existent, le bloc inclut aussi `environmental_tolerance_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -747,6 +765,7 @@ Avec les outils d'analyse:
 - pour l'impact `behavior_persistence`, verifier dans `Batch Comparative Summary` le bloc `behavior_persistence_batch` (switchs evites, taux de switch, taux de blocage utile).
 - pour l'impact `density_preference`, verifier dans `Batch Comparative Summary` le bloc `density_preference_batch` (usage `seek`, usage `avoid`, part `avoid`, stabilite).
 - pour l'impact `longevity_factor`, verifier dans `Batch Comparative Summary` le bloc `longevity_factor_batch` (effet usure age, reduction drain age, dispersion, stabilite).
+- pour l'impact `environmental_tolerance`, verifier dans `Batch Comparative Summary` le bloc `environmental_tolerance_batch` (effet zone pauvre/riche, dispersion, stabilite).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -783,6 +802,7 @@ Lecture rapide conseillee:
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usage `explore`/`settle`/`guided` et stabilite.
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usage `seek`/`avoid`, part `avoid` et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure age, reduction utile du drain age, dispersion et stabilite.
+- Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet zone pauvre/riche, dispersion utile et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
