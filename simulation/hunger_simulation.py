@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from math import cos, hypot, pi, sin
-from typing import Dict, Iterable, Set
+from typing import Callable, Dict, Iterable, Set
 
 from ai import CreatureIntent, HungerAI
 from creatures import Creature
@@ -41,6 +41,7 @@ class HungerSimulation:
         social_follow_strength: float = 0.35,
         social_flee_boost_per_neighbor: float = 0.15,
         social_flee_boost_max: float = 0.45,
+        fertility_zone_getter: Callable[[float, float], str] | None = None,
     ) -> None:
         if (
             energy_drain_rate < 0
@@ -84,6 +85,7 @@ class HungerSimulation:
         self.social_follow_strength = social_follow_strength
         self.social_flee_boost_per_neighbor = social_flee_boost_per_neighbor
         self.social_flee_boost_max = social_flee_boost_max
+        self.fertility_zone_getter = fertility_zone_getter
 
         self.last_intents: Dict[str, CreatureIntent] = {}
         self._child_counter = 0
@@ -200,6 +202,16 @@ class HungerSimulation:
         self.total_energy_drain_multiplier_sum = 0.0
         self.energy_efficiency_sum_drain_last_tick = 0.0
         self.total_energy_efficiency_sum_drain = 0.0
+        self.poor_zone_drain_events_last_tick = 0
+        self.total_poor_zone_drain_events = 0
+        self.rich_zone_drain_events_last_tick = 0
+        self.total_rich_zone_drain_events = 0
+        self.environmental_tolerance_sum_poor_drain_last_tick = 0.0
+        self.total_environmental_tolerance_sum_poor_drain = 0.0
+        self.environmental_tolerance_sum_rich_drain_last_tick = 0.0
+        self.total_environmental_tolerance_sum_rich_drain = 0.0
+        self.zone_drain_multiplier_sum_last_tick = 0.0
+        self.total_zone_drain_multiplier_sum = 0.0
         self.age_wear_active_events_last_tick = 0
         self.total_age_wear_active_events = 0
         self.age_wear_multiplier_sum_last_tick = 0.0
@@ -289,6 +301,11 @@ class HungerSimulation:
         self.energy_drain_amount_last_tick = 0.0
         self.energy_drain_multiplier_sum_last_tick = 0.0
         self.energy_efficiency_sum_drain_last_tick = 0.0
+        self.poor_zone_drain_events_last_tick = 0
+        self.rich_zone_drain_events_last_tick = 0
+        self.environmental_tolerance_sum_poor_drain_last_tick = 0.0
+        self.environmental_tolerance_sum_rich_drain_last_tick = 0.0
+        self.zone_drain_multiplier_sum_last_tick = 0.0
         self.age_wear_active_events_last_tick = 0
         self.age_wear_multiplier_sum_last_tick = 0.0
         self.longevity_factor_sum_age_wear_last_tick = 0.0
@@ -309,23 +326,52 @@ class HungerSimulation:
         for creature in self.creatures:
             creature.grow_older(dt)
             creature.decay_memory(dt)
+            zone_drain_multiplier = 1.0
             if creature.alive:
                 drain_multiplier = self._compute_energy_efficiency_drain_multiplier(creature)
                 age_wear_multiplier = self._compute_age_wear_multiplier(creature)
+                zone_drain_multiplier, zone_name = self._compute_environmental_zone_multiplier(
+                    creature
+                )
                 effective_drain = (
                     self.energy_drain_rate
                     * creature.traits.metabolism
                     * drain_multiplier
                     * age_wear_multiplier
+                    * zone_drain_multiplier
                 )
                 self.energy_drain_events_last_tick += 1
                 self.total_energy_drain_events += 1
                 self.energy_drain_amount_last_tick += effective_drain * dt
                 self.total_energy_drain_amount += effective_drain * dt
-                self.energy_drain_multiplier_sum_last_tick += drain_multiplier * age_wear_multiplier
-                self.total_energy_drain_multiplier_sum += drain_multiplier * age_wear_multiplier
+                self.energy_drain_multiplier_sum_last_tick += (
+                    drain_multiplier * age_wear_multiplier * zone_drain_multiplier
+                )
+                self.total_energy_drain_multiplier_sum += (
+                    drain_multiplier * age_wear_multiplier * zone_drain_multiplier
+                )
                 self.energy_efficiency_sum_drain_last_tick += creature.traits.energy_efficiency
                 self.total_energy_efficiency_sum_drain += creature.traits.energy_efficiency
+                self.zone_drain_multiplier_sum_last_tick += zone_drain_multiplier
+                self.total_zone_drain_multiplier_sum += zone_drain_multiplier
+                if zone_name == "poor":
+                    self.poor_zone_drain_events_last_tick += 1
+                    self.total_poor_zone_drain_events += 1
+                    self.environmental_tolerance_sum_poor_drain_last_tick += (
+                        creature.traits.environmental_tolerance
+                    )
+                    self.total_environmental_tolerance_sum_poor_drain += (
+                        creature.traits.environmental_tolerance
+                    )
+                elif zone_name == "rich":
+                    self.rich_zone_drain_events_last_tick += 1
+                    self.total_rich_zone_drain_events += 1
+                    self.environmental_tolerance_sum_rich_drain_last_tick += (
+                        creature.traits.environmental_tolerance
+                    )
+                    self.total_environmental_tolerance_sum_rich_drain += (
+                        creature.traits.environmental_tolerance
+                    )
                 if age_wear_multiplier > 1.0:
                     self.age_wear_active_events_last_tick += 1
                     self.total_age_wear_active_events += 1
@@ -338,7 +384,7 @@ class HungerSimulation:
             creature.drain_energy(
                 dt=dt,
                 drain_rate=self.energy_drain_rate,
-                extra_multiplier=age_wear_multiplier,
+                extra_multiplier=age_wear_multiplier * zone_drain_multiplier,
             )
 
         starvation_deaths = sum(
@@ -1058,6 +1104,28 @@ class HungerSimulation:
     @staticmethod
     def _compute_exhaustion_resistance_reproduction_multiplier(creature: Creature) -> float:
         return max(0.1, 1.0 - (0.3 * (creature.traits.exhaustion_resistance - 1.0)))
+
+    def _resolve_fertility_zone(self, x: float, y: float) -> str:
+        if self.fertility_zone_getter is None:
+            return "neutral"
+        zone_name = str(self.fertility_zone_getter(x, y))
+        if zone_name not in ("rich", "neutral", "poor"):
+            return "neutral"
+        return zone_name
+
+    def _compute_environmental_zone_multiplier(self, creature: Creature) -> tuple[float, str]:
+        zone_name = self._resolve_fertility_zone(creature.x, creature.y)
+        tolerance = max(0.1, creature.traits.environmental_tolerance)
+        delta = tolerance - 1.0
+
+        if zone_name == "poor":
+            multiplier = 1.0 - (0.20 * delta)
+        elif zone_name == "rich":
+            multiplier = 1.0 - (0.10 * delta)
+        else:
+            multiplier = 1.0
+
+        return max(0.9, min(1.1, multiplier)), zone_name
 
     @staticmethod
     def _is_search_wander_action(action: str) -> bool:

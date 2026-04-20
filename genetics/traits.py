@@ -30,6 +30,8 @@ class GeneticTraits:
     # - density_preference: >1.0 tends to stay in locally populated areas;
     #   <1.0 tends to avoid locally dense zones.
     # - longevity_factor: >1.0 delays age-related wear, <1.0 accelerates it.
+    # - environmental_tolerance: >1.0 slightly reduces zone-related drain pressure
+    #   (especially in poor zones), <1.0 does the opposite.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
@@ -42,6 +44,7 @@ class GeneticTraits:
     exploration_bias: float = 1.0
     density_preference: float = 1.0
     longevity_factor: float = 1.0
+    environmental_tolerance: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -65,5 +68,6 @@ class GeneticTraits:
         self.exploration_bias = max(0.7, min(1.3, self.exploration_bias))
         self.density_preference = max(0.7, min(1.3, self.density_preference))
         self.longevity_factor = max(0.85, min(1.15, self.longevity_factor))
+        self.environmental_tolerance = max(0.85, min(1.15, self.environmental_tolerance))
         return self
 

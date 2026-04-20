@@ -306,6 +306,7 @@ def _run_single(args: argparse.Namespace, seed: int, verbose: bool) -> Dict[str,
         social_flee_boost_max=args.social_flee_boost_max,
         random_source=random_source,
         world_map=world_map,
+        fertility_zone_getter=world.get_fertility_zone,
     )
 
     run_config = PlayerRunConfig(

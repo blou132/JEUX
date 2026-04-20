@@ -37,6 +37,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "exploration_bias": round(creature.traits.exploration_bias, 3),
                     "density_preference": round(creature.traits.density_preference, 3),
                     "longevity_factor": round(creature.traits.longevity_factor, 3),
+                    "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -96,6 +97,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         if total_creatures > 0
         else 0.0
     )
+    avg_environmental_tolerance_population = (
+        sum(creature.traits.environmental_tolerance for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
     density_preference_seek_users_avg_last_tick = (
         simulation.density_preference_sum_seek_last_tick / simulation.density_preference_seek_moves_last_tick
         if simulation.density_preference_seek_moves_last_tick > 0
@@ -135,6 +142,40 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         simulation.total_longevity_factor_sum_age_wear / simulation.total_age_wear_active_events
         if simulation.total_age_wear_active_events > 0
         else 0.0
+    )
+    environmental_tolerance_poor_users_avg_last_tick = (
+        simulation.environmental_tolerance_sum_poor_drain_last_tick
+        / simulation.poor_zone_drain_events_last_tick
+        if simulation.poor_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    environmental_tolerance_poor_users_avg_total = (
+        simulation.total_environmental_tolerance_sum_poor_drain
+        / simulation.total_poor_zone_drain_events
+        if simulation.total_poor_zone_drain_events > 0
+        else 0.0
+    )
+    environmental_tolerance_rich_users_avg_last_tick = (
+        simulation.environmental_tolerance_sum_rich_drain_last_tick
+        / simulation.rich_zone_drain_events_last_tick
+        if simulation.rich_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    environmental_tolerance_rich_users_avg_total = (
+        simulation.total_environmental_tolerance_sum_rich_drain
+        / simulation.total_rich_zone_drain_events
+        if simulation.total_rich_zone_drain_events > 0
+        else 0.0
+    )
+    zone_drain_multiplier_avg_last_tick = (
+        simulation.zone_drain_multiplier_sum_last_tick / simulation.energy_drain_events_last_tick
+        if simulation.energy_drain_events_last_tick > 0
+        else 1.0
+    )
+    zone_drain_multiplier_avg_total = (
+        simulation.total_zone_drain_multiplier_sum / simulation.total_energy_drain_events
+        if simulation.total_energy_drain_events > 0
+        else 1.0
     )
 
     return {
@@ -254,6 +295,36 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "longevity_factor_age_wear_usage_bias_total": (
             longevity_factor_age_wear_users_avg_total - avg_longevity_factor_population
             if simulation.total_age_wear_active_events > 0
+            else 0.0
+        ),
+        "poor_zone_drain_events_last_tick": simulation.poor_zone_drain_events_last_tick,
+        "total_poor_zone_drain_events": simulation.total_poor_zone_drain_events,
+        "rich_zone_drain_events_last_tick": simulation.rich_zone_drain_events_last_tick,
+        "total_rich_zone_drain_events": simulation.total_rich_zone_drain_events,
+        "zone_drain_multiplier_avg_last_tick": zone_drain_multiplier_avg_last_tick,
+        "zone_drain_multiplier_avg_total": zone_drain_multiplier_avg_total,
+        "environmental_tolerance_poor_users_avg_last_tick": environmental_tolerance_poor_users_avg_last_tick,
+        "environmental_tolerance_poor_users_avg_total": environmental_tolerance_poor_users_avg_total,
+        "environmental_tolerance_rich_users_avg_last_tick": environmental_tolerance_rich_users_avg_last_tick,
+        "environmental_tolerance_rich_users_avg_total": environmental_tolerance_rich_users_avg_total,
+        "environmental_tolerance_poor_usage_bias_last_tick": (
+            environmental_tolerance_poor_users_avg_last_tick - avg_environmental_tolerance_population
+            if simulation.poor_zone_drain_events_last_tick > 0
+            else 0.0
+        ),
+        "environmental_tolerance_poor_usage_bias_total": (
+            environmental_tolerance_poor_users_avg_total - avg_environmental_tolerance_population
+            if simulation.total_poor_zone_drain_events > 0
+            else 0.0
+        ),
+        "environmental_tolerance_rich_usage_bias_last_tick": (
+            environmental_tolerance_rich_users_avg_last_tick - avg_environmental_tolerance_population
+            if simulation.rich_zone_drain_events_last_tick > 0
+            else 0.0
+        ),
+        "environmental_tolerance_rich_usage_bias_total": (
+            environmental_tolerance_rich_users_avg_total - avg_environmental_tolerance_population
+            if simulation.total_rich_zone_drain_events > 0
             else 0.0
         ),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,

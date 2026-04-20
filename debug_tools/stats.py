@@ -77,6 +77,7 @@ def build_population_stats(
             "avg_energy_efficiency": 0.0,
             "avg_exhaustion_resistance": 0.0,
             "avg_longevity_factor": 0.0,
+            "avg_environmental_tolerance": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
@@ -88,6 +89,7 @@ def build_population_stats(
             "std_energy_efficiency": 0.0,
             "std_exhaustion_resistance": 0.0,
             "std_longevity_factor": 0.0,
+            "std_environmental_tolerance": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
             "energy_drain_events_last_tick": 0,
@@ -110,6 +112,24 @@ def build_population_stats(
             "energy_efficiency_drain_users_avg_total": 0.0,
             "energy_efficiency_drain_usage_bias_tick": 0.0,
             "energy_efficiency_drain_usage_bias_total": 0.0,
+            "poor_zone_drain_events_last_tick": 0,
+            "total_poor_zone_drain_events": 0,
+            "rich_zone_drain_events_last_tick": 0,
+            "total_rich_zone_drain_events": 0,
+            "poor_zone_drain_usage_per_alive_tick": 0.0,
+            "rich_zone_drain_usage_per_alive_tick": 0.0,
+            "poor_zone_drain_usage_per_tick_total": 0.0,
+            "rich_zone_drain_usage_per_tick_total": 0.0,
+            "zone_drain_multiplier_avg_last_tick": 1.0,
+            "zone_drain_multiplier_avg_total": 1.0,
+            "environmental_tolerance_poor_users_avg_tick": 0.0,
+            "environmental_tolerance_poor_users_avg_total": 0.0,
+            "environmental_tolerance_poor_usage_bias_tick": 0.0,
+            "environmental_tolerance_poor_usage_bias_total": 0.0,
+            "environmental_tolerance_rich_users_avg_tick": 0.0,
+            "environmental_tolerance_rich_users_avg_total": 0.0,
+            "environmental_tolerance_rich_usage_bias_tick": 0.0,
+            "environmental_tolerance_rich_usage_bias_total": 0.0,
             "reproduction_cost_events_last_tick": 0,
             "total_reproduction_cost_events": 0,
             "avg_reproduction_cost_amount_last_tick": 0.0,
@@ -320,6 +340,9 @@ def build_population_stats(
     avg_energy_efficiency = sum(c.traits.energy_efficiency for c in simulation.creatures) / total
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
     avg_longevity_factor = sum(c.traits.longevity_factor for c in simulation.creatures) / total
+    avg_environmental_tolerance = (
+        sum(c.traits.environmental_tolerance for c in simulation.creatures) / total
+    )
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
     avg_energy_drain_amount_last_tick = (
@@ -381,6 +404,72 @@ def build_population_stats(
         simulation.total_energy_efficiency_sum_drain / simulation.total_energy_drain_events
         if simulation.total_energy_drain_events > 0
         else 0.0
+    )
+    zone_drain_multiplier_avg_last_tick = (
+        simulation.zone_drain_multiplier_sum_last_tick / simulation.energy_drain_events_last_tick
+        if simulation.energy_drain_events_last_tick > 0
+        else 1.0
+    )
+    zone_drain_multiplier_avg_total = (
+        simulation.total_zone_drain_multiplier_sum / simulation.total_energy_drain_events
+        if simulation.total_energy_drain_events > 0
+        else 1.0
+    )
+    avg_environmental_tolerance_poor_users_tick = (
+        simulation.environmental_tolerance_sum_poor_drain_last_tick
+        / simulation.poor_zone_drain_events_last_tick
+        if simulation.poor_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    avg_environmental_tolerance_poor_users_total = (
+        simulation.total_environmental_tolerance_sum_poor_drain
+        / simulation.total_poor_zone_drain_events
+        if simulation.total_poor_zone_drain_events > 0
+        else 0.0
+    )
+    avg_environmental_tolerance_rich_users_tick = (
+        simulation.environmental_tolerance_sum_rich_drain_last_tick
+        / simulation.rich_zone_drain_events_last_tick
+        if simulation.rich_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    avg_environmental_tolerance_rich_users_total = (
+        simulation.total_environmental_tolerance_sum_rich_drain
+        / simulation.total_rich_zone_drain_events
+        if simulation.total_rich_zone_drain_events > 0
+        else 0.0
+    )
+    environmental_tolerance_poor_usage_bias_tick = (
+        avg_environmental_tolerance_poor_users_tick - avg_environmental_tolerance
+        if simulation.poor_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    environmental_tolerance_poor_usage_bias_total = (
+        avg_environmental_tolerance_poor_users_total - avg_environmental_tolerance
+        if simulation.total_poor_zone_drain_events > 0
+        else 0.0
+    )
+    environmental_tolerance_rich_usage_bias_tick = (
+        avg_environmental_tolerance_rich_users_tick - avg_environmental_tolerance
+        if simulation.rich_zone_drain_events_last_tick > 0
+        else 0.0
+    )
+    environmental_tolerance_rich_usage_bias_total = (
+        avg_environmental_tolerance_rich_users_total - avg_environmental_tolerance
+        if simulation.total_rich_zone_drain_events > 0
+        else 0.0
+    )
+    poor_zone_drain_usage_per_alive_tick = (
+        simulation.poor_zone_drain_events_last_tick / max(1, alive)
+    )
+    rich_zone_drain_usage_per_alive_tick = (
+        simulation.rich_zone_drain_events_last_tick / max(1, alive)
+    )
+    poor_zone_drain_usage_per_tick_total = (
+        simulation.total_poor_zone_drain_events / max(1, simulation.tick_count)
+    )
+    rich_zone_drain_usage_per_tick_total = (
+        simulation.total_rich_zone_drain_events / max(1, simulation.tick_count)
     )
     energy_efficiency_drain_usage_bias_tick = (
         avg_energy_efficiency_drain_users_tick - avg_energy_efficiency
@@ -444,6 +533,7 @@ def build_population_stats(
     energy_efficiency_values = [c.traits.energy_efficiency for c in simulation.creatures]
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
     longevity_factor_values = [c.traits.longevity_factor for c in simulation.creatures]
+    environmental_tolerance_values = [c.traits.environmental_tolerance for c in simulation.creatures]
 
     std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
@@ -456,6 +546,10 @@ def build_population_stats(
     std_energy_efficiency = _stddev_from_mean(energy_efficiency_values, avg_energy_efficiency)
     std_exhaustion_resistance = _stddev_from_mean(exhaustion_resistance_values, avg_exhaustion_resistance)
     std_longevity_factor = _stddev_from_mean(longevity_factor_values, avg_longevity_factor)
+    std_environmental_tolerance = _stddev_from_mean(
+        environmental_tolerance_values,
+        avg_environmental_tolerance,
+    )
 
     avg_memory_focus_food_users_tick = (
         simulation.memory_focus_sum_food_memory_last_tick / simulation.food_memory_guided_moves_last_tick
@@ -906,6 +1000,7 @@ def build_population_stats(
         "avg_energy_efficiency": avg_energy_efficiency,
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
         "avg_longevity_factor": avg_longevity_factor,
+        "avg_environmental_tolerance": avg_environmental_tolerance,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
@@ -917,6 +1012,7 @@ def build_population_stats(
         "std_energy_efficiency": std_energy_efficiency,
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "std_longevity_factor": std_longevity_factor,
+        "std_environmental_tolerance": std_environmental_tolerance,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
         "energy_drain_events_last_tick": simulation.energy_drain_events_last_tick,
@@ -941,6 +1037,24 @@ def build_population_stats(
         "energy_efficiency_drain_users_avg_total": avg_energy_efficiency_drain_users_total,
         "energy_efficiency_drain_usage_bias_tick": energy_efficiency_drain_usage_bias_tick,
         "energy_efficiency_drain_usage_bias_total": energy_efficiency_drain_usage_bias_total,
+        "poor_zone_drain_events_last_tick": simulation.poor_zone_drain_events_last_tick,
+        "total_poor_zone_drain_events": simulation.total_poor_zone_drain_events,
+        "rich_zone_drain_events_last_tick": simulation.rich_zone_drain_events_last_tick,
+        "total_rich_zone_drain_events": simulation.total_rich_zone_drain_events,
+        "poor_zone_drain_usage_per_alive_tick": poor_zone_drain_usage_per_alive_tick,
+        "rich_zone_drain_usage_per_alive_tick": rich_zone_drain_usage_per_alive_tick,
+        "poor_zone_drain_usage_per_tick_total": poor_zone_drain_usage_per_tick_total,
+        "rich_zone_drain_usage_per_tick_total": rich_zone_drain_usage_per_tick_total,
+        "zone_drain_multiplier_avg_last_tick": zone_drain_multiplier_avg_last_tick,
+        "zone_drain_multiplier_avg_total": zone_drain_multiplier_avg_total,
+        "environmental_tolerance_poor_users_avg_tick": avg_environmental_tolerance_poor_users_tick,
+        "environmental_tolerance_poor_users_avg_total": avg_environmental_tolerance_poor_users_total,
+        "environmental_tolerance_poor_usage_bias_tick": environmental_tolerance_poor_usage_bias_tick,
+        "environmental_tolerance_poor_usage_bias_total": environmental_tolerance_poor_usage_bias_total,
+        "environmental_tolerance_rich_users_avg_tick": avg_environmental_tolerance_rich_users_tick,
+        "environmental_tolerance_rich_users_avg_total": avg_environmental_tolerance_rich_users_total,
+        "environmental_tolerance_rich_usage_bias_tick": environmental_tolerance_rich_usage_bias_tick,
+        "environmental_tolerance_rich_usage_bias_total": environmental_tolerance_rich_usage_bias_total,
         "reproduction_cost_events_last_tick": simulation.reproduction_cost_events_last_tick,
         "total_reproduction_cost_events": simulation.total_reproduction_cost_events,
         "avg_reproduction_cost_amount_last_tick": avg_reproduction_cost_amount_last_tick,
@@ -1261,6 +1375,12 @@ def build_final_run_summary(
         "exhaustion_resistance_std": float(final_stats.get("std_exhaustion_resistance", 0.0)),
         "longevity_factor_mean": float(final_stats.get("avg_longevity_factor", 0.0)),
         "longevity_factor_std": float(final_stats.get("std_longevity_factor", 0.0)),
+        "environmental_tolerance_mean": float(
+            final_stats.get("avg_environmental_tolerance", 0.0)
+        ),
+        "environmental_tolerance_std": float(
+            final_stats.get("std_environmental_tolerance", 0.0)
+        ),
         "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
         "exhaustion_resistance_reproduction_bias": float(
             final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
@@ -1279,6 +1399,27 @@ def build_final_run_summary(
         ),
         "longevity_factor_age_wear_bias": float(
             final_stats.get("longevity_factor_age_wear_usage_bias_total", 0.0)
+        ),
+        "zone_drain_multiplier_observed": float(
+            final_stats.get("zone_drain_multiplier_avg_total", 1.0)
+        ),
+        "poor_zone_drain_usage_per_tick": float(
+            final_stats.get("poor_zone_drain_usage_per_tick_total", 0.0)
+        ),
+        "rich_zone_drain_usage_per_tick": float(
+            final_stats.get("rich_zone_drain_usage_per_tick_total", 0.0)
+        ),
+        "environmental_tolerance_poor_users_avg": float(
+            final_stats.get("environmental_tolerance_poor_users_avg_total", 0.0)
+        ),
+        "environmental_tolerance_poor_drain_bias": float(
+            final_stats.get("environmental_tolerance_poor_usage_bias_total", 0.0)
+        ),
+        "environmental_tolerance_rich_users_avg": float(
+            final_stats.get("environmental_tolerance_rich_users_avg_total", 0.0)
+        ),
+        "environmental_tolerance_rich_drain_bias": float(
+            final_stats.get("environmental_tolerance_rich_usage_bias_total", 0.0)
         ),
         "memory_focus_food_bias": float(final_stats.get("memory_focus_food_usage_bias_total", 0.0)),
         "memory_focus_danger_bias": float(final_stats.get("memory_focus_danger_usage_bias_total", 0.0)),
@@ -1419,6 +1560,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "energy_efficiency": 0.0,
                 "exhaustion_resistance": 0.0,
                 "longevity_factor": 0.0,
+                "environmental_tolerance": 0.0,
             },
             "avg_memory_impact": {
                 "food_usage_total": 0.0,
@@ -1464,6 +1606,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "exhaustion_resistance_std": 0.0,
                 "longevity_factor_mean": 0.0,
                 "longevity_factor_std": 0.0,
+                "environmental_tolerance_mean": 0.0,
+                "environmental_tolerance_std": 0.0,
                 "energy_efficiency_drain_bias": 0.0,
                 "exhaustion_resistance_reproduction_bias": 0.0,
                 "energy_drain_multiplier_observed": 0.0,
@@ -1473,6 +1617,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "age_wear_usage_per_tick": 0.0,
                 "age_wear_multiplier_observed": 1.0,
                 "longevity_factor_age_wear_bias": 0.0,
+                "zone_drain_multiplier_observed": 1.0,
+                "poor_zone_drain_usage_per_tick": 0.0,
+                "rich_zone_drain_usage_per_tick": 0.0,
+                "environmental_tolerance_poor_users_avg": 0.0,
+                "environmental_tolerance_poor_drain_bias": 0.0,
+                "environmental_tolerance_rich_users_avg": 0.0,
+                "environmental_tolerance_rich_drain_bias": 0.0,
                 "memory_focus_food_bias": 0.0,
                 "memory_focus_danger_bias": 0.0,
                 "social_sensitivity_follow_bias": 0.0,
@@ -1542,6 +1693,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
         "longevity_factor": 0.0,
+        "environmental_tolerance": 0.0,
     }
     avg_memory_acc = {
         "food_usage_total": 0.0,
@@ -1587,6 +1739,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "exhaustion_resistance_std": 0.0,
         "longevity_factor_mean": 0.0,
         "longevity_factor_std": 0.0,
+        "environmental_tolerance_mean": 0.0,
+        "environmental_tolerance_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "energy_drain_multiplier_observed": 0.0,
@@ -1596,6 +1750,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "age_wear_usage_per_tick": 0.0,
         "age_wear_multiplier_observed": 0.0,
         "longevity_factor_age_wear_bias": 0.0,
+        "zone_drain_multiplier_observed": 0.0,
+        "poor_zone_drain_usage_per_tick": 0.0,
+        "rich_zone_drain_usage_per_tick": 0.0,
+        "environmental_tolerance_poor_users_avg": 0.0,
+        "environmental_tolerance_poor_drain_bias": 0.0,
+        "environmental_tolerance_rich_users_avg": 0.0,
+        "environmental_tolerance_rich_drain_bias": 0.0,
         "memory_focus_food_bias": 0.0,
         "memory_focus_danger_bias": 0.0,
         "social_sensitivity_follow_bias": 0.0,
@@ -1678,6 +1839,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["energy_efficiency"] += float(traits_raw.get("energy_efficiency", 0.0))
                 avg_traits_acc["exhaustion_resistance"] += float(traits_raw.get("exhaustion_resistance", 0.0))
                 avg_traits_acc["longevity_factor"] += float(traits_raw.get("longevity_factor", 0.0))
+                avg_traits_acc["environmental_tolerance"] += float(
+                    traits_raw.get("environmental_tolerance", 0.0)
+                )
 
             memory_raw = run_summary.get("memory_impact")
             if isinstance(memory_raw, dict):
@@ -1742,6 +1906,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["longevity_factor_std"] += float(
                     trait_impact_raw.get("longevity_factor_std", 0.0)
                 )
+                avg_trait_impact_acc["environmental_tolerance_mean"] += float(
+                    trait_impact_raw.get("environmental_tolerance_mean", 0.0)
+                )
+                avg_trait_impact_acc["environmental_tolerance_std"] += float(
+                    trait_impact_raw.get("environmental_tolerance_std", 0.0)
+                )
                 avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
                     trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
                 )
@@ -1768,6 +1938,27 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["longevity_factor_age_wear_bias"] += float(
                     trait_impact_raw.get("longevity_factor_age_wear_bias", 0.0)
+                )
+                avg_trait_impact_acc["zone_drain_multiplier_observed"] += float(
+                    trait_impact_raw.get("zone_drain_multiplier_observed", 1.0)
+                )
+                avg_trait_impact_acc["poor_zone_drain_usage_per_tick"] += float(
+                    trait_impact_raw.get("poor_zone_drain_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["rich_zone_drain_usage_per_tick"] += float(
+                    trait_impact_raw.get("rich_zone_drain_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["environmental_tolerance_poor_users_avg"] += float(
+                    trait_impact_raw.get("environmental_tolerance_poor_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["environmental_tolerance_poor_drain_bias"] += float(
+                    trait_impact_raw.get("environmental_tolerance_poor_drain_bias", 0.0)
+                )
+                avg_trait_impact_acc["environmental_tolerance_rich_users_avg"] += float(
+                    trait_impact_raw.get("environmental_tolerance_rich_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["environmental_tolerance_rich_drain_bias"] += float(
+                    trait_impact_raw.get("environmental_tolerance_rich_drain_bias", 0.0)
                 )
                 avg_trait_impact_acc["memory_focus_food_bias"] += float(trait_impact_raw.get("memory_focus_food_bias", 0.0))
                 avg_trait_impact_acc["memory_focus_danger_bias"] += float(trait_impact_raw.get("memory_focus_danger_bias", 0.0))
@@ -1913,6 +2104,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "energy_efficiency": avg_traits_acc["energy_efficiency"] / run_count,
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
             "longevity_factor": avg_traits_acc["longevity_factor"] / run_count,
+            "environmental_tolerance": avg_traits_acc["environmental_tolerance"] / run_count,
         },
         "avg_memory_impact": {
             "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
@@ -1958,6 +2150,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "exhaustion_resistance_std": avg_trait_impact_acc["exhaustion_resistance_std"] / run_count,
             "longevity_factor_mean": avg_trait_impact_acc["longevity_factor_mean"] / run_count,
             "longevity_factor_std": avg_trait_impact_acc["longevity_factor_std"] / run_count,
+            "environmental_tolerance_mean": avg_trait_impact_acc["environmental_tolerance_mean"] / run_count,
+            "environmental_tolerance_std": avg_trait_impact_acc["environmental_tolerance_std"] / run_count,
             "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
             "exhaustion_resistance_reproduction_bias": (
                 avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] / run_count
@@ -1978,6 +2172,27 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "longevity_factor_age_wear_bias": (
                 avg_trait_impact_acc["longevity_factor_age_wear_bias"] / run_count
+            ),
+            "zone_drain_multiplier_observed": (
+                avg_trait_impact_acc["zone_drain_multiplier_observed"] / run_count
+            ),
+            "poor_zone_drain_usage_per_tick": (
+                avg_trait_impact_acc["poor_zone_drain_usage_per_tick"] / run_count
+            ),
+            "rich_zone_drain_usage_per_tick": (
+                avg_trait_impact_acc["rich_zone_drain_usage_per_tick"] / run_count
+            ),
+            "environmental_tolerance_poor_users_avg": (
+                avg_trait_impact_acc["environmental_tolerance_poor_users_avg"] / run_count
+            ),
+            "environmental_tolerance_poor_drain_bias": (
+                avg_trait_impact_acc["environmental_tolerance_poor_drain_bias"] / run_count
+            ),
+            "environmental_tolerance_rich_users_avg": (
+                avg_trait_impact_acc["environmental_tolerance_rich_users_avg"] / run_count
+            ),
+            "environmental_tolerance_rich_drain_bias": (
+                avg_trait_impact_acc["environmental_tolerance_rich_drain_bias"] / run_count
             ),
             "memory_focus_food_bias": avg_trait_impact_acc["memory_focus_food_bias"] / run_count,
             "memory_focus_danger_bias": avg_trait_impact_acc["memory_focus_danger_bias"] / run_count,
@@ -2318,6 +2533,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "energy_efficiency": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
         "longevity_factor": float(final_stats.get("avg_longevity_factor", 0.0)),
+        "environmental_tolerance": float(final_stats.get("avg_environmental_tolerance", 0.0)),
     }
 
 
