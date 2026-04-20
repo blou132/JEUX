@@ -237,18 +237,24 @@ def build_population_stats(
             "density_preference_usage_per_tick_total": 0.0,
             "density_preference_seek_moves_last_tick": 0,
             "total_density_preference_seek_moves": 0,
+            "density_preference_seek_usage_per_alive_tick": 0.0,
+            "density_preference_seek_usage_per_tick_total": 0.0,
             "density_preference_seek_users_avg_tick": 0.0,
             "density_preference_seek_users_avg_total": 0.0,
             "density_preference_seek_usage_bias_tick": 0.0,
             "density_preference_seek_usage_bias_total": 0.0,
             "density_preference_avoid_moves_last_tick": 0,
             "total_density_preference_avoid_moves": 0,
+            "density_preference_avoid_usage_per_alive_tick": 0.0,
+            "density_preference_avoid_usage_per_tick_total": 0.0,
             "density_preference_avoid_users_avg_tick": 0.0,
             "density_preference_avoid_users_avg_total": 0.0,
             "density_preference_avoid_usage_bias_tick": 0.0,
             "density_preference_avoid_usage_bias_total": 0.0,
             "density_preference_seek_share_last_tick": 0.0,
             "density_preference_seek_share_total": 0.0,
+            "density_preference_avoid_share_last_tick": 0.0,
+            "density_preference_avoid_share_total": 0.0,
             "density_preference_guided_users_avg_tick": 0.0,
             "density_preference_guided_users_avg_total": 0.0,
             "density_preference_guided_usage_bias_tick": 0.0,
@@ -1025,18 +1031,40 @@ def build_population_stats(
         "density_preference_guided_usage_bias_total": density_preference_guided_usage_bias_total,
         "density_preference_seek_moves_last_tick": simulation.density_preference_seek_moves_last_tick,
         "total_density_preference_seek_moves": simulation.total_density_preference_seek_moves,
+        "density_preference_seek_usage_per_alive_tick": (
+            simulation.density_preference_seek_moves_last_tick / max(1, alive)
+        ),
+        "density_preference_seek_usage_per_tick_total": (
+            simulation.total_density_preference_seek_moves / max(1, simulation.tick_count)
+        ),
         "density_preference_seek_users_avg_tick": avg_density_preference_seek_users_tick,
         "density_preference_seek_users_avg_total": avg_density_preference_seek_users_total,
         "density_preference_seek_usage_bias_tick": density_preference_seek_usage_bias_tick,
         "density_preference_seek_usage_bias_total": density_preference_seek_usage_bias_total,
         "density_preference_avoid_moves_last_tick": simulation.density_preference_avoid_moves_last_tick,
         "total_density_preference_avoid_moves": simulation.total_density_preference_avoid_moves,
+        "density_preference_avoid_usage_per_alive_tick": (
+            simulation.density_preference_avoid_moves_last_tick / max(1, alive)
+        ),
+        "density_preference_avoid_usage_per_tick_total": (
+            simulation.total_density_preference_avoid_moves / max(1, simulation.tick_count)
+        ),
         "density_preference_avoid_users_avg_tick": avg_density_preference_avoid_users_tick,
         "density_preference_avoid_users_avg_total": avg_density_preference_avoid_users_total,
         "density_preference_avoid_usage_bias_tick": density_preference_avoid_usage_bias_tick,
         "density_preference_avoid_usage_bias_total": density_preference_avoid_usage_bias_total,
         "density_preference_seek_share_last_tick": density_preference_seek_share_last_tick,
         "density_preference_seek_share_total": density_preference_seek_share_total,
+        "density_preference_avoid_share_last_tick": (
+            1.0 - density_preference_seek_share_last_tick
+            if simulation.density_preference_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "density_preference_avoid_share_total": (
+            1.0 - density_preference_seek_share_total
+            if simulation.total_density_preference_guided_moves > 0
+            else 0.0
+        ),
         "avg_density_preference_neighbor_count_last_tick": avg_density_preference_neighbor_count_last_tick,
         "avg_density_preference_neighbor_count_total": avg_density_preference_neighbor_count_total,
         "avg_density_preference_center_distance_delta_last_tick": (
@@ -1223,7 +1251,16 @@ def build_final_run_summary(
         "density_preference_guided_total": int(
             final_stats.get("total_density_preference_guided_moves", 0)
         ),
+        "density_preference_seek_total": int(final_stats.get("total_density_preference_seek_moves", 0)),
+        "density_preference_avoid_total": int(final_stats.get("total_density_preference_avoid_moves", 0)),
+        "density_preference_seek_usage_per_tick": float(
+            final_stats.get("density_preference_seek_usage_per_tick_total", 0.0)
+        ),
+        "density_preference_avoid_usage_per_tick": float(
+            final_stats.get("density_preference_avoid_usage_per_tick_total", 0.0)
+        ),
         "density_preference_seek_share": float(final_stats.get("density_preference_seek_share_total", 0.0)),
+        "density_preference_avoid_share": float(final_stats.get("density_preference_avoid_share_total", 0.0)),
         "density_preference_seek_users_avg": float(
             final_stats.get("density_preference_seek_users_avg_total", 0.0)
         ),
@@ -1381,7 +1418,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "exploration_bias_anchor_distance_delta": 0.0,
                 "density_preference_guided_bias": 0.0,
                 "density_preference_guided_total": 0.0,
+                "density_preference_seek_total": 0.0,
+                "density_preference_avoid_total": 0.0,
+                "density_preference_seek_usage_per_tick": 0.0,
+                "density_preference_avoid_usage_per_tick": 0.0,
                 "density_preference_seek_share": 0.0,
+                "density_preference_avoid_share": 0.0,
                 "density_preference_seek_users_avg": 0.0,
                 "density_preference_seek_usage_bias": 0.0,
                 "density_preference_avoid_users_avg": 0.0,
@@ -1493,7 +1535,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "exploration_bias_anchor_distance_delta": 0.0,
         "density_preference_guided_bias": 0.0,
         "density_preference_guided_total": 0.0,
+        "density_preference_seek_total": 0.0,
+        "density_preference_avoid_total": 0.0,
+        "density_preference_seek_usage_per_tick": 0.0,
+        "density_preference_avoid_usage_per_tick": 0.0,
         "density_preference_seek_share": 0.0,
+        "density_preference_avoid_share": 0.0,
         "density_preference_seek_users_avg": 0.0,
         "density_preference_seek_usage_bias": 0.0,
         "density_preference_avoid_users_avg": 0.0,
@@ -1667,8 +1714,23 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["density_preference_guided_total"] += float(
                     trait_impact_raw.get("density_preference_guided_total", 0.0)
                 )
+                avg_trait_impact_acc["density_preference_seek_total"] += float(
+                    trait_impact_raw.get("density_preference_seek_total", 0.0)
+                )
+                avg_trait_impact_acc["density_preference_avoid_total"] += float(
+                    trait_impact_raw.get("density_preference_avoid_total", 0.0)
+                )
+                avg_trait_impact_acc["density_preference_seek_usage_per_tick"] += float(
+                    trait_impact_raw.get("density_preference_seek_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["density_preference_avoid_usage_per_tick"] += float(
+                    trait_impact_raw.get("density_preference_avoid_usage_per_tick", 0.0)
+                )
                 avg_trait_impact_acc["density_preference_seek_share"] += float(
                     trait_impact_raw.get("density_preference_seek_share", 0.0)
+                )
+                avg_trait_impact_acc["density_preference_avoid_share"] += float(
+                    trait_impact_raw.get("density_preference_avoid_share", 0.0)
                 )
                 avg_trait_impact_acc["density_preference_seek_users_avg"] += float(
                     trait_impact_raw.get("density_preference_seek_users_avg", 0.0)
@@ -1850,8 +1912,23 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "density_preference_guided_total": (
                 avg_trait_impact_acc["density_preference_guided_total"] / run_count
             ),
+            "density_preference_seek_total": (
+                avg_trait_impact_acc["density_preference_seek_total"] / run_count
+            ),
+            "density_preference_avoid_total": (
+                avg_trait_impact_acc["density_preference_avoid_total"] / run_count
+            ),
+            "density_preference_seek_usage_per_tick": (
+                avg_trait_impact_acc["density_preference_seek_usage_per_tick"] / run_count
+            ),
+            "density_preference_avoid_usage_per_tick": (
+                avg_trait_impact_acc["density_preference_avoid_usage_per_tick"] / run_count
+            ),
             "density_preference_seek_share": (
                 avg_trait_impact_acc["density_preference_seek_share"] / run_count
+            ),
+            "density_preference_avoid_share": (
+                avg_trait_impact_acc["density_preference_avoid_share"] / run_count
             ),
             "density_preference_seek_users_avg": (
                 avg_trait_impact_acc["density_preference_seek_users_avg"] / run_count

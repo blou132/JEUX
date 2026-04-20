@@ -346,7 +346,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "exploration_bias_anchor_distance_delta": 0.0,
         "density_preference_guided_bias": 0.0,
         "density_preference_guided_total": 0.0,
+        "density_preference_seek_total": 0.0,
+        "density_preference_avoid_total": 0.0,
+        "density_preference_seek_usage_per_tick": 0.0,
+        "density_preference_avoid_usage_per_tick": 0.0,
         "density_preference_seek_share": 0.0,
+        "density_preference_avoid_share": 0.0,
         "density_preference_seek_users_avg": 0.0,
         "density_preference_seek_usage_bias": 0.0,
         "density_preference_avoid_users_avg": 0.0,
@@ -458,8 +463,23 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["density_preference_guided_total"] = float(
             trait_impact_raw.get("density_preference_guided_total", 0.0)
         )
+        trait_impact["density_preference_seek_total"] = float(
+            trait_impact_raw.get("density_preference_seek_total", 0.0)
+        )
+        trait_impact["density_preference_avoid_total"] = float(
+            trait_impact_raw.get("density_preference_avoid_total", 0.0)
+        )
+        trait_impact["density_preference_seek_usage_per_tick"] = float(
+            trait_impact_raw.get("density_preference_seek_usage_per_tick", 0.0)
+        )
+        trait_impact["density_preference_avoid_usage_per_tick"] = float(
+            trait_impact_raw.get("density_preference_avoid_usage_per_tick", 0.0)
+        )
         trait_impact["density_preference_seek_share"] = float(
             trait_impact_raw.get("density_preference_seek_share", 0.0)
+        )
+        trait_impact["density_preference_avoid_share"] = float(
+            trait_impact_raw.get("density_preference_avoid_share", 0.0)
         )
         trait_impact["density_preference_seek_users_avg"] = float(
             trait_impact_raw.get("density_preference_seek_users_avg", 0.0)
@@ -536,7 +556,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total={bp_holds_total:.0f} "
         "osc_bp:switch={bp_sw_total:.0f} bloc={bp_prev_total:.0f} events={bp_events_total:.0f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
         "exploration:guides={ex_guided_total:.0f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
-        "densite:guides={dp_guided_total:.0f} part_seek={dp_seek_share:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
+        "densite:guides={dp_guided_total:.0f} seek={dp_seek_total:.0f} avoid={dp_avoid_total:.0f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
         "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "logs_obs={observed_logs}"
@@ -628,7 +648,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         ex_settle_bias=trait_impact["exploration_bias_settle_usage_bias"],
         ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         dp_guided_total=trait_impact["density_preference_guided_total"],
+        dp_seek_total=trait_impact["density_preference_seek_total"],
+        dp_avoid_total=trait_impact["density_preference_avoid_total"],
         dp_seek_share=trait_impact["density_preference_seek_share"],
+        dp_avoid_share=trait_impact["density_preference_avoid_share"],
+        dp_seek_freq=trait_impact["density_preference_seek_usage_per_tick"],
+        dp_avoid_freq=trait_impact["density_preference_avoid_usage_per_tick"],
         dp_seek_mu=trait_impact["density_preference_seek_users_avg"],
         dp_avoid_mu=trait_impact["density_preference_avoid_users_avg"],
         dp_guided_bias=trait_impact["density_preference_guided_bias"],
@@ -776,7 +801,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "exploration_bias_anchor_distance_delta": 0.0,
         "density_preference_guided_bias": 0.0,
         "density_preference_guided_total": 0.0,
+        "density_preference_seek_total": 0.0,
+        "density_preference_avoid_total": 0.0,
+        "density_preference_seek_usage_per_tick": 0.0,
+        "density_preference_avoid_usage_per_tick": 0.0,
         "density_preference_seek_share": 0.0,
+        "density_preference_avoid_share": 0.0,
         "density_preference_seek_users_avg": 0.0,
         "density_preference_seek_usage_bias": 0.0,
         "density_preference_avoid_users_avg": 0.0,
@@ -882,8 +912,23 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["density_preference_guided_total"] = float(
             trait_impact_raw.get("density_preference_guided_total", 0.0)
         )
+        trait_impact["density_preference_seek_total"] = float(
+            trait_impact_raw.get("density_preference_seek_total", 0.0)
+        )
+        trait_impact["density_preference_avoid_total"] = float(
+            trait_impact_raw.get("density_preference_avoid_total", 0.0)
+        )
+        trait_impact["density_preference_seek_usage_per_tick"] = float(
+            trait_impact_raw.get("density_preference_seek_usage_per_tick", 0.0)
+        )
+        trait_impact["density_preference_avoid_usage_per_tick"] = float(
+            trait_impact_raw.get("density_preference_avoid_usage_per_tick", 0.0)
+        )
         trait_impact["density_preference_seek_share"] = float(
             trait_impact_raw.get("density_preference_seek_share", 0.0)
+        )
+        trait_impact["density_preference_avoid_share"] = float(
+            trait_impact_raw.get("density_preference_avoid_share", 0.0)
         )
         trait_impact["density_preference_seek_users_avg"] = float(
             trait_impact_raw.get("density_preference_seek_users_avg", 0.0)
@@ -944,7 +989,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total_moy={bp_holds_total:.2f} "
         "osc_bp_moy:switch={bp_sw_total:.2f} bloc={bp_prev_total:.2f} events={bp_events_total:.2f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
         "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
-        "densite_moy:guides={dp_guided_total:.2f} part_seek={dp_seek_share:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
+        "densite_moy:guides={dp_guided_total:.2f} seek={dp_seek_total:.2f} avoid={dp_avoid_total:.2f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
         "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
@@ -1032,7 +1077,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         ex_settle_bias=trait_impact["exploration_bias_settle_usage_bias"],
         ex_anchor_delta=trait_impact["exploration_bias_anchor_distance_delta"],
         dp_guided_total=trait_impact["density_preference_guided_total"],
+        dp_seek_total=trait_impact["density_preference_seek_total"],
+        dp_avoid_total=trait_impact["density_preference_avoid_total"],
         dp_seek_share=trait_impact["density_preference_seek_share"],
+        dp_avoid_share=trait_impact["density_preference_avoid_share"],
+        dp_seek_freq=trait_impact["density_preference_seek_usage_per_tick"],
+        dp_avoid_freq=trait_impact["density_preference_avoid_usage_per_tick"],
         dp_seek_mu=trait_impact["density_preference_seek_users_avg"],
         dp_avoid_mu=trait_impact["density_preference_avoid_users_avg"],
         dp_guided_bias=trait_impact["density_preference_guided_bias"],
@@ -1136,6 +1186,13 @@ def format_population_dynamics(
     density_seek_tick = int(stats.get("density_preference_seek_moves_last_tick", 0))
     density_avoid_tick = int(stats.get("density_preference_avoid_moves_last_tick", 0))
     density_seek_share_tick = float(stats.get("density_preference_seek_share_last_tick", 0.0))
+    density_avoid_share_tick = float(stats.get("density_preference_avoid_share_last_tick", 0.0))
+    density_seek_usage_alive_tick = float(stats.get("density_preference_seek_usage_per_alive_tick", 0.0))
+    density_avoid_usage_alive_tick = float(stats.get("density_preference_avoid_usage_per_alive_tick", 0.0))
+    density_seek_share_total = float(stats.get("density_preference_seek_share_total", 0.0))
+    density_avoid_share_total = float(stats.get("density_preference_avoid_share_total", 0.0))
+    density_seek_usage_total = float(stats.get("density_preference_seek_usage_per_tick_total", 0.0))
+    density_avoid_usage_total = float(stats.get("density_preference_avoid_usage_per_tick_total", 0.0))
     density_seek_users_avg_tick = float(stats.get("density_preference_seek_users_avg_tick", 0.0))
     density_avoid_users_avg_tick = float(stats.get("density_preference_avoid_users_avg_tick", 0.0))
     density_guided_usage_bias_tick = float(stats.get("density_preference_guided_usage_bias_tick", 0.0))
@@ -1390,8 +1447,8 @@ def format_population_dynamics(
         f"perception_tick:det={food_detection_tick} eat={food_consumption_tick} fuite={threat_detection_tick} "
         f"exploration_log:guides={exploration_guided_log} explore={exploration_explore_log} settle={exploration_settle_log} "
         f"exploration_tick:guides={exploration_guided_tick} explore={exploration_explore_tick} settle={exploration_settle_tick} part_explore={exploration_explore_share_tick:.2f} ex_mu={exploration_explore_users_avg_tick:.2f} st_mu={exploration_settle_users_avg_tick:.2f} ex_bias={exploration_explore_usage_bias_tick:+.2f} st_bias={exploration_settle_usage_bias_tick:+.2f} delta_ancre={exploration_anchor_delta_tick:+.2f} "
-        f"densite_log:guides={density_guided_log} seek={density_seek_log} avoid={density_avoid_log} "
-        f"densite_tick:guides={density_guided_tick} seek={density_seek_tick} avoid={density_avoid_tick} part_seek={density_seek_share_tick:.2f} seek_mu={density_seek_users_avg_tick:.2f} avoid_mu={density_avoid_users_avg_tick:.2f} dp_bias={density_guided_usage_bias_tick:+.2f} seek_bias={density_seek_usage_bias_tick:+.2f} avoid_bias={density_avoid_usage_bias_tick:+.2f} dens_voisins={density_neighbor_count_tick:.2f} delta_centre={density_center_delta_tick:+.2f} "
+        f"densite_log:guides={density_guided_log} seek={density_seek_log} avoid={density_avoid_log} part_seek={density_seek_share_total:.2f} part_avoid={density_avoid_share_total:.2f} freq_seek={density_seek_usage_total:.2f} freq_avoid={density_avoid_usage_total:.2f} "
+        f"densite_tick:guides={density_guided_tick} seek={density_seek_tick} avoid={density_avoid_tick} part_seek={density_seek_share_tick:.2f} part_avoid={density_avoid_share_tick:.2f} freq_seek={density_seek_usage_alive_tick:.2f} freq_avoid={density_avoid_usage_alive_tick:.2f} seek_mu={density_seek_users_avg_tick:.2f} avoid_mu={density_avoid_users_avg_tick:.2f} dp_bias={density_guided_usage_bias_tick:+.2f} seek_bias={density_seek_usage_bias_tick:+.2f} avoid_bias={density_avoid_usage_bias_tick:+.2f} dens_voisins={density_neighbor_count_tick:.2f} delta_centre={density_center_delta_tick:+.2f} "
         f"inertie_log:{persistence_holds_log} inertie_tick:{persistence_holds_tick} "
         f"oscill_log:sw={search_wander_switches_log} bloc={search_wander_switches_prevented_log} evts={search_wander_events_log} taux_sw={search_wander_switch_rate_log:.2f} taux_bloc={search_wander_prevented_rate_log:.2f} "
         f"oscill_tick:sw={search_wander_switches_tick} bloc={search_wander_switches_prevented_tick} evts={search_wander_events_tick} taux_sw={search_wander_switch_rate_tick:.2f} taux_bloc={search_wander_prevented_rate_tick:.2f} "

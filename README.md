@@ -40,6 +40,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable, mutante et visible en stats/synthese/debug.
+- Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
@@ -148,6 +149,17 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs/syntheses:
   - `dynamique_*`: `traits_comp_moy` (`dp`), `traits_disp` (`dp_sigma`), `traits_bias_tick` (`dp_guide`, `dp_seek`, `dp_avoid`), `densite_tick`/`densite_log`.
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`dp`) et `traits_impact` / `traits_impact_moy` (`dp_mu`, `dp_sigma`, `densite:*` avec `part_seek`, `seek_mu`, `avoid_mu`, `dens_voisins`, `delta_centre`).
+
+### Evaluation legere de l'impact density_preference
+- Indicateurs exposes en stats/synthese:
+  - moyenne et dispersion de `density_preference`
+  - frequences d'usage `seek` / `avoid` (`density_preference_seek_usage_per_tick_total`, `density_preference_avoid_usage_per_tick_total`)
+  - parts d'usage `seek` / `avoid` (`density_preference_seek_share_*`, `density_preference_avoid_share_*`)
+  - biais d'usage du trait (`density_preference_seek_usage_bias_*`, `density_preference_avoid_usage_bias_*`)
+  - effet local observable (`avg_density_preference_neighbor_count_*`, `avg_density_preference_center_distance_delta_*`)
+- Visibilite:
+  - `dynamique_*`: bloc `densite_tick` / `densite_log`
+  - `Run Summary` / `Multi-Run Summary`: bloc `densite:` / `densite_moy:` avec `part_avoid`, `freq_seek`, `freq_avoid`
 
 ### Evaluation legere de l'impact perception
 - Indicateurs exposes en stats/synthese:
@@ -625,7 +637,7 @@ Chaque bloc de log periodique contient:
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
 - `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
 - `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `ex_mu`, `st_mu`, `ex_bias`, `st_bias`, `delta_ancre`).
-- `densite_log` / `densite_tick` dans `dynamique_*`: usage observe de la preference de densite (`guides`, `seek`, `avoid`, `part_seek`, `seek_mu`, `avoid_mu`, `dp_bias`, `seek_bias`, `avoid_bias`, `dens_voisins`, `delta_centre`).
+- `densite_log` / `densite_tick` dans `dynamique_*`: usage observe de la preference de densite (`guides`, `seek`, `avoid`, `part_seek`, `part_avoid`, `freq_seek`, `freq_avoid`, `seek_mu`, `avoid_mu`, `dp_bias`, `seek_bias`, `avoid_bias`, `dens_voisins`, `delta_centre`).
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
 - `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
@@ -719,6 +731,7 @@ Lecture rapide conseillee:
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable et mutante, avec effet leger d'inertie entre intentions compatibles et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable et mutante, avec effet leger d'exploration/fidelite locale autour des zones favorables memorisees et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable et mutante, avec effet leger `seek`/`avoid` selon densite locale et visibilite en stats/synthese/debug.
+- Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (frequence inertie, biais d'usage et impact oscillation `search_food`<->`wander`) visible en stats/synthese/debug/export.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
 - Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.

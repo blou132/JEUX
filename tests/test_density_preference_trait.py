@@ -130,6 +130,9 @@ class DensityPreferenceTraitTests(unittest.TestCase):
         self.assertIn("density_preference_seek_moves_last_tick", stats)
         self.assertIn("density_preference_avoid_moves_last_tick", stats)
         self.assertIn("density_preference_seek_usage_bias_tick", stats)
+        self.assertIn("density_preference_seek_usage_per_tick_total", stats)
+        self.assertIn("density_preference_avoid_usage_per_tick_total", stats)
+        self.assertIn("density_preference_avoid_share_last_tick", stats)
         self.assertIn("avg_density_preference_neighbor_count_last_tick", stats)
         self.assertIn("avg_density_preference_center_distance_delta_last_tick", stats)
 
@@ -137,6 +140,8 @@ class DensityPreferenceTraitTests(unittest.TestCase):
         self.assertGreater(int(stats["density_preference_guided_moves_last_tick"]), 0)
         self.assertGreater(int(stats["density_preference_seek_moves_last_tick"]), 0)
         self.assertGreater(int(stats["density_preference_avoid_moves_last_tick"]), 0)
+        self.assertGreaterEqual(float(stats["density_preference_avoid_share_last_tick"]), 0.0)
+        self.assertLessEqual(float(stats["density_preference_avoid_share_last_tick"]), 1.0)
 
         row = snapshot["creatures"][0]
         self.assertIn("density_preference", row["traits"])
@@ -144,4 +149,3 @@ class DensityPreferenceTraitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
