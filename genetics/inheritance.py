@@ -40,6 +40,7 @@ def inherit_traits(
         parent_a.behavior_persistence + parent_b.behavior_persistence
     ) / 2.0
     avg_exploration_bias = (parent_a.exploration_bias + parent_b.exploration_bias) / 2.0
+    avg_density_preference = (parent_a.density_preference + parent_b.density_preference) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -65,5 +66,6 @@ def inherit_traits(
         risk_taking=_mutate_with_delta(avg_risk_taking, behavior_delta),
         behavior_persistence=_mutate_with_delta(avg_behavior_persistence, behavior_delta),
         exploration_bias=_mutate_with_delta(avg_exploration_bias, behavior_delta),
+        density_preference=_mutate_with_delta(avg_density_preference, behavior_delta),
     )
     return child_traits.clamp()

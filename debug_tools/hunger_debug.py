@@ -35,6 +35,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "risk_taking": round(creature.traits.risk_taking, 3),
                     "behavior_persistence": round(creature.traits.behavior_persistence, 3),
                     "exploration_bias": round(creature.traits.exploration_bias, 3),
+                    "density_preference": round(creature.traits.density_preference, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -82,6 +83,31 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     exploration_bias_settle_users_avg_total = (
         simulation.total_exploration_bias_sum_settle / simulation.total_exploration_bias_settle_moves
         if simulation.total_exploration_bias_settle_moves > 0
+        else 0.0
+    )
+    avg_density_preference_population = (
+        sum(creature.traits.density_preference for creature in simulation.creatures) / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    density_preference_seek_users_avg_last_tick = (
+        simulation.density_preference_sum_seek_last_tick / simulation.density_preference_seek_moves_last_tick
+        if simulation.density_preference_seek_moves_last_tick > 0
+        else 0.0
+    )
+    density_preference_seek_users_avg_total = (
+        simulation.total_density_preference_sum_seek / simulation.total_density_preference_seek_moves
+        if simulation.total_density_preference_seek_moves > 0
+        else 0.0
+    )
+    density_preference_avoid_users_avg_last_tick = (
+        simulation.density_preference_sum_avoid_last_tick / simulation.density_preference_avoid_moves_last_tick
+        if simulation.density_preference_avoid_moves_last_tick > 0
+        else 0.0
+    )
+    density_preference_avoid_users_avg_total = (
+        simulation.total_density_preference_sum_avoid / simulation.total_density_preference_avoid_moves
+        if simulation.total_density_preference_avoid_moves > 0
         else 0.0
     )
 
@@ -148,6 +174,45 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         ),
         "avg_exploration_bias_anchor_distance_delta_last_tick": (
             simulation.avg_exploration_bias_anchor_distance_delta_last_tick
+        ),
+        "density_preference_guided_moves_last_tick": simulation.density_preference_guided_moves_last_tick,
+        "total_density_preference_guided_moves": simulation.total_density_preference_guided_moves,
+        "density_preference_seek_moves_last_tick": simulation.density_preference_seek_moves_last_tick,
+        "total_density_preference_seek_moves": simulation.total_density_preference_seek_moves,
+        "density_preference_seek_users_avg_last_tick": density_preference_seek_users_avg_last_tick,
+        "density_preference_seek_users_avg_total": density_preference_seek_users_avg_total,
+        "density_preference_seek_usage_bias_last_tick": (
+            density_preference_seek_users_avg_last_tick - avg_density_preference_population
+            if simulation.density_preference_seek_moves_last_tick > 0
+            else 0.0
+        ),
+        "density_preference_seek_usage_bias_total": (
+            density_preference_seek_users_avg_total - avg_density_preference_population
+            if simulation.total_density_preference_seek_moves > 0
+            else 0.0
+        ),
+        "density_preference_avoid_moves_last_tick": simulation.density_preference_avoid_moves_last_tick,
+        "total_density_preference_avoid_moves": simulation.total_density_preference_avoid_moves,
+        "density_preference_avoid_users_avg_last_tick": density_preference_avoid_users_avg_last_tick,
+        "density_preference_avoid_users_avg_total": density_preference_avoid_users_avg_total,
+        "density_preference_avoid_usage_bias_last_tick": (
+            density_preference_avoid_users_avg_last_tick - avg_density_preference_population
+            if simulation.density_preference_avoid_moves_last_tick > 0
+            else 0.0
+        ),
+        "density_preference_avoid_usage_bias_total": (
+            density_preference_avoid_users_avg_total - avg_density_preference_population
+            if simulation.total_density_preference_avoid_moves > 0
+            else 0.0
+        ),
+        "avg_density_preference_neighbor_count_last_tick": (
+            simulation.density_preference_neighbor_count_sum_last_tick
+            / simulation.density_preference_guided_moves_last_tick
+            if simulation.density_preference_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "avg_density_preference_center_distance_delta_last_tick": (
+            simulation.avg_density_preference_center_distance_delta_last_tick
         ),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,

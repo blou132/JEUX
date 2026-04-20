@@ -40,6 +40,7 @@ def build_batch_comparative_summary(
     behavior_persistence_candidates: list[Dict[str, float]] = []
     perception_candidates: list[Dict[str, float]] = []
     risk_candidates: list[Dict[str, float]] = []
+    exploration_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -96,6 +97,10 @@ def build_batch_comparative_summary(
         if risk_metrics is not None:
             risk_candidates.append({"value": value, **risk_metrics})
 
+        exploration_metrics = _read_exploration_metrics(summary_raw)
+        if exploration_metrics is not None:
+            exploration_candidates.append({"value": value, **exploration_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -130,6 +135,10 @@ def build_batch_comparative_summary(
         )
         empty["risk_comparative"] = _build_risk_comparative(
             risk_candidates,
+            stable_metric=None,
+        )
+        empty["exploration_comparative"] = _build_exploration_comparative(
+            exploration_candidates,
             stable_metric=None,
         )
         return empty
@@ -214,6 +223,10 @@ def build_batch_comparative_summary(
         risk_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["exploration_comparative"] = _build_exploration_comparative(
+        exploration_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -284,6 +297,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     risk_raw = summary.get("risk_comparative")
     if isinstance(risk_raw, dict):
         lines.extend(_format_risk_comparative(batch_param, risk_raw))
+
+    exploration_raw = summary.get("exploration_comparative")
+    if isinstance(exploration_raw, dict):
+        lines.extend(_format_exploration_comparative(batch_param, exploration_raw))
 
     return "\n".join(lines)
 
@@ -890,6 +907,105 @@ def _build_risk_comparative(
     }
 
 
+
+def _format_exploration_comparative(batch_param: str, exploration_summary: Dict[str, object]) -> list[str]:
+    lines = ["exploration_bias_batch:"]
+
+    if not bool(exploration_summary.get("available", False)):
+        note = str(exploration_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_exploration_bias: n/a ({note})")
+        return lines
+
+    explore_usage = _read_metric_result(exploration_summary.get("best_explore_usage"))
+    settle_usage = _read_metric_result(exploration_summary.get("best_settle_usage"))
+    guided_usage = _read_metric_result(exploration_summary.get("best_guided_usage"))
+    stable_config = _read_metric_result(exploration_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_explore_max: {label} (part_explore_moy={value:.3f})".format(
+            label=_winner_label(batch_param, explore_usage.get("winners")),
+            value=float(explore_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_settle_max: {label} (part_settle_moy={value:.3f})".format(
+            label=_winner_label(batch_param, settle_usage.get("winners")),
+            value=float(settle_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_guided_max: {label} (guided_moy={value:.2f})".format(
+            label=_winner_label(batch_param, guided_usage.get("winners")),
+            value=float(guided_usage.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    guided_note = str(exploration_summary.get("guided_note", "")).strip()
+    if guided_note:
+        lines.append(f"note_exploration_bias: {guided_note}")
+    else:
+        lines.append("note_exploration_bias: part_settle=1-part_explore, guided=guides moyens observes")
+
+    return lines
+
+
+def _build_exploration_comparative(
+    exploration_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(exploration_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact exploration_bias",
+            "best_explore_usage": _insufficient_metric_result(),
+            "best_settle_usage": _insufficient_metric_result(),
+            "best_guided_usage": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "guided_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    guided_signal_max = max(candidate["guided_usage_total"] for candidate in exploration_candidates)
+    guided_note = ""
+    if guided_signal_max <= 0.0:
+        guided_note = (
+            "usage guided nul: interpretation explore/settle limitee (aucun guidage observe)"
+        )
+
+    return {
+        "available": True,
+        "best_explore_usage": _build_peak_metric(exploration_candidates, "explore_usage_share"),
+        "best_settle_usage": _build_peak_metric(exploration_candidates, "settle_usage_share"),
+        "best_guided_usage": _build_peak_metric(exploration_candidates, "guided_usage_total"),
+        "most_stable_config": stable_result,
+        "guided_note": guided_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -1102,6 +1218,33 @@ def _read_risk_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | Non
         "borderline_effect_abs": abs(borderline_bias),
         "borderline_flee_rate": borderline_flee_rate,
         "borderline_signal": borderline_signal,
+    }
+
+
+
+def _read_exploration_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "exploration_bias_guided_total",
+        "exploration_bias_explore_share",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    explore_share = float(avg_trait_raw.get("exploration_bias_explore_share", 0.0))
+    guided_total = float(avg_trait_raw.get("exploration_bias_guided_total", 0.0))
+
+    # Keep shares in [0, 1] for robust comparison in case of malformed payloads.
+    explore_share = max(0.0, min(1.0, explore_share))
+    settle_share = 1.0 - explore_share
+
+    return {
+        "explore_usage_share": explore_share,
+        "settle_usage_share": settle_share,
+        "guided_usage_total": max(0.0, guided_total),
     }
 
 

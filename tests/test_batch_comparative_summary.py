@@ -710,6 +710,102 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("behavior_persistence_batch:", text)
         self.assertIn("donnees_behavior_persistence: n/a", text)
 
+    def test_exploration_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "exploration_bias_guided_total": 6.0,
+                        "exploration_bias_explore_share": 0.75,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 22.0,
+                    "avg_trait_impact": {
+                        "exploration_bias_guided_total": 9.0,
+                        "exploration_bias_explore_share": 0.45,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "exploration_bias_guided_total": 11.0,
+                        "exploration_bias_explore_share": 0.20,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        exploration = summary.get("exploration_comparative")
+
+        self.assertIsInstance(exploration, dict)
+        assert isinstance(exploration, dict)
+        self.assertTrue(bool(exploration.get("available", False)))
+        self.assertEqual(exploration["best_explore_usage"]["winners"], [0.05])
+        self.assertAlmostEqual(float(exploration["best_explore_usage"]["value"]), 0.75)
+        self.assertEqual(exploration["best_settle_usage"]["winners"], [0.2])
+        self.assertAlmostEqual(float(exploration["best_settle_usage"]["value"]), 0.8)
+        self.assertEqual(exploration["best_guided_usage"]["winners"], [0.2])
+        self.assertAlmostEqual(float(exploration["best_guided_usage"]["value"]), 11.0)
+        self.assertEqual(exploration["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("exploration_bias_batch:", text)
+        self.assertIn("usage_explore_max:", text)
+        self.assertIn("usage_settle_max:", text)
+        self.assertIn("usage_guided_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_exploration_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                    "avg_trait_impact": {
+                        "exploration_bias_explore_share": 0.6,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        exploration = summary.get("exploration_comparative")
+
+        self.assertIsInstance(exploration, dict)
+        assert isinstance(exploration, dict)
+        self.assertFalse(bool(exploration.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(exploration.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("exploration_bias_batch:", text)
+        self.assertIn("donnees_exploration_bias: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

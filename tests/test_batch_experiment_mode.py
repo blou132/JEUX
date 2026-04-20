@@ -55,6 +55,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("effet_drain_energie_max:", output)
         self.assertIn("effet_cout_reproduction_max:", output)
         self.assertIn("dispersion_energie_max:", output)
+        self.assertIn("exploration_bias_batch:", output)
+        self.assertIn("usage_explore_max:", output)
+        self.assertIn("usage_settle_max:", output)
+        self.assertIn("usage_guided_max:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

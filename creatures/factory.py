@@ -32,6 +32,7 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             risk_taking=random_source.uniform(0.95, 1.05),
             behavior_persistence=random_source.uniform(0.95, 1.05),
             exploration_bias=random_source.uniform(0.95, 1.05),
+            density_preference=random_source.uniform(0.95, 1.05),
         ).clamp()
 
         creature = Creature(

@@ -142,6 +142,23 @@ class HungerSimulation:
         self.exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.total_exploration_bias_anchor_distance_delta = 0.0
         self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
+        self.density_preference_guided_moves_last_tick = 0
+        self.total_density_preference_guided_moves = 0
+        self.density_preference_sum_guided_last_tick = 0.0
+        self.total_density_preference_sum_guided = 0.0
+        self.density_preference_seek_moves_last_tick = 0
+        self.total_density_preference_seek_moves = 0
+        self.density_preference_sum_seek_last_tick = 0.0
+        self.total_density_preference_sum_seek = 0.0
+        self.density_preference_avoid_moves_last_tick = 0
+        self.total_density_preference_avoid_moves = 0
+        self.density_preference_sum_avoid_last_tick = 0.0
+        self.total_density_preference_sum_avoid = 0.0
+        self.density_preference_neighbor_count_sum_last_tick = 0.0
+        self.total_density_preference_neighbor_count_sum = 0.0
+        self.density_preference_center_distance_delta_last_tick = 0.0
+        self.total_density_preference_center_distance_delta = 0.0
+        self.avg_density_preference_center_distance_delta_last_tick = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -235,6 +252,15 @@ class HungerSimulation:
         self.exploration_bias_sum_settle_last_tick = 0.0
         self.exploration_bias_anchor_distance_delta_last_tick = 0.0
         self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
+        self.density_preference_guided_moves_last_tick = 0
+        self.density_preference_sum_guided_last_tick = 0.0
+        self.density_preference_seek_moves_last_tick = 0
+        self.density_preference_sum_seek_last_tick = 0.0
+        self.density_preference_avoid_moves_last_tick = 0
+        self.density_preference_sum_avoid_last_tick = 0.0
+        self.density_preference_neighbor_count_sum_last_tick = 0.0
+        self.density_preference_center_distance_delta_last_tick = 0.0
+        self.avg_density_preference_center_distance_delta_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -483,6 +509,14 @@ class HungerSimulation:
             )
         else:
             self.avg_exploration_bias_anchor_distance_delta_last_tick = 0.0
+
+        if self.density_preference_guided_moves_last_tick > 0:
+            self.avg_density_preference_center_distance_delta_last_tick = (
+                self.density_preference_center_distance_delta_last_tick
+                / self.density_preference_guided_moves_last_tick
+            )
+        else:
+            self.avg_density_preference_center_distance_delta_last_tick = 0.0
 
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
@@ -839,6 +873,59 @@ class HungerSimulation:
                 else:
                     anchor = None
 
+        density_center: tuple[float, float] | None = None
+        density_mode: str | None = None
+        density_neighbor_count = 0
+        before_density_center_distance = 0.0
+        if allow_exploration_bias:
+            density_strength = min(0.22, abs(creature.traits.density_preference - 1.0) * 0.55)
+            if density_strength > 0.0:
+                local_density_radius = max(2.0, self.social_influence_distance * 0.6)
+                if local_density_radius > 0.0:
+                    sum_x = 0.0
+                    sum_y = 0.0
+                    neighbor_count = 0
+                    for other in self.creatures:
+                        if not other.alive or other.creature_id == creature.creature_id:
+                            continue
+                        if creature.distance_to(other.x, other.y) > local_density_radius:
+                            continue
+                        sum_x += other.x
+                        sum_y += other.y
+                        neighbor_count += 1
+
+                    if neighbor_count > 0:
+                        center_x = sum_x / neighbor_count
+                        center_y = sum_y / neighbor_count
+                        to_center_x = center_x - creature.x
+                        to_center_y = center_y - creature.y
+                        center_norm = hypot(to_center_x, to_center_y)
+                        if center_norm > 1e-9:
+                            if creature.traits.density_preference >= 1.0:
+                                bias_x = to_center_x / center_norm
+                                bias_y = to_center_y / center_norm
+                                density_mode = "seek"
+                            elif neighbor_count >= 2:
+                                bias_x = -to_center_x / center_norm
+                                bias_y = -to_center_y / center_norm
+                                density_mode = "avoid"
+                            else:
+                                bias_x = 0.0
+                                bias_y = 0.0
+
+                            if density_mode is not None:
+                                blended_x = ((1.0 - density_strength) * dir_x) + (density_strength * bias_x)
+                                blended_y = ((1.0 - density_strength) * dir_y) + (density_strength * bias_y)
+                                blended_norm = hypot(blended_x, blended_y)
+                                if blended_norm > 1e-9:
+                                    dir_x = blended_x / blended_norm
+                                    dir_y = blended_y / blended_norm
+                                    density_center = (center_x, center_y)
+                                    density_neighbor_count = neighbor_count
+                                    before_density_center_distance = creature.distance_to(center_x, center_y)
+                                else:
+                                    density_mode = None
+
         target_x = creature.x + (dir_x * distance)
         target_y = creature.y + (dir_y * distance)
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
@@ -863,6 +950,29 @@ class HungerSimulation:
                 self.total_exploration_bias_settle_moves += 1
                 self.exploration_bias_sum_settle_last_tick += creature.traits.exploration_bias
                 self.total_exploration_bias_sum_settle += creature.traits.exploration_bias
+
+        if density_center is not None and density_mode is not None:
+            after_density_center_distance = creature.distance_to(density_center[0], density_center[1])
+            center_distance_delta = after_density_center_distance - before_density_center_distance
+
+            self.density_preference_guided_moves_last_tick += 1
+            self.total_density_preference_guided_moves += 1
+            self.density_preference_sum_guided_last_tick += creature.traits.density_preference
+            self.total_density_preference_sum_guided += creature.traits.density_preference
+            self.density_preference_neighbor_count_sum_last_tick += density_neighbor_count
+            self.total_density_preference_neighbor_count_sum += density_neighbor_count
+            self.density_preference_center_distance_delta_last_tick += center_distance_delta
+            self.total_density_preference_center_distance_delta += center_distance_delta
+            if density_mode == "seek":
+                self.density_preference_seek_moves_last_tick += 1
+                self.total_density_preference_seek_moves += 1
+                self.density_preference_sum_seek_last_tick += creature.traits.density_preference
+                self.total_density_preference_sum_seek += creature.traits.density_preference
+            else:
+                self.density_preference_avoid_moves_last_tick += 1
+                self.total_density_preference_avoid_moves += 1
+                self.density_preference_sum_avoid_last_tick += creature.traits.density_preference
+                self.total_density_preference_sum_avoid += creature.traits.density_preference
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(

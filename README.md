@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de persistance comportementale, et biais individuel leger d'exploration spatiale.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, et biais individuel leger de preference de densite locale.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -39,6 +39,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais individuel leger de prise de risque (`risk_taking`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable, mutante et visible en stats/synthese/debug.
+- Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable, mutante et visible en stats/synthese/debug.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
@@ -46,6 +47,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
 - Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites, taux de switch et taux de blocage utile.
+- Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usages `explore`/`settle`/`guided` et stabilite.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
 
@@ -135,6 +137,17 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs/syntheses:
   - `dynamique_*`: `traits_comp_moy` (`ex`), `traits_disp` (`ex_sigma`), `traits_bias_tick` (`ex_guide`, `ex_explore`, `ex_settle`), `exploration_tick`/`exploration_log`.
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`ex`) et `traits_impact` / `traits_impact_moy` (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*` avec `ex_mu`/`st_mu` et biais associes).
+
+### Variabilite individuelle de preference de densite locale
+- Trait leger ajoute: `density_preference`.
+- Effet volontairement limite:
+  - `density_preference > 1.0`: tendance legere a se rapprocher d'un centre local de congeneres (`seek`).
+  - `density_preference < 1.0`: tendance legere a s'eloigner d'une zone localement dense (`avoid`).
+- L'effet est applique uniquement en errance/recherche sans cible directe, pour ne pas casser les priorites existantes (fuite, mort, reproduction, cible nourriture visible).
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - `dynamique_*`: `traits_comp_moy` (`dp`), `traits_disp` (`dp_sigma`), `traits_bias_tick` (`dp_guide`, `dp_seek`, `dp_avoid`), `densite_tick`/`densite_log`.
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`dp`) et `traits_impact` / `traits_impact_moy` (`dp_mu`, `dp_sigma`, `densite:*` avec `part_seek`, `seek_mu`, `avoid_mu`, `dens_voisins`, `delta_centre`).
 
 ### Evaluation legere de l'impact perception
 - Indicateurs exposes en stats/synthese:
@@ -261,6 +274,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration qui maximise le taux de blocage utile (`behavior_persistence_oscillation_prevented_rate`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `exploration_bias_batch`:
+  - configuration qui maximise l'usage `explore` (`exploration_bias_explore_share`)
+  - configuration qui maximise l'usage `settle` (`1 - exploration_bias_explore_share`)
+  - configuration qui maximise le guidage `guided` (`exploration_bias_guided_total`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -369,6 +388,11 @@ py main.py --batch-param energy_drain_rate --batch-values 0.9,1.1,1.3 --batch-ru
 ```
 
 Exemple lecture comparative `behavior_persistence` en batch (`behavior_persistence_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `exploration_bias` en batch (`exploration_bias_batch`):
 ```powershell
 py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
@@ -503,6 +527,11 @@ switchs_evites_max: mutation_variation=0.1 (switchs_evites_moy=8.00)
 taux_switch_min: mutation_variation=0.1 (taux_moy=0.350)
 taux_blocage_utile_max: mutation_variation=0.1 (taux_moy=0.650)
 configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+exploration_bias_batch:
+usage_explore_max: mutation_variation=0.05 (part_explore_moy=0.750)
+usage_settle_max: mutation_variation=0.2 (part_settle_moy=0.800)
+usage_guided_max: mutation_variation=0.2 (guided_moy=11.00)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -584,7 +613,7 @@ py -m unittest tests.test_exploration_bias_trait
 
 ## Lire les logs debug (indicateurs utiles)
 Chaque bloc de log periodique contient:
-- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `energy_efficiency`, `exhaustion_resistance`).
+- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `density_preference`, `energy_efficiency`, `exhaustion_resistance`).
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
 - `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
@@ -594,8 +623,9 @@ Chaque bloc de log periodique contient:
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
-- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
+- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, ainsi que `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique.
 - `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `ex_mu`, `st_mu`, `ex_bias`, `st_bias`, `delta_ancre`).
+- `densite_log` / `densite_tick` dans `dynamique_*`: usage observe de la preference de densite (`guides`, `seek`, `avoid`, `part_seek`, `seek_mu`, `avoid_mu`, `dp_bias`, `seek_bias`, `avoid_bias`, `dens_voisins`, `delta_centre`).
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
 - `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
@@ -604,12 +634,12 @@ Chaque bloc de log periodique contient:
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`) et les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`).
 - le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`) et les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`).
 - le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:
@@ -621,6 +651,7 @@ En mode batch:
 - si le parametre batch est un parametre energetique, le bloc inclut aussi les comparatifs energie (`energie_batch`).
 - si le parametre batch est memoire ou social et que les metriques existent, le bloc inclut aussi `traits_batch`.
 - quand les metriques existent, le bloc inclut aussi `behavior_persistence_batch`.
+- quand les metriques existent, le bloc inclut aussi `exploration_bias_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -672,6 +703,7 @@ Lecture rapide conseillee:
 - Interpretation batch des biais individuels (`traits_batch`) pour les parametres memoire/sociaux.
 - Interpretation batch energie (`energie_batch`) pour les parametres energetiques (effet drain/cout reproduction, dispersion, stabilite).
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites / taux de switch / taux de blocage utile et stabilite.
+- Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usage `explore`/`settle`/`guided` et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.
@@ -686,6 +718,7 @@ Lecture rapide conseillee:
 - Biais individuel leger de prise de risque (`risk_taking`) heritable et mutante, avec effet leger sur la fuite face aux menaces borderline et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable et mutante, avec effet leger d'inertie entre intentions compatibles et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable et mutante, avec effet leger d'exploration/fidelite locale autour des zones favorables memorisees et visibilite en stats/synthese/debug.
+- Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable et mutante, avec effet leger `seek`/`avoid` selon densite locale et visibilite en stats/synthese/debug.
 - Evaluation legere de l'impact `behavior_persistence` (frequence inertie, biais d'usage et impact oscillation `search_food`<->`wander`) visible en stats/synthese/debug/export.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
 - Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.
