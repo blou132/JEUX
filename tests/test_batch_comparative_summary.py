@@ -908,6 +908,105 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("density_preference_batch:", text)
         self.assertIn("donnees_density_preference: n/a", text)
 
+    def test_longevity_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "longevity_factor_std": 0.03,
+                        "age_wear_usage_per_tick": 0.20,
+                        "age_wear_multiplier_observed": 0.96,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 22.0,
+                    "avg_trait_impact": {
+                        "longevity_factor_std": 0.08,
+                        "age_wear_usage_per_tick": 0.30,
+                        "age_wear_multiplier_observed": 1.10,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "longevity_factor_std": 0.05,
+                        "age_wear_usage_per_tick": 0.40,
+                        "age_wear_multiplier_observed": 0.80,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        longevity = summary.get("longevity_comparative")
+
+        self.assertIsInstance(longevity, dict)
+        assert isinstance(longevity, dict)
+        self.assertTrue(bool(longevity.get("available", False)))
+        self.assertEqual(longevity["best_age_wear_effect"]["winners"], [0.2])
+        self.assertAlmostEqual(float(longevity["best_age_wear_effect"]["value"]), 0.2)
+        self.assertEqual(longevity["best_age_wear_reduction"]["winners"], [0.2])
+        self.assertAlmostEqual(float(longevity["best_age_wear_reduction"]["value"]), 0.2)
+        self.assertEqual(longevity["best_longevity_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(float(longevity["best_longevity_dispersion"]["value"]), 0.08)
+        self.assertEqual(longevity["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("longevity_factor_batch:", text)
+        self.assertIn("effet_usure_age_max:", text)
+        self.assertIn("reduction_drain_age_max:", text)
+        self.assertIn("dispersion_longevite_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_longevity_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "age_wear_usage_per_tick": 0.2,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        longevity = summary.get("longevity_comparative")
+
+        self.assertIsInstance(longevity, dict)
+        assert isinstance(longevity, dict)
+        self.assertFalse(bool(longevity.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(longevity.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("longevity_factor_batch:", text)
+        self.assertIn("donnees_longevity_factor: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -42,6 +42,7 @@ def build_batch_comparative_summary(
     risk_candidates: list[Dict[str, float]] = []
     exploration_candidates: list[Dict[str, float]] = []
     density_preference_candidates: list[Dict[str, float]] = []
+    longevity_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -106,6 +107,10 @@ def build_batch_comparative_summary(
         if density_preference_metrics is not None:
             density_preference_candidates.append({"value": value, **density_preference_metrics})
 
+        longevity_metrics = _read_longevity_metrics(summary_raw)
+        if longevity_metrics is not None:
+            longevity_candidates.append({"value": value, **longevity_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -148,6 +153,10 @@ def build_batch_comparative_summary(
         )
         empty["density_preference_comparative"] = _build_density_preference_comparative(
             density_preference_candidates,
+            stable_metric=None,
+        )
+        empty["longevity_comparative"] = _build_longevity_comparative(
+            longevity_candidates,
             stable_metric=None,
         )
         return empty
@@ -240,6 +249,10 @@ def build_batch_comparative_summary(
         density_preference_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["longevity_comparative"] = _build_longevity_comparative(
+        longevity_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -318,6 +331,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     density_preference_raw = summary.get("density_preference_comparative")
     if isinstance(density_preference_raw, dict):
         lines.extend(_format_density_preference_comparative(batch_param, density_preference_raw))
+
+    longevity_raw = summary.get("longevity_comparative")
+    if isinstance(longevity_raw, dict):
+        lines.extend(_format_longevity_comparative(batch_param, longevity_raw))
 
     return "\n".join(lines)
 
@@ -1122,6 +1139,114 @@ def _build_density_preference_comparative(
     }
 
 
+def _format_longevity_comparative(
+    batch_param: str,
+    longevity_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["longevity_factor_batch:"]
+
+    if not bool(longevity_summary.get("available", False)):
+        note = str(longevity_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_longevity_factor: n/a ({note})")
+        return lines
+
+    age_wear_effect = _read_metric_result(longevity_summary.get("best_age_wear_effect"))
+    age_wear_reduction = _read_metric_result(longevity_summary.get("best_age_wear_reduction"))
+    longevity_dispersion = _read_metric_result(longevity_summary.get("best_longevity_dispersion"))
+    stable_config = _read_metric_result(longevity_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_usure_age_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, age_wear_effect.get("winners")),
+            value=float(age_wear_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "reduction_drain_age_max: {label} (reduction_moy={value:.3f})".format(
+            label=_winner_label(batch_param, age_wear_reduction.get("winners")),
+            value=float(age_wear_reduction.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_longevite_max: {label} (lg_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, longevity_dispersion.get("winners")),
+            value=float(longevity_dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    longevity_note = str(longevity_summary.get("longevity_note", "")).strip()
+    if longevity_note:
+        lines.append(f"note_longevity_factor: {longevity_note}")
+    else:
+        lines.append(
+            "note_longevity_factor: effet_usure=abs(age_wear_mult_obs-1), reduction=max(0,1-age_wear_mult_obs), dispersion=std_longevity_factor"
+        )
+
+    return lines
+
+
+def _build_longevity_comparative(
+    longevity_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(longevity_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact longevity_factor",
+            "best_age_wear_effect": _insufficient_metric_result(),
+            "best_age_wear_reduction": _insufficient_metric_result(),
+            "best_longevity_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "longevity_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    age_wear_signal_max = max(candidate["age_wear_usage_per_tick"] for candidate in longevity_candidates)
+    age_wear_reduction_max = max(candidate["age_wear_reduction_strength"] for candidate in longevity_candidates)
+    longevity_note = ""
+    if age_wear_signal_max <= 0.0:
+        longevity_note = (
+            "usure d'age non observee: interpretation limitee (effets longevity_factor non representatifs)"
+        )
+    elif age_wear_reduction_max <= 0.0:
+        longevity_note = (
+            "aucune reduction age_wear observee (age_wear_mult_obs >= 1 pour toutes les configurations)"
+        )
+
+    return {
+        "available": True,
+        "best_age_wear_effect": _build_peak_metric(longevity_candidates, "age_wear_effect_strength"),
+        "best_age_wear_reduction": _build_peak_metric(longevity_candidates, "age_wear_reduction_strength"),
+        "best_longevity_dispersion": _build_peak_metric(longevity_candidates, "longevity_dispersion"),
+        "most_stable_config": stable_result,
+        "longevity_note": longevity_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -1388,6 +1513,31 @@ def _read_density_preference_metrics(summary_raw: Dict[str, object]) -> Dict[str
         "seek_usage_per_tick": max(0.0, seek_usage),
         "avoid_usage_per_tick": max(0.0, avoid_usage),
         "avoid_usage_share": max(0.0, min(1.0, avoid_share)),
+    }
+
+
+def _read_longevity_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "longevity_factor_std",
+        "age_wear_usage_per_tick",
+        "age_wear_multiplier_observed",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    longevity_std = float(avg_trait_raw.get("longevity_factor_std", 0.0))
+    age_wear_usage = float(avg_trait_raw.get("age_wear_usage_per_tick", 0.0))
+    age_wear_multiplier = float(avg_trait_raw.get("age_wear_multiplier_observed", 1.0))
+
+    return {
+        "longevity_dispersion": max(0.0, longevity_std),
+        "age_wear_usage_per_tick": max(0.0, age_wear_usage),
+        "age_wear_effect_strength": abs(age_wear_multiplier - 1.0),
+        "age_wear_reduction_strength": max(0.0, 1.0 - age_wear_multiplier),
     }
 
 
