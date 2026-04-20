@@ -78,6 +78,7 @@ def build_population_stats(
             "avg_exhaustion_resistance": 0.0,
             "avg_longevity_factor": 0.0,
             "avg_environmental_tolerance": 0.0,
+            "avg_reproduction_timing": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
@@ -90,8 +91,10 @@ def build_population_stats(
             "std_exhaustion_resistance": 0.0,
             "std_longevity_factor": 0.0,
             "std_environmental_tolerance": 0.0,
+            "std_reproduction_timing": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
+            "avg_reproduction_timing_threshold_multiplier": 1.0,
             "energy_drain_events_last_tick": 0,
             "total_energy_drain_events": 0,
             "avg_energy_drain_amount_last_tick": 0.0,
@@ -140,6 +143,12 @@ def build_population_stats(
             "exhaustion_resistance_reproduction_users_avg_total": 0.0,
             "exhaustion_resistance_reproduction_usage_bias_tick": 0.0,
             "exhaustion_resistance_reproduction_usage_bias_total": 0.0,
+            "reproduction_timing_reproduction_users_avg_tick": 0.0,
+            "reproduction_timing_reproduction_users_avg_total": 0.0,
+            "reproduction_timing_reproduction_usage_bias_tick": 0.0,
+            "reproduction_timing_reproduction_usage_bias_total": 0.0,
+            "avg_reproduction_timing_threshold_multiplier_observed_last_tick": 1.0,
+            "avg_reproduction_timing_threshold_multiplier_observed_total": 1.0,
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
@@ -343,8 +352,13 @@ def build_population_stats(
     avg_environmental_tolerance = (
         sum(c.traits.environmental_tolerance for c in simulation.creatures) / total
     )
+    avg_reproduction_timing = sum(c.traits.reproduction_timing for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
+    avg_reproduction_timing_threshold_multiplier = max(
+        0.9,
+        min(1.1, 1.0 - (0.2 * (avg_reproduction_timing - 1.0))),
+    )
     avg_energy_drain_amount_last_tick = (
         simulation.energy_drain_amount_last_tick / simulation.energy_drain_events_last_tick
         if simulation.energy_drain_events_last_tick > 0
@@ -511,6 +525,28 @@ def build_population_stats(
         if simulation.total_reproduction_cost_events > 0
         else 0.0
     )
+    avg_reproduction_timing_reproduction_users_tick = (
+        simulation.reproduction_timing_sum_reproduction_last_tick / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    avg_reproduction_timing_reproduction_users_total = (
+        simulation.total_reproduction_timing_sum_reproduction / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    avg_reproduction_timing_threshold_multiplier_observed_last_tick = (
+        simulation.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick
+        / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 1.0
+    )
+    avg_reproduction_timing_threshold_multiplier_observed_total = (
+        simulation.total_reproduction_timing_threshold_multiplier_sum_reproduction
+        / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 1.0
+    )
     exhaustion_resistance_reproduction_usage_bias_tick = (
         avg_exhaustion_resistance_reproduction_users_tick - avg_exhaustion_resistance
         if simulation.reproduction_cost_events_last_tick > 0
@@ -518,6 +554,16 @@ def build_population_stats(
     )
     exhaustion_resistance_reproduction_usage_bias_total = (
         avg_exhaustion_resistance_reproduction_users_total - avg_exhaustion_resistance
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    reproduction_timing_reproduction_usage_bias_tick = (
+        avg_reproduction_timing_reproduction_users_tick - avg_reproduction_timing
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    reproduction_timing_reproduction_usage_bias_total = (
+        avg_reproduction_timing_reproduction_users_total - avg_reproduction_timing
         if simulation.total_reproduction_cost_events > 0
         else 0.0
     )
@@ -534,6 +580,7 @@ def build_population_stats(
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
     longevity_factor_values = [c.traits.longevity_factor for c in simulation.creatures]
     environmental_tolerance_values = [c.traits.environmental_tolerance for c in simulation.creatures]
+    reproduction_timing_values = [c.traits.reproduction_timing for c in simulation.creatures]
 
     std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
@@ -549,6 +596,10 @@ def build_population_stats(
     std_environmental_tolerance = _stddev_from_mean(
         environmental_tolerance_values,
         avg_environmental_tolerance,
+    )
+    std_reproduction_timing = _stddev_from_mean(
+        reproduction_timing_values,
+        avg_reproduction_timing,
     )
 
     avg_memory_focus_food_users_tick = (
@@ -1001,6 +1052,7 @@ def build_population_stats(
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
         "avg_longevity_factor": avg_longevity_factor,
         "avg_environmental_tolerance": avg_environmental_tolerance,
+        "avg_reproduction_timing": avg_reproduction_timing,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
@@ -1013,8 +1065,10 @@ def build_population_stats(
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "std_longevity_factor": std_longevity_factor,
         "std_environmental_tolerance": std_environmental_tolerance,
+        "std_reproduction_timing": std_reproduction_timing,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
+        "avg_reproduction_timing_threshold_multiplier": avg_reproduction_timing_threshold_multiplier,
         "energy_drain_events_last_tick": simulation.energy_drain_events_last_tick,
         "total_energy_drain_events": simulation.total_energy_drain_events,
         "avg_energy_drain_amount_last_tick": avg_energy_drain_amount_last_tick,
@@ -1065,6 +1119,16 @@ def build_population_stats(
         "exhaustion_resistance_reproduction_users_avg_total": avg_exhaustion_resistance_reproduction_users_total,
         "exhaustion_resistance_reproduction_usage_bias_tick": exhaustion_resistance_reproduction_usage_bias_tick,
         "exhaustion_resistance_reproduction_usage_bias_total": exhaustion_resistance_reproduction_usage_bias_total,
+        "reproduction_timing_reproduction_users_avg_tick": avg_reproduction_timing_reproduction_users_tick,
+        "reproduction_timing_reproduction_users_avg_total": avg_reproduction_timing_reproduction_users_total,
+        "reproduction_timing_reproduction_usage_bias_tick": reproduction_timing_reproduction_usage_bias_tick,
+        "reproduction_timing_reproduction_usage_bias_total": reproduction_timing_reproduction_usage_bias_total,
+        "avg_reproduction_timing_threshold_multiplier_observed_last_tick": (
+            avg_reproduction_timing_threshold_multiplier_observed_last_tick
+        ),
+        "avg_reproduction_timing_threshold_multiplier_observed_total": (
+            avg_reproduction_timing_threshold_multiplier_observed_total
+        ),
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
@@ -1381,15 +1445,23 @@ def build_final_run_summary(
         "environmental_tolerance_std": float(
             final_stats.get("std_environmental_tolerance", 0.0)
         ),
+        "reproduction_timing_mean": float(final_stats.get("avg_reproduction_timing", 0.0)),
+        "reproduction_timing_std": float(final_stats.get("std_reproduction_timing", 0.0)),
         "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
         "exhaustion_resistance_reproduction_bias": float(
             final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
+        ),
+        "reproduction_timing_reproduction_bias": float(
+            final_stats.get("reproduction_timing_reproduction_usage_bias_total", 0.0)
         ),
         "energy_drain_multiplier_observed": float(
             final_stats.get("avg_energy_drain_multiplier_observed_total", 0.0)
         ),
         "reproduction_cost_multiplier_observed": float(
             final_stats.get("avg_reproduction_cost_multiplier_observed_total", 0.0)
+        ),
+        "reproduction_timing_threshold_multiplier_observed": float(
+            final_stats.get("avg_reproduction_timing_threshold_multiplier_observed_total", 1.0)
         ),
         "energy_drain_amount_observed": float(final_stats.get("avg_energy_drain_amount_total", 0.0)),
         "reproduction_cost_amount_observed": float(final_stats.get("avg_reproduction_cost_amount_total", 0.0)),
@@ -1561,6 +1633,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "exhaustion_resistance": 0.0,
                 "longevity_factor": 0.0,
                 "environmental_tolerance": 0.0,
+                "reproduction_timing": 0.0,
             },
             "avg_memory_impact": {
                 "food_usage_total": 0.0,
@@ -1608,10 +1681,14 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "longevity_factor_std": 0.0,
                 "environmental_tolerance_mean": 0.0,
                 "environmental_tolerance_std": 0.0,
+                "reproduction_timing_mean": 0.0,
+                "reproduction_timing_std": 0.0,
                 "energy_efficiency_drain_bias": 0.0,
                 "exhaustion_resistance_reproduction_bias": 0.0,
+                "reproduction_timing_reproduction_bias": 0.0,
                 "energy_drain_multiplier_observed": 0.0,
                 "reproduction_cost_multiplier_observed": 0.0,
+                "reproduction_timing_threshold_multiplier_observed": 1.0,
                 "energy_drain_amount_observed": 0.0,
                 "reproduction_cost_amount_observed": 0.0,
                 "age_wear_usage_per_tick": 0.0,
@@ -1694,6 +1771,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "exhaustion_resistance": 0.0,
         "longevity_factor": 0.0,
         "environmental_tolerance": 0.0,
+        "reproduction_timing": 0.0,
     }
     avg_memory_acc = {
         "food_usage_total": 0.0,
@@ -1741,10 +1819,14 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "longevity_factor_std": 0.0,
         "environmental_tolerance_mean": 0.0,
         "environmental_tolerance_std": 0.0,
+        "reproduction_timing_mean": 0.0,
+        "reproduction_timing_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
+        "reproduction_timing_reproduction_bias": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
+        "reproduction_timing_threshold_multiplier_observed": 0.0,
         "energy_drain_amount_observed": 0.0,
         "reproduction_cost_amount_observed": 0.0,
         "age_wear_usage_per_tick": 0.0,
@@ -1842,6 +1924,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["environmental_tolerance"] += float(
                     traits_raw.get("environmental_tolerance", 0.0)
                 )
+                avg_traits_acc["reproduction_timing"] += float(
+                    traits_raw.get("reproduction_timing", 0.0)
+                )
 
             memory_raw = run_summary.get("memory_impact")
             if isinstance(memory_raw, dict):
@@ -1912,17 +1997,29 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["environmental_tolerance_std"] += float(
                     trait_impact_raw.get("environmental_tolerance_std", 0.0)
                 )
+                avg_trait_impact_acc["reproduction_timing_mean"] += float(
+                    trait_impact_raw.get("reproduction_timing_mean", 0.0)
+                )
+                avg_trait_impact_acc["reproduction_timing_std"] += float(
+                    trait_impact_raw.get("reproduction_timing_std", 0.0)
+                )
                 avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
                     trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
                 )
                 avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] += float(
                     trait_impact_raw.get("exhaustion_resistance_reproduction_bias", 0.0)
                 )
+                avg_trait_impact_acc["reproduction_timing_reproduction_bias"] += float(
+                    trait_impact_raw.get("reproduction_timing_reproduction_bias", 0.0)
+                )
                 avg_trait_impact_acc["energy_drain_multiplier_observed"] += float(
                     trait_impact_raw.get("energy_drain_multiplier_observed", 0.0)
                 )
                 avg_trait_impact_acc["reproduction_cost_multiplier_observed"] += float(
                     trait_impact_raw.get("reproduction_cost_multiplier_observed", 0.0)
+                )
+                avg_trait_impact_acc["reproduction_timing_threshold_multiplier_observed"] += float(
+                    trait_impact_raw.get("reproduction_timing_threshold_multiplier_observed", 1.0)
                 )
                 avg_trait_impact_acc["energy_drain_amount_observed"] += float(
                     trait_impact_raw.get("energy_drain_amount_observed", 0.0)
@@ -2105,6 +2202,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
             "longevity_factor": avg_traits_acc["longevity_factor"] / run_count,
             "environmental_tolerance": avg_traits_acc["environmental_tolerance"] / run_count,
+            "reproduction_timing": avg_traits_acc["reproduction_timing"] / run_count,
         },
         "avg_memory_impact": {
             "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
@@ -2152,15 +2250,23 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "longevity_factor_std": avg_trait_impact_acc["longevity_factor_std"] / run_count,
             "environmental_tolerance_mean": avg_trait_impact_acc["environmental_tolerance_mean"] / run_count,
             "environmental_tolerance_std": avg_trait_impact_acc["environmental_tolerance_std"] / run_count,
+            "reproduction_timing_mean": avg_trait_impact_acc["reproduction_timing_mean"] / run_count,
+            "reproduction_timing_std": avg_trait_impact_acc["reproduction_timing_std"] / run_count,
             "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
             "exhaustion_resistance_reproduction_bias": (
                 avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] / run_count
+            ),
+            "reproduction_timing_reproduction_bias": (
+                avg_trait_impact_acc["reproduction_timing_reproduction_bias"] / run_count
             ),
             "energy_drain_multiplier_observed": (
                 avg_trait_impact_acc["energy_drain_multiplier_observed"] / run_count
             ),
             "reproduction_cost_multiplier_observed": (
                 avg_trait_impact_acc["reproduction_cost_multiplier_observed"] / run_count
+            ),
+            "reproduction_timing_threshold_multiplier_observed": (
+                avg_trait_impact_acc["reproduction_timing_threshold_multiplier_observed"] / run_count
             ),
             "energy_drain_amount_observed": avg_trait_impact_acc["energy_drain_amount_observed"] / run_count,
             "reproduction_cost_amount_observed": (
@@ -2534,6 +2640,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
         "longevity_factor": float(final_stats.get("avg_longevity_factor", 0.0)),
         "environmental_tolerance": float(final_stats.get("avg_environmental_tolerance", 0.0)),
+        "reproduction_timing": float(final_stats.get("avg_reproduction_timing", 0.0)),
     }
 
 

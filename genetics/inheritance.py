@@ -45,6 +45,7 @@ def inherit_traits(
     avg_environmental_tolerance = (
         parent_a.environmental_tolerance + parent_b.environmental_tolerance
     ) / 2.0
+    avg_reproduction_timing = (parent_a.reproduction_timing + parent_b.reproduction_timing) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -73,5 +74,6 @@ def inherit_traits(
         density_preference=_mutate_with_delta(avg_density_preference, behavior_delta),
         longevity_factor=_mutate_with_delta(avg_longevity_factor, delta_max_energy),
         environmental_tolerance=_mutate_with_delta(avg_environmental_tolerance, delta_max_energy),
+        reproduction_timing=_mutate_with_delta(avg_reproduction_timing, delta_metabolism),
     )
     return child_traits.clamp()

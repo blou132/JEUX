@@ -35,6 +35,7 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             density_preference=random_source.uniform(0.95, 1.05),
             longevity_factor=random_source.uniform(0.97, 1.03),
             environmental_tolerance=random_source.uniform(0.97, 1.03),
+            reproduction_timing=random_source.uniform(0.97, 1.03),
         ).clamp()
 
         creature = Creature(

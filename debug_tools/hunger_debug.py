@@ -38,6 +38,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "density_preference": round(creature.traits.density_preference, 3),
                     "longevity_factor": round(creature.traits.longevity_factor, 3),
                     "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
+                    "reproduction_timing": round(creature.traits.reproduction_timing, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -99,6 +100,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     )
     avg_environmental_tolerance_population = (
         sum(creature.traits.environmental_tolerance for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    avg_reproduction_timing_population = (
+        sum(creature.traits.reproduction_timing for creature in simulation.creatures)
         / total_creatures
         if total_creatures > 0
         else 0.0
@@ -175,6 +182,28 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     zone_drain_multiplier_avg_total = (
         simulation.total_zone_drain_multiplier_sum / simulation.total_energy_drain_events
         if simulation.total_energy_drain_events > 0
+        else 1.0
+    )
+    reproduction_timing_reproduction_users_avg_last_tick = (
+        simulation.reproduction_timing_sum_reproduction_last_tick / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 0.0
+    )
+    reproduction_timing_reproduction_users_avg_total = (
+        simulation.total_reproduction_timing_sum_reproduction / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
+        else 0.0
+    )
+    reproduction_timing_threshold_multiplier_avg_last_tick = (
+        simulation.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick
+        / simulation.reproduction_cost_events_last_tick
+        if simulation.reproduction_cost_events_last_tick > 0
+        else 1.0
+    )
+    reproduction_timing_threshold_multiplier_avg_total = (
+        simulation.total_reproduction_timing_threshold_multiplier_sum_reproduction
+        / simulation.total_reproduction_cost_events
+        if simulation.total_reproduction_cost_events > 0
         else 1.0
     )
 
@@ -326,6 +355,28 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
             environmental_tolerance_rich_users_avg_total - avg_environmental_tolerance_population
             if simulation.total_rich_zone_drain_events > 0
             else 0.0
+        ),
+        "reproduction_timing_reproduction_users_avg_last_tick": (
+            reproduction_timing_reproduction_users_avg_last_tick
+        ),
+        "reproduction_timing_reproduction_users_avg_total": (
+            reproduction_timing_reproduction_users_avg_total
+        ),
+        "reproduction_timing_reproduction_usage_bias_last_tick": (
+            reproduction_timing_reproduction_users_avg_last_tick - avg_reproduction_timing_population
+            if simulation.reproduction_cost_events_last_tick > 0
+            else 0.0
+        ),
+        "reproduction_timing_reproduction_usage_bias_total": (
+            reproduction_timing_reproduction_users_avg_total - avg_reproduction_timing_population
+            if simulation.total_reproduction_cost_events > 0
+            else 0.0
+        ),
+        "reproduction_timing_threshold_multiplier_avg_last_tick": (
+            reproduction_timing_threshold_multiplier_avg_last_tick
+        ),
+        "reproduction_timing_threshold_multiplier_avg_total": (
+            reproduction_timing_threshold_multiplier_avg_total
         ),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,

@@ -197,6 +197,9 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "environmental_tolerance": _parse_float(
                 row.get("run_summary.avg_traits.environmental_tolerance")
             ),
+            "reproduction_timing": _parse_float(
+                row.get("run_summary.avg_traits.reproduction_timing")
+            ),
         },
         "memory_impact": {
             "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
@@ -254,17 +257,30 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "environmental_tolerance_std": _parse_float(
                 row.get("run_summary.trait_impact.environmental_tolerance_std")
             ),
+            "reproduction_timing_mean": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_timing_mean")
+            ),
+            "reproduction_timing_std": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_timing_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
             ),
             "exhaustion_resistance_reproduction_bias": _parse_float(
                 row.get("run_summary.trait_impact.exhaustion_resistance_reproduction_bias")
             ),
+            "reproduction_timing_reproduction_bias": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_timing_reproduction_bias")
+            ),
             "energy_drain_multiplier_observed": _parse_float(
                 row.get("run_summary.trait_impact.energy_drain_multiplier_observed")
             ),
             "reproduction_cost_multiplier_observed": _parse_float(
                 row.get("run_summary.trait_impact.reproduction_cost_multiplier_observed")
+            ),
+            "reproduction_timing_threshold_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.reproduction_timing_threshold_multiplier_observed"),
+                default=1.0,
             ),
             "energy_drain_amount_observed": _parse_float(
                 row.get("run_summary.trait_impact.energy_drain_amount_observed")
@@ -410,6 +426,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "environmental_tolerance": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.environmental_tolerance")
             ),
+            "reproduction_timing": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.reproduction_timing")
+            ),
         },
         "most_frequent_final_dominant_group": row.get(
             "multi_run_summary.most_frequent_final_dominant_group",
@@ -481,17 +500,30 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "environmental_tolerance_std": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_std")
             ),
+            "reproduction_timing_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_timing_mean")
+            ),
+            "reproduction_timing_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_timing_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
             ),
             "exhaustion_resistance_reproduction_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_reproduction_bias")
             ),
+            "reproduction_timing_reproduction_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_timing_reproduction_bias")
+            ),
             "energy_drain_multiplier_observed": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")
             ),
             "reproduction_cost_multiplier_observed": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.reproduction_cost_multiplier_observed")
+            ),
+            "reproduction_timing_threshold_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.reproduction_timing_threshold_multiplier_observed"),
+                default=1.0,
             ),
             "energy_drain_amount_observed": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_drain_amount_observed")
@@ -647,6 +679,9 @@ def _build_batch_payload_from_csv(
                 "environmental_tolerance": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.environmental_tolerance")
                 ),
+                "reproduction_timing": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.reproduction_timing")
+                ),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
                 "multi_run_summary.most_frequent_final_dominant_group",
@@ -718,17 +753,32 @@ def _build_batch_payload_from_csv(
                 "environmental_tolerance_std": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.environmental_tolerance_std")
                 ),
+                "reproduction_timing_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_timing_mean")
+                ),
+                "reproduction_timing_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_timing_std")
+                ),
                 "energy_efficiency_drain_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
                 ),
                 "exhaustion_resistance_reproduction_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exhaustion_resistance_reproduction_bias")
                 ),
+                "reproduction_timing_reproduction_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_timing_reproduction_bias")
+                ),
                 "energy_drain_multiplier_observed": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")
                 ),
                 "reproduction_cost_multiplier_observed": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_cost_multiplier_observed")
+                ),
+                "reproduction_timing_threshold_multiplier_observed": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.reproduction_timing_threshold_multiplier_observed"
+                    ),
+                    default=1.0,
                 ),
                 "energy_drain_amount_observed": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_drain_amount_observed")

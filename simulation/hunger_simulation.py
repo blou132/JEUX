@@ -226,6 +226,10 @@ class HungerSimulation:
         self.total_reproduction_cost_multiplier_sum = 0.0
         self.exhaustion_resistance_sum_reproduction_last_tick = 0.0
         self.total_exhaustion_resistance_sum_reproduction = 0.0
+        self.reproduction_timing_sum_reproduction_last_tick = 0.0
+        self.total_reproduction_timing_sum_reproduction = 0.0
+        self.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick = 0.0
+        self.total_reproduction_timing_threshold_multiplier_sum_reproduction = 0.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -313,6 +317,8 @@ class HungerSimulation:
         self.reproduction_cost_amount_last_tick = 0.0
         self.reproduction_cost_multiplier_sum_last_tick = 0.0
         self.exhaustion_resistance_sum_reproduction_last_tick = 0.0
+        self.reproduction_timing_sum_reproduction_last_tick = 0.0
+        self.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick = 0.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -615,10 +621,14 @@ class HungerSimulation:
         self.tick_count += 1
 
     def _is_reproduction_eligible(self, creature: Creature) -> bool:
+        required_energy = (
+            self.reproduction_energy_threshold
+            * self._compute_reproduction_timing_threshold_multiplier(creature)
+        )
         return (
             creature.alive
             and creature.age >= self.reproduction_min_age
-            and creature.energy >= self.reproduction_energy_threshold
+            and creature.energy >= required_energy
         )
 
     def _build_reproduction_candidates(self) -> Set[str]:
@@ -687,6 +697,12 @@ class HungerSimulation:
                 parent_b_resistance_multiplier = self._compute_exhaustion_resistance_reproduction_multiplier(
                     parent_b
                 )
+                parent_a_timing_multiplier = self._compute_reproduction_timing_threshold_multiplier(
+                    parent_a
+                )
+                parent_b_timing_multiplier = self._compute_reproduction_timing_threshold_multiplier(
+                    parent_b
+                )
                 parent_a_cost = self.reproduction_cost * parent_a_resistance_multiplier
                 parent_b_cost = self.reproduction_cost * parent_b_resistance_multiplier
 
@@ -707,6 +723,18 @@ class HungerSimulation:
                 )
                 self.total_exhaustion_resistance_sum_reproduction += (
                     parent_a.traits.exhaustion_resistance + parent_b.traits.exhaustion_resistance
+                )
+                self.reproduction_timing_sum_reproduction_last_tick += (
+                    parent_a.traits.reproduction_timing + parent_b.traits.reproduction_timing
+                )
+                self.total_reproduction_timing_sum_reproduction += (
+                    parent_a.traits.reproduction_timing + parent_b.traits.reproduction_timing
+                )
+                self.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick += (
+                    parent_a_timing_multiplier + parent_b_timing_multiplier
+                )
+                self.total_reproduction_timing_threshold_multiplier_sum_reproduction += (
+                    parent_a_timing_multiplier + parent_b_timing_multiplier
                 )
 
                 if parent_a_alive_before and not parent_a.alive:
@@ -1104,6 +1132,13 @@ class HungerSimulation:
     @staticmethod
     def _compute_exhaustion_resistance_reproduction_multiplier(creature: Creature) -> float:
         return max(0.1, 1.0 - (0.3 * (creature.traits.exhaustion_resistance - 1.0)))
+
+    @staticmethod
+    def _compute_reproduction_timing_threshold_multiplier(creature: Creature) -> float:
+        # Light individual bias:
+        # - >1.0 reproduces with slightly less energy margin.
+        # - <1.0 waits for slightly more margin.
+        return max(0.9, min(1.1, 1.0 - (0.2 * (creature.traits.reproduction_timing - 1.0))))
 
     def _resolve_fertility_zone(self, x: float, y: float) -> str:
         if self.fertility_zone_getter is None:
