@@ -71,6 +71,10 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("effet_seuil_reproductif_max:", output)
         self.assertIn("reproduction_plus_precoce_max:", output)
         self.assertIn("reproduction_plus_prudente_max:", output)
+        self.assertIn("mobility_efficiency_batch:", output)
+        self.assertIn("distance_deplacement_observee_max:", output)
+        self.assertIn("frequence_mouvement_utile_max:", output)
+        self.assertIn("dispersion_mobilite_max:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -142,6 +146,8 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertIsInstance(longevity, dict)
             reproduction_timing = comparative.get("reproduction_timing_comparative")
             self.assertIsInstance(reproduction_timing, dict)
+            mobility = comparative.get("mobility_comparative")
+            self.assertIsInstance(mobility, dict)
             assert isinstance(energy, dict)
             self.assertIn("available", energy)
 

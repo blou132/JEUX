@@ -1261,6 +1261,149 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("reproduction_timing_batch:", text)
         self.assertIn("ambiguite_reproduction_timing: effet_seuil_reproductif", text)
 
+    def test_mobility_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.3,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 8.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.02,
+                        "movement_distance_observed": 0.8,
+                        "movement_usage_per_tick": 1.5,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.07,
+                        "movement_distance_observed": 1.2,
+                        "movement_usage_per_tick": 2.3,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 17.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.05,
+                        "movement_distance_observed": 1.0,
+                        "movement_usage_per_tick": 2.7,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        mobility = summary.get("mobility_comparative")
+
+        self.assertIsInstance(mobility, dict)
+        assert isinstance(mobility, dict)
+        self.assertTrue(bool(mobility.get("available", False)))
+        self.assertEqual(mobility["best_movement_distance_observed"]["winners"], [0.1])
+        self.assertAlmostEqual(float(mobility["best_movement_distance_observed"]["value"]), 1.2)
+        self.assertEqual(mobility["best_movement_usage_frequency"]["winners"], [0.2])
+        self.assertAlmostEqual(float(mobility["best_movement_usage_frequency"]["value"]), 2.7)
+        self.assertEqual(mobility["best_mobility_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(float(mobility["best_mobility_dispersion"]["value"]), 0.07)
+        self.assertEqual(mobility["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("mobility_efficiency_batch:", text)
+        self.assertIn("distance_deplacement_observee_max:", text)
+        self.assertIn("frequence_mouvement_utile_max:", text)
+        self.assertIn("dispersion_mobilite_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_mobility_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        mobility = summary.get("mobility_comparative")
+
+        self.assertIsInstance(mobility, dict)
+        assert isinstance(mobility, dict)
+        self.assertFalse(bool(mobility.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(mobility.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("mobility_efficiency_batch:", text)
+        self.assertIn("donnees_mobility_efficiency: n/a", text)
+
+    def test_mobility_comparative_reports_ambiguity_when_tied(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.05,
+                        "movement_distance_observed": 1.1,
+                        "movement_usage_per_tick": 2.2,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "mobility_efficiency_std": 0.04,
+                        "movement_distance_observed": 1.1,
+                        "movement_usage_per_tick": 1.9,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        mobility = summary.get("mobility_comparative")
+
+        self.assertIsInstance(mobility, dict)
+        assert isinstance(mobility, dict)
+        best_distance = mobility.get("best_movement_distance_observed")
+        self.assertIsInstance(best_distance, dict)
+        assert isinstance(best_distance, dict)
+        self.assertTrue(bool(best_distance.get("tie", False)))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("mobility_efficiency_batch:", text)
+        self.assertIn("ambiguite_mobility_efficiency: distance_deplacement_observee", text)
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -191,6 +191,7 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "threat_perception": _parse_float(row.get("run_summary.avg_traits.threat_perception")),
             "behavior_persistence": _parse_float(row.get("run_summary.avg_traits.behavior_persistence")),
             "exploration_bias": _parse_float(row.get("run_summary.avg_traits.exploration_bias")),
+            "mobility_efficiency": _parse_float(row.get("run_summary.avg_traits.mobility_efficiency")),
             "energy_efficiency": _parse_float(row.get("run_summary.avg_traits.energy_efficiency")),
             "exhaustion_resistance": _parse_float(row.get("run_summary.avg_traits.exhaustion_resistance")),
             "longevity_factor": _parse_float(row.get("run_summary.avg_traits.longevity_factor")),
@@ -244,6 +245,12 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "exploration_bias_std": _parse_float(
                 row.get("run_summary.trait_impact.exploration_bias_std")
+            ),
+            "mobility_efficiency_mean": _parse_float(
+                row.get("run_summary.trait_impact.mobility_efficiency_mean")
+            ),
+            "mobility_efficiency_std": _parse_float(
+                row.get("run_summary.trait_impact.mobility_efficiency_std")
             ),
             "energy_efficiency_mean": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_mean")),
             "energy_efficiency_std": _parse_float(row.get("run_summary.trait_impact.energy_efficiency_std")),
@@ -324,6 +331,19 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_consumption_bias": _parse_float(row.get("run_summary.trait_impact.food_perception_consumption_bias")),
             "threat_perception_flee_bias": _parse_float(row.get("run_summary.trait_impact.threat_perception_flee_bias")),
             "risk_taking_flee_bias": _parse_float(row.get("run_summary.trait_impact.risk_taking_flee_bias")),
+            "mobility_efficiency_movement_bias": _parse_float(
+                row.get("run_summary.trait_impact.mobility_efficiency_movement_bias")
+            ),
+            "movement_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.movement_multiplier_observed"),
+                default=1.0,
+            ),
+            "movement_distance_observed": _parse_float(
+                row.get("run_summary.trait_impact.movement_distance_observed")
+            ),
+            "movement_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.movement_usage_per_tick")
+            ),
             "behavior_persistence_hold_bias": _parse_float(
                 row.get("run_summary.trait_impact.behavior_persistence_hold_bias")
             ),
@@ -420,6 +440,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.exploration_bias")
             ),
+            "mobility_efficiency": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.mobility_efficiency")
+            ),
             "energy_efficiency": _parse_float(row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
             "exhaustion_resistance": _parse_float(row.get("multi_run_summary.avg_final_traits.exhaustion_resistance")),
             "longevity_factor": _parse_float(row.get("multi_run_summary.avg_final_traits.longevity_factor")),
@@ -483,6 +506,12 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "exploration_bias_std": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exploration_bias_std")
+            ),
+            "mobility_efficiency_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_mean")
+            ),
+            "mobility_efficiency_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_std")
             ),
             "energy_efficiency_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_mean")),
             "energy_efficiency_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
@@ -567,6 +596,19 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "food_perception_consumption_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.food_perception_consumption_bias")),
             "threat_perception_flee_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.threat_perception_flee_bias")),
             "risk_taking_flee_bias": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_flee_bias")),
+            "mobility_efficiency_movement_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_movement_bias")
+            ),
+            "movement_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.movement_multiplier_observed"),
+                default=1.0,
+            ),
+            "movement_distance_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.movement_distance_observed")
+            ),
+            "movement_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.movement_usage_per_tick")
+            ),
             "behavior_persistence_hold_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.behavior_persistence_hold_bias")
             ),
@@ -671,6 +713,9 @@ def _build_batch_payload_from_csv(
                 "exploration_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.exploration_bias")
                 ),
+                "mobility_efficiency": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.mobility_efficiency")
+                ),
                 "energy_efficiency": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.energy_efficiency")),
                 "exhaustion_resistance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.exhaustion_resistance")),
                 "longevity_factor": _parse_float(
@@ -736,6 +781,12 @@ def _build_batch_payload_from_csv(
                 ),
                 "exploration_bias_std": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_std")
+                ),
+                "mobility_efficiency_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_mean")
+                ),
+                "mobility_efficiency_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_std")
                 ),
                 "energy_efficiency_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_mean")),
                 "energy_efficiency_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_std")),
@@ -822,6 +873,19 @@ def _build_batch_payload_from_csv(
                 "food_perception_consumption_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.food_perception_consumption_bias")),
                 "threat_perception_flee_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.threat_perception_flee_bias")),
                 "risk_taking_flee_bias": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_flee_bias")),
+                "mobility_efficiency_movement_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_movement_bias")
+                ),
+                "movement_multiplier_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.movement_multiplier_observed"),
+                    default=1.0,
+                ),
+                "movement_distance_observed": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.movement_distance_observed")
+                ),
+                "movement_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.movement_usage_per_tick")
+                ),
                 "behavior_persistence_hold_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.behavior_persistence_hold_bias")
                 ),

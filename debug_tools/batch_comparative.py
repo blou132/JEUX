@@ -42,6 +42,7 @@ def build_batch_comparative_summary(
     risk_candidates: list[Dict[str, float]] = []
     exploration_candidates: list[Dict[str, float]] = []
     density_preference_candidates: list[Dict[str, float]] = []
+    mobility_candidates: list[Dict[str, float]] = []
     longevity_candidates: list[Dict[str, float]] = []
     environmental_candidates: list[Dict[str, float]] = []
     reproduction_timing_candidates: list[Dict[str, float]] = []
@@ -109,6 +110,10 @@ def build_batch_comparative_summary(
         if density_preference_metrics is not None:
             density_preference_candidates.append({"value": value, **density_preference_metrics})
 
+        mobility_metrics = _read_mobility_metrics(summary_raw)
+        if mobility_metrics is not None:
+            mobility_candidates.append({"value": value, **mobility_metrics})
+
         longevity_metrics = _read_longevity_metrics(summary_raw)
         if longevity_metrics is not None:
             longevity_candidates.append({"value": value, **longevity_metrics})
@@ -163,6 +168,10 @@ def build_batch_comparative_summary(
         )
         empty["density_preference_comparative"] = _build_density_preference_comparative(
             density_preference_candidates,
+            stable_metric=None,
+        )
+        empty["mobility_comparative"] = _build_mobility_comparative(
+            mobility_candidates,
             stable_metric=None,
         )
         empty["longevity_comparative"] = _build_longevity_comparative(
@@ -267,6 +276,10 @@ def build_batch_comparative_summary(
         density_preference_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["mobility_comparative"] = _build_mobility_comparative(
+        mobility_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
     summary["longevity_comparative"] = _build_longevity_comparative(
         longevity_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
@@ -357,6 +370,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     density_preference_raw = summary.get("density_preference_comparative")
     if isinstance(density_preference_raw, dict):
         lines.extend(_format_density_preference_comparative(batch_param, density_preference_raw))
+
+    mobility_raw = summary.get("mobility_comparative")
+    if isinstance(mobility_raw, dict):
+        lines.extend(_format_mobility_comparative(batch_param, mobility_raw))
 
     longevity_raw = summary.get("longevity_comparative")
     if isinstance(longevity_raw, dict):
@@ -1173,6 +1190,150 @@ def _build_density_preference_comparative(
     }
 
 
+def _format_mobility_comparative(
+    batch_param: str,
+    mobility_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["mobility_efficiency_batch:"]
+
+    if not bool(mobility_summary.get("available", False)):
+        note = str(mobility_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_mobility_efficiency: n/a ({note})")
+        return lines
+
+    movement_distance = _read_metric_result(
+        mobility_summary.get("best_movement_distance_observed")
+    )
+    movement_usage = _read_metric_result(
+        mobility_summary.get("best_movement_usage_frequency")
+    )
+    mobility_dispersion = _read_metric_result(
+        mobility_summary.get("best_mobility_dispersion")
+    )
+    stable_config = _read_metric_result(mobility_summary.get("most_stable_config"))
+
+    lines.append(
+        "distance_deplacement_observee_max: {label} (dist_moy={value:.3f})".format(
+            label=_winner_label(batch_param, movement_distance.get("winners")),
+            value=float(movement_distance.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "frequence_mouvement_utile_max: {label} (freq_moy={value:.3f})".format(
+            label=_winner_label(batch_param, movement_usage.get("winners")),
+            value=float(movement_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_mobilite_max: {label} (mo_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, mobility_dispersion.get("winners")),
+            value=float(mobility_dispersion.get("value", 0.0)),
+        )
+    )
+
+    ambiguity_labels: list[str] = []
+    if bool(movement_distance.get("tie", False)):
+        ambiguity_labels.append("distance_deplacement_observee")
+    if bool(movement_usage.get("tie", False)):
+        ambiguity_labels.append("frequence_mouvement_utile")
+    if bool(mobility_dispersion.get("tie", False)):
+        ambiguity_labels.append("dispersion_mobilite")
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+        if bool(stable_config.get("tie", False)):
+            ambiguity_labels.append("configuration_plus_stable")
+
+    if len(ambiguity_labels) > 0:
+        lines.append(f"ambiguite_mobility_efficiency: {', '.join(ambiguity_labels)}")
+
+    mobility_note = str(mobility_summary.get("mobility_note", "")).strip()
+    if mobility_note:
+        lines.append(f"note_mobility_efficiency: {mobility_note}")
+    else:
+        lines.append(
+            "note_mobility_efficiency: distance=movement_distance_observed, frequence=movement_usage_per_tick, dispersion=mobility_efficiency_std"
+        )
+
+    return lines
+
+
+def _build_mobility_comparative(
+    mobility_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(mobility_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact mobility_efficiency",
+            "best_movement_distance_observed": _insufficient_metric_result(),
+            "best_movement_usage_frequency": _insufficient_metric_result(),
+            "best_mobility_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "mobility_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    movement_distance_signal = max(
+        candidate["movement_distance_observed"] for candidate in mobility_candidates
+    )
+    movement_usage_signal = max(
+        candidate["movement_usage_per_tick"] for candidate in mobility_candidates
+    )
+    mobility_note = ""
+    if movement_distance_signal <= 0.0 and movement_usage_signal <= 0.0:
+        mobility_note = (
+            "mouvement non observe: interpretation limitee (distance/frequence nulles)"
+        )
+    elif movement_distance_signal <= 0.0:
+        mobility_note = (
+            "distance deplacement observee nulle: lecture distance mobility_efficiency limitee"
+        )
+    elif movement_usage_signal <= 0.0:
+        mobility_note = (
+            "frequence de mouvement nulle: lecture usage mobility_efficiency limitee"
+        )
+
+    return {
+        "available": True,
+        "best_movement_distance_observed": _build_peak_metric(
+            mobility_candidates,
+            "movement_distance_observed",
+        ),
+        "best_movement_usage_frequency": _build_peak_metric(
+            mobility_candidates,
+            "movement_usage_per_tick",
+        ),
+        "best_mobility_dispersion": _build_peak_metric(
+            mobility_candidates,
+            "mobility_dispersion",
+        ),
+        "most_stable_config": stable_result,
+        "mobility_note": mobility_note,
+    }
+
+
 def _format_longevity_comparative(
     batch_param: str,
     longevity_summary: Dict[str, object],
@@ -1802,6 +1963,30 @@ def _read_density_preference_metrics(summary_raw: Dict[str, object]) -> Dict[str
         "seek_usage_per_tick": max(0.0, seek_usage),
         "avoid_usage_per_tick": max(0.0, avoid_usage),
         "avoid_usage_share": max(0.0, min(1.0, avoid_share)),
+    }
+
+
+def _read_mobility_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "mobility_efficiency_std",
+        "movement_distance_observed",
+        "movement_usage_per_tick",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    mobility_std = float(avg_trait_raw.get("mobility_efficiency_std", 0.0))
+    movement_distance = float(avg_trait_raw.get("movement_distance_observed", 0.0))
+    movement_usage = float(avg_trait_raw.get("movement_usage_per_tick", 0.0))
+
+    return {
+        "mobility_dispersion": max(0.0, mobility_std),
+        "movement_distance_observed": max(0.0, movement_distance),
+        "movement_usage_per_tick": max(0.0, movement_usage),
     }
 
 
