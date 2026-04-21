@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, et variabilite individuelle legere de mobilite/vitesse effective.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de tolerance au stress, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, et variabilite individuelle legere de mobilite/vitesse effective.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -37,6 +37,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Biais individuels legers (memory_focus, social_sensitivity) qui modulent l'usage memoire/social.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable, mutante et visible dans stats/synthese/debug.
 - Biais individuel leger de prise de risque (`risk_taking`) heritable, mutante et visible en stats/synthese/debug.
+- Variabilite individuelle legere de tolerance au stress (`stress_tolerance`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable, mutante et visible en stats/synthese/debug.
@@ -49,6 +50,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `risk_taking` (moyenne/dispersion, biais de fuite et signal borderline) visible en stats, synthese run, multi-runs, export et analyse.
+- Evaluation legere de l'impact `stress_tolerance` (moyenne/dispersion, cas sous pression, taux de fuite sous pression, biais d'usage) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact perception: moyennes/dispersion + biais d'usage detection/consommation/fuite en stats/syntheses.
 - Interpretation batch perception (`perception_batch`) pour comparer usage/dispersion/stabilite des configurations testees.
 - Interpretation batch energie (`energie_batch`) pour comparer effet drain/cout repro, dispersion energetique et stabilite.
@@ -127,6 +129,17 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - `dynamique_*`: `traits_comp_moy` (`rk`), `traits_disp` (`rk_sigma`) et `perception_bias_tick` (`rk_fuite`).
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`rk`) et `traits_impact` / `traits_impact_moy` (`rk_mu`, `rk_sigma`, `bias_rk_fuite`).
   - indicateurs borderline lies au risque: `borderline_threat_encounters`, `borderline_threat_flees`, `borderline_threat_flee_rate`, `risk_taking_borderline_encounter_mean`, `risk_taking_borderline_flee_mean`, `risk_taking_borderline_flee_bias`.
+
+### Variabilite individuelle de tolerance au stress
+- Trait leger ajoute: `stress_tolerance`.
+- Effet volontairement limite:
+  - module legerement la sensibilite aux menaces borderline en contexte tendu.
+  - pression definie de facon simple (faim elevee et/ou energie basse, avec menace presente).
+  - priorites existantes conservees (fuite > nourriture/reproduction/errance).
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - `dynamique_*`: `traits_comp_moy` (`st`), `traits_disp` (`st_sigma`) et bloc `stress_tick` / `stress_log`.
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`st`) et `traits_impact` / `traits_impact_moy` (`st_mu`, `st_sigma`, `stress:*`, `bias_st_fuite`).
 
 ### Variabilite individuelle de persistance comportementale
 - Trait leger ajoute: `behavior_persistence`.
@@ -758,6 +771,7 @@ py -m unittest tests.test_behavior_persistence_trait
 py -m unittest tests.test_behavior_persistence_impact_metrics
 py -m unittest tests.test_risk_taking_trait
 py -m unittest tests.test_risk_taking_impact_metrics
+py -m unittest tests.test_stress_tolerance_trait
 py -m unittest tests.test_exploration_bias_trait
 py -m unittest tests.test_longevity_trait
 py -m unittest tests.test_environmental_tolerance_trait
@@ -766,7 +780,7 @@ py -m unittest tests.test_reproduction_timing_trait
 
 ## Lire les logs debug (indicateurs utiles)
 Chaque bloc de log periodique contient:
-- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `density_preference`, `mobility_efficiency`, `energy_efficiency`, `exhaustion_resistance`, `longevity_factor`, `environmental_tolerance`, `reproduction_timing`).
+- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `stress_tolerance`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `density_preference`, `mobility_efficiency`, `energy_efficiency`, `exhaustion_resistance`, `longevity_factor`, `environmental_tolerance`, `reproduction_timing`).
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
 - `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
@@ -776,12 +790,13 @@ Chaque bloc de log periodique contient:
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
-- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, `mo`/`mo_sigma` pour la mobilite, `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique, `lg`/`lg_sigma` pour la longevite, `env`/`env_sigma` pour la tolerance environnementale, ainsi que `rt`/`rt_sigma` pour le timing reproductif.
+- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `st`/`st_sigma` pour la tolerance au stress, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, `mo`/`mo_sigma` pour la mobilite, `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique, `lg`/`lg_sigma` pour la longevite, `env`/`env_sigma` pour la tolerance environnementale, ainsi que `rt`/`rt_sigma` pour le timing reproductif.
 - `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `ex_mu`, `st_mu`, `ex_bias`, `st_bias`, `delta_ancre`).
 - `densite_log` / `densite_tick` dans `dynamique_*`: usage observe de la preference de densite (`guides`, `seek`, `avoid`, `part_seek`, `part_avoid`, `freq_seek`, `freq_avoid`, `seek_mu`, `avoid_mu`, `dp_bias`, `seek_bias`, `avoid_bias`, `dens_voisins`, `delta_centre`).
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
 - `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
+- `stress_tick` / `stress_log` dans `dynamique_*`: cas sous pression, fuites sous pression, taux de fuite sous pression et biais `bias_st_fuite`.
 - `mobilite_tick` dans `dynamique_*`: usage de deplacement (`moves`, `freq`, `freq_moy`, `mult`, `dist`, `dist_moy`) et biais tick associe (`mo_move` dans `traits_bias_tick`).
 - `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens de drain/cout (`drain_mult`, `repro_mult`, `repro_timing_mult`) + effets observes (`drain_obs_mult`, `repro_obs_mult`, `repro_timing_obs_mult`, `drain_obs`, `repro_obs`), avec biais tick associes (`ee_drain`, `er_repro`, `rt_repro`).
 - `env_tick` dans `dynamique_*`: usage des zones de drain (`poor_evt`, `rich_evt`) + moyenne trait utilisateurs (`poor_mu`, `rich_mu`) + biais (`poor_bias`, `rich_bias`) + multiplicateur de zone observe (`zone_mult`).
@@ -790,12 +805,12 @@ Chaque bloc de log periodique contient:
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`) et le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress (`st_mu`, `st_sigma`, `stress:*`, `bias_st_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`) et le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
 - le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`) et le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress agregee (`st_mu`, `st_sigma`, `stress_moy:*`, `bias_st_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`) et le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
 - le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:
@@ -889,12 +904,14 @@ Lecture rapide conseillee:
 - Biais individuels legers sur memoire/social (memory_focus, social_sensitivity) heritables, mutables, visibles en stats/debug et testes.
 - Variabilite individuelle de perception (`food_perception`, `threat_perception`) heritable et mutante, avec effet leger sur detection nourriture/menace et visibilite en stats/synthese/debug.
 - Biais individuel leger de prise de risque (`risk_taking`) heritable et mutante, avec effet leger sur la fuite face aux menaces borderline et visibilite en stats/synthese/debug.
+- Variabilite individuelle legere de tolerance au stress (`stress_tolerance`) heritable et mutante, avec effet leger sur la reaction aux menaces borderline en contexte tendu et visibilite en stats/synthese/debug/export.
 - Variabilite individuelle legere de persistance comportementale (`behavior_persistence`) heritable et mutante, avec effet leger d'inertie entre intentions compatibles et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere d'exploration spatiale (`exploration_bias`) heritable et mutante, avec effet leger d'exploration/fidelite locale autour des zones favorables memorisees et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere de preference de densite locale (`density_preference`) heritable et mutante, avec effet leger `seek`/`avoid` selon densite locale et visibilite en stats/synthese/debug.
 - Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (frequence inertie, biais d'usage et impact oscillation `search_food`<->`wander`) visible en stats/synthese/debug/export.
 - Evaluation legere de l'impact perception (moyenne/dispersion + biais detection/consommation/fuite) visible en stats, synthese run, multi-runs, export et analyse.
+- Evaluation legere de l'impact `stress_tolerance` (moyenne/dispersion + `stress:*` + `bias_st_fuite`) visible en stats, synthese run, multi-runs, export et analyse.
 - Interpretation batch perception (`perception_batch`) pour comparer usage perception, dispersion et stabilite des configurations testees.
 - Evaluation legere de l'impact energetique (`energy_efficiency`, `exhaustion_resistance`): moyenne/dispersion + effet observe sur drain/cout reproduction + biais d'usage, visible en stats, synthese run, multi-runs, export et analyse.
 - Variabilite individuelle legere de longevite/vieillissement (`longevity_factor`) heritable et mutante, avec effet leger sur l'usure d'age (drain age), et visibilite en stats/synthese/debug.

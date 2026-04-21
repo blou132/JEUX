@@ -23,6 +23,7 @@ class HungerAI:
     ACTION_REPRODUCE = "reproduce"
     ACTION_WANDER = "wander"
     BORDERLINE_THREAT_MARGIN = 0.08
+    STRESS_THREAT_RATIO_FACTOR = 0.45
 
     def __init__(
         self,
@@ -218,7 +219,8 @@ class HungerAI:
         if creature_power <= 0.0:
             return False
 
-        effective_ratio = self._effective_threat_strength_ratio(creature)
+        pressure = self._stress_pressure_level(creature, threat_present=True)
+        effective_ratio = self._effective_threat_strength_ratio(creature, pressure=pressure)
         return other_power >= creature_power * effective_ratio
 
     def _is_borderline_threat(self, creature: Creature, other: Creature, margin: float) -> bool:
@@ -230,19 +232,38 @@ class HungerAI:
         if creature_power <= 0.0:
             return False
 
-        effective_ratio = self._effective_threat_strength_ratio(creature)
+        pressure = self._stress_pressure_level(creature, threat_present=True)
+        effective_ratio = self._effective_threat_strength_ratio(creature, pressure=pressure)
         power_ratio = other_power / creature_power
         lower_ratio = max(1.0, effective_ratio * (1.0 - margin))
         upper_ratio = effective_ratio * (1.0 + margin)
         return lower_ratio <= power_ratio <= upper_ratio
 
-    def _effective_threat_strength_ratio(self, creature: Creature) -> float:
+    def _effective_threat_strength_ratio(self, creature: Creature, pressure: float = 0.0) -> float:
         behavior_bias = 0.25 * (creature.traits.dominance - creature.traits.prudence)
         # Light individual risk bias:
         # - higher risk_taking -> slightly less sensitive to borderline threats.
         # - lower risk_taking -> slightly more sensitive.
         risk_bias = 0.15 * (creature.traits.risk_taking - 1.0)
-        return max(1.0, self.threat_strength_ratio * (1.0 + behavior_bias + risk_bias))
+        clamped_pressure = max(0.0, min(1.0, pressure))
+        stress_bias = (
+            self.STRESS_THREAT_RATIO_FACTOR
+            * clamped_pressure
+            * (creature.traits.stress_tolerance - 1.0)
+        )
+        return max(
+            1.0,
+            self.threat_strength_ratio * (1.0 + behavior_bias + risk_bias + stress_bias),
+        )
+
+    def _stress_pressure_level(self, creature: Creature, threat_present: bool) -> float:
+        # Pressure is mostly hunger-driven, with a small low-energy contribution.
+        energy_ratio = creature.energy / max(1.0, creature.max_energy)
+        low_energy_pressure = max(0.0, min(1.0, 1.0 - energy_ratio))
+        pressure = (0.75 * creature.hunger) + (0.25 * low_energy_pressure)
+        if threat_present:
+            pressure += 0.15
+        return max(0.0, min(1.0, pressure))
 
     def _effective_food_detection_range(self, creature: Creature) -> float:
         return max(0.0, self.food_detection_range * creature.traits.food_perception)

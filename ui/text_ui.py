@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | stress_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy"
     )
 
 
@@ -40,6 +40,7 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{float(stats['avg_prudence']):12.3f} | "
         f"{float(stats['avg_dominance']):13.3f} | "
         f"{float(stats.get('avg_risk_taking', 0.0)):10.3f} | "
+        f"{float(stats.get('avg_stress_tolerance', 0.0)):10.3f} | "
         f"{float(stats['avg_repro_drive']):9.3f} | "
         f"{float(stats.get('avg_memory_focus', 0.0)):17.3f} | "
         f"{float(stats.get('avg_social_sensitivity', 0.0)):16.3f} | "
@@ -237,6 +238,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "prudence": 0.0,
         "dominance": 0.0,
         "risk_taking": 0.0,
+        "stress_tolerance": 0.0,
         "repro_drive": 0.0,
         "food_perception": 0.0,
         "threat_perception": 0.0,
@@ -256,6 +258,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         traits["prudence"] = float(traits_raw.get("prudence", 0.0))
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["risk_taking"] = float(traits_raw.get("risk_taking", 0.0))
+        traits["stress_tolerance"] = float(traits_raw.get("stress_tolerance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
@@ -324,6 +327,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "threat_perception_std": 0.0,
         "risk_taking_mean": 0.0,
         "risk_taking_std": 0.0,
+        "stress_tolerance_mean": 0.0,
+        "stress_tolerance_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
         "exploration_bias_mean": 0.0,
@@ -407,6 +412,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "risk_taking_borderline_encounter_mean": 0.0,
         "risk_taking_borderline_flee_mean": 0.0,
         "risk_taking_borderline_flee_bias": 0.0,
+        "stress_pressure_events": 0.0,
+        "stress_pressure_flee_events": 0.0,
+        "stress_pressure_flee_rate": 0.0,
+        "stress_tolerance_pressure_mean": 0.0,
+        "stress_tolerance_pressure_flee_mean": 0.0,
+        "stress_tolerance_pressure_flee_bias": 0.0,
     }
     if isinstance(trait_impact_raw, dict):
         trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
@@ -419,6 +430,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
         trait_impact["risk_taking_mean"] = float(trait_impact_raw.get("risk_taking_mean", 0.0))
         trait_impact["risk_taking_std"] = float(trait_impact_raw.get("risk_taking_std", 0.0))
+        trait_impact["stress_tolerance_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_std"] = float(
+            trait_impact_raw.get("stress_tolerance_std", 0.0)
+        )
         trait_impact["behavior_persistence_mean"] = float(
             trait_impact_raw.get("behavior_persistence_mean", 0.0)
         )
@@ -640,6 +657,24 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["risk_taking_borderline_flee_bias"] = float(
             trait_impact_raw.get("risk_taking_borderline_flee_bias", 0.0)
         )
+        trait_impact["stress_pressure_events"] = float(
+            trait_impact_raw.get("stress_pressure_events", 0.0)
+        )
+        trait_impact["stress_pressure_flee_events"] = float(
+            trait_impact_raw.get("stress_pressure_flee_events", 0.0)
+        )
+        trait_impact["stress_pressure_flee_rate"] = float(
+            trait_impact_raw.get("stress_pressure_flee_rate", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_flee_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_flee_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_flee_bias"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_flee_bias", 0.0)
+        )
 
     return (
         "synthese_run: "
@@ -647,7 +682,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -655,7 +690,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
         "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
@@ -664,7 +699,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "exploration:guides={ex_guided_total:.0f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "densite:guides={dp_guided_total:.0f} seek={dp_seek_total:.0f} avoid={dp_avoid_total:.0f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
         "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
-        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} "
+        "stress:cas={st_cases:.0f} fuite={st_flees:.0f} taux={st_rate:.3f} st_press_mu={st_press_mu:.3f} st_fuite_mu={st_flee_mu:.3f} "
+        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -681,6 +717,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         risk_taking=traits["risk_taking"],
+        stress_tolerance=traits["stress_tolerance"],
         repro=traits["repro_drive"],
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
@@ -720,6 +757,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         tp_sigma=trait_impact["threat_perception_std"],
         rk_mu=trait_impact["risk_taking_mean"],
         rk_sigma=trait_impact["risk_taking_std"],
+        st_mu=trait_impact["stress_tolerance_mean"],
+        st_sigma=trait_impact["stress_tolerance_std"],
         bp_mu=trait_impact["behavior_persistence_mean"],
         bp_sigma=trait_impact["behavior_persistence_std"],
         ex_mu=trait_impact["exploration_bias_mean"],
@@ -799,10 +838,16 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         rk_border_mu=trait_impact["risk_taking_borderline_encounter_mean"],
         rk_border_flee_mu=trait_impact["risk_taking_borderline_flee_mean"],
         rk_border_bias=trait_impact["risk_taking_borderline_flee_bias"],
+        st_cases=trait_impact["stress_pressure_events"],
+        st_flees=trait_impact["stress_pressure_flee_events"],
+        st_rate=trait_impact["stress_pressure_flee_rate"],
+        st_press_mu=trait_impact["stress_tolerance_pressure_mean"],
+        st_flee_mu=trait_impact["stress_tolerance_pressure_flee_mean"],
         bias_ee_drain=trait_impact["energy_efficiency_drain_bias"],
         bias_er_repro=trait_impact["exhaustion_resistance_reproduction_bias"],
         bias_rt_repro=trait_impact["reproduction_timing_reproduction_bias"],
         bias_mo_move=trait_impact["mobility_efficiency_movement_bias"],
+        bias_st_flee=trait_impact["stress_tolerance_pressure_flee_bias"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
 
@@ -823,6 +868,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "prudence": 0.0,
         "dominance": 0.0,
         "risk_taking": 0.0,
+        "stress_tolerance": 0.0,
         "repro_drive": 0.0,
         "food_perception": 0.0,
         "threat_perception": 0.0,
@@ -842,6 +888,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         traits["prudence"] = float(traits_raw.get("prudence", 0.0))
         traits["dominance"] = float(traits_raw.get("dominance", 0.0))
         traits["risk_taking"] = float(traits_raw.get("risk_taking", 0.0))
+        traits["stress_tolerance"] = float(traits_raw.get("stress_tolerance", 0.0))
         traits["repro_drive"] = float(traits_raw.get("repro_drive", 0.0))
         traits["food_perception"] = float(traits_raw.get("food_perception", 0.0))
         traits["threat_perception"] = float(traits_raw.get("threat_perception", 0.0))
@@ -910,6 +957,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "threat_perception_std": 0.0,
         "risk_taking_mean": 0.0,
         "risk_taking_std": 0.0,
+        "stress_tolerance_mean": 0.0,
+        "stress_tolerance_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
         "exploration_bias_mean": 0.0,
@@ -987,6 +1036,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "search_wander_switches_total": 0.0,
         "search_wander_switches_prevented_total": 0.0,
         "search_wander_oscillation_events_total": 0.0,
+        "stress_pressure_events": 0.0,
+        "stress_pressure_flee_events": 0.0,
+        "stress_pressure_flee_rate": 0.0,
+        "stress_tolerance_pressure_mean": 0.0,
+        "stress_tolerance_pressure_flee_mean": 0.0,
+        "stress_tolerance_pressure_flee_bias": 0.0,
     }
     if isinstance(trait_impact_raw, dict):
         trait_impact["memory_focus_mean"] = float(trait_impact_raw.get("memory_focus_mean", 0.0))
@@ -999,6 +1054,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["threat_perception_std"] = float(trait_impact_raw.get("threat_perception_std", 0.0))
         trait_impact["risk_taking_mean"] = float(trait_impact_raw.get("risk_taking_mean", 0.0))
         trait_impact["risk_taking_std"] = float(trait_impact_raw.get("risk_taking_std", 0.0))
+        trait_impact["stress_tolerance_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_std"] = float(
+            trait_impact_raw.get("stress_tolerance_std", 0.0)
+        )
         trait_impact["behavior_persistence_mean"] = float(
             trait_impact_raw.get("behavior_persistence_mean", 0.0)
         )
@@ -1202,6 +1263,24 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["search_wander_oscillation_events_total"] = float(
             trait_impact_raw.get("search_wander_oscillation_events_total", 0.0)
         )
+        trait_impact["stress_pressure_events"] = float(
+            trait_impact_raw.get("stress_pressure_events", 0.0)
+        )
+        trait_impact["stress_pressure_flee_events"] = float(
+            trait_impact_raw.get("stress_pressure_flee_events", 0.0)
+        )
+        trait_impact["stress_pressure_flee_rate"] = float(
+            trait_impact_raw.get("stress_pressure_flee_rate", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_flee_mean"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_flee_mean", 0.0)
+        )
+        trait_impact["stress_tolerance_pressure_flee_bias"] = float(
+            trait_impact_raw.get("stress_tolerance_pressure_flee_bias", 0.0)
+        )
 
     seeds_text = ",".join(str(seed) for seed in seeds)
 
@@ -1210,7 +1289,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -1219,7 +1298,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
         "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs_moy:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
@@ -1227,7 +1306,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "osc_bp_moy:switch={bp_sw_total:.2f} bloc={bp_prev_total:.2f} events={bp_events_total:.2f} taux_switch={bp_sw_rate:.3f} taux_bloc={bp_prev_rate:.3f} "
         "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "densite_moy:guides={dp_guided_total:.2f} seek={dp_seek_total:.2f} avoid={dp_avoid_total:.2f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
-        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} "
+        "stress_moy:cas={st_cases:.2f} fuite={st_flees:.2f} taux={st_rate:.3f} st_press_mu={st_press_mu:.3f} st_fuite_mu={st_flee_mu:.3f} "
+        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -1241,6 +1321,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         prudence=traits["prudence"],
         dominance=traits["dominance"],
         risk_taking=traits["risk_taking"],
+        stress_tolerance=traits["stress_tolerance"],
         repro=traits["repro_drive"],
         food_perception=traits["food_perception"],
         threat_perception=traits["threat_perception"],
@@ -1280,6 +1361,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         tp_sigma=trait_impact["threat_perception_std"],
         rk_mu=trait_impact["risk_taking_mean"],
         rk_sigma=trait_impact["risk_taking_std"],
+        st_mu=trait_impact["stress_tolerance_mean"],
+        st_sigma=trait_impact["stress_tolerance_std"],
         bp_mu=trait_impact["behavior_persistence_mean"],
         bp_sigma=trait_impact["behavior_persistence_std"],
         ex_mu=trait_impact["exploration_bias_mean"],
@@ -1353,10 +1436,16 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         dp_avoid_bias=trait_impact["density_preference_avoid_usage_bias"],
         dp_neighbors=trait_impact["density_preference_neighbor_count_avg"],
         dp_center_delta=trait_impact["density_preference_center_distance_delta"],
+        st_cases=trait_impact["stress_pressure_events"],
+        st_flees=trait_impact["stress_pressure_flee_events"],
+        st_rate=trait_impact["stress_pressure_flee_rate"],
+        st_press_mu=trait_impact["stress_tolerance_pressure_mean"],
+        st_flee_mu=trait_impact["stress_tolerance_pressure_flee_mean"],
         bias_ee_drain=trait_impact["energy_efficiency_drain_bias"],
         bias_er_repro=trait_impact["exhaustion_resistance_reproduction_bias"],
         bias_rt_repro=trait_impact["reproduction_timing_reproduction_bias"],
         bias_mo_move=trait_impact["mobility_efficiency_movement_bias"],
+        bias_st_flee=trait_impact["stress_tolerance_pressure_flee_bias"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),
@@ -1405,6 +1494,8 @@ def format_population_dynamics(
     current_total_density_guided = int(stats.get("total_density_preference_guided_moves", 0))
     current_total_density_seek = int(stats.get("total_density_preference_seek_moves", 0))
     current_total_density_avoid = int(stats.get("total_density_preference_avoid_moves", 0))
+    current_total_stress_pressure = int(stats.get("total_stress_pressure_events", 0))
+    current_total_stress_pressure_flee = int(stats.get("total_stress_pressure_flee_events", 0))
     current_total_search_wander_switches = int(stats.get("total_search_wander_switches", 0))
     current_total_search_wander_switches_prevented = int(
         stats.get("total_search_wander_switches_prevented", 0)
@@ -1501,6 +1592,7 @@ def format_population_dynamics(
     avg_behavior_persistence = float(stats.get("avg_behavior_persistence", 0.0))
     avg_exploration_bias = float(stats.get("avg_exploration_bias", 0.0))
     avg_density_preference = float(stats.get("avg_density_preference", 0.0))
+    avg_stress_tolerance = float(stats.get("avg_stress_tolerance", 0.0))
     avg_mobility_efficiency = float(stats.get("avg_mobility_efficiency", 0.0))
     avg_energy_efficiency = float(stats.get("avg_energy_efficiency", 0.0))
     avg_exhaustion_resistance = float(stats.get("avg_exhaustion_resistance", 0.0))
@@ -1512,6 +1604,7 @@ def format_population_dynamics(
     std_food_perception = float(stats.get("std_food_perception", 0.0))
     std_threat_perception = float(stats.get("std_threat_perception", 0.0))
     std_risk_taking = float(stats.get("std_risk_taking", 0.0))
+    std_stress_tolerance = float(stats.get("std_stress_tolerance", 0.0))
     std_behavior_persistence = float(stats.get("std_behavior_persistence", 0.0))
     std_exploration_bias = float(stats.get("std_exploration_bias", 0.0))
     std_density_preference = float(stats.get("std_density_preference", 0.0))
@@ -1575,6 +1668,18 @@ def format_population_dynamics(
     food_perception_consumption_bias_tick = float(stats.get("food_perception_consumption_usage_bias_tick", 0.0))
     threat_perception_flee_bias_tick = float(stats.get("threat_perception_flee_usage_bias_tick", 0.0))
     risk_taking_flee_bias_tick = float(stats.get("risk_taking_flee_usage_bias_tick", 0.0))
+    stress_tolerance_pressure_flee_bias_tick = float(
+        stats.get("stress_tolerance_pressure_flee_usage_bias_tick", 0.0)
+    )
+    stress_pressure_events_tick = int(stats.get("stress_pressure_events_last_tick", 0))
+    stress_pressure_flee_events_tick = int(stats.get("stress_pressure_flee_events_last_tick", 0))
+    stress_pressure_flee_rate_tick = float(stats.get("stress_pressure_flee_rate_last_tick", 0.0))
+    stress_tolerance_pressure_users_avg_tick = float(
+        stats.get("stress_tolerance_pressure_users_avg_tick", 0.0)
+    )
+    stress_tolerance_pressure_flee_users_avg_tick = float(
+        stats.get("stress_tolerance_pressure_flee_users_avg_tick", 0.0)
+    )
     behavior_persistence_hold_bias_tick = float(
         stats.get("behavior_persistence_hold_usage_bias_tick", 0.0)
     )
@@ -1604,6 +1709,8 @@ def format_population_dynamics(
     density_guided_log = density_guided_tick
     density_seek_log = density_seek_tick
     density_avoid_log = density_avoid_tick
+    stress_pressure_log = stress_pressure_events_tick
+    stress_pressure_flee_log = stress_pressure_flee_events_tick
     search_wander_switches_log = search_wander_switches_tick
     search_wander_switches_prevented_log = search_wander_switches_prevented_tick
 
@@ -1658,6 +1765,15 @@ def format_population_dynamics(
         previous_total_density_avoid = int(
             previous_stats.get("total_density_preference_avoid_moves", current_total_density_avoid)
         )
+        previous_total_stress_pressure = int(
+            previous_stats.get("total_stress_pressure_events", current_total_stress_pressure)
+        )
+        previous_total_stress_pressure_flee = int(
+            previous_stats.get(
+                "total_stress_pressure_flee_events",
+                current_total_stress_pressure_flee,
+            )
+        )
         previous_total_search_wander_switches = int(
             previous_stats.get("total_search_wander_switches", current_total_search_wander_switches)
         )
@@ -1698,6 +1814,11 @@ def format_population_dynamics(
         density_guided_log = max(0, current_total_density_guided - previous_total_density_guided)
         density_seek_log = max(0, current_total_density_seek - previous_total_density_seek)
         density_avoid_log = max(0, current_total_density_avoid - previous_total_density_avoid)
+        stress_pressure_log = max(0, current_total_stress_pressure - previous_total_stress_pressure)
+        stress_pressure_flee_log = max(
+            0,
+            current_total_stress_pressure_flee - previous_total_stress_pressure_flee,
+        )
         search_wander_switches_log = max(
             0,
             current_total_search_wander_switches - previous_total_search_wander_switches,
@@ -1776,8 +1897,8 @@ def format_population_dynamics(
         f"mobilite_tick:moves={movement_actions_tick} freq={movement_usage_alive_tick:.2f} freq_moy={movement_usage_total:.2f} mult={avg_movement_multiplier_observed_tick:.2f} dist={avg_movement_distance_observed_tick:.2f} dist_moy={avg_movement_distance_observed_total:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},mo={avg_mobility_efficiency:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f},env={avg_environmental_tolerance:.2f},rt={avg_reproduction_timing:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} mo_sigma={std_mobility_efficiency:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} lg_sigma={std_longevity_factor:.2f} env_sigma={std_environmental_tolerance:.2f} rt_sigma={std_reproduction_timing:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},st={avg_stress_tolerance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},mo={avg_mobility_efficiency:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f},env={avg_environmental_tolerance:.2f},rt={avg_reproduction_timing:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} st_sigma={std_stress_tolerance:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} mo_sigma={std_mobility_efficiency:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} lg_sigma={std_longevity_factor:.2f} env_sigma={std_environmental_tolerance:.2f} rt_sigma={std_reproduction_timing:.2f} "
         f"energie_traits_effets:drain_mult={avg_effective_energy_drain_multiplier:.2f} repro_mult={avg_reproduction_cost_multiplier:.2f} repro_timing_mult={avg_reproduction_timing_threshold_multiplier:.2f} "
         f"drain_obs_mult={avg_energy_drain_multiplier_observed_tick:.2f} repro_obs_mult={avg_reproduction_cost_multiplier_observed_tick:.2f} repro_timing_obs_mult={avg_reproduction_timing_threshold_multiplier_observed_tick:.2f} "
         f"drain_obs={avg_energy_drain_amount_last_tick:.2f} repro_obs={avg_reproduction_cost_amount_last_tick:.2f} "
@@ -1787,6 +1908,9 @@ def format_population_dynamics(
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
         f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ex_explore={exploration_explore_usage_bias_tick:+.2f} ex_settle={exploration_settle_usage_bias_tick:+.2f} dp_guide={density_guided_usage_bias_tick:+.2f} dp_seek={density_seek_usage_bias_tick:+.2f} dp_avoid={density_avoid_usage_bias_tick:+.2f} mo_move={mobility_efficiency_movement_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} rt_repro={reproduction_timing_reproduction_bias_tick:+.2f} "
         f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} rk_fuite={risk_taking_flee_bias_tick:+.2f} "
+        f"stress_tick:cas={stress_pressure_events_tick} fuite={stress_pressure_flee_events_tick} taux={stress_pressure_flee_rate_tick:.2f} st_press_mu={stress_tolerance_pressure_users_avg_tick:.2f} st_fuite_mu={stress_tolerance_pressure_flee_users_avg_tick:.2f} "
+        f"stress_log:cas={stress_pressure_log} fuite={stress_pressure_flee_log} "
+        f"bias_st_fuite={stress_tolerance_pressure_flee_bias_tick:+.2f} "
         f"nourriture_par_vivant:{food_per_alive} "
         f"pression_nourriture:{food_pressure} "
         f"energie:{energy_state} "

@@ -187,6 +187,7 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "dominance": _parse_float(row.get("run_summary.avg_traits.dominance")),
             "repro_drive": _parse_float(row.get("run_summary.avg_traits.repro_drive")),
             "risk_taking": _parse_float(row.get("run_summary.avg_traits.risk_taking")),
+            "stress_tolerance": _parse_float(row.get("run_summary.avg_traits.stress_tolerance")),
             "food_perception": _parse_float(row.get("run_summary.avg_traits.food_perception")),
             "threat_perception": _parse_float(row.get("run_summary.avg_traits.threat_perception")),
             "behavior_persistence": _parse_float(row.get("run_summary.avg_traits.behavior_persistence")),
@@ -234,6 +235,12 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "threat_perception_std": _parse_float(row.get("run_summary.trait_impact.threat_perception_std")),
             "risk_taking_mean": _parse_float(row.get("run_summary.trait_impact.risk_taking_mean")),
             "risk_taking_std": _parse_float(row.get("run_summary.trait_impact.risk_taking_std")),
+            "stress_tolerance_mean": _parse_float(
+                row.get("run_summary.trait_impact.stress_tolerance_mean")
+            ),
+            "stress_tolerance_std": _parse_float(
+                row.get("run_summary.trait_impact.stress_tolerance_std")
+            ),
             "behavior_persistence_mean": _parse_float(
                 row.get("run_summary.trait_impact.behavior_persistence_mean")
             ),
@@ -401,6 +408,24 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "risk_taking_borderline_flee_bias": _parse_float(
                 row.get("run_summary.trait_impact.risk_taking_borderline_flee_bias")
             ),
+            "stress_pressure_events": _parse_float(
+                row.get("run_summary.trait_impact.stress_pressure_events")
+            ),
+            "stress_pressure_flee_events": _parse_float(
+                row.get("run_summary.trait_impact.stress_pressure_flee_events")
+            ),
+            "stress_pressure_flee_rate": _parse_float(
+                row.get("run_summary.trait_impact.stress_pressure_flee_rate")
+            ),
+            "stress_tolerance_pressure_mean": _parse_float(
+                row.get("run_summary.trait_impact.stress_tolerance_pressure_mean")
+            ),
+            "stress_tolerance_pressure_flee_mean": _parse_float(
+                row.get("run_summary.trait_impact.stress_tolerance_pressure_flee_mean")
+            ),
+            "stress_tolerance_pressure_flee_bias": _parse_float(
+                row.get("run_summary.trait_impact.stress_tolerance_pressure_flee_bias")
+            ),
         },
         "observed_logs": _parse_int(row.get("run_summary.observed_logs")),
     }
@@ -432,6 +457,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "dominance": _parse_float(row.get("multi_run_summary.avg_final_traits.dominance")),
             "repro_drive": _parse_float(row.get("multi_run_summary.avg_final_traits.repro_drive")),
             "risk_taking": _parse_float(row.get("multi_run_summary.avg_final_traits.risk_taking")),
+            "stress_tolerance": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.stress_tolerance")
+            ),
             "food_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.food_perception")),
             "threat_perception": _parse_float(row.get("multi_run_summary.avg_final_traits.threat_perception")),
             "behavior_persistence": _parse_float(
@@ -495,6 +523,12 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "threat_perception_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.threat_perception_std")),
             "risk_taking_mean": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_mean")),
             "risk_taking_std": _parse_float(row.get("multi_run_summary.avg_trait_impact.risk_taking_std")),
+            "stress_tolerance_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_tolerance_mean")
+            ),
+            "stress_tolerance_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_tolerance_std")
+            ),
             "behavior_persistence_mean": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.behavior_persistence_mean")
             ),
@@ -672,6 +706,24 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "risk_taking_borderline_flee_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_bias")
             ),
+            "stress_pressure_events": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_pressure_events")
+            ),
+            "stress_pressure_flee_events": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_pressure_flee_events")
+            ),
+            "stress_pressure_flee_rate": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_pressure_flee_rate")
+            ),
+            "stress_tolerance_pressure_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_mean")
+            ),
+            "stress_tolerance_pressure_flee_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_flee_mean")
+            ),
+            "stress_tolerance_pressure_flee_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_flee_bias")
+            ),
         },
     }
     run_count = _parse_int(row.get("run_count"), default=multi_summary["runs"])
@@ -705,6 +757,9 @@ def _build_batch_payload_from_csv(
                 "dominance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.dominance")),
                 "repro_drive": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.repro_drive")),
                 "risk_taking": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.risk_taking")),
+                "stress_tolerance": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.stress_tolerance")
+                ),
                 "food_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.food_perception")),
                 "threat_perception": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.threat_perception")),
                 "behavior_persistence": _parse_float(
@@ -770,6 +825,12 @@ def _build_batch_payload_from_csv(
                 "threat_perception_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.threat_perception_std")),
                 "risk_taking_mean": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_mean")),
                 "risk_taking_std": _parse_float(scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_std")),
+                "stress_tolerance_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_tolerance_mean")
+                ),
+                "stress_tolerance_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_tolerance_std")
+                ),
                 "behavior_persistence_mean": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.behavior_persistence_mean")
                 ),
@@ -956,6 +1017,24 @@ def _build_batch_payload_from_csv(
                 ),
                 "risk_taking_borderline_flee_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.risk_taking_borderline_flee_bias")
+                ),
+                "stress_pressure_events": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_pressure_events")
+                ),
+                "stress_pressure_flee_events": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_pressure_flee_events")
+                ),
+                "stress_pressure_flee_rate": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_pressure_flee_rate")
+                ),
+                "stress_tolerance_pressure_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_mean")
+                ),
+                "stress_tolerance_pressure_flee_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_flee_mean")
+                ),
+                "stress_tolerance_pressure_flee_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.stress_tolerance_pressure_flee_bias")
                 ),
             },
         }

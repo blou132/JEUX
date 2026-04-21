@@ -71,6 +71,7 @@ def build_population_stats(
             "avg_food_perception": 0.0,
             "avg_threat_perception": 0.0,
             "avg_risk_taking": 0.0,
+            "avg_stress_tolerance": 0.0,
             "avg_behavior_persistence": 0.0,
             "avg_exploration_bias": 0.0,
             "avg_density_preference": 0.0,
@@ -85,6 +86,7 @@ def build_population_stats(
             "std_food_perception": 0.0,
             "std_threat_perception": 0.0,
             "std_risk_taking": 0.0,
+            "std_stress_tolerance": 0.0,
             "std_behavior_persistence": 0.0,
             "std_exploration_bias": 0.0,
             "std_density_preference": 0.0,
@@ -340,6 +342,18 @@ def build_population_stats(
             "risk_taking_borderline_flee_users_avg_total": 0.0,
             "risk_taking_borderline_flee_usage_bias_tick": 0.0,
             "risk_taking_borderline_flee_usage_bias_total": 0.0,
+            "stress_pressure_events_last_tick": 0,
+            "total_stress_pressure_events": 0,
+            "stress_pressure_flee_events_last_tick": 0,
+            "total_stress_pressure_flee_events": 0,
+            "stress_pressure_flee_rate_last_tick": 0.0,
+            "stress_pressure_flee_rate_total": 0.0,
+            "stress_tolerance_pressure_users_avg_tick": 0.0,
+            "stress_tolerance_pressure_users_avg_total": 0.0,
+            "stress_tolerance_pressure_flee_users_avg_tick": 0.0,
+            "stress_tolerance_pressure_flee_users_avg_total": 0.0,
+            "stress_tolerance_pressure_flee_usage_bias_tick": 0.0,
+            "stress_tolerance_pressure_flee_usage_bias_total": 0.0,
             "death_causes_last_tick": dict(simulation.death_causes_last_tick),
             "death_causes_total": dict(simulation.total_death_causes),
         }
@@ -357,6 +371,7 @@ def build_population_stats(
     avg_food_perception = sum(c.traits.food_perception for c in simulation.creatures) / total
     avg_threat_perception = sum(c.traits.threat_perception for c in simulation.creatures) / total
     avg_risk_taking = sum(c.traits.risk_taking for c in simulation.creatures) / total
+    avg_stress_tolerance = sum(c.traits.stress_tolerance for c in simulation.creatures) / total
     avg_behavior_persistence = sum(c.traits.behavior_persistence for c in simulation.creatures) / total
     avg_exploration_bias = sum(c.traits.exploration_bias for c in simulation.creatures) / total
     avg_density_preference = sum(c.traits.density_preference for c in simulation.creatures) / total
@@ -628,6 +643,7 @@ def build_population_stats(
     food_perception_values = [c.traits.food_perception for c in simulation.creatures]
     threat_perception_values = [c.traits.threat_perception for c in simulation.creatures]
     risk_taking_values = [c.traits.risk_taking for c in simulation.creatures]
+    stress_tolerance_values = [c.traits.stress_tolerance for c in simulation.creatures]
     behavior_persistence_values = [c.traits.behavior_persistence for c in simulation.creatures]
     exploration_bias_values = [c.traits.exploration_bias for c in simulation.creatures]
     density_preference_values = [c.traits.density_preference for c in simulation.creatures]
@@ -643,6 +659,7 @@ def build_population_stats(
     std_food_perception = _stddev_from_mean(food_perception_values, avg_food_perception)
     std_threat_perception = _stddev_from_mean(threat_perception_values, avg_threat_perception)
     std_risk_taking = _stddev_from_mean(risk_taking_values, avg_risk_taking)
+    std_stress_tolerance = _stddev_from_mean(stress_tolerance_values, avg_stress_tolerance)
     std_behavior_persistence = _stddev_from_mean(behavior_persistence_values, avg_behavior_persistence)
     std_exploration_bias = _stddev_from_mean(exploration_bias_values, avg_exploration_bias)
     std_density_preference = _stddev_from_mean(density_preference_values, avg_density_preference)
@@ -1069,6 +1086,48 @@ def build_population_stats(
         if simulation.total_borderline_threat_flees > 0
         else 0.0
     )
+    stress_pressure_flee_rate_tick = (
+        simulation.stress_pressure_flee_events_last_tick / simulation.stress_pressure_events_last_tick
+        if simulation.stress_pressure_events_last_tick > 0
+        else 0.0
+    )
+    stress_pressure_flee_rate_total = (
+        simulation.total_stress_pressure_flee_events / simulation.total_stress_pressure_events
+        if simulation.total_stress_pressure_events > 0
+        else 0.0
+    )
+    avg_stress_tolerance_pressure_users_tick = (
+        simulation.stress_tolerance_sum_pressure_last_tick / simulation.stress_pressure_events_last_tick
+        if simulation.stress_pressure_events_last_tick > 0
+        else 0.0
+    )
+    avg_stress_tolerance_pressure_users_total = (
+        simulation.total_stress_tolerance_sum_pressure / simulation.total_stress_pressure_events
+        if simulation.total_stress_pressure_events > 0
+        else 0.0
+    )
+    avg_stress_tolerance_pressure_flee_users_tick = (
+        simulation.stress_tolerance_sum_pressure_flee_last_tick
+        / simulation.stress_pressure_flee_events_last_tick
+        if simulation.stress_pressure_flee_events_last_tick > 0
+        else 0.0
+    )
+    avg_stress_tolerance_pressure_flee_users_total = (
+        simulation.total_stress_tolerance_sum_pressure_flee
+        / simulation.total_stress_pressure_flee_events
+        if simulation.total_stress_pressure_flee_events > 0
+        else 0.0
+    )
+    stress_tolerance_pressure_flee_usage_bias_tick = (
+        avg_stress_tolerance_pressure_flee_users_tick - avg_stress_tolerance_pressure_users_tick
+        if simulation.stress_pressure_flee_events_last_tick > 0
+        else 0.0
+    )
+    stress_tolerance_pressure_flee_usage_bias_total = (
+        avg_stress_tolerance_pressure_flee_users_total - avg_stress_tolerance_pressure_users_total
+        if simulation.total_stress_pressure_flee_events > 0
+        else 0.0
+    )
 
     proto_group_count, proto_groups_top, dominant_proto_group_share = _build_proto_groups(
         alive_creatures,
@@ -1102,6 +1161,7 @@ def build_population_stats(
         "avg_food_perception": avg_food_perception,
         "avg_threat_perception": avg_threat_perception,
         "avg_risk_taking": avg_risk_taking,
+        "avg_stress_tolerance": avg_stress_tolerance,
         "avg_behavior_persistence": avg_behavior_persistence,
         "avg_exploration_bias": avg_exploration_bias,
         "avg_density_preference": avg_density_preference,
@@ -1116,6 +1176,7 @@ def build_population_stats(
         "std_food_perception": std_food_perception,
         "std_threat_perception": std_threat_perception,
         "std_risk_taking": std_risk_taking,
+        "std_stress_tolerance": std_stress_tolerance,
         "std_behavior_persistence": std_behavior_persistence,
         "std_exploration_bias": std_exploration_bias,
         "std_density_preference": std_density_preference,
@@ -1401,6 +1462,22 @@ def build_population_stats(
         "risk_taking_borderline_flee_users_avg_total": avg_risk_taking_borderline_flee_users_total,
         "risk_taking_borderline_flee_usage_bias_tick": risk_taking_borderline_flee_usage_bias_tick,
         "risk_taking_borderline_flee_usage_bias_total": risk_taking_borderline_flee_usage_bias_total,
+        "stress_pressure_events_last_tick": simulation.stress_pressure_events_last_tick,
+        "total_stress_pressure_events": simulation.total_stress_pressure_events,
+        "stress_pressure_flee_events_last_tick": simulation.stress_pressure_flee_events_last_tick,
+        "total_stress_pressure_flee_events": simulation.total_stress_pressure_flee_events,
+        "stress_pressure_flee_rate_last_tick": stress_pressure_flee_rate_tick,
+        "stress_pressure_flee_rate_total": stress_pressure_flee_rate_total,
+        "stress_tolerance_pressure_users_avg_tick": avg_stress_tolerance_pressure_users_tick,
+        "stress_tolerance_pressure_users_avg_total": avg_stress_tolerance_pressure_users_total,
+        "stress_tolerance_pressure_flee_users_avg_tick": avg_stress_tolerance_pressure_flee_users_tick,
+        "stress_tolerance_pressure_flee_users_avg_total": avg_stress_tolerance_pressure_flee_users_total,
+        "stress_tolerance_pressure_flee_usage_bias_tick": (
+            stress_tolerance_pressure_flee_usage_bias_tick
+        ),
+        "stress_tolerance_pressure_flee_usage_bias_total": (
+            stress_tolerance_pressure_flee_usage_bias_total
+        ),
         "death_causes_last_tick": dict(simulation.death_causes_last_tick),
         "death_causes_total": dict(simulation.total_death_causes),
     }
@@ -1498,6 +1575,8 @@ def build_final_run_summary(
         "threat_perception_std": float(final_stats.get("std_threat_perception", 0.0)),
         "risk_taking_mean": float(final_stats.get("avg_risk_taking", 0.0)),
         "risk_taking_std": float(final_stats.get("std_risk_taking", 0.0)),
+        "stress_tolerance_mean": float(final_stats.get("avg_stress_tolerance", 0.0)),
+        "stress_tolerance_std": float(final_stats.get("std_stress_tolerance", 0.0)),
         "behavior_persistence_mean": float(final_stats.get("avg_behavior_persistence", 0.0)),
         "behavior_persistence_std": float(final_stats.get("std_behavior_persistence", 0.0)),
         "exploration_bias_mean": float(final_stats.get("avg_exploration_bias", 0.0)),
@@ -1669,6 +1748,22 @@ def build_final_run_summary(
         "risk_taking_borderline_flee_bias": float(
             final_stats.get("risk_taking_borderline_flee_usage_bias_total", 0.0)
         ),
+        "stress_pressure_events": int(final_stats.get("total_stress_pressure_events", 0)),
+        "stress_pressure_flee_events": int(
+            final_stats.get("total_stress_pressure_flee_events", 0)
+        ),
+        "stress_pressure_flee_rate": float(
+            final_stats.get("stress_pressure_flee_rate_total", 0.0)
+        ),
+        "stress_tolerance_pressure_mean": float(
+            final_stats.get("stress_tolerance_pressure_users_avg_total", 0.0)
+        ),
+        "stress_tolerance_pressure_flee_mean": float(
+            final_stats.get("stress_tolerance_pressure_flee_users_avg_total", 0.0)
+        ),
+        "stress_tolerance_pressure_flee_bias": float(
+            final_stats.get("stress_tolerance_pressure_flee_usage_bias_total", 0.0)
+        ),
     }
 
     return {
@@ -1709,6 +1804,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_perception": 0.0,
                 "threat_perception": 0.0,
                 "risk_taking": 0.0,
+                "stress_tolerance": 0.0,
                 "behavior_persistence": 0.0,
                 "exploration_bias": 0.0,
                 "density_preference": 0.0,
@@ -1751,6 +1847,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "threat_perception_std": 0.0,
                 "risk_taking_mean": 0.0,
                 "risk_taking_std": 0.0,
+                "stress_tolerance_mean": 0.0,
+                "stress_tolerance_std": 0.0,
                 "behavior_persistence_mean": 0.0,
                 "behavior_persistence_std": 0.0,
                 "exploration_bias_mean": 0.0,
@@ -1834,6 +1932,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "risk_taking_borderline_encounter_mean": 0.0,
                 "risk_taking_borderline_flee_mean": 0.0,
                 "risk_taking_borderline_flee_bias": 0.0,
+                "stress_pressure_events": 0.0,
+                "stress_pressure_flee_events": 0.0,
+                "stress_pressure_flee_rate": 0.0,
+                "stress_tolerance_pressure_mean": 0.0,
+                "stress_tolerance_pressure_flee_mean": 0.0,
+                "stress_tolerance_pressure_flee_bias": 0.0,
             },
             "most_frequent_final_dominant_group": "-",
             "most_frequent_final_dominant_group_count": 0,
@@ -1854,6 +1958,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "food_perception": 0.0,
         "threat_perception": 0.0,
         "risk_taking": 0.0,
+        "stress_tolerance": 0.0,
         "behavior_persistence": 0.0,
         "exploration_bias": 0.0,
         "density_preference": 0.0,
@@ -1896,6 +2001,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "threat_perception_std": 0.0,
         "risk_taking_mean": 0.0,
         "risk_taking_std": 0.0,
+        "stress_tolerance_mean": 0.0,
+        "stress_tolerance_std": 0.0,
         "behavior_persistence_mean": 0.0,
         "behavior_persistence_std": 0.0,
         "exploration_bias_mean": 0.0,
@@ -1979,6 +2086,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "risk_taking_borderline_encounter_mean": 0.0,
         "risk_taking_borderline_flee_mean": 0.0,
         "risk_taking_borderline_flee_bias": 0.0,
+        "stress_pressure_events": 0.0,
+        "stress_pressure_flee_events": 0.0,
+        "stress_pressure_flee_rate": 0.0,
+        "stress_tolerance_pressure_mean": 0.0,
+        "stress_tolerance_pressure_flee_mean": 0.0,
+        "stress_tolerance_pressure_flee_bias": 0.0,
     }
 
     dominant_frequency: Dict[str, int] = {}
@@ -2008,6 +2121,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["food_perception"] += float(traits_raw.get("food_perception", 0.0))
                 avg_traits_acc["threat_perception"] += float(traits_raw.get("threat_perception", 0.0))
                 avg_traits_acc["risk_taking"] += float(traits_raw.get("risk_taking", 0.0))
+                avg_traits_acc["stress_tolerance"] += float(traits_raw.get("stress_tolerance", 0.0))
                 avg_traits_acc["behavior_persistence"] += float(
                     traits_raw.get("behavior_persistence", 0.0)
                 )
@@ -2063,6 +2177,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["threat_perception_std"] += float(trait_impact_raw.get("threat_perception_std", 0.0))
                 avg_trait_impact_acc["risk_taking_mean"] += float(trait_impact_raw.get("risk_taking_mean", 0.0))
                 avg_trait_impact_acc["risk_taking_std"] += float(trait_impact_raw.get("risk_taking_std", 0.0))
+                avg_trait_impact_acc["stress_tolerance_mean"] += float(
+                    trait_impact_raw.get("stress_tolerance_mean", 0.0)
+                )
+                avg_trait_impact_acc["stress_tolerance_std"] += float(
+                    trait_impact_raw.get("stress_tolerance_std", 0.0)
+                )
                 avg_trait_impact_acc["behavior_persistence_mean"] += float(
                     trait_impact_raw.get("behavior_persistence_mean", 0.0)
                 )
@@ -2288,6 +2408,24 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["risk_taking_borderline_flee_bias"] += float(
                     trait_impact_raw.get("risk_taking_borderline_flee_bias", 0.0)
                 )
+                avg_trait_impact_acc["stress_pressure_events"] += float(
+                    trait_impact_raw.get("stress_pressure_events", 0.0)
+                )
+                avg_trait_impact_acc["stress_pressure_flee_events"] += float(
+                    trait_impact_raw.get("stress_pressure_flee_events", 0.0)
+                )
+                avg_trait_impact_acc["stress_pressure_flee_rate"] += float(
+                    trait_impact_raw.get("stress_pressure_flee_rate", 0.0)
+                )
+                avg_trait_impact_acc["stress_tolerance_pressure_mean"] += float(
+                    trait_impact_raw.get("stress_tolerance_pressure_mean", 0.0)
+                )
+                avg_trait_impact_acc["stress_tolerance_pressure_flee_mean"] += float(
+                    trait_impact_raw.get("stress_tolerance_pressure_flee_mean", 0.0)
+                )
+                avg_trait_impact_acc["stress_tolerance_pressure_flee_bias"] += float(
+                    trait_impact_raw.get("stress_tolerance_pressure_flee_bias", 0.0)
+                )
 
     if dominant_frequency:
         dominant_signature, dominant_count = sorted(
@@ -2313,6 +2451,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "food_perception": avg_traits_acc["food_perception"] / run_count,
             "threat_perception": avg_traits_acc["threat_perception"] / run_count,
             "risk_taking": avg_traits_acc["risk_taking"] / run_count,
+            "stress_tolerance": avg_traits_acc["stress_tolerance"] / run_count,
             "behavior_persistence": avg_traits_acc["behavior_persistence"] / run_count,
             "exploration_bias": avg_traits_acc["exploration_bias"] / run_count,
             "density_preference": avg_traits_acc["density_preference"] / run_count,
@@ -2355,6 +2494,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "threat_perception_std": avg_trait_impact_acc["threat_perception_std"] / run_count,
             "risk_taking_mean": avg_trait_impact_acc["risk_taking_mean"] / run_count,
             "risk_taking_std": avg_trait_impact_acc["risk_taking_std"] / run_count,
+            "stress_tolerance_mean": avg_trait_impact_acc["stress_tolerance_mean"] / run_count,
+            "stress_tolerance_std": avg_trait_impact_acc["stress_tolerance_std"] / run_count,
             "behavior_persistence_mean": avg_trait_impact_acc["behavior_persistence_mean"] / run_count,
             "behavior_persistence_std": avg_trait_impact_acc["behavior_persistence_std"] / run_count,
             "exploration_bias_mean": avg_trait_impact_acc["exploration_bias_mean"] / run_count,
@@ -2531,6 +2672,22 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "risk_taking_borderline_flee_bias": (
                 avg_trait_impact_acc["risk_taking_borderline_flee_bias"] / run_count
+            ),
+            "stress_pressure_events": avg_trait_impact_acc["stress_pressure_events"] / run_count,
+            "stress_pressure_flee_events": (
+                avg_trait_impact_acc["stress_pressure_flee_events"] / run_count
+            ),
+            "stress_pressure_flee_rate": (
+                avg_trait_impact_acc["stress_pressure_flee_rate"] / run_count
+            ),
+            "stress_tolerance_pressure_mean": (
+                avg_trait_impact_acc["stress_tolerance_pressure_mean"] / run_count
+            ),
+            "stress_tolerance_pressure_flee_mean": (
+                avg_trait_impact_acc["stress_tolerance_pressure_flee_mean"] / run_count
+            ),
+            "stress_tolerance_pressure_flee_bias": (
+                avg_trait_impact_acc["stress_tolerance_pressure_flee_bias"] / run_count
             ),
         },
         "most_frequent_final_dominant_group": dominant_signature,
@@ -2764,6 +2921,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "food_perception": float(final_stats.get("avg_food_perception", 0.0)),
         "threat_perception": float(final_stats.get("avg_threat_perception", 0.0)),
         "risk_taking": float(final_stats.get("avg_risk_taking", 0.0)),
+        "stress_tolerance": float(final_stats.get("avg_stress_tolerance", 0.0)),
         "behavior_persistence": float(final_stats.get("avg_behavior_persistence", 0.0)),
         "exploration_bias": float(final_stats.get("avg_exploration_bias", 0.0)),
         "density_preference": float(final_stats.get("avg_density_preference", 0.0)),

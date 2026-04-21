@@ -37,6 +37,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "exploration_bias": round(creature.traits.exploration_bias, 3),
                     "density_preference": round(creature.traits.density_preference, 3),
                     "mobility_efficiency": round(creature.traits.mobility_efficiency, 3),
+                    "stress_tolerance": round(creature.traits.stress_tolerance, 3),
                     "longevity_factor": round(creature.traits.longevity_factor, 3),
                     "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
                     "reproduction_timing": round(creature.traits.reproduction_timing, 3),
@@ -96,6 +97,11 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     )
     avg_mobility_efficiency_population = (
         sum(creature.traits.mobility_efficiency for creature in simulation.creatures) / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    avg_stress_tolerance_population = (
+        sum(creature.traits.stress_tolerance for creature in simulation.creatures) / total_creatures
         if total_creatures > 0
         else 0.0
     )
@@ -230,6 +236,17 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     movement_distance_avg_total = (
         simulation.total_movement_distance_sum / simulation.total_movement_actions
         if simulation.total_movement_actions > 0
+        else 0.0
+    )
+    stress_tolerance_pressure_users_avg_last_tick = (
+        simulation.stress_tolerance_sum_pressure_last_tick / simulation.stress_pressure_events_last_tick
+        if simulation.stress_pressure_events_last_tick > 0
+        else 0.0
+    )
+    stress_tolerance_pressure_flee_users_avg_last_tick = (
+        simulation.stress_tolerance_sum_pressure_flee_last_tick
+        / simulation.stress_pressure_flee_events_last_tick
+        if simulation.stress_pressure_flee_events_last_tick > 0
         else 0.0
     )
 
@@ -410,6 +427,24 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "movement_multiplier_avg_total": movement_multiplier_avg_total,
         "movement_distance_avg_last_tick": simulation.avg_movement_distance_last_tick,
         "movement_distance_avg_total": movement_distance_avg_total,
+        "avg_stress_tolerance_population": avg_stress_tolerance_population,
+        "stress_pressure_events_last_tick": simulation.stress_pressure_events_last_tick,
+        "stress_pressure_flee_events_last_tick": simulation.stress_pressure_flee_events_last_tick,
+        "stress_pressure_flee_rate_last_tick": (
+            simulation.stress_pressure_flee_events_last_tick / simulation.stress_pressure_events_last_tick
+            if simulation.stress_pressure_events_last_tick > 0
+            else 0.0
+        ),
+        "stress_tolerance_pressure_users_avg_last_tick": stress_tolerance_pressure_users_avg_last_tick,
+        "stress_tolerance_pressure_flee_users_avg_last_tick": (
+            stress_tolerance_pressure_flee_users_avg_last_tick
+        ),
+        "stress_tolerance_pressure_flee_usage_bias_last_tick": (
+            stress_tolerance_pressure_flee_users_avg_last_tick
+            - stress_tolerance_pressure_users_avg_last_tick
+            if simulation.stress_pressure_flee_events_last_tick > 0
+            else 0.0
+        ),
         "mobility_efficiency_movement_users_avg_last_tick": (
             mobility_efficiency_movement_users_avg_last_tick
         ),

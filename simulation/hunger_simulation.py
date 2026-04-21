@@ -121,6 +121,14 @@ class HungerSimulation:
         self.total_risk_taking_sum_borderline_encounters = 0.0
         self.risk_taking_sum_borderline_flees_last_tick = 0.0
         self.total_risk_taking_sum_borderline_flees = 0.0
+        self.stress_pressure_events_last_tick = 0
+        self.total_stress_pressure_events = 0
+        self.stress_pressure_flee_events_last_tick = 0
+        self.total_stress_pressure_flee_events = 0
+        self.stress_tolerance_sum_pressure_last_tick = 0.0
+        self.total_stress_tolerance_sum_pressure = 0.0
+        self.stress_tolerance_sum_pressure_flee_last_tick = 0.0
+        self.total_stress_tolerance_sum_pressure_flee = 0.0
         self.persistence_holds_last_tick = 0
         self.total_persistence_holds = 0
         self.behavior_persistence_sum_holds_last_tick = 0.0
@@ -273,6 +281,10 @@ class HungerSimulation:
         self.borderline_threat_flees_last_tick = 0
         self.risk_taking_sum_borderline_encounters_last_tick = 0.0
         self.risk_taking_sum_borderline_flees_last_tick = 0.0
+        self.stress_pressure_events_last_tick = 0
+        self.stress_pressure_flee_events_last_tick = 0
+        self.stress_tolerance_sum_pressure_last_tick = 0.0
+        self.stress_tolerance_sum_pressure_flee_last_tick = 0.0
         self.persistence_holds_last_tick = 0
         self.behavior_persistence_sum_holds_last_tick = 0.0
         self.persistence_holding_creatures_last_tick = []
@@ -476,16 +488,32 @@ class HungerSimulation:
                 self.creatures,
             )
             if borderline_threat is not None:
+                in_stress_pressure = self._is_stress_pressure_context(creature)
                 self.borderline_threat_encounters_last_tick += 1
                 self.total_borderline_threat_encounters += 1
                 self.risk_taking_sum_borderline_encounters_last_tick += creature.traits.risk_taking
                 self.total_risk_taking_sum_borderline_encounters += creature.traits.risk_taking
+
+                if in_stress_pressure:
+                    self.stress_pressure_events_last_tick += 1
+                    self.total_stress_pressure_events += 1
+                    self.stress_tolerance_sum_pressure_last_tick += creature.traits.stress_tolerance
+                    self.total_stress_tolerance_sum_pressure += creature.traits.stress_tolerance
 
                 if intent.action == HungerAI.ACTION_FLEE:
                     self.borderline_threat_flees_last_tick += 1
                     self.total_borderline_threat_flees += 1
                     self.risk_taking_sum_borderline_flees_last_tick += creature.traits.risk_taking
                     self.total_risk_taking_sum_borderline_flees += creature.traits.risk_taking
+                    if in_stress_pressure:
+                        self.stress_pressure_flee_events_last_tick += 1
+                        self.total_stress_pressure_flee_events += 1
+                        self.stress_tolerance_sum_pressure_flee_last_tick += (
+                            creature.traits.stress_tolerance
+                        )
+                        self.total_stress_tolerance_sum_pressure_flee += (
+                            creature.traits.stress_tolerance
+                        )
 
         # 3) Execute movement and feeding behavior.
         creatures_by_id = {creature.creature_id: creature for creature in self.creatures}
@@ -1248,6 +1276,10 @@ class HungerSimulation:
             multiplier = 1.0
 
         return max(0.9, min(1.1, multiplier)), zone_name
+
+    def _is_stress_pressure_context(self, creature: Creature) -> bool:
+        low_energy = creature.energy <= (creature.max_energy * 0.35)
+        return creature.hunger >= self.ai_system.hunger_seek_threshold or low_energy
 
     @staticmethod
     def _is_search_wander_action(action: str) -> bool:
