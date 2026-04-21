@@ -52,6 +52,9 @@ def inherit_traits(
     avg_reproduction_timing = (parent_a.reproduction_timing + parent_b.reproduction_timing) / 2.0
     avg_hunger_sensitivity = (parent_a.hunger_sensitivity + parent_b.hunger_sensitivity) / 2.0
     avg_gregariousness = (parent_a.gregariousness + parent_b.gregariousness) / 2.0
+    avg_competition_tolerance = (
+        parent_a.competition_tolerance + parent_b.competition_tolerance
+    ) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -85,5 +88,6 @@ def inherit_traits(
         reproduction_timing=_mutate_with_delta(avg_reproduction_timing, delta_metabolism),
         hunger_sensitivity=_mutate_with_delta(avg_hunger_sensitivity, behavior_delta),
         gregariousness=_mutate_with_delta(avg_gregariousness, behavior_delta),
+        competition_tolerance=_mutate_with_delta(avg_competition_tolerance, behavior_delta),
     )
     return child_traits.clamp()

@@ -43,6 +43,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "reproduction_timing": round(creature.traits.reproduction_timing, 3),
                     "hunger_sensitivity": round(creature.traits.hunger_sensitivity, 3),
                     "gregariousness": round(creature.traits.gregariousness, 3),
+                    "competition_tolerance": round(creature.traits.competition_tolerance, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -136,6 +137,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         if total_creatures > 0
         else 0.0
     )
+    avg_competition_tolerance_population = (
+        sum(creature.traits.competition_tolerance for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
     density_preference_seek_users_avg_last_tick = (
         simulation.density_preference_sum_seek_last_tick / simulation.density_preference_seek_moves_last_tick
         if simulation.density_preference_seek_moves_last_tick > 0
@@ -174,6 +181,30 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     gregariousness_avoid_users_avg_total = (
         simulation.total_gregariousness_sum_avoid / simulation.total_gregariousness_avoid_moves
         if simulation.total_gregariousness_avoid_moves > 0
+        else 0.0
+    )
+    competition_tolerance_stay_users_avg_last_tick = (
+        simulation.competition_tolerance_sum_stay_last_tick
+        / simulation.competition_tolerance_stay_moves_last_tick
+        if simulation.competition_tolerance_stay_moves_last_tick > 0
+        else 0.0
+    )
+    competition_tolerance_stay_users_avg_total = (
+        simulation.total_competition_tolerance_sum_stay
+        / simulation.total_competition_tolerance_stay_moves
+        if simulation.total_competition_tolerance_stay_moves > 0
+        else 0.0
+    )
+    competition_tolerance_avoid_users_avg_last_tick = (
+        simulation.competition_tolerance_sum_avoid_last_tick
+        / simulation.competition_tolerance_avoid_moves_last_tick
+        if simulation.competition_tolerance_avoid_moves_last_tick > 0
+        else 0.0
+    )
+    competition_tolerance_avoid_users_avg_total = (
+        simulation.total_competition_tolerance_sum_avoid
+        / simulation.total_competition_tolerance_avoid_moves
+        if simulation.total_competition_tolerance_avoid_moves > 0
         else 0.0
     )
     age_wear_multiplier_avg_last_tick = (
@@ -436,6 +467,89 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "avg_gregariousness_center_distance_delta_last_tick": (
             simulation.avg_gregariousness_center_distance_delta_last_tick
         ),
+        "competition_tolerance_guided_moves_last_tick": (
+            simulation.competition_tolerance_guided_moves_last_tick
+        ),
+        "total_competition_tolerance_guided_moves": (
+            simulation.total_competition_tolerance_guided_moves
+        ),
+        "competition_tolerance_stay_moves_last_tick": (
+            simulation.competition_tolerance_stay_moves_last_tick
+        ),
+        "total_competition_tolerance_stay_moves": (
+            simulation.total_competition_tolerance_stay_moves
+        ),
+        "competition_tolerance_stay_users_avg_last_tick": (
+            competition_tolerance_stay_users_avg_last_tick
+        ),
+        "competition_tolerance_stay_users_avg_total": (
+            competition_tolerance_stay_users_avg_total
+        ),
+        "competition_tolerance_stay_usage_bias_last_tick": (
+            competition_tolerance_stay_users_avg_last_tick - avg_competition_tolerance_population
+            if simulation.competition_tolerance_stay_moves_last_tick > 0
+            else 0.0
+        ),
+        "competition_tolerance_stay_usage_bias_total": (
+            competition_tolerance_stay_users_avg_total - avg_competition_tolerance_population
+            if simulation.total_competition_tolerance_stay_moves > 0
+            else 0.0
+        ),
+        "competition_tolerance_avoid_moves_last_tick": (
+            simulation.competition_tolerance_avoid_moves_last_tick
+        ),
+        "total_competition_tolerance_avoid_moves": (
+            simulation.total_competition_tolerance_avoid_moves
+        ),
+        "competition_tolerance_avoid_users_avg_last_tick": (
+            competition_tolerance_avoid_users_avg_last_tick
+        ),
+        "competition_tolerance_avoid_users_avg_total": (
+            competition_tolerance_avoid_users_avg_total
+        ),
+        "competition_tolerance_avoid_usage_bias_last_tick": (
+            competition_tolerance_avoid_users_avg_last_tick - avg_competition_tolerance_population
+            if simulation.competition_tolerance_avoid_moves_last_tick > 0
+            else 0.0
+        ),
+        "competition_tolerance_avoid_usage_bias_total": (
+            competition_tolerance_avoid_users_avg_total - avg_competition_tolerance_population
+            if simulation.total_competition_tolerance_avoid_moves > 0
+            else 0.0
+        ),
+        "competition_tolerance_stay_share_last_tick": (
+            simulation.competition_tolerance_stay_moves_last_tick
+            / simulation.competition_tolerance_guided_moves_last_tick
+            if simulation.competition_tolerance_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "competition_tolerance_stay_share_total": (
+            simulation.total_competition_tolerance_stay_moves
+            / simulation.total_competition_tolerance_guided_moves
+            if simulation.total_competition_tolerance_guided_moves > 0
+            else 0.0
+        ),
+        "competition_tolerance_avoid_share_last_tick": (
+            simulation.competition_tolerance_avoid_moves_last_tick
+            / simulation.competition_tolerance_guided_moves_last_tick
+            if simulation.competition_tolerance_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "competition_tolerance_avoid_share_total": (
+            simulation.total_competition_tolerance_avoid_moves
+            / simulation.total_competition_tolerance_guided_moves
+            if simulation.total_competition_tolerance_guided_moves > 0
+            else 0.0
+        ),
+        "avg_competition_tolerance_neighbor_count_last_tick": (
+            simulation.competition_tolerance_neighbor_count_sum_last_tick
+            / simulation.competition_tolerance_guided_moves_last_tick
+            if simulation.competition_tolerance_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "avg_competition_tolerance_anchor_distance_delta_last_tick": (
+            simulation.avg_competition_tolerance_anchor_distance_delta_last_tick
+        ),
         "age_wear_active_events_last_tick": simulation.age_wear_active_events_last_tick,
         "total_age_wear_active_events": simulation.total_age_wear_active_events,
         "age_wear_multiplier_avg_last_tick": age_wear_multiplier_avg_last_tick,
@@ -507,6 +621,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "hunger_search_actions_last_tick": simulation.hunger_search_actions_last_tick,
         "total_hunger_search_actions": simulation.total_hunger_search_actions,
         "avg_hunger_sensitivity_population": avg_hunger_sensitivity_population,
+        "avg_competition_tolerance_population": avg_competition_tolerance_population,
         "hunger_sensitivity_search_users_avg_last_tick": (
             hunger_sensitivity_search_users_avg_last_tick
         ),

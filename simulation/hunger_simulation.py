@@ -189,6 +189,23 @@ class HungerSimulation:
         self.gregariousness_center_distance_delta_last_tick = 0.0
         self.total_gregariousness_center_distance_delta = 0.0
         self.avg_gregariousness_center_distance_delta_last_tick = 0.0
+        self.competition_tolerance_guided_moves_last_tick = 0
+        self.total_competition_tolerance_guided_moves = 0
+        self.competition_tolerance_sum_guided_last_tick = 0.0
+        self.total_competition_tolerance_sum_guided = 0.0
+        self.competition_tolerance_stay_moves_last_tick = 0
+        self.total_competition_tolerance_stay_moves = 0
+        self.competition_tolerance_sum_stay_last_tick = 0.0
+        self.total_competition_tolerance_sum_stay = 0.0
+        self.competition_tolerance_avoid_moves_last_tick = 0
+        self.total_competition_tolerance_avoid_moves = 0
+        self.competition_tolerance_sum_avoid_last_tick = 0.0
+        self.total_competition_tolerance_sum_avoid = 0.0
+        self.competition_tolerance_neighbor_count_sum_last_tick = 0.0
+        self.total_competition_tolerance_neighbor_count_sum = 0.0
+        self.competition_tolerance_anchor_distance_delta_last_tick = 0.0
+        self.total_competition_tolerance_anchor_distance_delta = 0.0
+        self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
         self.movement_actions_last_tick = 0
         self.total_movement_actions = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
@@ -338,6 +355,15 @@ class HungerSimulation:
         self.gregariousness_neighbor_count_sum_last_tick = 0.0
         self.gregariousness_center_distance_delta_last_tick = 0.0
         self.avg_gregariousness_center_distance_delta_last_tick = 0.0
+        self.competition_tolerance_guided_moves_last_tick = 0
+        self.competition_tolerance_sum_guided_last_tick = 0.0
+        self.competition_tolerance_stay_moves_last_tick = 0
+        self.competition_tolerance_sum_stay_last_tick = 0.0
+        self.competition_tolerance_avoid_moves_last_tick = 0
+        self.competition_tolerance_sum_avoid_last_tick = 0.0
+        self.competition_tolerance_neighbor_count_sum_last_tick = 0.0
+        self.competition_tolerance_anchor_distance_delta_last_tick = 0.0
+        self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
         self.movement_actions_last_tick = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
         self.movement_multiplier_sum_last_tick = 0.0
@@ -694,6 +720,14 @@ class HungerSimulation:
             )
         else:
             self.avg_gregariousness_center_distance_delta_last_tick = 0.0
+
+        if self.competition_tolerance_guided_moves_last_tick > 0:
+            self.avg_competition_tolerance_anchor_distance_delta_last_tick = (
+                self.competition_tolerance_anchor_distance_delta_last_tick
+                / self.competition_tolerance_guided_moves_last_tick
+            )
+        else:
+            self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
 
         if self.movement_actions_last_tick > 0:
             self.avg_movement_multiplier_last_tick = (
@@ -1208,6 +1242,61 @@ class HungerSimulation:
                             else:
                                 gregarious_mode = None
 
+        competition_anchor: tuple[float, float] | None = None
+        competition_mode: str | None = None
+        competition_neighbor_count = 0
+        before_competition_anchor_distance = 0.0
+        if allow_exploration_bias and creature.has_food_memory and creature.last_food_zone is not None:
+            competition_strength = min(
+                0.26,
+                abs(creature.traits.competition_tolerance - 1.0) * 1.4,
+            )
+            if competition_strength > 0.0:
+                local_competition_radius = max(2.0, self.social_influence_distance * 0.65)
+                if local_competition_radius > 0.0:
+                    for other in self.creatures:
+                        if not other.alive or other.creature_id == creature.creature_id:
+                            continue
+                        if creature.distance_to(other.x, other.y) <= local_competition_radius:
+                            competition_neighbor_count += 1
+
+                if competition_neighbor_count > 0:
+                    anchor_x, anchor_y = creature.last_food_zone
+                    to_anchor_x = anchor_x - creature.x
+                    to_anchor_y = anchor_y - creature.y
+                    anchor_norm = hypot(to_anchor_x, to_anchor_y)
+                    if anchor_norm > 1e-9:
+                        if creature.traits.competition_tolerance >= 1.0:
+                            bias_x = to_anchor_x / anchor_norm
+                            bias_y = to_anchor_y / anchor_norm
+                            competition_mode = "stay"
+                        elif competition_neighbor_count >= 2:
+                            bias_x = -to_anchor_x / anchor_norm
+                            bias_y = -to_anchor_y / anchor_norm
+                            competition_mode = "avoid"
+                        else:
+                            bias_x = 0.0
+                            bias_y = 0.0
+
+                        if competition_mode is not None:
+                            blended_x = ((1.0 - competition_strength) * dir_x) + (
+                                competition_strength * bias_x
+                            )
+                            blended_y = ((1.0 - competition_strength) * dir_y) + (
+                                competition_strength * bias_y
+                            )
+                            blended_norm = hypot(blended_x, blended_y)
+                            if blended_norm > 1e-9:
+                                dir_x = blended_x / blended_norm
+                                dir_y = blended_y / blended_norm
+                                competition_anchor = (anchor_x, anchor_y)
+                                before_competition_anchor_distance = creature.distance_to(
+                                    anchor_x,
+                                    anchor_y,
+                                )
+                            else:
+                                competition_mode = None
+
         target_x = creature.x + (dir_x * distance)
         target_y = creature.y + (dir_y * distance)
         before_x = creature.x
@@ -1284,6 +1373,33 @@ class HungerSimulation:
                 self.total_gregariousness_avoid_moves += 1
                 self.gregariousness_sum_avoid_last_tick += creature.traits.gregariousness
                 self.total_gregariousness_sum_avoid += creature.traits.gregariousness
+
+        if competition_anchor is not None and competition_mode is not None:
+            after_competition_anchor_distance = creature.distance_to(
+                competition_anchor[0],
+                competition_anchor[1],
+            )
+            anchor_distance_delta = (
+                after_competition_anchor_distance - before_competition_anchor_distance
+            )
+            self.competition_tolerance_guided_moves_last_tick += 1
+            self.total_competition_tolerance_guided_moves += 1
+            self.competition_tolerance_sum_guided_last_tick += creature.traits.competition_tolerance
+            self.total_competition_tolerance_sum_guided += creature.traits.competition_tolerance
+            self.competition_tolerance_neighbor_count_sum_last_tick += competition_neighbor_count
+            self.total_competition_tolerance_neighbor_count_sum += competition_neighbor_count
+            self.competition_tolerance_anchor_distance_delta_last_tick += anchor_distance_delta
+            self.total_competition_tolerance_anchor_distance_delta += anchor_distance_delta
+            if competition_mode == "stay":
+                self.competition_tolerance_stay_moves_last_tick += 1
+                self.total_competition_tolerance_stay_moves += 1
+                self.competition_tolerance_sum_stay_last_tick += creature.traits.competition_tolerance
+                self.total_competition_tolerance_sum_stay += creature.traits.competition_tolerance
+            else:
+                self.competition_tolerance_avoid_moves_last_tick += 1
+                self.total_competition_tolerance_avoid_moves += 1
+                self.competition_tolerance_sum_avoid_last_tick += creature.traits.competition_tolerance
+                self.total_competition_tolerance_sum_avoid += creature.traits.competition_tolerance
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(

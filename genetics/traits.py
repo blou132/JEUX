@@ -42,6 +42,8 @@ class GeneticTraits:
     #   <1.0 tolerates hunger slightly longer before prioritizing food search.
     # - gregariousness: >1.0 tends to keep slightly closer to nearby creatures
     #   during targetless movement, <1.0 tends to keep slightly more distance.
+    # - competition_tolerance: >1.0 tends to stay a bit longer near contested
+    #   food zones; <1.0 tends to avoid local food competition sooner.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
@@ -60,6 +62,7 @@ class GeneticTraits:
     reproduction_timing: float = 1.0
     hunger_sensitivity: float = 1.0
     gregariousness: float = 1.0
+    competition_tolerance: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -89,5 +92,6 @@ class GeneticTraits:
         self.reproduction_timing = max(0.85, min(1.15, self.reproduction_timing))
         self.hunger_sensitivity = max(0.85, min(1.15, self.hunger_sensitivity))
         self.gregariousness = max(0.85, min(1.15, self.gregariousness))
+        self.competition_tolerance = max(0.85, min(1.15, self.competition_tolerance))
         return self
 
