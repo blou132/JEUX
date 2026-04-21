@@ -61,6 +61,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites, taux de switch et taux de blocage utile.
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usages `explore`/`settle`/`guided` et stabilite.
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usages `seek`/`avoid`, part `avoid` et stabilite.
+- Interpretation batch `gregariousness` (`gregariousness_batch`) pour comparer usages `seek`/`avoid`, biais `seek`/`avoid`, effet de proximite locale et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure d'age, reduction utile du drain age, dispersion et stabilite.
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet observe zone pauvre/riche, dispersion utile et stabilite.
 - Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet observe sur le seuil reproductif, reproduction plus precoce/prudente et stabilite.
@@ -923,6 +924,7 @@ Avec les outils d'analyse:
 - pour l'impact `mobility_efficiency` en batch, verifier dans `Batch Comparative Summary` le bloc `mobility_efficiency_batch` (`distance_deplacement_observee_max`, `frequence_mouvement_utile_max`, `dispersion_mobilite_max`, `configuration_plus_stable`, et `ambiguite_mobility_efficiency` si egalite).
 - pour l'impact `stress_tolerance` en batch, verifier dans `Batch Comparative Summary` le bloc `stress_tolerance_batch` (`effet_sous_pression_max`, `modulation_fuite_tendue_max`, `dispersion_stress_tolerance_max`, `configuration_plus_stable`, et `ambiguite_stress_tolerance` si egalite).
 - pour l'impact `hunger_sensitivity` en batch, verifier dans `Batch Comparative Summary` le bloc `hunger_sensitivity_batch` (`effet_seuil_faim_max`, `recherche_plus_precoce_max`, `recherche_plus_tardive_max`, `frequence_recherche_faim_max`, `dispersion_hunger_sensitivity_max`, `configuration_plus_stable`, et `ambiguite_hunger_sensitivity` si egalite).
+- pour l'impact `gregariousness` en batch, verifier dans `Batch Comparative Summary` le bloc `gregariousness_batch` (`usage_seek_gregariousness_max`, `usage_avoid_gregariousness_max`, `biais_seek_gregariousness_max`, `biais_avoid_gregariousness_min`, `effet_proximite_locale_max`, `dispersion_gregariousness_max`, `configuration_plus_stable`).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -958,6 +960,7 @@ Lecture rapide conseillee:
 - Interpretation batch `behavior_persistence` (`behavior_persistence_batch`) pour comparer switchs evites / taux de switch / taux de blocage utile et stabilite.
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usage `explore`/`settle`/`guided` et stabilite.
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usage `seek`/`avoid`, part `avoid` et stabilite.
+- Interpretation batch `gregariousness` (`gregariousness_batch`) pour comparer usage `seek`/`avoid`, biais `seek`/`avoid`, effet de proximite locale et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure age, reduction utile du drain age, dispersion et stabilite.
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet zone pauvre/riche, dispersion utile et stabilite.
 - Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet seuil reproductif, reproduction plus precoce/prudente et stabilite.

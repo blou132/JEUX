@@ -42,6 +42,7 @@ def build_batch_comparative_summary(
     risk_candidates: list[Dict[str, float]] = []
     exploration_candidates: list[Dict[str, float]] = []
     density_preference_candidates: list[Dict[str, float]] = []
+    gregariousness_candidates: list[Dict[str, float]] = []
     mobility_candidates: list[Dict[str, float]] = []
     longevity_candidates: list[Dict[str, float]] = []
     environmental_candidates: list[Dict[str, float]] = []
@@ -112,6 +113,10 @@ def build_batch_comparative_summary(
         if density_preference_metrics is not None:
             density_preference_candidates.append({"value": value, **density_preference_metrics})
 
+        gregariousness_metrics = _read_gregariousness_metrics(summary_raw)
+        if gregariousness_metrics is not None:
+            gregariousness_candidates.append({"value": value, **gregariousness_metrics})
+
         mobility_metrics = _read_mobility_metrics(summary_raw)
         if mobility_metrics is not None:
             mobility_candidates.append({"value": value, **mobility_metrics})
@@ -178,6 +183,10 @@ def build_batch_comparative_summary(
         )
         empty["density_preference_comparative"] = _build_density_preference_comparative(
             density_preference_candidates,
+            stable_metric=None,
+        )
+        empty["gregariousness_comparative"] = _build_gregariousness_comparative(
+            gregariousness_candidates,
             stable_metric=None,
         )
         empty["mobility_comparative"] = _build_mobility_comparative(
@@ -294,6 +303,10 @@ def build_batch_comparative_summary(
         density_preference_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["gregariousness_comparative"] = _build_gregariousness_comparative(
+        gregariousness_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
     summary["mobility_comparative"] = _build_mobility_comparative(
         mobility_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
@@ -396,6 +409,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     density_preference_raw = summary.get("density_preference_comparative")
     if isinstance(density_preference_raw, dict):
         lines.extend(_format_density_preference_comparative(batch_param, density_preference_raw))
+
+    gregariousness_raw = summary.get("gregariousness_comparative")
+    if isinstance(gregariousness_raw, dict):
+        lines.extend(_format_gregariousness_comparative(batch_param, gregariousness_raw))
 
     mobility_raw = summary.get("mobility_comparative")
     if isinstance(mobility_raw, dict):
@@ -1219,6 +1236,140 @@ def _build_density_preference_comparative(
         "best_seek_usage": _build_peak_metric(density_preference_candidates, "seek_usage_per_tick"),
         "best_avoid_usage": _build_peak_metric(density_preference_candidates, "avoid_usage_per_tick"),
         "best_avoid_share": _build_peak_metric(density_preference_candidates, "avoid_usage_share"),
+        "most_stable_config": stable_result,
+        "usage_note": usage_note,
+    }
+
+
+def _format_gregariousness_comparative(
+    batch_param: str,
+    gregariousness_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["gregariousness_batch:"]
+
+    if not bool(gregariousness_summary.get("available", False)):
+        note = str(gregariousness_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_gregariousness: n/a ({note})")
+        return lines
+
+    seek_usage = _read_metric_result(gregariousness_summary.get("best_seek_usage"))
+    avoid_usage = _read_metric_result(gregariousness_summary.get("best_avoid_usage"))
+    seek_bias = _read_metric_result(gregariousness_summary.get("best_seek_bias"))
+    avoid_bias = _read_metric_result(gregariousness_summary.get("best_avoid_bias"))
+    proximity_effect = _read_metric_result(gregariousness_summary.get("best_local_proximity_effect"))
+    gregariousness_dispersion = _read_metric_result(gregariousness_summary.get("best_gregariousness_dispersion"))
+    stable_config = _read_metric_result(gregariousness_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_seek_gregariousness_max: {label} (freq_seek_moy={value:.3f})".format(
+            label=_winner_label(batch_param, seek_usage.get("winners")),
+            value=float(seek_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_avoid_gregariousness_max: {label} (freq_avoid_moy={value:.3f})".format(
+            label=_winner_label(batch_param, avoid_usage.get("winners")),
+            value=float(avoid_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "biais_seek_gregariousness_max: {label} (bias_seek_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, seek_bias.get("winners")),
+            value=float(seek_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "biais_avoid_gregariousness_min: {label} (bias_avoid_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, avoid_bias.get("winners")),
+            value=float(avoid_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "effet_proximite_locale_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, proximity_effect.get("winners")),
+            value=float(proximity_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_gregariousness_max: {label} (gr_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, gregariousness_dispersion.get("winners")),
+            value=float(gregariousness_dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    usage_note = str(gregariousness_summary.get("usage_note", "")).strip()
+    if usage_note:
+        lines.append(f"note_gregariousness: {usage_note}")
+    else:
+        lines.append(
+            "note_gregariousness: seek/avoid en usages moyens/tick; biais_seek=bias usage seek max, biais_avoid=bias usage avoid min; effet_proximite=abs(delta_centre_gr)"
+        )
+
+    return lines
+
+
+def _build_gregariousness_comparative(
+    gregariousness_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(gregariousness_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact gregariousness",
+            "best_seek_usage": _insufficient_metric_result(),
+            "best_avoid_usage": _insufficient_metric_result(),
+            "best_seek_bias": _insufficient_metric_result(),
+            "best_avoid_bias": _insufficient_metric_result(),
+            "best_local_proximity_effect": _insufficient_metric_result(),
+            "best_gregariousness_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "usage_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    guided_signal_max = max(candidate["guided_usage_total"] for candidate in gregariousness_candidates)
+    usage_note = ""
+    if guided_signal_max <= 0.0:
+        usage_note = "usage seek/avoid nul: interpretation limitee (aucun guidage gregariousness observe)"
+
+    return {
+        "available": True,
+        "best_seek_usage": _build_peak_metric(gregariousness_candidates, "seek_usage_per_tick"),
+        "best_avoid_usage": _build_peak_metric(gregariousness_candidates, "avoid_usage_per_tick"),
+        "best_seek_bias": _build_peak_metric(gregariousness_candidates, "seek_usage_bias"),
+        "best_avoid_bias": _build_low_metric(gregariousness_candidates, "avoid_usage_bias"),
+        "best_local_proximity_effect": _build_peak_metric(
+            gregariousness_candidates,
+            "local_proximity_effect_abs",
+        ),
+        "best_gregariousness_dispersion": _build_peak_metric(
+            gregariousness_candidates,
+            "gregariousness_dispersion",
+        ),
         "most_stable_config": stable_result,
         "usage_note": usage_note,
     }
@@ -2290,6 +2441,42 @@ def _read_density_preference_metrics(summary_raw: Dict[str, object]) -> Dict[str
         "seek_usage_per_tick": max(0.0, seek_usage),
         "avoid_usage_per_tick": max(0.0, avoid_usage),
         "avoid_usage_share": max(0.0, min(1.0, avoid_share)),
+    }
+
+
+def _read_gregariousness_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "gregariousness_std",
+        "gregariousness_guided_total",
+        "gregariousness_seek_usage_per_tick",
+        "gregariousness_avoid_usage_per_tick",
+        "gregariousness_seek_usage_bias",
+        "gregariousness_avoid_usage_bias",
+        "gregariousness_center_distance_delta",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    gregariousness_std = float(avg_trait_raw.get("gregariousness_std", 0.0))
+    guided_total = float(avg_trait_raw.get("gregariousness_guided_total", 0.0))
+    seek_usage = float(avg_trait_raw.get("gregariousness_seek_usage_per_tick", 0.0))
+    avoid_usage = float(avg_trait_raw.get("gregariousness_avoid_usage_per_tick", 0.0))
+    seek_bias = float(avg_trait_raw.get("gregariousness_seek_usage_bias", 0.0))
+    avoid_bias = float(avg_trait_raw.get("gregariousness_avoid_usage_bias", 0.0))
+    center_delta = float(avg_trait_raw.get("gregariousness_center_distance_delta", 0.0))
+
+    return {
+        "gregariousness_dispersion": max(0.0, gregariousness_std),
+        "guided_usage_total": max(0.0, guided_total),
+        "seek_usage_per_tick": max(0.0, seek_usage),
+        "avoid_usage_per_tick": max(0.0, avoid_usage),
+        "seek_usage_bias": seek_bias,
+        "avoid_usage_bias": avoid_bias,
+        "local_proximity_effect_abs": abs(center_delta),
     }
 
 

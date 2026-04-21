@@ -1662,6 +1662,126 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("hunger_sensitivity_batch:", text)
         self.assertIn("donnees_hunger_sensitivity: n/a", text)
 
+    def test_gregariousness_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "gregariousness_std": 0.03,
+                        "gregariousness_guided_total": 4.0,
+                        "gregariousness_seek_usage_per_tick": 0.20,
+                        "gregariousness_avoid_usage_per_tick": 0.10,
+                        "gregariousness_seek_usage_bias": 0.02,
+                        "gregariousness_avoid_usage_bias": -0.01,
+                        "gregariousness_center_distance_delta": -0.04,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "gregariousness_std": 0.08,
+                        "gregariousness_guided_total": 10.0,
+                        "gregariousness_seek_usage_per_tick": 0.35,
+                        "gregariousness_avoid_usage_per_tick": 0.18,
+                        "gregariousness_seek_usage_bias": 0.07,
+                        "gregariousness_avoid_usage_bias": -0.03,
+                        "gregariousness_center_distance_delta": -0.09,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "gregariousness_std": 0.05,
+                        "gregariousness_guided_total": 8.0,
+                        "gregariousness_seek_usage_per_tick": 0.15,
+                        "gregariousness_avoid_usage_per_tick": 0.29,
+                        "gregariousness_seek_usage_bias": 0.01,
+                        "gregariousness_avoid_usage_bias": -0.08,
+                        "gregariousness_center_distance_delta": 0.13,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        gregariousness = summary.get("gregariousness_comparative")
+
+        self.assertIsInstance(gregariousness, dict)
+        assert isinstance(gregariousness, dict)
+        self.assertTrue(bool(gregariousness.get("available", False)))
+        self.assertEqual(gregariousness["best_seek_usage"]["winners"], [0.1])
+        self.assertAlmostEqual(float(gregariousness["best_seek_usage"]["value"]), 0.35)
+        self.assertEqual(gregariousness["best_avoid_usage"]["winners"], [0.2])
+        self.assertAlmostEqual(float(gregariousness["best_avoid_usage"]["value"]), 0.29)
+        self.assertEqual(gregariousness["best_seek_bias"]["winners"], [0.1])
+        self.assertAlmostEqual(float(gregariousness["best_seek_bias"]["value"]), 0.07)
+        self.assertEqual(gregariousness["best_avoid_bias"]["winners"], [0.2])
+        self.assertAlmostEqual(float(gregariousness["best_avoid_bias"]["value"]), -0.08)
+        self.assertEqual(gregariousness["best_local_proximity_effect"]["winners"], [0.2])
+        self.assertAlmostEqual(float(gregariousness["best_local_proximity_effect"]["value"]), 0.13)
+        self.assertEqual(gregariousness["best_gregariousness_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(float(gregariousness["best_gregariousness_dispersion"]["value"]), 0.08)
+        self.assertEqual(gregariousness["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("gregariousness_batch:", text)
+        self.assertIn("usage_seek_gregariousness_max:", text)
+        self.assertIn("usage_avoid_gregariousness_max:", text)
+        self.assertIn("biais_seek_gregariousness_max:", text)
+        self.assertIn("biais_avoid_gregariousness_min:", text)
+        self.assertIn("effet_proximite_locale_max:", text)
+        self.assertIn("dispersion_gregariousness_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_gregariousness_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "gregariousness_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        gregariousness = summary.get("gregariousness_comparative")
+
+        self.assertIsInstance(gregariousness, dict)
+        assert isinstance(gregariousness, dict)
+        self.assertFalse(bool(gregariousness.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(gregariousness.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("gregariousness_batch:", text)
+        self.assertIn("donnees_gregariousness: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 
