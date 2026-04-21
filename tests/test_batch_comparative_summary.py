@@ -1557,6 +1557,111 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("stress_tolerance_batch:", text)
         self.assertIn("ambiguite_stress_tolerance: effet_sous_pression", text)
 
+    def test_hunger_sensitivity_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "hunger_sensitivity_std": 0.03,
+                        "hunger_sensitivity_search_bias": 0.02,
+                        "hunger_search_usage_per_tick": 0.9,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "hunger_sensitivity_std": 0.07,
+                        "hunger_sensitivity_search_bias": -0.05,
+                        "hunger_search_usage_per_tick": 1.4,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "hunger_sensitivity_std": 0.05,
+                        "hunger_sensitivity_search_bias": 0.09,
+                        "hunger_search_usage_per_tick": 1.1,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        hunger = summary.get("hunger_comparative")
+
+        self.assertIsInstance(hunger, dict)
+        assert isinstance(hunger, dict)
+        self.assertTrue(bool(hunger.get("available", False)))
+        self.assertEqual(hunger["best_hunger_threshold_effect"]["winners"], [0.2])
+        self.assertAlmostEqual(float(hunger["best_hunger_threshold_effect"]["value"]), 0.09)
+        self.assertEqual(hunger["best_earlier_food_search"]["winners"], [0.2])
+        self.assertAlmostEqual(float(hunger["best_earlier_food_search"]["value"]), 0.09)
+        self.assertEqual(hunger["best_later_food_search"]["winners"], [0.1])
+        self.assertAlmostEqual(float(hunger["best_later_food_search"]["value"]), 0.05)
+        self.assertEqual(hunger["best_hunger_search_frequency"]["winners"], [0.1])
+        self.assertAlmostEqual(float(hunger["best_hunger_search_frequency"]["value"]), 1.4)
+        self.assertEqual(hunger["best_hunger_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(float(hunger["best_hunger_dispersion"]["value"]), 0.07)
+        self.assertEqual(hunger["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("hunger_sensitivity_batch:", text)
+        self.assertIn("effet_seuil_faim_max:", text)
+        self.assertIn("recherche_plus_precoce_max:", text)
+        self.assertIn("recherche_plus_tardive_max:", text)
+        self.assertIn("frequence_recherche_faim_max:", text)
+        self.assertIn("dispersion_hunger_sensitivity_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_hunger_sensitivity_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "hunger_sensitivity_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        hunger = summary.get("hunger_comparative")
+
+        self.assertIsInstance(hunger, dict)
+        assert isinstance(hunger, dict)
+        self.assertFalse(bool(hunger.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(hunger.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("hunger_sensitivity_batch:", text)
+        self.assertIn("donnees_hunger_sensitivity: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

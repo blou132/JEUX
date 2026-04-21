@@ -47,6 +47,7 @@ def build_batch_comparative_summary(
     environmental_candidates: list[Dict[str, float]] = []
     reproduction_timing_candidates: list[Dict[str, float]] = []
     stress_candidates: list[Dict[str, float]] = []
+    hunger_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -131,6 +132,10 @@ def build_batch_comparative_summary(
         if stress_metrics is not None:
             stress_candidates.append({"value": value, **stress_metrics})
 
+        hunger_metrics = _read_hunger_metrics(summary_raw)
+        if hunger_metrics is not None:
+            hunger_candidates.append({"value": value, **hunger_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -193,6 +198,10 @@ def build_batch_comparative_summary(
         )
         empty["stress_comparative"] = _build_stress_comparative(
             stress_candidates,
+            stable_metric=None,
+        )
+        empty["hunger_comparative"] = _build_hunger_comparative(
+            hunger_candidates,
             stable_metric=None,
         )
         return empty
@@ -305,6 +314,10 @@ def build_batch_comparative_summary(
         stress_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["hunger_comparative"] = _build_hunger_comparative(
+        hunger_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -403,6 +416,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     stress_raw = summary.get("stress_comparative")
     if isinstance(stress_raw, dict):
         lines.extend(_format_stress_comparative(batch_param, stress_raw))
+
+    hunger_raw = summary.get("hunger_comparative")
+    if isinstance(hunger_raw, dict):
+        lines.extend(_format_hunger_comparative(batch_param, hunger_raw))
 
     return "\n".join(lines)
 
@@ -1840,6 +1857,173 @@ def _build_stress_comparative(
     }
 
 
+def _format_hunger_comparative(
+    batch_param: str,
+    hunger_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["hunger_sensitivity_batch:"]
+
+    if not bool(hunger_summary.get("available", False)):
+        note = str(hunger_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_hunger_sensitivity: n/a ({note})")
+        return lines
+
+    threshold_effect = _read_metric_result(hunger_summary.get("best_hunger_threshold_effect"))
+    earlier_search = _read_metric_result(hunger_summary.get("best_earlier_food_search"))
+    later_search = _read_metric_result(hunger_summary.get("best_later_food_search"))
+    search_usage = _read_metric_result(hunger_summary.get("best_hunger_search_frequency"))
+    hunger_dispersion = _read_metric_result(hunger_summary.get("best_hunger_dispersion"))
+    stable_config = _read_metric_result(hunger_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_seuil_faim_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, threshold_effect.get("winners")),
+            value=float(threshold_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "recherche_plus_precoce_max: {label} (impact_moy={value:.3f})".format(
+            label=_winner_label(batch_param, earlier_search.get("winners")),
+            value=float(earlier_search.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "recherche_plus_tardive_max: {label} (impact_moy={value:.3f})".format(
+            label=_winner_label(batch_param, later_search.get("winners")),
+            value=float(later_search.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "frequence_recherche_faim_max: {label} (freq_moy={value:.3f})".format(
+            label=_winner_label(batch_param, search_usage.get("winners")),
+            value=float(search_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_hunger_sensitivity_max: {label} (hs_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, hunger_dispersion.get("winners")),
+            value=float(hunger_dispersion.get("value", 0.0)),
+        )
+    )
+
+    ambiguity_labels: list[str] = []
+    if bool(threshold_effect.get("tie", False)):
+        ambiguity_labels.append("effet_seuil_faim")
+    if bool(earlier_search.get("tie", False)):
+        ambiguity_labels.append("recherche_plus_precoce")
+    if bool(later_search.get("tie", False)):
+        ambiguity_labels.append("recherche_plus_tardive")
+    if bool(search_usage.get("tie", False)):
+        ambiguity_labels.append("frequence_recherche_faim")
+    if bool(hunger_dispersion.get("tie", False)):
+        ambiguity_labels.append("dispersion_hunger_sensitivity")
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+        if bool(stable_config.get("tie", False)):
+            ambiguity_labels.append("configuration_plus_stable")
+
+    if len(ambiguity_labels) > 0:
+        lines.append(f"ambiguite_hunger_sensitivity: {', '.join(ambiguity_labels)}")
+
+    hunger_note = str(hunger_summary.get("hunger_note", "")).strip()
+    if hunger_note:
+        lines.append(f"note_hunger_sensitivity: {hunger_note}")
+    else:
+        lines.append(
+            "note_hunger_sensitivity: effet_seuil_faim=abs(hunger_sensitivity_search_bias), precoce=max(0,bias_hs_search), tardive=max(0,-bias_hs_search), freq=hunger_search_usage_per_tick, dispersion=hunger_sensitivity_std"
+        )
+
+    return lines
+
+
+def _build_hunger_comparative(
+    hunger_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(hunger_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact hunger_sensitivity",
+            "best_hunger_threshold_effect": _insufficient_metric_result(),
+            "best_earlier_food_search": _insufficient_metric_result(),
+            "best_later_food_search": _insufficient_metric_result(),
+            "best_hunger_search_frequency": _insufficient_metric_result(),
+            "best_hunger_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "hunger_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    earlier_signal_max = max(candidate["earlier_food_search_strength"] for candidate in hunger_candidates)
+    later_signal_max = max(candidate["later_food_search_strength"] for candidate in hunger_candidates)
+    usage_signal_max = max(candidate["hunger_search_usage_per_tick"] for candidate in hunger_candidates)
+    hunger_note = ""
+    if earlier_signal_max <= 0.0 and later_signal_max <= 0.0:
+        hunger_note = (
+            "biais de recherche faim non differenciant observe (bias_hs_search ~= 0): lecture precoce/tardive limitee"
+        )
+    elif earlier_signal_max <= 0.0:
+        hunger_note = (
+            "aucune tendance recherche plus precoce observee (bias_hs_search > 0 non detecte)"
+        )
+    elif later_signal_max <= 0.0:
+        hunger_note = (
+            "aucune tendance recherche plus tardive observee (bias_hs_search < 0 non detecte)"
+        )
+    elif usage_signal_max <= 0.0:
+        hunger_note = (
+            "frequence de recherche faim nulle/non observee: interpretation usage hunger_sensitivity limitee"
+        )
+
+    return {
+        "available": True,
+        "best_hunger_threshold_effect": _build_peak_metric(
+            hunger_candidates,
+            "hunger_threshold_effect_strength",
+        ),
+        "best_earlier_food_search": _build_peak_metric(
+            hunger_candidates,
+            "earlier_food_search_strength",
+        ),
+        "best_later_food_search": _build_peak_metric(
+            hunger_candidates,
+            "later_food_search_strength",
+        ),
+        "best_hunger_search_frequency": _build_peak_metric(
+            hunger_candidates,
+            "hunger_search_usage_per_tick",
+        ),
+        "best_hunger_dispersion": _build_peak_metric(
+            hunger_candidates,
+            "hunger_dispersion",
+        ),
+        "most_stable_config": stable_result,
+        "hunger_note": hunger_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -2244,6 +2428,32 @@ def _read_stress_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | N
         "flee_modulation_strength": abs(flee_bias),
         "stress_pressure_events": max(0.0, pressure_events),
         "stress_pressure_flee_rate": max(0.0, pressure_flee_rate),
+    }
+
+
+def _read_hunger_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "hunger_sensitivity_std",
+        "hunger_sensitivity_search_bias",
+        "hunger_search_usage_per_tick",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    hunger_std = float(avg_trait_raw.get("hunger_sensitivity_std", 0.0))
+    hunger_search_bias = float(avg_trait_raw.get("hunger_sensitivity_search_bias", 0.0))
+    hunger_search_usage = float(avg_trait_raw.get("hunger_search_usage_per_tick", 0.0))
+
+    return {
+        "hunger_dispersion": max(0.0, hunger_std),
+        "hunger_threshold_effect_strength": abs(hunger_search_bias),
+        "earlier_food_search_strength": max(0.0, hunger_search_bias),
+        "later_food_search_strength": max(0.0, -hunger_search_bias),
+        "hunger_search_usage_per_tick": max(0.0, hunger_search_usage),
     }
 
 

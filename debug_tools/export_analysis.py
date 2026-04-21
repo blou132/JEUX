@@ -202,6 +202,9 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "reproduction_timing": _parse_float(
                 row.get("run_summary.avg_traits.reproduction_timing")
             ),
+            "hunger_sensitivity": _parse_float(
+                row.get("run_summary.avg_traits.hunger_sensitivity")
+            ),
         },
         "memory_impact": {
             "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
@@ -277,6 +280,12 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "reproduction_timing_std": _parse_float(
                 row.get("run_summary.trait_impact.reproduction_timing_std")
             ),
+            "hunger_sensitivity_mean": _parse_float(
+                row.get("run_summary.trait_impact.hunger_sensitivity_mean")
+            ),
+            "hunger_sensitivity_std": _parse_float(
+                row.get("run_summary.trait_impact.hunger_sensitivity_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
             ),
@@ -285,6 +294,12 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "reproduction_timing_reproduction_bias": _parse_float(
                 row.get("run_summary.trait_impact.reproduction_timing_reproduction_bias")
+            ),
+            "hunger_sensitivity_search_bias": _parse_float(
+                row.get("run_summary.trait_impact.hunger_sensitivity_search_bias")
+            ),
+            "hunger_search_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.hunger_search_usage_per_tick")
             ),
             "energy_drain_multiplier_observed": _parse_float(
                 row.get("run_summary.trait_impact.energy_drain_multiplier_observed")
@@ -480,6 +495,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "reproduction_timing": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.reproduction_timing")
             ),
+            "hunger_sensitivity": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.hunger_sensitivity")
+            ),
         },
         "most_frequent_final_dominant_group": row.get(
             "multi_run_summary.most_frequent_final_dominant_group",
@@ -569,6 +587,12 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "reproduction_timing_std": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.reproduction_timing_std")
             ),
+            "hunger_sensitivity_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_mean")
+            ),
+            "hunger_sensitivity_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_std")
+            ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
             ),
@@ -577,6 +601,12 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "reproduction_timing_reproduction_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.reproduction_timing_reproduction_bias")
+            ),
+            "hunger_sensitivity_search_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_search_bias")
+            ),
+            "hunger_search_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.hunger_search_usage_per_tick")
             ),
             "energy_drain_multiplier_observed": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")
@@ -782,6 +812,9 @@ def _build_batch_payload_from_csv(
                 "reproduction_timing": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.reproduction_timing")
                 ),
+                "hunger_sensitivity": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.hunger_sensitivity")
+                ),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
                 "multi_run_summary.most_frequent_final_dominant_group",
@@ -871,6 +904,12 @@ def _build_batch_payload_from_csv(
                 "reproduction_timing_std": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_timing_std")
                 ),
+                "hunger_sensitivity_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_mean")
+                ),
+                "hunger_sensitivity_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_std")
+                ),
                 "energy_efficiency_drain_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
                 ),
@@ -879,6 +918,12 @@ def _build_batch_payload_from_csv(
                 ),
                 "reproduction_timing_reproduction_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.reproduction_timing_reproduction_bias")
+                ),
+                "hunger_sensitivity_search_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_search_bias")
+                ),
+                "hunger_search_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.hunger_search_usage_per_tick")
                 ),
                 "energy_drain_multiplier_observed": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_drain_multiplier_observed")

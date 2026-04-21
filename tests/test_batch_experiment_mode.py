@@ -75,6 +75,12 @@ class BatchExperimentModeTests(unittest.TestCase):
         self.assertIn("distance_deplacement_observee_max:", output)
         self.assertIn("frequence_mouvement_utile_max:", output)
         self.assertIn("dispersion_mobilite_max:", output)
+        self.assertIn("hunger_sensitivity_batch:", output)
+        self.assertIn("effet_seuil_faim_max:", output)
+        self.assertIn("recherche_plus_precoce_max:", output)
+        self.assertIn("recherche_plus_tardive_max:", output)
+        self.assertIn("frequence_recherche_faim_max:", output)
+        self.assertIn("dispersion_hunger_sensitivity_max:", output)
 
     def test_batch_mode_json_export_created_and_coherent(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -148,6 +154,8 @@ class BatchExperimentModeTests(unittest.TestCase):
             self.assertIsInstance(reproduction_timing, dict)
             mobility = comparative.get("mobility_comparative")
             self.assertIsInstance(mobility, dict)
+            hunger = comparative.get("hunger_comparative")
+            self.assertIsInstance(hunger, dict)
             assert isinstance(energy, dict)
             self.assertIn("available", energy)
 
