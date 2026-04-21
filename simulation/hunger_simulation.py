@@ -170,7 +170,10 @@ class HungerSimulation:
         self.total_mobility_efficiency_sum_movement = 0.0
         self.movement_multiplier_sum_last_tick = 0.0
         self.total_movement_multiplier_sum = 0.0
+        self.movement_distance_sum_last_tick = 0.0
+        self.total_movement_distance_sum = 0.0
         self.avg_movement_multiplier_last_tick = 1.0
+        self.avg_movement_distance_last_tick = 0.0
 
         self.food_memory_guided_moves_last_tick = 0
         self.total_food_memory_guided_moves = 0
@@ -296,7 +299,9 @@ class HungerSimulation:
         self.movement_actions_last_tick = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
         self.movement_multiplier_sum_last_tick = 0.0
+        self.movement_distance_sum_last_tick = 0.0
         self.avg_movement_multiplier_last_tick = 1.0
+        self.avg_movement_distance_last_tick = 0.0
         self.food_memory_guided_moves_last_tick = 0
         self.danger_memory_avoid_moves_last_tick = 0
         self.memory_focus_sum_food_memory_last_tick = 0.0
@@ -531,13 +536,17 @@ class HungerSimulation:
                         self._wander(creature, dt, activity=1.0)
                     continue
 
+                step_distance = self._movement_step_distance(creature, dt, activity=1.0)
+                before_x = creature.x
+                before_y = creature.y
                 reached = creature.move_towards(
                     target_x=target.x,
                     target_y=target.y,
-                    max_distance=self._movement_step_distance(creature, dt, activity=1.0),
+                    max_distance=step_distance,
                 )
-                self._record_mobility_usage(creature)
                 self._clamp_creature_position(creature)
+                moved_distance = creature.distance_to(before_x, before_y)
+                self._record_mobility_usage(creature, moved_distance)
                 if reached:
                     eaten = self.food_field.consume(target.food_id, self.eat_rate * dt)
                     creature.add_energy(eaten)
@@ -617,8 +626,12 @@ class HungerSimulation:
             self.avg_movement_multiplier_last_tick = (
                 self.movement_multiplier_sum_last_tick / self.movement_actions_last_tick
             )
+            self.avg_movement_distance_last_tick = (
+                self.movement_distance_sum_last_tick / self.movement_actions_last_tick
+            )
         else:
             self.avg_movement_multiplier_last_tick = 1.0
+            self.avg_movement_distance_last_tick = 0.0
 
         # 4) Reproduction with simple inheritance + mutation.
         exhaustion_deaths = self._process_reproduction(intents)
@@ -800,9 +813,12 @@ class HungerSimulation:
             return False
 
         before_distance = distance_to_memory
+        before_x = creature.x
+        before_y = creature.y
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
-        self._record_mobility_usage(creature)
         self._clamp_creature_position(creature)
+        moved_distance = creature.distance_to(before_x, before_y)
+        self._record_mobility_usage(creature, moved_distance)
         after_distance = creature.distance_to(target_x, target_y)
         distance_gain = max(0.0, before_distance - after_distance)
 
@@ -840,9 +856,12 @@ class HungerSimulation:
         else:
             target_x = creature.x + dx
             target_y = creature.y + dy
+            before_x = creature.x
+            before_y = creature.y
             creature.move_towards(target_x=target_x, target_y=target_y, max_distance=step_distance)
-            self._record_mobility_usage(creature)
             self._clamp_creature_position(creature)
+            moved_distance = creature.distance_to(before_x, before_y)
+            self._record_mobility_usage(creature, moved_distance)
         after_distance = creature.distance_to(danger_x, danger_y)
         distance_gain = max(0.0, after_distance - before_distance)
 
@@ -904,13 +923,16 @@ class HungerSimulation:
         if step_distance <= 0.0:
             return False
 
+        before_x = creature.x
+        before_y = creature.y
         creature.move_towards(
             target_x=nearest_target[0],
             target_y=nearest_target[1],
             max_distance=step_distance,
         )
-        self._record_mobility_usage(creature)
         self._clamp_creature_position(creature)
+        moved_distance = creature.distance_to(before_x, before_y)
+        self._record_mobility_usage(creature, moved_distance)
         self.social_follow_moves_last_tick += 1
         self.total_social_follow_moves += 1
         self.social_sensitivity_sum_follow_last_tick += creature.traits.social_sensitivity
@@ -1059,9 +1081,12 @@ class HungerSimulation:
 
         target_x = creature.x + (dir_x * distance)
         target_y = creature.y + (dir_y * distance)
+        before_x = creature.x
+        before_y = creature.y
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=distance)
-        self._record_mobility_usage(creature)
         self._clamp_creature_position(creature)
+        moved_distance = creature.distance_to(before_x, before_y)
+        self._record_mobility_usage(creature, moved_distance)
 
         if anchor is not None and direction_mode is not None:
             after_anchor_distance = creature.distance_to(anchor[0], anchor[1])
@@ -1131,9 +1156,12 @@ class HungerSimulation:
 
         target_x = creature.x + dx
         target_y = creature.y + dy
+        before_x = creature.x
+        before_y = creature.y
         creature.move_towards(target_x=target_x, target_y=target_y, max_distance=flee_distance)
-        self._record_mobility_usage(creature)
         self._clamp_creature_position(creature)
+        moved_distance = creature.distance_to(before_x, before_y)
+        self._record_mobility_usage(creature, moved_distance)
 
     def _clamp_creature_position(self, creature: Creature) -> None:
         if self.world_map is not None:
@@ -1187,7 +1215,7 @@ class HungerSimulation:
             * dt
         )
 
-    def _record_mobility_usage(self, creature: Creature) -> None:
+    def _record_mobility_usage(self, creature: Creature, moved_distance: float) -> None:
         self.movement_actions_last_tick += 1
         self.total_movement_actions += 1
         self.mobility_efficiency_sum_movement_last_tick += creature.traits.mobility_efficiency
@@ -1195,6 +1223,9 @@ class HungerSimulation:
         multiplier = self._compute_mobility_efficiency_multiplier(creature)
         self.movement_multiplier_sum_last_tick += multiplier
         self.total_movement_multiplier_sum += multiplier
+        safe_distance = max(0.0, moved_distance)
+        self.movement_distance_sum_last_tick += safe_distance
+        self.total_movement_distance_sum += safe_distance
 
     def _resolve_fertility_zone(self, x: float, y: float) -> str:
         if self.fertility_zone_getter is None:

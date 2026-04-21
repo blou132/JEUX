@@ -157,6 +157,8 @@ def build_population_stats(
             "movement_usage_per_tick_total": 0.0,
             "avg_movement_multiplier_observed_last_tick": 1.0,
             "avg_movement_multiplier_observed_total": 1.0,
+            "avg_movement_distance_observed_last_tick": 0.0,
+            "avg_movement_distance_observed_total": 0.0,
             "mobility_efficiency_movement_users_avg_tick": 0.0,
             "mobility_efficiency_movement_users_avg_total": 0.0,
             "mobility_efficiency_movement_usage_bias_tick": 0.0,
@@ -589,6 +591,16 @@ def build_population_stats(
         simulation.total_movement_multiplier_sum / simulation.total_movement_actions
         if simulation.total_movement_actions > 0
         else 1.0
+    )
+    avg_movement_distance_observed_last_tick = (
+        simulation.movement_distance_sum_last_tick / simulation.movement_actions_last_tick
+        if simulation.movement_actions_last_tick > 0
+        else 0.0
+    )
+    avg_movement_distance_observed_total = (
+        simulation.total_movement_distance_sum / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
+        else 0.0
     )
     avg_mobility_efficiency_movement_users_tick = (
         simulation.mobility_efficiency_sum_movement_last_tick / simulation.movement_actions_last_tick
@@ -1182,6 +1194,8 @@ def build_population_stats(
         "movement_usage_per_tick_total": simulation.total_movement_actions / max(1, simulation.tick_count),
         "avg_movement_multiplier_observed_last_tick": avg_movement_multiplier_observed_last_tick,
         "avg_movement_multiplier_observed_total": avg_movement_multiplier_observed_total,
+        "avg_movement_distance_observed_last_tick": avg_movement_distance_observed_last_tick,
+        "avg_movement_distance_observed_total": avg_movement_distance_observed_total,
         "mobility_efficiency_movement_users_avg_tick": avg_mobility_efficiency_movement_users_tick,
         "mobility_efficiency_movement_users_avg_total": avg_mobility_efficiency_movement_users_total,
         "mobility_efficiency_movement_usage_bias_tick": mobility_efficiency_movement_usage_bias_tick,
@@ -1566,6 +1580,9 @@ def build_final_run_summary(
         "movement_multiplier_observed": float(
             final_stats.get("avg_movement_multiplier_observed_total", 1.0)
         ),
+        "movement_distance_observed": float(
+            final_stats.get("avg_movement_distance_observed_total", 0.0)
+        ),
         "movement_usage_per_tick": float(final_stats.get("movement_usage_per_tick_total", 0.0)),
         "behavior_persistence_hold_bias": float(
             final_stats.get("behavior_persistence_hold_usage_bias_total", 0.0)
@@ -1780,6 +1797,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "risk_taking_flee_bias": 0.0,
                 "mobility_efficiency_movement_bias": 0.0,
                 "movement_multiplier_observed": 1.0,
+                "movement_distance_observed": 0.0,
                 "movement_usage_per_tick": 0.0,
                 "behavior_persistence_hold_bias": 0.0,
                 "exploration_bias_guided_bias": 0.0,
@@ -1924,6 +1942,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "risk_taking_flee_bias": 0.0,
         "mobility_efficiency_movement_bias": 0.0,
         "movement_multiplier_observed": 0.0,
+        "movement_distance_observed": 0.0,
         "movement_usage_per_tick": 0.0,
         "behavior_persistence_hold_bias": 0.0,
         "exploration_bias_guided_bias": 0.0,
@@ -2157,6 +2176,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["movement_multiplier_observed"] += float(
                     trait_impact_raw.get("movement_multiplier_observed", 1.0)
+                )
+                avg_trait_impact_acc["movement_distance_observed"] += float(
+                    trait_impact_raw.get("movement_distance_observed", 0.0)
                 )
                 avg_trait_impact_acc["movement_usage_per_tick"] += float(
                     trait_impact_raw.get("movement_usage_per_tick", 0.0)
@@ -2412,6 +2434,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "movement_multiplier_observed": (
                 avg_trait_impact_acc["movement_multiplier_observed"] / run_count
+            ),
+            "movement_distance_observed": (
+                avg_trait_impact_acc["movement_distance_observed"] / run_count
             ),
             "movement_usage_per_tick": avg_trait_impact_acc["movement_usage_per_tick"] / run_count,
             "behavior_persistence_hold_bias": avg_trait_impact_acc["behavior_persistence_hold_bias"] / run_count,

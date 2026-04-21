@@ -44,6 +44,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle legere de tolerance environnementale (`environmental_tolerance`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de timing reproductif (`reproduction_timing`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de mobilite (`mobility_efficiency`) heritable, mutante et visible en stats/synthese/debug.
+- Evaluation legere de l'impact `mobility_efficiency` (moyenne/dispersion, frequence de mouvement, distance effective observee, biais d'usage chez les plus mobiles) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
@@ -234,8 +235,8 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Heredite simple + mutation legere via le pipeline genetique existant.
 - Observation dans les logs/syntheses:
   - ligne principale: `mobilite_trait_moy`
-  - `dynamique_*`: `traits_comp_moy` (`mo`), `traits_disp` (`mo_sigma`), `mobilite_tick` (`moves`, `freq`, `mult`) et `traits_bias_tick` (`mo_move`)
-  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`mo`) et `traits_impact` / `traits_impact_moy` (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_freq`)
+  - `dynamique_*`: `traits_comp_moy` (`mo`), `traits_disp` (`mo_sigma`), `mobilite_tick` (`moves`, `freq`, `mult`, `dist`, `dist_moy`) et `traits_bias_tick` (`mo_move`)
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`mo`) et `traits_impact` / `traits_impact_moy` (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`)
 
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.
@@ -764,7 +765,7 @@ Chaque bloc de log periodique contient:
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
 - `oscill_log` / `oscill_tick` dans `dynamique_*`: oscillations `search_food`<->`wander` (switch reels, switches evites par inertie, taux associes).
 - `perception_*` dans `dynamique_*`: usages reels perception (`perception_log`, `perception_tick`, `perception_freq_tick`) et biais tick (`perception_bias_tick`, incluant `rk_fuite`).
-- `mobilite_tick` dans `dynamique_*`: usage de deplacement (`moves`, `freq`, `freq_moy`, `mult`) et biais tick associe (`mo_move` dans `traits_bias_tick`).
+- `mobilite_tick` dans `dynamique_*`: usage de deplacement (`moves`, `freq`, `freq_moy`, `mult`, `dist`, `dist_moy`) et biais tick associe (`mo_move` dans `traits_bias_tick`).
 - `energie_traits_effets` dans `dynamique_*`: multiplicateurs moyens de drain/cout (`drain_mult`, `repro_mult`, `repro_timing_mult`) + effets observes (`drain_obs_mult`, `repro_obs_mult`, `repro_timing_obs_mult`, `drain_obs`, `repro_obs`), avec biais tick associes (`ee_drain`, `er_repro`, `rt_repro`).
 - `env_tick` dans `dynamique_*`: usage des zones de drain (`poor_evt`, `rich_evt`) + moyenne trait utilisateurs (`poor_mu`, `rich_mu`) + biais (`poor_bias`, `rich_bias`) + multiplicateur de zone observe (`zone_mult`).
 - `vieillissement_tick` dans `dynamique_*`: usure age observee (`act`, `freq`, `mult`) et biais d'usage `longevity_factor` (`lg_bias`).
@@ -772,12 +773,12 @@ Chaque bloc de log periodique contient:
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`) et le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`) et le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
 - le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`) et le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`) et le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
 - le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:
@@ -817,6 +818,7 @@ Avec les outils d'analyse:
 - pour l'impact `environmental_tolerance`, verifier dans `Batch Comparative Summary` le bloc `environmental_tolerance_batch` (effet zone pauvre/riche, dispersion, stabilite).
 - pour l'impact `reproduction_timing`, verifier dans `Batch Comparative Summary` le bloc `reproduction_timing_batch` (effet seuil reproductif, reproduction precoce/prudente, stabilite, et `ambiguite_reproduction_timing` en cas d'egalite).
 - pour l'impact `reproduction_timing` en run/multi-runs, verifier `timing_repro_moy`, `rt`/`rt_sigma`, `bias_rt_repro` et `repro_timing_mult`.
+- pour l'impact `mobility_efficiency` en run/multi-runs, verifier `mo`/`mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist` et `move_freq` ainsi que `mobilite_tick` (`dist`, `dist_moy`) dans `dynamique_*`.
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,

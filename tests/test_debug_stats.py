@@ -136,6 +136,8 @@ class DebugStatsTests(unittest.TestCase):
         self.assertIn("movement_usage_per_tick_total", stats)
         self.assertIn("avg_movement_multiplier_observed_last_tick", stats)
         self.assertIn("avg_movement_multiplier_observed_total", stats)
+        self.assertIn("avg_movement_distance_observed_last_tick", stats)
+        self.assertIn("avg_movement_distance_observed_total", stats)
         self.assertIn("mobility_efficiency_movement_users_avg_tick", stats)
         self.assertIn("mobility_efficiency_movement_users_avg_total", stats)
         self.assertIn("mobility_efficiency_movement_usage_bias_tick", stats)

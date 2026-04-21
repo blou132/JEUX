@@ -227,6 +227,11 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         if simulation.total_movement_actions > 0
         else 1.0
     )
+    movement_distance_avg_total = (
+        simulation.total_movement_distance_sum / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
+        else 0.0
+    )
 
     return {
         "alive_count": simulation.get_alive_count(),
@@ -403,6 +408,8 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_movement_actions": simulation.total_movement_actions,
         "movement_multiplier_avg_last_tick": simulation.avg_movement_multiplier_last_tick,
         "movement_multiplier_avg_total": movement_multiplier_avg_total,
+        "movement_distance_avg_last_tick": simulation.avg_movement_distance_last_tick,
+        "movement_distance_avg_total": movement_distance_avg_total,
         "mobility_efficiency_movement_users_avg_last_tick": (
             mobility_efficiency_movement_users_avg_last_tick
         ),

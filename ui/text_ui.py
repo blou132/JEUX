@@ -370,6 +370,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "risk_taking_flee_bias": 0.0,
         "mobility_efficiency_movement_bias": 0.0,
         "movement_multiplier_observed": 1.0,
+        "movement_distance_observed": 0.0,
         "movement_usage_per_tick": 0.0,
         "behavior_persistence_hold_bias": 0.0,
         "exploration_bias_guided_bias": 0.0,
@@ -528,6 +529,9 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["movement_multiplier_observed"] = float(
             trait_impact_raw.get("movement_multiplier_observed", 1.0)
         )
+        trait_impact["movement_distance_observed"] = float(
+            trait_impact_raw.get("movement_distance_observed", 0.0)
+        )
         trait_impact["movement_usage_per_tick"] = float(
             trait_impact_raw.get("movement_usage_per_tick", 0.0)
         )
@@ -652,7 +656,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
         "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
-        "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
+        "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total={bp_holds_total:.0f} "
@@ -738,6 +742,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         rt_repro_mult_obs=trait_impact["reproduction_timing_threshold_multiplier_observed"],
         move_mult_obs=trait_impact["movement_multiplier_observed"],
+        move_dist_obs=trait_impact["movement_distance_observed"],
         move_freq=trait_impact["movement_usage_per_tick"],
         drain_amt_obs=trait_impact["energy_drain_amount_observed"],
         repro_amt_obs=trait_impact["reproduction_cost_amount_observed"],
@@ -951,6 +956,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "risk_taking_flee_bias": 0.0,
         "mobility_efficiency_movement_bias": 0.0,
         "movement_multiplier_observed": 1.0,
+        "movement_distance_observed": 0.0,
         "movement_usage_per_tick": 0.0,
         "behavior_persistence_hold_bias": 0.0,
         "exploration_bias_guided_bias": 0.0,
@@ -1103,6 +1109,9 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["movement_multiplier_observed"] = float(
             trait_impact_raw.get("movement_multiplier_observed", 1.0)
         )
+        trait_impact["movement_distance_observed"] = float(
+            trait_impact_raw.get("movement_distance_observed", 0.0)
+        )
         trait_impact["movement_usage_per_tick"] = float(
             trait_impact_raw.get("movement_usage_per_tick", 0.0)
         )
@@ -1211,7 +1220,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
         "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
-        "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
+        "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs_moy:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
         "bias_soc_suivi={bias_soc_follow:+.3f} bias_soc_fuite={bias_soc_flee:+.3f} bias_fp_det={bias_fp_det:+.3f} bias_fp_eat={bias_fp_eat:+.3f} bias_tp_fuite={bias_tp_flee:+.3f} bias_rk_fuite={bias_rk_flee:+.3f} bias_bp_inertie={bias_bp_hold:+.3f} bias_explore={bias_explore:+.3f} inertie_total_moy={bp_holds_total:.2f} "
@@ -1293,6 +1302,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         rt_repro_mult_obs=trait_impact["reproduction_timing_threshold_multiplier_observed"],
         move_mult_obs=trait_impact["movement_multiplier_observed"],
+        move_dist_obs=trait_impact["movement_distance_observed"],
         move_freq=trait_impact["movement_usage_per_tick"],
         drain_amt_obs=trait_impact["energy_drain_amount_observed"],
         repro_amt_obs=trait_impact["reproduction_cost_amount_observed"],
@@ -1462,6 +1472,12 @@ def format_population_dynamics(
     movement_usage_total = float(stats.get("movement_usage_per_tick_total", 0.0))
     avg_movement_multiplier_observed_tick = float(
         stats.get("avg_movement_multiplier_observed_last_tick", 1.0)
+    )
+    avg_movement_distance_observed_tick = float(
+        stats.get("avg_movement_distance_observed_last_tick", 0.0)
+    )
+    avg_movement_distance_observed_total = float(
+        stats.get("avg_movement_distance_observed_total", 0.0)
     )
     search_wander_switches_tick = int(stats.get("search_wander_switches_last_tick", 0))
     search_wander_switches_prevented_tick = int(
@@ -1757,7 +1773,7 @@ def format_population_dynamics(
         f"oscill_log:sw={search_wander_switches_log} bloc={search_wander_switches_prevented_log} evts={search_wander_events_log} taux_sw={search_wander_switch_rate_log:.2f} taux_bloc={search_wander_prevented_rate_log:.2f} "
         f"oscill_tick:sw={search_wander_switches_tick} bloc={search_wander_switches_prevented_tick} evts={search_wander_events_tick} taux_sw={search_wander_switch_rate_tick:.2f} taux_bloc={search_wander_prevented_rate_tick:.2f} "
         f"perception_freq_tick:det={food_detection_usage_alive_tick:.2f} eat={food_consumption_usage_alive_tick:.2f} fuite={threat_detection_usage_alive_tick:.2f} "
-        f"mobilite_tick:moves={movement_actions_tick} freq={movement_usage_alive_tick:.2f} freq_moy={movement_usage_total:.2f} mult={avg_movement_multiplier_observed_tick:.2f} "
+        f"mobilite_tick:moves={movement_actions_tick} freq={movement_usage_alive_tick:.2f} freq_moy={movement_usage_total:.2f} mult={avg_movement_multiplier_observed_tick:.2f} dist={avg_movement_distance_observed_tick:.2f} dist_moy={avg_movement_distance_observed_total:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
         f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},mo={avg_mobility_efficiency:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f},env={avg_environmental_tolerance:.2f},rt={avg_reproduction_timing:.2f} "
