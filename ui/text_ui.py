@@ -252,6 +252,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "longevity_factor": 0.0,
         "environmental_tolerance": 0.0,
         "reproduction_timing": 0.0,
+        "hunger_sensitivity": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -274,6 +275,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
             traits_raw.get("environmental_tolerance", 0.0)
         )
         traits["reproduction_timing"] = float(traits_raw.get("reproduction_timing", 0.0))
+        traits["hunger_sensitivity"] = float(traits_raw.get("hunger_sensitivity", 0.0))
 
     memory = {
         "food_usage_total": 0,
@@ -348,9 +350,13 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "environmental_tolerance_std": 0.0,
         "reproduction_timing_mean": 0.0,
         "reproduction_timing_std": 0.0,
+        "hunger_sensitivity_mean": 0.0,
+        "hunger_sensitivity_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "reproduction_timing_reproduction_bias": 0.0,
+        "hunger_sensitivity_search_bias": 0.0,
+        "hunger_search_usage_per_tick": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "reproduction_timing_threshold_multiplier_observed": 1.0,
@@ -479,6 +485,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["reproduction_timing_std"] = float(
             trait_impact_raw.get("reproduction_timing_std", 0.0)
         )
+        trait_impact["hunger_sensitivity_mean"] = float(
+            trait_impact_raw.get("hunger_sensitivity_mean", 0.0)
+        )
+        trait_impact["hunger_sensitivity_std"] = float(
+            trait_impact_raw.get("hunger_sensitivity_std", 0.0)
+        )
         trait_impact["energy_efficiency_drain_bias"] = float(
             trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
         )
@@ -487,6 +499,12 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["reproduction_timing_reproduction_bias"] = float(
             trait_impact_raw.get("reproduction_timing_reproduction_bias", 0.0)
+        )
+        trait_impact["hunger_sensitivity_search_bias"] = float(
+            trait_impact_raw.get("hunger_sensitivity_search_bias", 0.0)
+        )
+        trait_impact["hunger_search_usage_per_tick"] = float(
+            trait_impact_raw.get("hunger_search_usage_per_tick", 0.0)
         )
         trait_impact["energy_drain_multiplier_observed"] = float(
             trait_impact_raw.get("energy_drain_multiplier_observed", 0.0)
@@ -683,7 +701,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "plus_stable={stable}(n={stable_count}) "
         "plus_hausse={rising}(n={rising_count}) "
         "zones_finales:riches={rich} neutres={neutral} pauvres={poor} "
-        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
+        "traits_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f},hs={hunger_sensitivity:.3f} "
         "memoire:util={mem_food} dang={mem_danger} act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
         "effet_u={mem_food_effect:.2f} effet_d={mem_danger_effect:.2f} "
@@ -691,7 +709,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
+        "traits_impact:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} hs_mu={hs_mu:.3f} hs_sigma={hs_sigma:.3f} "
         "energy_obs:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
@@ -701,7 +719,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         "densite:guides={dp_guided_total:.0f} seek={dp_seek_total:.0f} avoid={dp_avoid_total:.0f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
         "borderline:cas={rk_border_cases:.0f} fuite={rk_border_flees:.0f} taux={rk_border_rate:.3f} rk_border_mu={rk_border_mu:.3f} rk_fuite_mu={rk_border_flee_mu:.3f} rk_border_bias={rk_border_bias:+.3f} "
         "stress:cas={st_cases:.0f} fuite={st_flees:.0f} taux={st_rate:.3f} st_press_mu={st_press_mu:.3f} st_fuite_mu={st_flee_mu:.3f} "
-        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} "
+        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} bias_hs_search={bias_hs_search:+.3f} faim_search_freq={hunger_search_freq:.3f} "
         "logs_obs={observed_logs}"
     ).format(
         dominant=str(summary.get("final_dominant_group_signature", "-")),
@@ -731,6 +749,7 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         longevity_factor=traits["longevity_factor"],
         environmental_tolerance=traits["environmental_tolerance"],
         reproduction_timing=traits["reproduction_timing"],
+        hunger_sensitivity=traits["hunger_sensitivity"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -778,6 +797,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         env_sigma=trait_impact["environmental_tolerance_std"],
         rt_mu=trait_impact["reproduction_timing_mean"],
         rt_sigma=trait_impact["reproduction_timing_std"],
+        hs_mu=trait_impact["hunger_sensitivity_mean"],
+        hs_sigma=trait_impact["hunger_sensitivity_std"],
         drain_mult_obs=trait_impact["energy_drain_multiplier_observed"],
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         rt_repro_mult_obs=trait_impact["reproduction_timing_threshold_multiplier_observed"],
@@ -849,6 +870,8 @@ def format_final_run_summary(summary: Dict[str, object]) -> str:
         bias_rt_repro=trait_impact["reproduction_timing_reproduction_bias"],
         bias_mo_move=trait_impact["mobility_efficiency_movement_bias"],
         bias_st_flee=trait_impact["stress_tolerance_pressure_flee_bias"],
+        bias_hs_search=trait_impact["hunger_sensitivity_search_bias"],
+        hunger_search_freq=trait_impact["hunger_search_usage_per_tick"],
         observed_logs=int(summary.get("observed_logs", 0)),
     )
 
@@ -882,6 +905,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "longevity_factor": 0.0,
         "environmental_tolerance": 0.0,
         "reproduction_timing": 0.0,
+        "hunger_sensitivity": 0.0,
     }
     if isinstance(traits_raw, dict):
         traits["speed"] = float(traits_raw.get("speed", 0.0))
@@ -904,6 +928,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
             traits_raw.get("environmental_tolerance", 0.0)
         )
         traits["reproduction_timing"] = float(traits_raw.get("reproduction_timing", 0.0))
+        traits["hunger_sensitivity"] = float(traits_raw.get("hunger_sensitivity", 0.0))
 
     memory = {
         "food_usage_total": 0.0,
@@ -978,9 +1003,13 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "environmental_tolerance_std": 0.0,
         "reproduction_timing_mean": 0.0,
         "reproduction_timing_std": 0.0,
+        "hunger_sensitivity_mean": 0.0,
+        "hunger_sensitivity_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "reproduction_timing_reproduction_bias": 0.0,
+        "hunger_sensitivity_search_bias": 0.0,
+        "hunger_search_usage_per_tick": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "reproduction_timing_threshold_multiplier_observed": 1.0,
@@ -1103,6 +1132,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         trait_impact["reproduction_timing_std"] = float(
             trait_impact_raw.get("reproduction_timing_std", 0.0)
         )
+        trait_impact["hunger_sensitivity_mean"] = float(
+            trait_impact_raw.get("hunger_sensitivity_mean", 0.0)
+        )
+        trait_impact["hunger_sensitivity_std"] = float(
+            trait_impact_raw.get("hunger_sensitivity_std", 0.0)
+        )
         trait_impact["energy_efficiency_drain_bias"] = float(
             trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
         )
@@ -1111,6 +1146,12 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         )
         trait_impact["reproduction_timing_reproduction_bias"] = float(
             trait_impact_raw.get("reproduction_timing_reproduction_bias", 0.0)
+        )
+        trait_impact["hunger_sensitivity_search_bias"] = float(
+            trait_impact_raw.get("hunger_sensitivity_search_bias", 0.0)
+        )
+        trait_impact["hunger_search_usage_per_tick"] = float(
+            trait_impact_raw.get("hunger_search_usage_per_tick", 0.0)
         )
         trait_impact["energy_drain_multiplier_observed"] = float(
             trait_impact_raw.get("energy_drain_multiplier_observed", 0.0)
@@ -1290,7 +1331,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "extinctions={ext_count}/{runs} (taux={ext_rate:.2f}) "
         "gen_max_moy={avg_gen:.2f} "
         "pop_finale_moy={avg_pop:.2f} "
-        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f} "
+        "traits_finaux_moy:s={speed:.3f},m={metabolism:.3f},p={prudence:.3f},d={dominance:.3f},rk={risk_taking:.3f},st={stress_tolerance:.3f},r={repro:.3f},fp={food_perception:.3f},tp={threat_perception:.3f},bp={behavior_persistence:.3f},ex={exploration_bias:.3f},dp={density_preference:.3f},mo={mobility_efficiency:.3f},ee={energy_efficiency:.3f},er={exhaustion_resistance:.3f},lg={longevity_factor:.3f},env={environmental_tolerance:.3f},rt={reproduction_timing:.3f},hs={hunger_sensitivity:.3f} "
         "memoire_moy:util={mem_food:.2f} dang={mem_danger:.2f} "
         "act_u={mem_food_share:.2f} act_d={mem_danger_share:.2f} "
         "freq_u={mem_food_freq:.2f} freq_d={mem_danger_freq:.2f} "
@@ -1299,7 +1340,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "part_infl_tick={social_infl_share:.2f} infl_tick={social_infl_count:.2f} infl_moy_tick={social_infl_tick:.2f} "
         "freq_suivi={social_follow_freq:.2f} freq_boost={social_boost_freq:.2f} "
         "mult_tick={social_mult_tick:.2f} mult_moy={social_mult_total:.2f} "
-        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} "
+        "traits_impact_moy:mem_mu={mem_mu:.3f} mem_sigma={mem_sigma:.3f} soc_mu={soc_mu:.3f} soc_sigma={soc_sigma:.3f} fp_mu={fp_mu:.3f} fp_sigma={fp_sigma:.3f} tp_mu={tp_mu:.3f} tp_sigma={tp_sigma:.3f} rk_mu={rk_mu:.3f} rk_sigma={rk_sigma:.3f} st_mu={st_mu:.3f} st_sigma={st_sigma:.3f} bp_mu={bp_mu:.3f} bp_sigma={bp_sigma:.3f} ex_mu={ex_mu:.3f} ex_sigma={ex_sigma:.3f} dp_mu={dp_mu:.3f} dp_sigma={dp_sigma:.3f} mo_mu={mo_mu:.3f} mo_sigma={mo_sigma:.3f} ee_mu={ee_mu:.3f} ee_sigma={ee_sigma:.3f} er_mu={er_mu:.3f} er_sigma={er_sigma:.3f} lg_mu={lg_mu:.3f} lg_sigma={lg_sigma:.3f} env_mu={env_mu:.3f} env_sigma={env_sigma:.3f} rt_mu={rt_mu:.3f} rt_sigma={rt_sigma:.3f} hs_mu={hs_mu:.3f} hs_sigma={hs_sigma:.3f} "
         "energy_obs_moy:drain_mult={drain_mult_obs:.3f} repro_mult={repro_mult_obs:.3f} repro_timing_mult={rt_repro_mult_obs:.3f} move_mult={move_mult_obs:.3f} move_dist={move_dist_obs:.3f} move_freq={move_freq:.3f} drain_amt={drain_amt_obs:.3f} repro_amt={repro_amt_obs:.3f} agewear_freq={agewear_freq:.3f} agewear_mult={agewear_mult:.3f} lg_age_bias={lg_age_bias:+.3f} "
         "env_obs_moy:zone_mult={zone_mult_obs:.3f} poor_freq={env_poor_freq:.3f} rich_freq={env_rich_freq:.3f} poor_mu={env_poor_mu:.3f} rich_mu={env_rich_mu:.3f} poor_bias={env_poor_bias:+.3f} rich_bias={env_rich_bias:+.3f} "
         "bias_mem_u={bias_mem_u:+.3f} bias_mem_d={bias_mem_d:+.3f} "
@@ -1308,7 +1349,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         "exploration_moy:guides={ex_guided_total:.2f} part_explore={ex_explore_share:.3f} ex_mu={ex_explore_mu:.3f} st_mu={ex_settle_mu:.3f} ex_bias={ex_explore_bias:+.3f} st_bias={ex_settle_bias:+.3f} delta_ancre={ex_anchor_delta:+.3f} "
         "densite_moy:guides={dp_guided_total:.2f} seek={dp_seek_total:.2f} avoid={dp_avoid_total:.2f} part_seek={dp_seek_share:.3f} part_avoid={dp_avoid_share:.3f} freq_seek={dp_seek_freq:.3f} freq_avoid={dp_avoid_freq:.3f} seek_mu={dp_seek_mu:.3f} avoid_mu={dp_avoid_mu:.3f} dp_bias={dp_guided_bias:+.3f} seek_bias={dp_seek_bias:+.3f} avoid_bias={dp_avoid_bias:+.3f} dens_voisins={dp_neighbors:.2f} delta_centre={dp_center_delta:+.3f} "
         "stress_moy:cas={st_cases:.2f} fuite={st_flees:.2f} taux={st_rate:.3f} st_press_mu={st_press_mu:.3f} st_fuite_mu={st_flee_mu:.3f} "
-        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} "
+        "bias_ee_drain={bias_ee_drain:+.3f} bias_er_repro={bias_er_repro:+.3f} bias_rt_repro={bias_rt_repro:+.3f} bias_mo_move={bias_mo_move:+.3f} bias_st_fuite={bias_st_flee:+.3f} bias_hs_search={bias_hs_search:+.3f} faim_search_freq={hunger_search_freq:.3f} "
         "dominant_final_freq={dominant}(n={dom_count},part={dom_share:.2f})"
     ).format(
         runs=int(summary.get("runs", 0)),
@@ -1335,6 +1376,7 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         longevity_factor=traits["longevity_factor"],
         environmental_tolerance=traits["environmental_tolerance"],
         reproduction_timing=traits["reproduction_timing"],
+        hunger_sensitivity=traits["hunger_sensitivity"],
         mem_food=memory["food_usage_total"],
         mem_danger=memory["danger_usage_total"],
         mem_food_share=memory["food_active_share"],
@@ -1382,6 +1424,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         env_sigma=trait_impact["environmental_tolerance_std"],
         rt_mu=trait_impact["reproduction_timing_mean"],
         rt_sigma=trait_impact["reproduction_timing_std"],
+        hs_mu=trait_impact["hunger_sensitivity_mean"],
+        hs_sigma=trait_impact["hunger_sensitivity_std"],
         drain_mult_obs=trait_impact["energy_drain_multiplier_observed"],
         repro_mult_obs=trait_impact["reproduction_cost_multiplier_observed"],
         rt_repro_mult_obs=trait_impact["reproduction_timing_threshold_multiplier_observed"],
@@ -1447,6 +1491,8 @@ def format_multi_run_summary(summary: Dict[str, object]) -> str:
         bias_rt_repro=trait_impact["reproduction_timing_reproduction_bias"],
         bias_mo_move=trait_impact["mobility_efficiency_movement_bias"],
         bias_st_flee=trait_impact["stress_tolerance_pressure_flee_bias"],
+        bias_hs_search=trait_impact["hunger_sensitivity_search_bias"],
+        hunger_search_freq=trait_impact["hunger_search_usage_per_tick"],
         dominant=str(summary.get("most_frequent_final_dominant_group", "-")),
         dom_count=int(summary.get("most_frequent_final_dominant_group_count", 0)),
         dom_share=float(summary.get("most_frequent_final_dominant_group_share", 0.0)),

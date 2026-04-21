@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de tolerance au stress, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, et variabilite individuelle legere de mobilite/vitesse effective.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de tolerance au stress, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, variabilite individuelle legere de mobilite/vitesse effective, et sensibilite individuelle legere a la faim.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -45,7 +45,9 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle legere de tolerance environnementale (`environmental_tolerance`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de timing reproductif (`reproduction_timing`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de mobilite (`mobility_efficiency`) heritable, mutante et visible en stats/synthese/debug.
+- Variabilite individuelle legere de sensibilite a la faim (`hunger_sensitivity`) heritable, mutante et visible en stats/synthese/debug.
 - Evaluation legere de l'impact `mobility_efficiency` (moyenne/dispersion, frequence de mouvement, distance effective observee, biais d'usage chez les plus mobiles) visible en stats, synthese run, multi-runs, export et analyse.
+- Evaluation legere de l'impact `hunger_sensitivity` (moyenne/dispersion, frequence de recherche nourriture, biais d'usage du trait chez les chercheurs) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
@@ -240,6 +242,18 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`rt`) et `traits_impact` / `traits_impact_moy` (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`)
 - Exemple rapide:
   - `py main.py --seed 7 --steps 120 --log-interval 20`
+
+### Variabilite individuelle de sensibilite a la faim
+- Trait leger ajoute: `hunger_sensitivity`.
+- Effet volontairement limite:
+  - `hunger_sensitivity > 1.0`: declenche la recherche de nourriture un peu plus tot.
+  - `hunger_sensitivity < 1.0`: tolere un peu plus longtemps la faim avant recherche.
+- L'effet reste borne et ne casse pas les priorites critiques (fuite/mort/reproduction).
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - ligne principale: `faim_sens_moy`
+  - `dynamique_*`: `traits_comp_moy` (`hs`), `traits_disp` (`hs_sigma`), `traits_bias_tick` (`hs_search`) et `faim_tick` (`search_freq`)
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`hs`) et `traits_impact` / `traits_impact_moy` (`hs_mu`, `hs_sigma`, `bias_hs_search`, `faim_search_freq`)
 
 ### Variabilite individuelle de mobilite
 - Trait leger ajoute: `mobility_efficiency`.
@@ -793,11 +807,12 @@ py -m unittest tests.test_exploration_bias_trait
 py -m unittest tests.test_longevity_trait
 py -m unittest tests.test_environmental_tolerance_trait
 py -m unittest tests.test_reproduction_timing_trait
+py -m unittest tests.test_hunger_sensitivity_trait
 ```
 
 ## Lire les logs debug (indicateurs utiles)
 Chaque bloc de log periodique contient:
-- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `stress_tolerance`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `density_preference`, `mobility_efficiency`, `energy_efficiency`, `exhaustion_resistance`, `longevity_factor`, `environmental_tolerance`, `reproduction_timing`).
+- ligne principale: `population`, `vivants/morts`, `nourriture`, `energie_moy`, `age_moy`, `gen_moy`, naissances/deces, moyennes de traits (`prudence`, `dominance`, `risk_taking`, `stress_tolerance`, `repro_drive`, `memory_focus`, `social_sensitivity`, `behavior_persistence`, `exploration_bias`, `density_preference`, `mobility_efficiency`, `energy_efficiency`, `exhaustion_resistance`, `longevity_factor`, `environmental_tolerance`, `reproduction_timing`, `hunger_sensitivity`).
 - `generations:` distribution par generation (`g0`, `g1`, ...).
 - `proto_groupes:` nombre de groupes, part du dominant, top groupes et traits moyens.
 - `proto_tendance:` tendance temporelle des proto-groupes (`stable`, `hausse`, `baisse`, `nouveau`) entre logs.
@@ -807,7 +822,7 @@ Chaque bloc de log periodique contient:
 - `memoire_*:` creatures avec memoire active (utile/dangereuse), frequence d'usage, et effet moyen distance (tick/log).
 - `social_*:` influence sociale locale (suivi social vers nourriture, renforcement de fuite, part influencee, multiplicateur de fuite tick/moyen).
 - `traits_disp` / `traits_bias_tick` dans `dynamique_*`: dispersion des traits `memory_focus`/`social_sensitivity` et biais d'usage observables sur le tick.
-- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `st`/`st_sigma` pour la tolerance au stress, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, `mo`/`mo_sigma` pour la mobilite, `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique, `lg`/`lg_sigma` pour la longevite, `env`/`env_sigma` pour la tolerance environnementale, ainsi que `rt`/`rt_sigma` pour le timing reproductif.
+- `traits_comp_moy` / `traits_disp` dans `dynamique_*`: inclut aussi `fp`/`tp` (moyennes `food_perception`/`threat_perception`) et `fp_sigma`/`tp_sigma`, `rk`/`rk_sigma` pour la prise de risque, `st`/`st_sigma` pour la tolerance au stress, `bp`/`bp_sigma` pour la persistance comportementale, `ex`/`ex_sigma` pour l'exploration spatiale, `dp`/`dp_sigma` pour la preference de densite locale, `mo`/`mo_sigma` pour la mobilite, `ee`/`er` et `ee_sigma`/`er_sigma` pour l'endurance energetique, `lg`/`lg_sigma` pour la longevite, `env`/`env_sigma` pour la tolerance environnementale, `rt`/`rt_sigma` pour le timing reproductif, ainsi que `hs`/`hs_sigma` pour la sensibilite a la faim.
 - `exploration_log` / `exploration_tick` dans `dynamique_*`: usage observe du biais d'exploration (`guides`, `explore`, `settle`, `part_explore`, `ex_mu`, `st_mu`, `ex_bias`, `st_bias`, `delta_ancre`).
 - `densite_log` / `densite_tick` dans `dynamique_*`: usage observe de la preference de densite (`guides`, `seek`, `avoid`, `part_seek`, `part_avoid`, `freq_seek`, `freq_avoid`, `seek_mu`, `avoid_mu`, `dp_bias`, `seek_bias`, `avoid_bias`, `dens_voisins`, `delta_centre`).
 - `inertie_log` / `inertie_tick` dans `dynamique_*`: usage observe de la persistance d'intention.
@@ -822,12 +837,12 @@ Chaque bloc de log periodique contient:
 
 En fin de run:
 - bloc `--- Run Summary ---` avec dominant final, stabilite/hausse observees, zones finales, traits moyens, impact memoire cumule, impact social (`social:`) et impact des biais individuels (`traits_impact:`).
-- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress (`st_mu`, `st_sigma`, `stress:*`, `bias_st_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`) et le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact:` inclut aussi les mesures perception (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, `bias_fp_det`, `bias_fp_eat`, `bias_tp_fuite`), la prise de risque (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress (`st_mu`, `st_sigma`, `stress:*`, `bias_st_fuite`), la persistance comportementale (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total`), l'exploration spatiale (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale (`dp_mu`, `dp_sigma`, `densite:*`, plus biais `dp`/`seek`/`avoid`), la mobilite (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs`, `bias_ee_drain`, `bias_er_repro`), la longevite (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale (`env_mu`, `env_sigma`, `env_obs`), le timing reproductif (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`) et la sensibilite a la faim (`hs_mu`, `hs_sigma`, `bias_hs_search`, `faim_search_freq`).
 - le bloc `traits_impact:` inclut aussi `osc_bp` pour la lecture d'oscillation `search_food`<->`wander` (`switch`, `bloc`, `events`, `taux_switch`, `taux_bloc`).
 
 En mode multi-runs:
 - bloc `--- Multi-Run Summary ---` avec: nombre de runs, seeds, taux d'extinction, generation max moyenne, population finale moyenne, traits moyens finaux, dominant final le plus frequent, impact memoire moyen, impact social moyen (`social_moy:`) et impact moyen des biais individuels (`traits_impact_moy:`).
-- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress agregee (`st_mu`, `st_sigma`, `stress_moy:*`, `bias_st_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`) et le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`).
+- le bloc `traits_impact_moy:` inclut aussi les mesures perception agregees (`fp_mu`, `fp_sigma`, `tp_mu`, `tp_sigma`, biais perception), la prise de risque agregee (`rk_mu`, `rk_sigma`, `bias_rk_fuite`), la tolerance au stress agregee (`st_mu`, `st_sigma`, `stress_moy:*`, `bias_st_fuite`), la persistance comportementale agregee (`bp_mu`, `bp_sigma`, `bias_bp_inertie`, `inertie_total_moy`), l'exploration spatiale agregee (`ex_mu`, `ex_sigma`, `bias_explore`, `exploration_moy:*`, plus `ex_mu`/`st_mu` et biais `ex`/`st`), la preference de densite locale agregee (`dp_mu`, `dp_sigma`, `densite_moy:*`, plus biais `dp`/`seek`/`avoid`), la mobilite agregee (`mo_mu`, `mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist`, `move_freq`), les mesures d'endurance agregees (`ee_mu`, `ee_sigma`, `er_mu`, `er_sigma`, `energy_obs_moy`, biais `ee`/`er`), la longevite agregee (`lg_mu`, `lg_sigma`, `agewear_freq`, `agewear_mult`, `lg_age_bias`), la tolerance environnementale agregee (`env_mu`, `env_sigma`, `env_obs_moy`), le timing reproductif agrege (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`) et la sensibilite a la faim (`hs_mu`, `hs_sigma`, `bias_hs_search`, `faim_search_freq`).
 - le bloc `traits_impact_moy:` inclut aussi `osc_bp_moy` pour la lecture moyenne des oscillations `search_food`<->`wander` (switch, blocage inertie, taux).
 
 En mode batch:
