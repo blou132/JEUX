@@ -213,13 +213,15 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Trait leger ajoute: `reproduction_timing`.
 - Effet volontairement limite:
   - module legerement le seuil energetique de reproduction, sans casser les regles de reproduction existantes.
-  - `reproduction_timing > 1.0`: tendance a engager la reproduction avec un peu moins de marge energetique.
-  - `reproduction_timing < 1.0`: tendance a attendre un peu plus de marge energetique.
+- `reproduction_timing > 1.0`: tendance a attendre un peu plus de marge energetique.
+- `reproduction_timing < 1.0`: tendance a engager la reproduction un peu plus tot.
 - Heredite simple + mutation legere via le pipeline genetique existant.
 - Observation dans les logs/syntheses:
   - ligne principale: `timing_repro_moy`
   - `dynamique_*`: `traits_comp_moy` (`rt`), `traits_disp` (`rt_sigma`), `energie_traits_effets` (`repro_timing_mult`, `repro_timing_obs_mult`) et `traits_bias_tick` (`rt_repro`)
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`rt`) et `traits_impact` / `traits_impact_moy` (`rt_mu`, `rt_sigma`, `bias_rt_repro`, `repro_timing_mult`)
+- Exemple rapide:
+  - `py main.py --seed 7 --steps 120 --log-interval 20`
 
 ### Proto-groupes
 - Regroupement approximatif de sous-populations selon plusieurs traits.

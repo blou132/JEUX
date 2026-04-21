@@ -23,16 +23,16 @@ class FixedRandom:
 
 class ReproductionTimingTraitTests(unittest.TestCase):
     def test_reproduction_timing_lightly_modulates_reproduction_threshold(self) -> None:
-        early = Creature(
-            creature_id="early",
+        wait_more = Creature(
+            creature_id="wait_more",
             x=0.0,
             y=0.0,
             energy=69.0,
             traits=GeneticTraits(reproduction_timing=1.15, max_energy=100.0),
             age=1.0,
         )
-        late = Creature(
-            creature_id="late",
+        early = Creature(
+            creature_id="early",
             x=0.5,
             y=0.0,
             energy=69.0,
@@ -41,7 +41,7 @@ class ReproductionTimingTraitTests(unittest.TestCase):
         )
 
         sim = HungerSimulation(
-            creatures=[early, late],
+            creatures=[wait_more, early],
             food_field=FoodField(),
             ai_system=HungerAI(hunger_seek_threshold=0.6),
             energy_drain_rate=0.0,
@@ -50,8 +50,8 @@ class ReproductionTimingTraitTests(unittest.TestCase):
             random_source=random.Random(1201),
         )
 
+        self.assertFalse(sim._is_reproduction_eligible(wait_more))
         self.assertTrue(sim._is_reproduction_eligible(early))
-        self.assertFalse(sim._is_reproduction_eligible(late))
 
     def test_reproduction_timing_is_inherited_with_light_mutation(self) -> None:
         parent_a = GeneticTraits(reproduction_timing=1.1)
@@ -66,7 +66,7 @@ class ReproductionTimingTraitTests(unittest.TestCase):
             x=0.0,
             y=0.0,
             energy=120.0,
-            traits=GeneticTraits(reproduction_timing=1.15, max_energy=100.0),
+            traits=GeneticTraits(reproduction_timing=1.15, max_energy=150.0),
             age=1.0,
         )
         high_b = Creature(
@@ -74,7 +74,7 @@ class ReproductionTimingTraitTests(unittest.TestCase):
             x=0.4,
             y=0.0,
             energy=120.0,
-            traits=GeneticTraits(reproduction_timing=1.15, max_energy=100.0),
+            traits=GeneticTraits(reproduction_timing=1.15, max_energy=150.0),
             age=1.0,
         )
         low = Creature(
@@ -82,7 +82,7 @@ class ReproductionTimingTraitTests(unittest.TestCase):
             x=10.0,
             y=10.0,
             energy=120.0,
-            traits=GeneticTraits(reproduction_timing=0.85, max_energy=100.0),
+            traits=GeneticTraits(reproduction_timing=0.85, max_energy=150.0),
             age=1.0,
         )
 
@@ -114,7 +114,7 @@ class ReproductionTimingTraitTests(unittest.TestCase):
         self.assertGreater(float(stats["reproduction_timing_reproduction_usage_bias_tick"]), 0.0)
         self.assertAlmostEqual(
             float(stats["avg_reproduction_timing_threshold_multiplier_observed_last_tick"]),
-            0.97,
+            1.015,
             places=3,
         )
 

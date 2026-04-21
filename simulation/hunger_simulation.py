@@ -1136,9 +1136,9 @@ class HungerSimulation:
     @staticmethod
     def _compute_reproduction_timing_threshold_multiplier(creature: Creature) -> float:
         # Light individual bias:
-        # - >1.0 reproduces with slightly less energy margin.
-        # - <1.0 waits for slightly more margin.
-        return max(0.9, min(1.1, 1.0 - (0.2 * (creature.traits.reproduction_timing - 1.0))))
+        # - >1.0 waits for slightly more energy margin before reproducing.
+        # - <1.0 accepts reproducing with slightly less margin.
+        return max(0.9, min(1.1, 1.0 + (0.1 * (creature.traits.reproduction_timing - 1.0))))
 
     def _resolve_fertility_zone(self, x: float, y: float) -> str:
         if self.fertility_zone_getter is None:

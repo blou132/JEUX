@@ -32,8 +32,8 @@ class GeneticTraits:
     # - longevity_factor: >1.0 delays age-related wear, <1.0 accelerates it.
     # - environmental_tolerance: >1.0 slightly reduces zone-related drain pressure
     #   (especially in poor zones), <1.0 does the opposite.
-    # - reproduction_timing: >1.0 tends to reproduce with slightly less energy margin;
-    #   <1.0 tends to wait for slightly more energy margin.
+    # - reproduction_timing: >1.0 tends to wait for slightly more energy margin;
+    #   <1.0 tends to reproduce slightly earlier.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0

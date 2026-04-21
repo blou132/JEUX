@@ -357,7 +357,7 @@ def build_population_stats(
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
     avg_reproduction_timing_threshold_multiplier = max(
         0.9,
-        min(1.1, 1.0 - (0.2 * (avg_reproduction_timing - 1.0))),
+        min(1.1, 1.0 + (0.1 * (avg_reproduction_timing - 1.0))),
     )
     avg_energy_drain_amount_last_tick = (
         simulation.energy_drain_amount_last_tick / simulation.energy_drain_events_last_tick
