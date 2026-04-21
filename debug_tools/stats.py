@@ -74,6 +74,7 @@ def build_population_stats(
             "avg_behavior_persistence": 0.0,
             "avg_exploration_bias": 0.0,
             "avg_density_preference": 0.0,
+            "avg_mobility_efficiency": 0.0,
             "avg_energy_efficiency": 0.0,
             "avg_exhaustion_resistance": 0.0,
             "avg_longevity_factor": 0.0,
@@ -87,6 +88,7 @@ def build_population_stats(
             "std_behavior_persistence": 0.0,
             "std_exploration_bias": 0.0,
             "std_density_preference": 0.0,
+            "std_mobility_efficiency": 0.0,
             "std_energy_efficiency": 0.0,
             "std_exhaustion_resistance": 0.0,
             "std_longevity_factor": 0.0,
@@ -149,6 +151,16 @@ def build_population_stats(
             "reproduction_timing_reproduction_usage_bias_total": 0.0,
             "avg_reproduction_timing_threshold_multiplier_observed_last_tick": 1.0,
             "avg_reproduction_timing_threshold_multiplier_observed_total": 1.0,
+            "movement_actions_last_tick": 0,
+            "total_movement_actions": 0,
+            "movement_usage_per_alive_tick": 0.0,
+            "movement_usage_per_tick_total": 0.0,
+            "avg_movement_multiplier_observed_last_tick": 1.0,
+            "avg_movement_multiplier_observed_total": 1.0,
+            "mobility_efficiency_movement_users_avg_tick": 0.0,
+            "mobility_efficiency_movement_users_avg_total": 0.0,
+            "mobility_efficiency_movement_usage_bias_tick": 0.0,
+            "mobility_efficiency_movement_usage_bias_total": 0.0,
             "proto_group_count": 0,
             "proto_groups_top": [],
             "dominant_proto_group_share": 0.0,
@@ -346,6 +358,7 @@ def build_population_stats(
     avg_behavior_persistence = sum(c.traits.behavior_persistence for c in simulation.creatures) / total
     avg_exploration_bias = sum(c.traits.exploration_bias for c in simulation.creatures) / total
     avg_density_preference = sum(c.traits.density_preference for c in simulation.creatures) / total
+    avg_mobility_efficiency = sum(c.traits.mobility_efficiency for c in simulation.creatures) / total
     avg_energy_efficiency = sum(c.traits.energy_efficiency for c in simulation.creatures) / total
     avg_exhaustion_resistance = sum(c.traits.exhaustion_resistance for c in simulation.creatures) / total
     avg_longevity_factor = sum(c.traits.longevity_factor for c in simulation.creatures) / total
@@ -567,6 +580,36 @@ def build_population_stats(
         if simulation.total_reproduction_cost_events > 0
         else 0.0
     )
+    avg_movement_multiplier_observed_last_tick = (
+        simulation.movement_multiplier_sum_last_tick / simulation.movement_actions_last_tick
+        if simulation.movement_actions_last_tick > 0
+        else 1.0
+    )
+    avg_movement_multiplier_observed_total = (
+        simulation.total_movement_multiplier_sum / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
+        else 1.0
+    )
+    avg_mobility_efficiency_movement_users_tick = (
+        simulation.mobility_efficiency_sum_movement_last_tick / simulation.movement_actions_last_tick
+        if simulation.movement_actions_last_tick > 0
+        else 0.0
+    )
+    avg_mobility_efficiency_movement_users_total = (
+        simulation.total_mobility_efficiency_sum_movement / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
+        else 0.0
+    )
+    mobility_efficiency_movement_usage_bias_tick = (
+        avg_mobility_efficiency_movement_users_tick - avg_mobility_efficiency
+        if simulation.movement_actions_last_tick > 0
+        else 0.0
+    )
+    mobility_efficiency_movement_usage_bias_total = (
+        avg_mobility_efficiency_movement_users_total - avg_mobility_efficiency
+        if simulation.total_movement_actions > 0
+        else 0.0
+    )
 
     memory_focus_values = [c.traits.memory_focus for c in simulation.creatures]
     social_sensitivity_values = [c.traits.social_sensitivity for c in simulation.creatures]
@@ -576,6 +619,7 @@ def build_population_stats(
     behavior_persistence_values = [c.traits.behavior_persistence for c in simulation.creatures]
     exploration_bias_values = [c.traits.exploration_bias for c in simulation.creatures]
     density_preference_values = [c.traits.density_preference for c in simulation.creatures]
+    mobility_efficiency_values = [c.traits.mobility_efficiency for c in simulation.creatures]
     energy_efficiency_values = [c.traits.energy_efficiency for c in simulation.creatures]
     exhaustion_resistance_values = [c.traits.exhaustion_resistance for c in simulation.creatures]
     longevity_factor_values = [c.traits.longevity_factor for c in simulation.creatures]
@@ -590,6 +634,7 @@ def build_population_stats(
     std_behavior_persistence = _stddev_from_mean(behavior_persistence_values, avg_behavior_persistence)
     std_exploration_bias = _stddev_from_mean(exploration_bias_values, avg_exploration_bias)
     std_density_preference = _stddev_from_mean(density_preference_values, avg_density_preference)
+    std_mobility_efficiency = _stddev_from_mean(mobility_efficiency_values, avg_mobility_efficiency)
     std_energy_efficiency = _stddev_from_mean(energy_efficiency_values, avg_energy_efficiency)
     std_exhaustion_resistance = _stddev_from_mean(exhaustion_resistance_values, avg_exhaustion_resistance)
     std_longevity_factor = _stddev_from_mean(longevity_factor_values, avg_longevity_factor)
@@ -1048,6 +1093,7 @@ def build_population_stats(
         "avg_behavior_persistence": avg_behavior_persistence,
         "avg_exploration_bias": avg_exploration_bias,
         "avg_density_preference": avg_density_preference,
+        "avg_mobility_efficiency": avg_mobility_efficiency,
         "avg_energy_efficiency": avg_energy_efficiency,
         "avg_exhaustion_resistance": avg_exhaustion_resistance,
         "avg_longevity_factor": avg_longevity_factor,
@@ -1061,6 +1107,7 @@ def build_population_stats(
         "std_behavior_persistence": std_behavior_persistence,
         "std_exploration_bias": std_exploration_bias,
         "std_density_preference": std_density_preference,
+        "std_mobility_efficiency": std_mobility_efficiency,
         "std_energy_efficiency": std_energy_efficiency,
         "std_exhaustion_resistance": std_exhaustion_resistance,
         "std_longevity_factor": std_longevity_factor,
@@ -1129,6 +1176,16 @@ def build_population_stats(
         "avg_reproduction_timing_threshold_multiplier_observed_total": (
             avg_reproduction_timing_threshold_multiplier_observed_total
         ),
+        "movement_actions_last_tick": simulation.movement_actions_last_tick,
+        "total_movement_actions": simulation.total_movement_actions,
+        "movement_usage_per_alive_tick": simulation.movement_actions_last_tick / max(1, alive),
+        "movement_usage_per_tick_total": simulation.total_movement_actions / max(1, simulation.tick_count),
+        "avg_movement_multiplier_observed_last_tick": avg_movement_multiplier_observed_last_tick,
+        "avg_movement_multiplier_observed_total": avg_movement_multiplier_observed_total,
+        "mobility_efficiency_movement_users_avg_tick": avg_mobility_efficiency_movement_users_tick,
+        "mobility_efficiency_movement_users_avg_total": avg_mobility_efficiency_movement_users_total,
+        "mobility_efficiency_movement_usage_bias_tick": mobility_efficiency_movement_usage_bias_tick,
+        "mobility_efficiency_movement_usage_bias_total": mobility_efficiency_movement_usage_bias_total,
         "proto_group_count": proto_group_count,
         "proto_groups_top": proto_groups_top,
         "dominant_proto_group_share": dominant_proto_group_share,
@@ -1433,6 +1490,8 @@ def build_final_run_summary(
         "exploration_bias_std": float(final_stats.get("std_exploration_bias", 0.0)),
         "density_preference_mean": float(final_stats.get("avg_density_preference", 0.0)),
         "density_preference_std": float(final_stats.get("std_density_preference", 0.0)),
+        "mobility_efficiency_mean": float(final_stats.get("avg_mobility_efficiency", 0.0)),
+        "mobility_efficiency_std": float(final_stats.get("std_mobility_efficiency", 0.0)),
         "energy_efficiency_mean": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "energy_efficiency_std": float(final_stats.get("std_energy_efficiency", 0.0)),
         "exhaustion_resistance_mean": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
@@ -1501,6 +1560,13 @@ def build_final_run_summary(
         "food_perception_consumption_bias": float(final_stats.get("food_perception_consumption_usage_bias_total", 0.0)),
         "threat_perception_flee_bias": float(final_stats.get("threat_perception_flee_usage_bias_total", 0.0)),
         "risk_taking_flee_bias": float(final_stats.get("risk_taking_flee_usage_bias_total", 0.0)),
+        "mobility_efficiency_movement_bias": float(
+            final_stats.get("mobility_efficiency_movement_usage_bias_total", 0.0)
+        ),
+        "movement_multiplier_observed": float(
+            final_stats.get("avg_movement_multiplier_observed_total", 1.0)
+        ),
+        "movement_usage_per_tick": float(final_stats.get("movement_usage_per_tick_total", 0.0)),
         "behavior_persistence_hold_bias": float(
             final_stats.get("behavior_persistence_hold_usage_bias_total", 0.0)
         ),
@@ -1629,6 +1695,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "behavior_persistence": 0.0,
                 "exploration_bias": 0.0,
                 "density_preference": 0.0,
+                "mobility_efficiency": 0.0,
                 "energy_efficiency": 0.0,
                 "exhaustion_resistance": 0.0,
                 "longevity_factor": 0.0,
@@ -1673,6 +1740,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "exploration_bias_std": 0.0,
                 "density_preference_mean": 0.0,
                 "density_preference_std": 0.0,
+                "mobility_efficiency_mean": 0.0,
+                "mobility_efficiency_std": 0.0,
                 "energy_efficiency_mean": 0.0,
                 "energy_efficiency_std": 0.0,
                 "exhaustion_resistance_mean": 0.0,
@@ -1709,6 +1778,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "food_perception_consumption_bias": 0.0,
                 "threat_perception_flee_bias": 0.0,
                 "risk_taking_flee_bias": 0.0,
+                "mobility_efficiency_movement_bias": 0.0,
+                "movement_multiplier_observed": 1.0,
+                "movement_usage_per_tick": 0.0,
                 "behavior_persistence_hold_bias": 0.0,
                 "exploration_bias_guided_bias": 0.0,
                 "exploration_bias_guided_total": 0.0,
@@ -1767,6 +1839,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "behavior_persistence": 0.0,
         "exploration_bias": 0.0,
         "density_preference": 0.0,
+        "mobility_efficiency": 0.0,
         "energy_efficiency": 0.0,
         "exhaustion_resistance": 0.0,
         "longevity_factor": 0.0,
@@ -1811,6 +1884,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "exploration_bias_std": 0.0,
         "density_preference_mean": 0.0,
         "density_preference_std": 0.0,
+        "mobility_efficiency_mean": 0.0,
+        "mobility_efficiency_std": 0.0,
         "energy_efficiency_mean": 0.0,
         "energy_efficiency_std": 0.0,
         "exhaustion_resistance_mean": 0.0,
@@ -1847,6 +1922,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "food_perception_consumption_bias": 0.0,
         "threat_perception_flee_bias": 0.0,
         "risk_taking_flee_bias": 0.0,
+        "mobility_efficiency_movement_bias": 0.0,
+        "movement_multiplier_observed": 0.0,
+        "movement_usage_per_tick": 0.0,
         "behavior_persistence_hold_bias": 0.0,
         "exploration_bias_guided_bias": 0.0,
         "exploration_bias_guided_total": 0.0,
@@ -1918,6 +1996,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["density_preference"] += float(
                     traits_raw.get("density_preference", 0.0)
                 )
+                avg_traits_acc["mobility_efficiency"] += float(
+                    traits_raw.get("mobility_efficiency", 0.0)
+                )
                 avg_traits_acc["energy_efficiency"] += float(traits_raw.get("energy_efficiency", 0.0))
                 avg_traits_acc["exhaustion_resistance"] += float(traits_raw.get("exhaustion_resistance", 0.0))
                 avg_traits_acc["longevity_factor"] += float(traits_raw.get("longevity_factor", 0.0))
@@ -1980,6 +2061,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["density_preference_std"] += float(
                     trait_impact_raw.get("density_preference_std", 0.0)
+                )
+                avg_trait_impact_acc["mobility_efficiency_mean"] += float(
+                    trait_impact_raw.get("mobility_efficiency_mean", 0.0)
+                )
+                avg_trait_impact_acc["mobility_efficiency_std"] += float(
+                    trait_impact_raw.get("mobility_efficiency_std", 0.0)
                 )
                 avg_trait_impact_acc["energy_efficiency_mean"] += float(trait_impact_raw.get("energy_efficiency_mean", 0.0))
                 avg_trait_impact_acc["energy_efficiency_std"] += float(trait_impact_raw.get("energy_efficiency_std", 0.0))
@@ -2065,6 +2152,15 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["food_perception_consumption_bias"] += float(trait_impact_raw.get("food_perception_consumption_bias", 0.0))
                 avg_trait_impact_acc["threat_perception_flee_bias"] += float(trait_impact_raw.get("threat_perception_flee_bias", 0.0))
                 avg_trait_impact_acc["risk_taking_flee_bias"] += float(trait_impact_raw.get("risk_taking_flee_bias", 0.0))
+                avg_trait_impact_acc["mobility_efficiency_movement_bias"] += float(
+                    trait_impact_raw.get("mobility_efficiency_movement_bias", 0.0)
+                )
+                avg_trait_impact_acc["movement_multiplier_observed"] += float(
+                    trait_impact_raw.get("movement_multiplier_observed", 1.0)
+                )
+                avg_trait_impact_acc["movement_usage_per_tick"] += float(
+                    trait_impact_raw.get("movement_usage_per_tick", 0.0)
+                )
                 avg_trait_impact_acc["behavior_persistence_hold_bias"] += float(
                     trait_impact_raw.get("behavior_persistence_hold_bias", 0.0)
                 )
@@ -2198,6 +2294,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "behavior_persistence": avg_traits_acc["behavior_persistence"] / run_count,
             "exploration_bias": avg_traits_acc["exploration_bias"] / run_count,
             "density_preference": avg_traits_acc["density_preference"] / run_count,
+            "mobility_efficiency": avg_traits_acc["mobility_efficiency"] / run_count,
             "energy_efficiency": avg_traits_acc["energy_efficiency"] / run_count,
             "exhaustion_resistance": avg_traits_acc["exhaustion_resistance"] / run_count,
             "longevity_factor": avg_traits_acc["longevity_factor"] / run_count,
@@ -2242,6 +2339,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "exploration_bias_std": avg_trait_impact_acc["exploration_bias_std"] / run_count,
             "density_preference_mean": avg_trait_impact_acc["density_preference_mean"] / run_count,
             "density_preference_std": avg_trait_impact_acc["density_preference_std"] / run_count,
+            "mobility_efficiency_mean": avg_trait_impact_acc["mobility_efficiency_mean"] / run_count,
+            "mobility_efficiency_std": avg_trait_impact_acc["mobility_efficiency_std"] / run_count,
             "energy_efficiency_mean": avg_trait_impact_acc["energy_efficiency_mean"] / run_count,
             "energy_efficiency_std": avg_trait_impact_acc["energy_efficiency_std"] / run_count,
             "exhaustion_resistance_mean": avg_trait_impact_acc["exhaustion_resistance_mean"] / run_count,
@@ -2308,6 +2407,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "food_perception_consumption_bias": avg_trait_impact_acc["food_perception_consumption_bias"] / run_count,
             "threat_perception_flee_bias": avg_trait_impact_acc["threat_perception_flee_bias"] / run_count,
             "risk_taking_flee_bias": avg_trait_impact_acc["risk_taking_flee_bias"] / run_count,
+            "mobility_efficiency_movement_bias": (
+                avg_trait_impact_acc["mobility_efficiency_movement_bias"] / run_count
+            ),
+            "movement_multiplier_observed": (
+                avg_trait_impact_acc["movement_multiplier_observed"] / run_count
+            ),
+            "movement_usage_per_tick": avg_trait_impact_acc["movement_usage_per_tick"] / run_count,
             "behavior_persistence_hold_bias": avg_trait_impact_acc["behavior_persistence_hold_bias"] / run_count,
             "exploration_bias_guided_bias": (
                 avg_trait_impact_acc["exploration_bias_guided_bias"] / run_count
@@ -2636,6 +2742,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "behavior_persistence": float(final_stats.get("avg_behavior_persistence", 0.0)),
         "exploration_bias": float(final_stats.get("avg_exploration_bias", 0.0)),
         "density_preference": float(final_stats.get("avg_density_preference", 0.0)),
+        "mobility_efficiency": float(final_stats.get("avg_mobility_efficiency", 0.0)),
         "energy_efficiency": float(final_stats.get("avg_energy_efficiency", 0.0)),
         "exhaustion_resistance": float(final_stats.get("avg_exhaustion_resistance", 0.0)),
         "longevity_factor": float(final_stats.get("avg_longevity_factor", 0.0)),

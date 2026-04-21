@@ -33,6 +33,7 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             behavior_persistence=random_source.uniform(0.95, 1.05),
             exploration_bias=random_source.uniform(0.95, 1.05),
             density_preference=random_source.uniform(0.95, 1.05),
+            mobility_efficiency=random_source.uniform(0.97, 1.03),
             longevity_factor=random_source.uniform(0.97, 1.03),
             environmental_tolerance=random_source.uniform(0.97, 1.03),
             reproduction_timing=random_source.uniform(0.97, 1.03),

@@ -36,6 +36,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "behavior_persistence": round(creature.traits.behavior_persistence, 3),
                     "exploration_bias": round(creature.traits.exploration_bias, 3),
                     "density_preference": round(creature.traits.density_preference, 3),
+                    "mobility_efficiency": round(creature.traits.mobility_efficiency, 3),
                     "longevity_factor": round(creature.traits.longevity_factor, 3),
                     "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
                     "reproduction_timing": round(creature.traits.reproduction_timing, 3),
@@ -90,6 +91,11 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     )
     avg_density_preference_population = (
         sum(creature.traits.density_preference for creature in simulation.creatures) / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    avg_mobility_efficiency_population = (
+        sum(creature.traits.mobility_efficiency for creature in simulation.creatures) / total_creatures
         if total_creatures > 0
         else 0.0
     )
@@ -204,6 +210,21 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         simulation.total_reproduction_timing_threshold_multiplier_sum_reproduction
         / simulation.total_reproduction_cost_events
         if simulation.total_reproduction_cost_events > 0
+        else 1.0
+    )
+    mobility_efficiency_movement_users_avg_last_tick = (
+        simulation.mobility_efficiency_sum_movement_last_tick / simulation.movement_actions_last_tick
+        if simulation.movement_actions_last_tick > 0
+        else 0.0
+    )
+    mobility_efficiency_movement_users_avg_total = (
+        simulation.total_mobility_efficiency_sum_movement / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
+        else 0.0
+    )
+    movement_multiplier_avg_total = (
+        simulation.total_movement_multiplier_sum / simulation.total_movement_actions
+        if simulation.total_movement_actions > 0
         else 1.0
     )
 
@@ -377,6 +398,26 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         ),
         "reproduction_timing_threshold_multiplier_avg_total": (
             reproduction_timing_threshold_multiplier_avg_total
+        ),
+        "movement_actions_last_tick": simulation.movement_actions_last_tick,
+        "total_movement_actions": simulation.total_movement_actions,
+        "movement_multiplier_avg_last_tick": simulation.avg_movement_multiplier_last_tick,
+        "movement_multiplier_avg_total": movement_multiplier_avg_total,
+        "mobility_efficiency_movement_users_avg_last_tick": (
+            mobility_efficiency_movement_users_avg_last_tick
+        ),
+        "mobility_efficiency_movement_users_avg_total": (
+            mobility_efficiency_movement_users_avg_total
+        ),
+        "mobility_efficiency_movement_usage_bias_last_tick": (
+            mobility_efficiency_movement_users_avg_last_tick - avg_mobility_efficiency_population
+            if simulation.movement_actions_last_tick > 0
+            else 0.0
+        ),
+        "mobility_efficiency_movement_usage_bias_total": (
+            mobility_efficiency_movement_users_avg_total - avg_mobility_efficiency_population
+            if simulation.total_movement_actions > 0
+            else 0.0
         ),
         "total_food_memory_guided_moves": simulation.total_food_memory_guided_moves,
         "total_danger_memory_avoid_moves": simulation.total_danger_memory_avoid_moves,
