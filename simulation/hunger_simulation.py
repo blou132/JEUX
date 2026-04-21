@@ -172,6 +172,23 @@ class HungerSimulation:
         self.density_preference_center_distance_delta_last_tick = 0.0
         self.total_density_preference_center_distance_delta = 0.0
         self.avg_density_preference_center_distance_delta_last_tick = 0.0
+        self.gregariousness_guided_moves_last_tick = 0
+        self.total_gregariousness_guided_moves = 0
+        self.gregariousness_sum_guided_last_tick = 0.0
+        self.total_gregariousness_sum_guided = 0.0
+        self.gregariousness_seek_moves_last_tick = 0
+        self.total_gregariousness_seek_moves = 0
+        self.gregariousness_sum_seek_last_tick = 0.0
+        self.total_gregariousness_sum_seek = 0.0
+        self.gregariousness_avoid_moves_last_tick = 0
+        self.total_gregariousness_avoid_moves = 0
+        self.gregariousness_sum_avoid_last_tick = 0.0
+        self.total_gregariousness_sum_avoid = 0.0
+        self.gregariousness_neighbor_count_sum_last_tick = 0.0
+        self.total_gregariousness_neighbor_count_sum = 0.0
+        self.gregariousness_center_distance_delta_last_tick = 0.0
+        self.total_gregariousness_center_distance_delta = 0.0
+        self.avg_gregariousness_center_distance_delta_last_tick = 0.0
         self.movement_actions_last_tick = 0
         self.total_movement_actions = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
@@ -312,6 +329,15 @@ class HungerSimulation:
         self.density_preference_neighbor_count_sum_last_tick = 0.0
         self.density_preference_center_distance_delta_last_tick = 0.0
         self.avg_density_preference_center_distance_delta_last_tick = 0.0
+        self.gregariousness_guided_moves_last_tick = 0
+        self.gregariousness_sum_guided_last_tick = 0.0
+        self.gregariousness_seek_moves_last_tick = 0
+        self.gregariousness_sum_seek_last_tick = 0.0
+        self.gregariousness_avoid_moves_last_tick = 0
+        self.gregariousness_sum_avoid_last_tick = 0.0
+        self.gregariousness_neighbor_count_sum_last_tick = 0.0
+        self.gregariousness_center_distance_delta_last_tick = 0.0
+        self.avg_gregariousness_center_distance_delta_last_tick = 0.0
         self.movement_actions_last_tick = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
         self.movement_multiplier_sum_last_tick = 0.0
@@ -660,6 +686,14 @@ class HungerSimulation:
             )
         else:
             self.avg_density_preference_center_distance_delta_last_tick = 0.0
+
+        if self.gregariousness_guided_moves_last_tick > 0:
+            self.avg_gregariousness_center_distance_delta_last_tick = (
+                self.gregariousness_center_distance_delta_last_tick
+                / self.gregariousness_guided_moves_last_tick
+            )
+        else:
+            self.avg_gregariousness_center_distance_delta_last_tick = 0.0
 
         if self.movement_actions_last_tick > 0:
             self.avg_movement_multiplier_last_tick = (
@@ -1118,6 +1152,62 @@ class HungerSimulation:
                                 else:
                                     density_mode = None
 
+        gregarious_center: tuple[float, float] | None = None
+        gregarious_mode: str | None = None
+        gregarious_neighbor_count = 0
+        before_gregarious_center_distance = 0.0
+        if allow_exploration_bias:
+            gregarious_strength = min(0.18, abs(creature.traits.gregariousness - 1.0) * 0.45)
+            if gregarious_strength > 0.0:
+                local_social_radius = max(2.0, self.social_influence_distance * 0.7)
+                if local_social_radius > 0.0:
+                    sum_x = 0.0
+                    sum_y = 0.0
+                    neighbor_count = 0
+                    for other in self.creatures:
+                        if not other.alive or other.creature_id == creature.creature_id:
+                            continue
+                        if creature.distance_to(other.x, other.y) > local_social_radius:
+                            continue
+                        sum_x += other.x
+                        sum_y += other.y
+                        neighbor_count += 1
+
+                    if neighbor_count > 0:
+                        center_x = sum_x / neighbor_count
+                        center_y = sum_y / neighbor_count
+                        to_center_x = center_x - creature.x
+                        to_center_y = center_y - creature.y
+                        center_norm = hypot(to_center_x, to_center_y)
+                        if center_norm > 1e-9:
+                            if creature.traits.gregariousness >= 1.0:
+                                bias_x = to_center_x / center_norm
+                                bias_y = to_center_y / center_norm
+                                gregarious_mode = "seek"
+                            else:
+                                bias_x = -to_center_x / center_norm
+                                bias_y = -to_center_y / center_norm
+                                gregarious_mode = "avoid"
+
+                            blended_x = ((1.0 - gregarious_strength) * dir_x) + (
+                                gregarious_strength * bias_x
+                            )
+                            blended_y = ((1.0 - gregarious_strength) * dir_y) + (
+                                gregarious_strength * bias_y
+                            )
+                            blended_norm = hypot(blended_x, blended_y)
+                            if blended_norm > 1e-9:
+                                dir_x = blended_x / blended_norm
+                                dir_y = blended_y / blended_norm
+                                gregarious_center = (center_x, center_y)
+                                gregarious_neighbor_count = neighbor_count
+                                before_gregarious_center_distance = creature.distance_to(
+                                    center_x,
+                                    center_y,
+                                )
+                            else:
+                                gregarious_mode = None
+
         target_x = creature.x + (dir_x * distance)
         target_y = creature.y + (dir_y * distance)
         before_x = creature.x
@@ -1169,6 +1259,31 @@ class HungerSimulation:
                 self.total_density_preference_avoid_moves += 1
                 self.density_preference_sum_avoid_last_tick += creature.traits.density_preference
                 self.total_density_preference_sum_avoid += creature.traits.density_preference
+
+        if gregarious_center is not None and gregarious_mode is not None:
+            after_gregarious_center_distance = creature.distance_to(
+                gregarious_center[0],
+                gregarious_center[1],
+            )
+            center_distance_delta = after_gregarious_center_distance - before_gregarious_center_distance
+            self.gregariousness_guided_moves_last_tick += 1
+            self.total_gregariousness_guided_moves += 1
+            self.gregariousness_sum_guided_last_tick += creature.traits.gregariousness
+            self.total_gregariousness_sum_guided += creature.traits.gregariousness
+            self.gregariousness_neighbor_count_sum_last_tick += gregarious_neighbor_count
+            self.total_gregariousness_neighbor_count_sum += gregarious_neighbor_count
+            self.gregariousness_center_distance_delta_last_tick += center_distance_delta
+            self.total_gregariousness_center_distance_delta += center_distance_delta
+            if gregarious_mode == "seek":
+                self.gregariousness_seek_moves_last_tick += 1
+                self.total_gregariousness_seek_moves += 1
+                self.gregariousness_sum_seek_last_tick += creature.traits.gregariousness
+                self.total_gregariousness_sum_seek += creature.traits.gregariousness
+            else:
+                self.gregariousness_avoid_moves_last_tick += 1
+                self.total_gregariousness_avoid_moves += 1
+                self.gregariousness_sum_avoid_last_tick += creature.traits.gregariousness
+                self.total_gregariousness_sum_avoid += creature.traits.gregariousness
 
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(

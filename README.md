@@ -2,7 +2,7 @@
 
 ## Presentation rapide
 Ce projet est un simulateur evolutif inspire de Spore, centre sur une evolution emergente simple, lisible et testable.
-Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de tolerance au stress, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, variabilite individuelle legere de mobilite/vitesse effective, et sensibilite individuelle legere a la faim.
+Le scope actuel est un MVP enrichi: creatures autonomes, survie, reproduction, mutation, menace/fuite, traits comportementaux heritaires, proto-groupes, pression ecologique legere sur la nourriture, memoire locale courte, influence sociale locale minimale, biais individuels legers sur memoire/social, variabilite individuelle de perception, biais individuel leger de prise de risque, variabilite individuelle legere de tolerance au stress, variabilite individuelle legere de persistance comportementale, biais individuel leger d'exploration spatiale, biais individuel leger de preference de densite locale, variabilite individuelle legere de gregarite/isolement, variabilite individuelle legere de longevite/vieillissement, variabilite individuelle legere de tolerance environnementale, variabilite individuelle legere de timing reproductif, variabilite individuelle legere de mobilite/vitesse effective, et sensibilite individuelle legere a la faim.
 
 ## Objectif du simulateur
 Observer comment des regles minimales (faim, energie, nourriture, fuite, reproduction, mutation) produisent des dynamiques de population et des tendances de traits sur plusieurs generations.
@@ -46,8 +46,10 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Variabilite individuelle legere de timing reproductif (`reproduction_timing`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de mobilite (`mobility_efficiency`) heritable, mutante et visible en stats/synthese/debug.
 - Variabilite individuelle legere de sensibilite a la faim (`hunger_sensitivity`) heritable, mutante et visible en stats/synthese/debug.
+- Variabilite individuelle legere de gregarite/isolement (`gregariousness`) heritable, mutante et visible en stats/synthese/debug.
 - Evaluation legere de l'impact `mobility_efficiency` (moyenne/dispersion, frequence de mouvement, distance effective observee, biais d'usage chez les plus mobiles) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `hunger_sensitivity` (moyenne/dispersion, frequence de recherche nourriture, biais d'usage du trait chez les chercheurs) visible en stats, synthese run, multi-runs, export et analyse.
+- Evaluation legere de l'impact `gregariousness` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet de distance au centre local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
@@ -177,6 +179,17 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Observation dans les logs/syntheses:
   - `dynamique_*`: `traits_comp_moy` (`dp`), `traits_disp` (`dp_sigma`), `traits_bias_tick` (`dp_guide`, `dp_seek`, `dp_avoid`), `densite_tick`/`densite_log`.
   - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`dp`) et `traits_impact` / `traits_impact_moy` (`dp_mu`, `dp_sigma`, `densite:*` avec `part_seek`, `seek_mu`, `avoid_mu`, `dens_voisins`, `delta_centre`).
+
+### Variabilite individuelle de gregarite / isolement
+- Trait leger ajoute: `gregariousness`.
+- Effet volontairement limite:
+  - `gregariousness > 1.0`: tendance legere a se rapprocher d'un centre local de congeneres (`seek`).
+  - `gregariousness < 1.0`: tendance legere a s'eloigner d'un centre local de congeneres (`avoid`).
+- L'effet est applique uniquement en errance/recherche sans cible directe, pour ne pas casser les priorites existantes (fuite, mort, reproduction, cible nourriture visible).
+- Heredite simple + mutation legere via le pipeline genetique existant.
+- Observation dans les logs/syntheses:
+  - `dynamique_*`: `traits_comp_moy` (`gr`), `traits_disp` (`gr_sigma`), `traits_bias_tick` (`gr_guide`, `gr_seek`, `gr_avoid`), `gregarite_tick`/`gregarite_log`.
+  - `Run Summary` / `Multi-Run Summary`: `traits_moy` / `traits_finaux_moy` (`gr`) et `traits_impact` / `traits_impact_moy` (`gr_mu`, `gr_sigma`, `gregarite:*`/`gregarite_moy:*` avec `part_seek`, `seek_mu`, `avoid_mu`, `gr_voisins`, `delta_centre_gr`).
 
 ### Evaluation legere de l'impact density_preference
 - Indicateurs exposes en stats/synthese:
@@ -977,6 +990,8 @@ Lecture rapide conseillee:
 - Variabilite individuelle legere de tolerance environnementale (`environmental_tolerance`) heritable et mutante, avec effet leger sur le drain selon zone locale (`poor`/`rich`), et visibilite en stats/synthese/debug.
 - Variabilite individuelle legere de timing reproductif (`reproduction_timing`) heritable et mutante, avec effet leger sur le seuil energetique de reproduction et visibilite en stats/synthese/debug/export.
 - Variabilite individuelle legere de mobilite (`mobility_efficiency`) heritable et mutante, avec effet leger sur la vitesse effective de deplacement et visibilite en stats/synthese/debug/export.
+- Variabilite individuelle legere de sensibilite a la faim (`hunger_sensitivity`) heritable et mutante, avec effet leger sur le declenchement de recherche de nourriture et visibilite en stats/synthese/debug/export.
+- Variabilite individuelle legere de gregarite/isolement (`gregariousness`) heritable et mutante, avec effet leger `seek`/`avoid` vers congeneres proches et visibilite en stats/synthese/debug/export.
 
 ### En cours / prochain ajout
 - Consolidation continue de l'equilibrage (sans nouvelles grosses mecaniques).

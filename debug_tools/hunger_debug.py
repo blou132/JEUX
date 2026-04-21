@@ -42,6 +42,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
                     "reproduction_timing": round(creature.traits.reproduction_timing, 3),
                     "hunger_sensitivity": round(creature.traits.hunger_sensitivity, 3),
+                    "gregariousness": round(creature.traits.gregariousness, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -129,6 +130,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         if total_creatures > 0
         else 0.0
     )
+    avg_gregariousness_population = (
+        sum(creature.traits.gregariousness for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
     density_preference_seek_users_avg_last_tick = (
         simulation.density_preference_sum_seek_last_tick / simulation.density_preference_seek_moves_last_tick
         if simulation.density_preference_seek_moves_last_tick > 0
@@ -147,6 +154,26 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     density_preference_avoid_users_avg_total = (
         simulation.total_density_preference_sum_avoid / simulation.total_density_preference_avoid_moves
         if simulation.total_density_preference_avoid_moves > 0
+        else 0.0
+    )
+    gregariousness_seek_users_avg_last_tick = (
+        simulation.gregariousness_sum_seek_last_tick / simulation.gregariousness_seek_moves_last_tick
+        if simulation.gregariousness_seek_moves_last_tick > 0
+        else 0.0
+    )
+    gregariousness_seek_users_avg_total = (
+        simulation.total_gregariousness_sum_seek / simulation.total_gregariousness_seek_moves
+        if simulation.total_gregariousness_seek_moves > 0
+        else 0.0
+    )
+    gregariousness_avoid_users_avg_last_tick = (
+        simulation.gregariousness_sum_avoid_last_tick / simulation.gregariousness_avoid_moves_last_tick
+        if simulation.gregariousness_avoid_moves_last_tick > 0
+        else 0.0
+    )
+    gregariousness_avoid_users_avg_total = (
+        simulation.total_gregariousness_sum_avoid / simulation.total_gregariousness_avoid_moves
+        if simulation.total_gregariousness_avoid_moves > 0
         else 0.0
     )
     age_wear_multiplier_avg_last_tick = (
@@ -369,6 +396,45 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         ),
         "avg_density_preference_center_distance_delta_last_tick": (
             simulation.avg_density_preference_center_distance_delta_last_tick
+        ),
+        "gregariousness_guided_moves_last_tick": simulation.gregariousness_guided_moves_last_tick,
+        "total_gregariousness_guided_moves": simulation.total_gregariousness_guided_moves,
+        "gregariousness_seek_moves_last_tick": simulation.gregariousness_seek_moves_last_tick,
+        "total_gregariousness_seek_moves": simulation.total_gregariousness_seek_moves,
+        "gregariousness_seek_users_avg_last_tick": gregariousness_seek_users_avg_last_tick,
+        "gregariousness_seek_users_avg_total": gregariousness_seek_users_avg_total,
+        "gregariousness_seek_usage_bias_last_tick": (
+            gregariousness_seek_users_avg_last_tick - avg_gregariousness_population
+            if simulation.gregariousness_seek_moves_last_tick > 0
+            else 0.0
+        ),
+        "gregariousness_seek_usage_bias_total": (
+            gregariousness_seek_users_avg_total - avg_gregariousness_population
+            if simulation.total_gregariousness_seek_moves > 0
+            else 0.0
+        ),
+        "gregariousness_avoid_moves_last_tick": simulation.gregariousness_avoid_moves_last_tick,
+        "total_gregariousness_avoid_moves": simulation.total_gregariousness_avoid_moves,
+        "gregariousness_avoid_users_avg_last_tick": gregariousness_avoid_users_avg_last_tick,
+        "gregariousness_avoid_users_avg_total": gregariousness_avoid_users_avg_total,
+        "gregariousness_avoid_usage_bias_last_tick": (
+            gregariousness_avoid_users_avg_last_tick - avg_gregariousness_population
+            if simulation.gregariousness_avoid_moves_last_tick > 0
+            else 0.0
+        ),
+        "gregariousness_avoid_usage_bias_total": (
+            gregariousness_avoid_users_avg_total - avg_gregariousness_population
+            if simulation.total_gregariousness_avoid_moves > 0
+            else 0.0
+        ),
+        "avg_gregariousness_neighbor_count_last_tick": (
+            simulation.gregariousness_neighbor_count_sum_last_tick
+            / simulation.gregariousness_guided_moves_last_tick
+            if simulation.gregariousness_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "avg_gregariousness_center_distance_delta_last_tick": (
+            simulation.avg_gregariousness_center_distance_delta_last_tick
         ),
         "age_wear_active_events_last_tick": simulation.age_wear_active_events_last_tick,
         "total_age_wear_active_events": simulation.total_age_wear_active_events,
