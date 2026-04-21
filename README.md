@@ -61,6 +61,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet observe zone pauvre/riche, dispersion utile et stabilite.
 - Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet observe sur le seuil reproductif, reproduction plus precoce/prudente et stabilite.
 - Interpretation batch `mobility_efficiency` (`mobility_efficiency_batch`) pour comparer distance deplacement observee, frequence utile de mouvement, dispersion et stabilite.
+- Interpretation batch `stress_tolerance` (`stress_tolerance_batch`) pour comparer effet sous pression, modulation de fuite en situation tendue, dispersion utile et stabilite.
 - Evaluation legere de l'impact `reproduction_timing` (moyenne/dispersion, biais d'usage en reproduction et multiplicateur observe de seuil) visible en stats, synthese run, multi-runs, export et analyse.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
@@ -393,6 +394,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration qui maximise la dispersion utile de `mobility_efficiency` (`mobility_efficiency_std`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `stress_tolerance_batch`:
+  - configuration qui maximise l'effet observe sous pression (proxy: `abs(stress_tolerance_pressure_mean - 1)`)
+  - configuration qui maximise la modulation de fuite en situation tendue (proxy: `abs(stress_tolerance_pressure_flee_bias)`)
+  - configuration qui maximise la dispersion utile de `stress_tolerance` (`stress_tolerance_std`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -531,6 +538,11 @@ py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-
 ```
 
 Exemple lecture comparative `mobility_efficiency` en batch (`mobility_efficiency_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `stress_tolerance` en batch (`stress_tolerance_batch`):
 ```powershell
 py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
@@ -695,6 +707,11 @@ distance_deplacement_observee_max: mutation_variation=0.1 (dist_moy=1.180)
 frequence_mouvement_utile_max: mutation_variation=0.2 (freq_moy=2.340)
 dispersion_mobilite_max: mutation_variation=0.1 (mo_sigma_moy=0.070)
 configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+stress_tolerance_batch:
+effet_sous_pression_max: mutation_variation=0.1 (impact_abs_moy=0.090)
+modulation_fuite_tendue_max: mutation_variation=0.2 (impact_abs_moy=0.110)
+dispersion_stress_tolerance_max: mutation_variation=0.1 (st_sigma_moy=0.070)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -828,6 +845,7 @@ En mode batch:
 - quand les metriques existent, le bloc inclut aussi `environmental_tolerance_batch`.
 - quand les metriques existent, le bloc inclut aussi `reproduction_timing_batch`.
 - quand les metriques existent, le bloc inclut aussi `mobility_efficiency_batch`.
+- quand les metriques existent, le bloc inclut aussi `stress_tolerance_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -853,6 +871,7 @@ Avec les outils d'analyse:
 - pour l'impact `reproduction_timing` en run/multi-runs, verifier `timing_repro_moy`, `rt`/`rt_sigma`, `bias_rt_repro` et `repro_timing_mult`.
 - pour l'impact `mobility_efficiency` en run/multi-runs, verifier `mo`/`mo_sigma`, `bias_mo_move`, `move_mult`, `move_dist` et `move_freq` ainsi que `mobilite_tick` (`dist`, `dist_moy`) dans `dynamique_*`.
 - pour l'impact `mobility_efficiency` en batch, verifier dans `Batch Comparative Summary` le bloc `mobility_efficiency_batch` (`distance_deplacement_observee_max`, `frequence_mouvement_utile_max`, `dispersion_mobilite_max`, `configuration_plus_stable`, et `ambiguite_mobility_efficiency` si egalite).
+- pour l'impact `stress_tolerance` en batch, verifier dans `Batch Comparative Summary` le bloc `stress_tolerance_batch` (`effet_sous_pression_max`, `modulation_fuite_tendue_max`, `dispersion_stress_tolerance_max`, `configuration_plus_stable`, et `ambiguite_stress_tolerance` si egalite).
 
 Lecture rapide conseillee:
 1. verifier `alive` + `total_births/total_deaths` pour la dynamique globale,
@@ -892,6 +911,7 @@ Lecture rapide conseillee:
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet zone pauvre/riche, dispersion utile et stabilite.
 - Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet seuil reproductif, reproduction plus precoce/prudente et stabilite.
 - Interpretation batch `mobility_efficiency` (`mobility_efficiency_batch`) pour comparer distance deplacement observee, frequence utile de mouvement, dispersion et stabilite.
+- Interpretation batch `stress_tolerance` (`stress_tolerance_batch`) pour comparer effet observe sous pression, modulation de fuite en situation tendue, dispersion utile et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

@@ -1404,6 +1404,159 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("mobility_efficiency_batch:", text)
         self.assertIn("ambiguite_mobility_efficiency: distance_deplacement_observee", text)
 
+    def test_stress_tolerance_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.03,
+                        "stress_tolerance_pressure_mean": 0.98,
+                        "stress_tolerance_pressure_flee_bias": -0.03,
+                        "stress_pressure_events": 4.0,
+                        "stress_pressure_flee_rate": 0.35,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.07,
+                        "stress_tolerance_pressure_mean": 1.09,
+                        "stress_tolerance_pressure_flee_bias": -0.06,
+                        "stress_pressure_events": 7.0,
+                        "stress_pressure_flee_rate": 0.55,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.05,
+                        "stress_tolerance_pressure_mean": 0.92,
+                        "stress_tolerance_pressure_flee_bias": -0.11,
+                        "stress_pressure_events": 9.0,
+                        "stress_pressure_flee_rate": 0.60,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        stress = summary.get("stress_comparative")
+
+        self.assertIsInstance(stress, dict)
+        assert isinstance(stress, dict)
+        self.assertTrue(bool(stress.get("available", False)))
+        self.assertEqual(stress["best_stress_pressure_effect"]["winners"], [0.1])
+        self.assertAlmostEqual(float(stress["best_stress_pressure_effect"]["value"]), 0.09)
+        self.assertEqual(stress["best_stress_flee_modulation"]["winners"], [0.2])
+        self.assertAlmostEqual(float(stress["best_stress_flee_modulation"]["value"]), 0.11)
+        self.assertEqual(stress["best_stress_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(float(stress["best_stress_dispersion"]["value"]), 0.07)
+        self.assertEqual(stress["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("stress_tolerance_batch:", text)
+        self.assertIn("effet_sous_pression_max:", text)
+        self.assertIn("modulation_fuite_tendue_max:", text)
+        self.assertIn("dispersion_stress_tolerance_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_stress_tolerance_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        stress = summary.get("stress_comparative")
+
+        self.assertIsInstance(stress, dict)
+        assert isinstance(stress, dict)
+        self.assertFalse(bool(stress.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(stress.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("stress_tolerance_batch:", text)
+        self.assertIn("donnees_stress_tolerance: n/a", text)
+
+    def test_stress_tolerance_comparative_reports_ambiguity_when_tied(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.05,
+                        "stress_tolerance_pressure_mean": 1.08,
+                        "stress_tolerance_pressure_flee_bias": -0.05,
+                        "stress_pressure_events": 8.0,
+                        "stress_pressure_flee_rate": 0.50,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "stress_tolerance_std": 0.04,
+                        "stress_tolerance_pressure_mean": 0.92,
+                        "stress_tolerance_pressure_flee_bias": -0.03,
+                        "stress_pressure_events": 6.0,
+                        "stress_pressure_flee_rate": 0.45,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        stress = summary.get("stress_comparative")
+
+        self.assertIsInstance(stress, dict)
+        assert isinstance(stress, dict)
+        pressure_effect = stress.get("best_stress_pressure_effect")
+        self.assertIsInstance(pressure_effect, dict)
+        assert isinstance(pressure_effect, dict)
+        self.assertTrue(bool(pressure_effect.get("tie", False)))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("stress_tolerance_batch:", text)
+        self.assertIn("ambiguite_stress_tolerance: effet_sous_pression", text)
+
 if __name__ == "__main__":
     unittest.main()
 

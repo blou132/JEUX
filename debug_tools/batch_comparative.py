@@ -46,6 +46,7 @@ def build_batch_comparative_summary(
     longevity_candidates: list[Dict[str, float]] = []
     environmental_candidates: list[Dict[str, float]] = []
     reproduction_timing_candidates: list[Dict[str, float]] = []
+    stress_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -126,6 +127,10 @@ def build_batch_comparative_summary(
         if reproduction_timing_metrics is not None:
             reproduction_timing_candidates.append({"value": value, **reproduction_timing_metrics})
 
+        stress_metrics = _read_stress_metrics(summary_raw)
+        if stress_metrics is not None:
+            stress_candidates.append({"value": value, **stress_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -184,6 +189,10 @@ def build_batch_comparative_summary(
         )
         empty["reproduction_timing_comparative"] = _build_reproduction_timing_comparative(
             reproduction_timing_candidates,
+            stable_metric=None,
+        )
+        empty["stress_comparative"] = _build_stress_comparative(
+            stress_candidates,
             stable_metric=None,
         )
         return empty
@@ -292,6 +301,10 @@ def build_batch_comparative_summary(
         reproduction_timing_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["stress_comparative"] = _build_stress_comparative(
+        stress_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -386,6 +399,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     reproduction_timing_raw = summary.get("reproduction_timing_comparative")
     if isinstance(reproduction_timing_raw, dict):
         lines.extend(_format_reproduction_timing_comparative(batch_param, reproduction_timing_raw))
+
+    stress_raw = summary.get("stress_comparative")
+    if isinstance(stress_raw, dict):
+        lines.extend(_format_stress_comparative(batch_param, stress_raw))
 
     return "\n".join(lines)
 
@@ -1697,6 +1714,132 @@ def _build_reproduction_timing_comparative(
     }
 
 
+def _format_stress_comparative(
+    batch_param: str,
+    stress_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["stress_tolerance_batch:"]
+
+    if not bool(stress_summary.get("available", False)):
+        note = str(stress_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_stress_tolerance: n/a ({note})")
+        return lines
+
+    pressure_effect = _read_metric_result(stress_summary.get("best_stress_pressure_effect"))
+    flee_modulation = _read_metric_result(stress_summary.get("best_stress_flee_modulation"))
+    stress_dispersion = _read_metric_result(stress_summary.get("best_stress_dispersion"))
+    stable_config = _read_metric_result(stress_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_sous_pression_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, pressure_effect.get("winners")),
+            value=float(pressure_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "modulation_fuite_tendue_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, flee_modulation.get("winners")),
+            value=float(flee_modulation.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_stress_tolerance_max: {label} (st_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, stress_dispersion.get("winners")),
+            value=float(stress_dispersion.get("value", 0.0)),
+        )
+    )
+
+    ambiguity_labels: list[str] = []
+    if bool(pressure_effect.get("tie", False)):
+        ambiguity_labels.append("effet_sous_pression")
+    if bool(flee_modulation.get("tie", False)):
+        ambiguity_labels.append("modulation_fuite_tendue")
+    if bool(stress_dispersion.get("tie", False)):
+        ambiguity_labels.append("dispersion_stress_tolerance")
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+        if bool(stable_config.get("tie", False)):
+            ambiguity_labels.append("configuration_plus_stable")
+
+    if len(ambiguity_labels) > 0:
+        lines.append(f"ambiguite_stress_tolerance: {', '.join(ambiguity_labels)}")
+
+    stress_note = str(stress_summary.get("stress_note", "")).strip()
+    if stress_note:
+        lines.append(f"note_stress_tolerance: {stress_note}")
+    else:
+        lines.append(
+            "note_stress_tolerance: effet_sous_pression=abs(stress_tolerance_pressure_mean-1), modulation_fuite=abs(stress_tolerance_pressure_flee_bias), dispersion=stress_tolerance_std"
+        )
+
+    return lines
+
+
+def _build_stress_comparative(
+    stress_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(stress_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact stress_tolerance",
+            "best_stress_pressure_effect": _insufficient_metric_result(),
+            "best_stress_flee_modulation": _insufficient_metric_result(),
+            "best_stress_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "stress_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    pressure_signal_max = max(candidate["stress_pressure_events"] for candidate in stress_candidates)
+    flee_signal_max = max(candidate["stress_pressure_flee_rate"] for candidate in stress_candidates)
+    stress_note = ""
+    if pressure_signal_max <= 0.0:
+        stress_note = "aucun cas sous pression observe: interpretation stress_tolerance limitee"
+    elif flee_signal_max <= 0.0:
+        stress_note = "fuite sous pression non observee: modulation stress_tolerance possiblement non representative"
+
+    return {
+        "available": True,
+        "best_stress_pressure_effect": _build_peak_metric(
+            stress_candidates,
+            "pressure_effect_strength",
+        ),
+        "best_stress_flee_modulation": _build_peak_metric(
+            stress_candidates,
+            "flee_modulation_strength",
+        ),
+        "best_stress_dispersion": _build_peak_metric(
+            stress_candidates,
+            "stress_dispersion",
+        ),
+        "most_stable_config": stable_result,
+        "stress_note": stress_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -2071,6 +2214,36 @@ def _read_reproduction_timing_metrics(summary_raw: Dict[str, object]) -> Dict[st
         "prudent_reproduction_strength": max(0.0, threshold_multiplier - 1.0),
         # Kept for possible future reporting while staying purely observatory.
         "reproduction_usage_bias": reproduction_bias,
+    }
+
+
+def _read_stress_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "stress_tolerance_std",
+        "stress_tolerance_pressure_mean",
+        "stress_tolerance_pressure_flee_bias",
+        "stress_pressure_events",
+        "stress_pressure_flee_rate",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    stress_std = float(avg_trait_raw.get("stress_tolerance_std", 0.0))
+    pressure_mean = float(avg_trait_raw.get("stress_tolerance_pressure_mean", 1.0))
+    flee_bias = float(avg_trait_raw.get("stress_tolerance_pressure_flee_bias", 0.0))
+    pressure_events = float(avg_trait_raw.get("stress_pressure_events", 0.0))
+    pressure_flee_rate = float(avg_trait_raw.get("stress_pressure_flee_rate", 0.0))
+
+    return {
+        "stress_dispersion": max(0.0, stress_std),
+        "pressure_effect_strength": abs(pressure_mean - 1.0),
+        "flee_modulation_strength": abs(flee_bias),
+        "stress_pressure_events": max(0.0, pressure_events),
+        "stress_pressure_flee_rate": max(0.0, pressure_flee_rate),
     }
 
 
