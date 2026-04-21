@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | stress_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | stress_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy | faim_sens_moy"
     )
 
 
@@ -51,7 +51,8 @@ def format_stats_line(tick: int, stats: Dict[str, object]) -> str:
         f"{float(stats.get('avg_energy_efficiency', 0.0)):22.3f} | "
         f"{float(stats.get('avg_exhaustion_resistance', 0.0)):25.3f} | "
         f"{float(stats.get('avg_environmental_tolerance', 0.0)):17.3f} | "
-        f"{float(stats.get('avg_reproduction_timing', 0.0)):16.3f}"
+        f"{float(stats.get('avg_reproduction_timing', 0.0)):16.3f} | "
+        f"{float(stats.get('avg_hunger_sensitivity', 0.0)):13.3f}"
     )
 
 
@@ -1599,6 +1600,7 @@ def format_population_dynamics(
     avg_longevity_factor = float(stats.get("avg_longevity_factor", 0.0))
     avg_environmental_tolerance = float(stats.get("avg_environmental_tolerance", 0.0))
     avg_reproduction_timing = float(stats.get("avg_reproduction_timing", 0.0))
+    avg_hunger_sensitivity = float(stats.get("avg_hunger_sensitivity", 0.0))
     std_memory_focus = float(stats.get("std_memory_focus", 0.0))
     std_social_sensitivity = float(stats.get("std_social_sensitivity", 0.0))
     std_food_perception = float(stats.get("std_food_perception", 0.0))
@@ -1614,6 +1616,7 @@ def format_population_dynamics(
     std_longevity_factor = float(stats.get("std_longevity_factor", 0.0))
     std_environmental_tolerance = float(stats.get("std_environmental_tolerance", 0.0))
     std_reproduction_timing = float(stats.get("std_reproduction_timing", 0.0))
+    std_hunger_sensitivity = float(stats.get("std_hunger_sensitivity", 0.0))
     avg_effective_energy_drain_multiplier = float(stats.get("avg_effective_energy_drain_multiplier", 0.0))
     avg_reproduction_cost_multiplier = float(stats.get("avg_reproduction_cost_multiplier", 0.0))
     avg_reproduction_timing_threshold_multiplier = float(
@@ -1660,6 +1663,10 @@ def format_population_dynamics(
     reproduction_timing_reproduction_bias_tick = float(
         stats.get("reproduction_timing_reproduction_usage_bias_tick", 0.0)
     )
+    hunger_sensitivity_search_bias_tick = float(
+        stats.get("hunger_sensitivity_search_usage_bias_tick", 0.0)
+    )
+    hunger_search_usage_alive_tick = float(stats.get("hunger_search_usage_per_alive_tick", 0.0))
     memory_focus_food_bias_tick = float(stats.get("memory_focus_food_usage_bias_tick", 0.0))
     memory_focus_danger_bias_tick = float(stats.get("memory_focus_danger_usage_bias_tick", 0.0))
     social_sensitivity_follow_bias_tick = float(stats.get("social_sensitivity_follow_usage_bias_tick", 0.0))
@@ -1897,8 +1904,8 @@ def format_population_dynamics(
         f"mobilite_tick:moves={movement_actions_tick} freq={movement_usage_alive_tick:.2f} freq_moy={movement_usage_total:.2f} mult={avg_movement_multiplier_observed_tick:.2f} dist={avg_movement_distance_observed_tick:.2f} dist_moy={avg_movement_distance_observed_total:.2f} "
         f"part_infl={social_influenced_share_tick:.2f} infl_moy_tick={social_influenced_rate_total:.2f} "
         f"mult_fuite={avg_social_flee_multiplier_tick:.2f} mult_fuite_moy={avg_social_flee_multiplier_total:.2f} "
-        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},st={avg_stress_tolerance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},mo={avg_mobility_efficiency:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f},env={avg_environmental_tolerance:.2f},rt={avg_reproduction_timing:.2f} "
-        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} st_sigma={std_stress_tolerance:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} mo_sigma={std_mobility_efficiency:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} lg_sigma={std_longevity_factor:.2f} env_sigma={std_environmental_tolerance:.2f} rt_sigma={std_reproduction_timing:.2f} "
+        f"traits_comp_moy:pru={avg_prudence:.2f},dom={avg_dominance:.2f},rk={avg_risk_taking:.2f},st={avg_stress_tolerance:.2f},rep={avg_repro_drive:.2f},mem={avg_memory_focus:.2f},soc={avg_social_sensitivity:.2f},fp={avg_food_perception:.2f},tp={avg_threat_perception:.2f},bp={avg_behavior_persistence:.2f},ex={avg_exploration_bias:.2f},dp={avg_density_preference:.2f},mo={avg_mobility_efficiency:.2f},ee={avg_energy_efficiency:.2f},er={avg_exhaustion_resistance:.2f},lg={avg_longevity_factor:.2f},env={avg_environmental_tolerance:.2f},rt={avg_reproduction_timing:.2f},hs={avg_hunger_sensitivity:.2f} "
+        f"traits_disp:mem_sigma={std_memory_focus:.2f} soc_sigma={std_social_sensitivity:.2f} fp_sigma={std_food_perception:.2f} tp_sigma={std_threat_perception:.2f} rk_sigma={std_risk_taking:.2f} st_sigma={std_stress_tolerance:.2f} bp_sigma={std_behavior_persistence:.2f} ex_sigma={std_exploration_bias:.2f} dp_sigma={std_density_preference:.2f} mo_sigma={std_mobility_efficiency:.2f} ee_sigma={std_energy_efficiency:.2f} er_sigma={std_exhaustion_resistance:.2f} lg_sigma={std_longevity_factor:.2f} env_sigma={std_environmental_tolerance:.2f} rt_sigma={std_reproduction_timing:.2f} hs_sigma={std_hunger_sensitivity:.2f} "
         f"energie_traits_effets:drain_mult={avg_effective_energy_drain_multiplier:.2f} repro_mult={avg_reproduction_cost_multiplier:.2f} repro_timing_mult={avg_reproduction_timing_threshold_multiplier:.2f} "
         f"drain_obs_mult={avg_energy_drain_multiplier_observed_tick:.2f} repro_obs_mult={avg_reproduction_cost_multiplier_observed_tick:.2f} repro_timing_obs_mult={avg_reproduction_timing_threshold_multiplier_observed_tick:.2f} "
         f"drain_obs={avg_energy_drain_amount_last_tick:.2f} repro_obs={avg_reproduction_cost_amount_last_tick:.2f} "
@@ -1906,7 +1913,8 @@ def format_population_dynamics(
         f"vieillissement_tick:act={age_wear_active_tick} freq={age_wear_usage_alive_tick:.2f} mult={avg_age_wear_multiplier_observed_tick:.2f} lg_bias={longevity_factor_age_wear_usage_bias_tick:+.2f} "
         f"traits_bias_tick:mem_u={memory_focus_food_bias_tick:+.2f} mem_d={memory_focus_danger_bias_tick:+.2f} "
         f"soc_suivi={social_sensitivity_follow_bias_tick:+.2f} soc_fuite={social_sensitivity_flee_boost_bias_tick:+.2f} "
-        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ex_explore={exploration_explore_usage_bias_tick:+.2f} ex_settle={exploration_settle_usage_bias_tick:+.2f} dp_guide={density_guided_usage_bias_tick:+.2f} dp_seek={density_seek_usage_bias_tick:+.2f} dp_avoid={density_avoid_usage_bias_tick:+.2f} mo_move={mobility_efficiency_movement_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} rt_repro={reproduction_timing_reproduction_bias_tick:+.2f} "
+        f"bp_inertie={behavior_persistence_hold_bias_tick:+.2f} ex_guide={exploration_bias_guided_usage_bias_tick:+.2f} ex_explore={exploration_explore_usage_bias_tick:+.2f} ex_settle={exploration_settle_usage_bias_tick:+.2f} dp_guide={density_guided_usage_bias_tick:+.2f} dp_seek={density_seek_usage_bias_tick:+.2f} dp_avoid={density_avoid_usage_bias_tick:+.2f} mo_move={mobility_efficiency_movement_bias_tick:+.2f} ee_drain={energy_efficiency_drain_bias_tick:+.2f} er_repro={exhaustion_resistance_reproduction_bias_tick:+.2f} rt_repro={reproduction_timing_reproduction_bias_tick:+.2f} hs_search={hunger_sensitivity_search_bias_tick:+.2f} "
+        f"faim_tick:search_freq={hunger_search_usage_alive_tick:.2f} "
         f"perception_bias_tick:fp_det={food_perception_detection_bias_tick:+.2f} fp_eat={food_perception_consumption_bias_tick:+.2f} tp_fuite={threat_perception_flee_bias_tick:+.2f} rk_fuite={risk_taking_flee_bias_tick:+.2f} "
         f"stress_tick:cas={stress_pressure_events_tick} fuite={stress_pressure_flee_events_tick} taux={stress_pressure_flee_rate_tick:.2f} st_press_mu={stress_tolerance_pressure_users_avg_tick:.2f} st_fuite_mu={stress_tolerance_pressure_flee_users_avg_tick:.2f} "
         f"stress_log:cas={stress_pressure_log} fuite={stress_pressure_flee_log} "

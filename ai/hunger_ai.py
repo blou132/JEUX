@@ -275,6 +275,10 @@ class HungerAI:
         threshold = self.hunger_seek_threshold
         threshold -= 0.05 * (creature.traits.prudence - 1.0)
         threshold += 0.03 * (creature.traits.dominance - 1.0)
+        # Light individual hunger sensitivity bias:
+        # - >1.0 starts food-seeking slightly earlier (lower threshold).
+        # - <1.0 tolerates hunger slightly longer (higher threshold).
+        threshold -= 0.15 * (creature.traits.hunger_sensitivity - 1.0)
         return max(0.0, min(1.0, threshold))
 
     def _effective_reproduction_hunger_limit(

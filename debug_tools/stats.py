@@ -81,6 +81,7 @@ def build_population_stats(
             "avg_longevity_factor": 0.0,
             "avg_environmental_tolerance": 0.0,
             "avg_reproduction_timing": 0.0,
+            "avg_hunger_sensitivity": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
@@ -96,6 +97,7 @@ def build_population_stats(
             "std_longevity_factor": 0.0,
             "std_environmental_tolerance": 0.0,
             "std_reproduction_timing": 0.0,
+            "std_hunger_sensitivity": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
             "avg_reproduction_timing_threshold_multiplier": 1.0,
@@ -153,6 +155,14 @@ def build_population_stats(
             "reproduction_timing_reproduction_usage_bias_total": 0.0,
             "avg_reproduction_timing_threshold_multiplier_observed_last_tick": 1.0,
             "avg_reproduction_timing_threshold_multiplier_observed_total": 1.0,
+            "hunger_search_actions_last_tick": 0,
+            "total_hunger_search_actions": 0,
+            "hunger_search_usage_per_alive_tick": 0.0,
+            "hunger_search_usage_per_tick_total": 0.0,
+            "hunger_sensitivity_search_users_avg_tick": 0.0,
+            "hunger_sensitivity_search_users_avg_total": 0.0,
+            "hunger_sensitivity_search_usage_bias_tick": 0.0,
+            "hunger_sensitivity_search_usage_bias_total": 0.0,
             "movement_actions_last_tick": 0,
             "total_movement_actions": 0,
             "movement_usage_per_alive_tick": 0.0,
@@ -383,6 +393,7 @@ def build_population_stats(
         sum(c.traits.environmental_tolerance for c in simulation.creatures) / total
     )
     avg_reproduction_timing = sum(c.traits.reproduction_timing for c in simulation.creatures) / total
+    avg_hunger_sensitivity = sum(c.traits.hunger_sensitivity for c in simulation.creatures) / total
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
     avg_reproduction_timing_threshold_multiplier = max(
@@ -597,6 +608,31 @@ def build_population_stats(
         if simulation.total_reproduction_cost_events > 0
         else 0.0
     )
+    avg_hunger_sensitivity_search_users_tick = (
+        simulation.hunger_sensitivity_sum_search_last_tick / simulation.hunger_search_actions_last_tick
+        if simulation.hunger_search_actions_last_tick > 0
+        else 0.0
+    )
+    avg_hunger_sensitivity_search_users_total = (
+        simulation.total_hunger_sensitivity_sum_search / simulation.total_hunger_search_actions
+        if simulation.total_hunger_search_actions > 0
+        else 0.0
+    )
+    hunger_sensitivity_search_usage_bias_tick = (
+        avg_hunger_sensitivity_search_users_tick - avg_hunger_sensitivity
+        if simulation.hunger_search_actions_last_tick > 0
+        else 0.0
+    )
+    hunger_sensitivity_search_usage_bias_total = (
+        avg_hunger_sensitivity_search_users_total - avg_hunger_sensitivity
+        if simulation.total_hunger_search_actions > 0
+        else 0.0
+    )
+    hunger_search_usage_per_alive_tick = simulation.hunger_search_actions_last_tick / max(1, alive)
+    hunger_search_usage_per_tick_total = simulation.total_hunger_search_actions / max(
+        1,
+        simulation.tick_count,
+    )
     avg_movement_multiplier_observed_last_tick = (
         simulation.movement_multiplier_sum_last_tick / simulation.movement_actions_last_tick
         if simulation.movement_actions_last_tick > 0
@@ -653,6 +689,7 @@ def build_population_stats(
     longevity_factor_values = [c.traits.longevity_factor for c in simulation.creatures]
     environmental_tolerance_values = [c.traits.environmental_tolerance for c in simulation.creatures]
     reproduction_timing_values = [c.traits.reproduction_timing for c in simulation.creatures]
+    hunger_sensitivity_values = [c.traits.hunger_sensitivity for c in simulation.creatures]
 
     std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
@@ -674,6 +711,10 @@ def build_population_stats(
     std_reproduction_timing = _stddev_from_mean(
         reproduction_timing_values,
         avg_reproduction_timing,
+    )
+    std_hunger_sensitivity = _stddev_from_mean(
+        hunger_sensitivity_values,
+        avg_hunger_sensitivity,
     )
 
     avg_memory_focus_food_users_tick = (
@@ -1171,6 +1212,7 @@ def build_population_stats(
         "avg_longevity_factor": avg_longevity_factor,
         "avg_environmental_tolerance": avg_environmental_tolerance,
         "avg_reproduction_timing": avg_reproduction_timing,
+        "avg_hunger_sensitivity": avg_hunger_sensitivity,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
@@ -1186,6 +1228,7 @@ def build_population_stats(
         "std_longevity_factor": std_longevity_factor,
         "std_environmental_tolerance": std_environmental_tolerance,
         "std_reproduction_timing": std_reproduction_timing,
+        "std_hunger_sensitivity": std_hunger_sensitivity,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
         "avg_reproduction_timing_threshold_multiplier": avg_reproduction_timing_threshold_multiplier,
@@ -1249,6 +1292,14 @@ def build_population_stats(
         "avg_reproduction_timing_threshold_multiplier_observed_total": (
             avg_reproduction_timing_threshold_multiplier_observed_total
         ),
+        "hunger_search_actions_last_tick": simulation.hunger_search_actions_last_tick,
+        "total_hunger_search_actions": simulation.total_hunger_search_actions,
+        "hunger_search_usage_per_alive_tick": hunger_search_usage_per_alive_tick,
+        "hunger_search_usage_per_tick_total": hunger_search_usage_per_tick_total,
+        "hunger_sensitivity_search_users_avg_tick": avg_hunger_sensitivity_search_users_tick,
+        "hunger_sensitivity_search_users_avg_total": avg_hunger_sensitivity_search_users_total,
+        "hunger_sensitivity_search_usage_bias_tick": hunger_sensitivity_search_usage_bias_tick,
+        "hunger_sensitivity_search_usage_bias_total": hunger_sensitivity_search_usage_bias_total,
         "movement_actions_last_tick": simulation.movement_actions_last_tick,
         "total_movement_actions": simulation.total_movement_actions,
         "movement_usage_per_alive_tick": simulation.movement_actions_last_tick / max(1, alive),
@@ -1599,12 +1650,20 @@ def build_final_run_summary(
         ),
         "reproduction_timing_mean": float(final_stats.get("avg_reproduction_timing", 0.0)),
         "reproduction_timing_std": float(final_stats.get("std_reproduction_timing", 0.0)),
+        "hunger_sensitivity_mean": float(final_stats.get("avg_hunger_sensitivity", 0.0)),
+        "hunger_sensitivity_std": float(final_stats.get("std_hunger_sensitivity", 0.0)),
         "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
         "exhaustion_resistance_reproduction_bias": float(
             final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
         ),
         "reproduction_timing_reproduction_bias": float(
             final_stats.get("reproduction_timing_reproduction_usage_bias_total", 0.0)
+        ),
+        "hunger_sensitivity_search_bias": float(
+            final_stats.get("hunger_sensitivity_search_usage_bias_total", 0.0)
+        ),
+        "hunger_search_usage_per_tick": float(
+            final_stats.get("hunger_search_usage_per_tick_total", 0.0)
         ),
         "energy_drain_multiplier_observed": float(
             final_stats.get("avg_energy_drain_multiplier_observed_total", 0.0)
@@ -1814,6 +1873,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "longevity_factor": 0.0,
                 "environmental_tolerance": 0.0,
                 "reproduction_timing": 0.0,
+                "hunger_sensitivity": 0.0,
             },
             "avg_memory_impact": {
                 "food_usage_total": 0.0,
@@ -1867,9 +1927,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "environmental_tolerance_std": 0.0,
                 "reproduction_timing_mean": 0.0,
                 "reproduction_timing_std": 0.0,
+                "hunger_sensitivity_mean": 0.0,
+                "hunger_sensitivity_std": 0.0,
                 "energy_efficiency_drain_bias": 0.0,
                 "exhaustion_resistance_reproduction_bias": 0.0,
                 "reproduction_timing_reproduction_bias": 0.0,
+                "hunger_sensitivity_search_bias": 0.0,
+                "hunger_search_usage_per_tick": 0.0,
                 "energy_drain_multiplier_observed": 0.0,
                 "reproduction_cost_multiplier_observed": 0.0,
                 "reproduction_timing_threshold_multiplier_observed": 1.0,
@@ -1968,6 +2032,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "longevity_factor": 0.0,
         "environmental_tolerance": 0.0,
         "reproduction_timing": 0.0,
+        "hunger_sensitivity": 0.0,
     }
     avg_memory_acc = {
         "food_usage_total": 0.0,
@@ -2021,9 +2086,13 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "environmental_tolerance_std": 0.0,
         "reproduction_timing_mean": 0.0,
         "reproduction_timing_std": 0.0,
+        "hunger_sensitivity_mean": 0.0,
+        "hunger_sensitivity_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "reproduction_timing_reproduction_bias": 0.0,
+        "hunger_sensitivity_search_bias": 0.0,
+        "hunger_search_usage_per_tick": 0.0,
         "energy_drain_multiplier_observed": 0.0,
         "reproduction_cost_multiplier_observed": 0.0,
         "reproduction_timing_threshold_multiplier_observed": 0.0,
@@ -2141,6 +2210,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["reproduction_timing"] += float(
                     traits_raw.get("reproduction_timing", 0.0)
                 )
+                avg_traits_acc["hunger_sensitivity"] += float(
+                    traits_raw.get("hunger_sensitivity", 0.0)
+                )
 
             memory_raw = run_summary.get("memory_impact")
             if isinstance(memory_raw, dict):
@@ -2229,6 +2301,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["reproduction_timing_std"] += float(
                     trait_impact_raw.get("reproduction_timing_std", 0.0)
                 )
+                avg_trait_impact_acc["hunger_sensitivity_mean"] += float(
+                    trait_impact_raw.get("hunger_sensitivity_mean", 0.0)
+                )
+                avg_trait_impact_acc["hunger_sensitivity_std"] += float(
+                    trait_impact_raw.get("hunger_sensitivity_std", 0.0)
+                )
                 avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
                     trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
                 )
@@ -2237,6 +2315,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["reproduction_timing_reproduction_bias"] += float(
                     trait_impact_raw.get("reproduction_timing_reproduction_bias", 0.0)
+                )
+                avg_trait_impact_acc["hunger_sensitivity_search_bias"] += float(
+                    trait_impact_raw.get("hunger_sensitivity_search_bias", 0.0)
+                )
+                avg_trait_impact_acc["hunger_search_usage_per_tick"] += float(
+                    trait_impact_raw.get("hunger_search_usage_per_tick", 0.0)
                 )
                 avg_trait_impact_acc["energy_drain_multiplier_observed"] += float(
                     trait_impact_raw.get("energy_drain_multiplier_observed", 0.0)
@@ -2461,6 +2545,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "longevity_factor": avg_traits_acc["longevity_factor"] / run_count,
             "environmental_tolerance": avg_traits_acc["environmental_tolerance"] / run_count,
             "reproduction_timing": avg_traits_acc["reproduction_timing"] / run_count,
+            "hunger_sensitivity": avg_traits_acc["hunger_sensitivity"] / run_count,
         },
         "avg_memory_impact": {
             "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
@@ -2514,12 +2599,20 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "environmental_tolerance_std": avg_trait_impact_acc["environmental_tolerance_std"] / run_count,
             "reproduction_timing_mean": avg_trait_impact_acc["reproduction_timing_mean"] / run_count,
             "reproduction_timing_std": avg_trait_impact_acc["reproduction_timing_std"] / run_count,
+            "hunger_sensitivity_mean": avg_trait_impact_acc["hunger_sensitivity_mean"] / run_count,
+            "hunger_sensitivity_std": avg_trait_impact_acc["hunger_sensitivity_std"] / run_count,
             "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
             "exhaustion_resistance_reproduction_bias": (
                 avg_trait_impact_acc["exhaustion_resistance_reproduction_bias"] / run_count
             ),
             "reproduction_timing_reproduction_bias": (
                 avg_trait_impact_acc["reproduction_timing_reproduction_bias"] / run_count
+            ),
+            "hunger_sensitivity_search_bias": (
+                avg_trait_impact_acc["hunger_sensitivity_search_bias"] / run_count
+            ),
+            "hunger_search_usage_per_tick": (
+                avg_trait_impact_acc["hunger_search_usage_per_tick"] / run_count
             ),
             "energy_drain_multiplier_observed": (
                 avg_trait_impact_acc["energy_drain_multiplier_observed"] / run_count
@@ -2931,6 +3024,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "longevity_factor": float(final_stats.get("avg_longevity_factor", 0.0)),
         "environmental_tolerance": float(final_stats.get("avg_environmental_tolerance", 0.0)),
         "reproduction_timing": float(final_stats.get("avg_reproduction_timing", 0.0)),
+        "hunger_sensitivity": float(final_stats.get("avg_hunger_sensitivity", 0.0)),
     }
 
 

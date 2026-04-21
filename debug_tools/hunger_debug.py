@@ -41,6 +41,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "longevity_factor": round(creature.traits.longevity_factor, 3),
                     "environmental_tolerance": round(creature.traits.environmental_tolerance, 3),
                     "reproduction_timing": round(creature.traits.reproduction_timing, 3),
+                    "hunger_sensitivity": round(creature.traits.hunger_sensitivity, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -118,6 +119,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
     )
     avg_reproduction_timing_population = (
         sum(creature.traits.reproduction_timing for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
+    avg_hunger_sensitivity_population = (
+        sum(creature.traits.hunger_sensitivity for creature in simulation.creatures)
         / total_creatures
         if total_creatures > 0
         else 0.0
@@ -217,6 +224,16 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         / simulation.total_reproduction_cost_events
         if simulation.total_reproduction_cost_events > 0
         else 1.0
+    )
+    hunger_sensitivity_search_users_avg_last_tick = (
+        simulation.hunger_sensitivity_sum_search_last_tick / simulation.hunger_search_actions_last_tick
+        if simulation.hunger_search_actions_last_tick > 0
+        else 0.0
+    )
+    hunger_sensitivity_search_users_avg_total = (
+        simulation.total_hunger_sensitivity_sum_search / simulation.total_hunger_search_actions
+        if simulation.total_hunger_search_actions > 0
+        else 0.0
     )
     mobility_efficiency_movement_users_avg_last_tick = (
         simulation.mobility_efficiency_sum_movement_last_tick / simulation.movement_actions_last_tick
@@ -420,6 +437,25 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         ),
         "reproduction_timing_threshold_multiplier_avg_total": (
             reproduction_timing_threshold_multiplier_avg_total
+        ),
+        "hunger_search_actions_last_tick": simulation.hunger_search_actions_last_tick,
+        "total_hunger_search_actions": simulation.total_hunger_search_actions,
+        "avg_hunger_sensitivity_population": avg_hunger_sensitivity_population,
+        "hunger_sensitivity_search_users_avg_last_tick": (
+            hunger_sensitivity_search_users_avg_last_tick
+        ),
+        "hunger_sensitivity_search_users_avg_total": (
+            hunger_sensitivity_search_users_avg_total
+        ),
+        "hunger_sensitivity_search_usage_bias_last_tick": (
+            hunger_sensitivity_search_users_avg_last_tick - avg_hunger_sensitivity_population
+            if simulation.hunger_search_actions_last_tick > 0
+            else 0.0
+        ),
+        "hunger_sensitivity_search_usage_bias_total": (
+            hunger_sensitivity_search_users_avg_total - avg_hunger_sensitivity_population
+            if simulation.total_hunger_search_actions > 0
+            else 0.0
         ),
         "movement_actions_last_tick": simulation.movement_actions_last_tick,
         "total_movement_actions": simulation.total_movement_actions,

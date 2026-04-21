@@ -38,6 +38,8 @@ class GeneticTraits:
     #   (especially in poor zones), <1.0 does the opposite.
     # - reproduction_timing: >1.0 tends to wait for slightly more energy margin;
     #   <1.0 tends to reproduce slightly earlier.
+    # - hunger_sensitivity: >1.0 starts food-seeking slightly earlier;
+    #   <1.0 tolerates hunger slightly longer before prioritizing food search.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
@@ -54,6 +56,7 @@ class GeneticTraits:
     longevity_factor: float = 1.0
     environmental_tolerance: float = 1.0
     reproduction_timing: float = 1.0
+    hunger_sensitivity: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -81,5 +84,6 @@ class GeneticTraits:
         self.longevity_factor = max(0.85, min(1.15, self.longevity_factor))
         self.environmental_tolerance = max(0.85, min(1.15, self.environmental_tolerance))
         self.reproduction_timing = max(0.85, min(1.15, self.reproduction_timing))
+        self.hunger_sensitivity = max(0.85, min(1.15, self.hunger_sensitivity))
         return self
 

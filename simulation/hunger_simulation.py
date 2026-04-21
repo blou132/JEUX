@@ -248,6 +248,10 @@ class HungerSimulation:
         self.total_reproduction_timing_sum_reproduction = 0.0
         self.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick = 0.0
         self.total_reproduction_timing_threshold_multiplier_sum_reproduction = 0.0
+        self.hunger_search_actions_last_tick = 0
+        self.total_hunger_search_actions = 0
+        self.hunger_sensitivity_sum_search_last_tick = 0.0
+        self.total_hunger_sensitivity_sum_search = 0.0
 
         self.death_causes_last_tick: Dict[str, int] = {
             self.DEATH_CAUSE_STARVATION: 0,
@@ -347,6 +351,8 @@ class HungerSimulation:
         self.exhaustion_resistance_sum_reproduction_last_tick = 0.0
         self.reproduction_timing_sum_reproduction_last_tick = 0.0
         self.reproduction_timing_threshold_multiplier_sum_reproduction_last_tick = 0.0
+        self.hunger_search_actions_last_tick = 0
+        self.hunger_sensitivity_sum_search_last_tick = 0.0
         self.death_causes_last_tick = {
             self.DEATH_CAUSE_STARVATION: 0,
             self.DEATH_CAUSE_EXHAUSTION: 0,
@@ -448,6 +454,11 @@ class HungerSimulation:
                 continue
             intent = intents[creature.creature_id]
             previous_intent = previous_intents.get(creature.creature_id)
+            if intent.action in (HungerAI.ACTION_SEARCH_FOOD, HungerAI.ACTION_MOVE_TO_FOOD):
+                self.hunger_search_actions_last_tick += 1
+                self.total_hunger_search_actions += 1
+                self.hunger_sensitivity_sum_search_last_tick += creature.traits.hunger_sensitivity
+                self.total_hunger_sensitivity_sum_search += creature.traits.hunger_sensitivity
             if intent.action == HungerAI.ACTION_MOVE_TO_FOOD and intent.target_food_id is not None:
                 self.food_detection_moves_last_tick += 1
                 self.total_food_detection_moves += 1
