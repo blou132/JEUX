@@ -55,6 +55,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usages `seek`/`avoid`, part `avoid` et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure d'age, reduction utile du drain age, dispersion et stabilite.
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet observe zone pauvre/riche, dispersion utile et stabilite.
+- Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet observe sur le seuil reproductif, reproduction plus precoce/prudente et stabilite.
 - Evaluation legere de l'impact `reproduction_timing` (moyenne/dispersion, biais d'usage en reproduction et multiplicateur observe de seuil) visible en stats, synthese run, multi-runs, export et analyse.
 - Debug texte lisible avec indicateurs causaux.
 - Suite de tests `unittest` couvrant les mecanismes MVP.
@@ -352,6 +353,12 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
   - configuration qui maximise la dispersion utile de `environmental_tolerance` (`environmental_tolerance_std`)
   - configuration la plus stable (regle batch standard)
   - signalement explicite des cas ambigus ou insuffisants
+- Quand les metriques existent, la synthese inclut aussi `reproduction_timing_batch`:
+  - configuration qui maximise l'effet observe sur le seuil reproductif (proxy: `abs(reproduction_timing_threshold_multiplier_observed - 1)`)
+  - configuration qui maximise la reproduction plus precoce (proxy: `max(0, 1 - reproduction_timing_threshold_multiplier_observed)`)
+  - configuration qui maximise la reproduction plus prudente (proxy: `max(0, reproduction_timing_threshold_multiplier_observed - 1)`)
+  - configuration la plus stable (regle batch standard)
+  - signalement explicite des cas ambigus ou insuffisants
 - Aucun changement gameplay (mode purement observatoire).
 
 ### Memoire locale courte (zones utiles/dangereuses)
@@ -480,6 +487,11 @@ py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-
 ```
 
 Exemple lecture comparative `environmental_tolerance` en batch (`environmental_tolerance_batch`):
+```powershell
+py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
+```
+
+Exemple lecture comparative `reproduction_timing` en batch (`reproduction_timing_batch`):
 ```powershell
 py main.py --batch-param mutation_variation --batch-values 0.05,0.1,0.2 --batch-runs 3 --seed 42 --seed-step 1 --steps 120 --log-interval 20
 ```
@@ -634,6 +646,11 @@ effet_zone_pauvre_max: mutation_variation=0.2 (impact_abs_moy=0.120)
 effet_zone_riche_max: mutation_variation=0.1 (impact_abs_moy=0.090)
 dispersion_tolerance_env_max: mutation_variation=0.1 (env_sigma_moy=0.080)
 configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
+reproduction_timing_batch:
+effet_seuil_reproductif_max: mutation_variation=0.1 (impact_abs_moy=0.050)
+reproduction_plus_precoce_max: mutation_variation=0.2 (effet_moy=0.040)
+reproduction_plus_prudente_max: mutation_variation=0.1 (effet_moy=0.050)
+configuration_plus_stable: mutation_variation=0.1 (taux_ext=0.00, pop_finale_moy=42.50, gen_max_moy=2.50)
 ```
 
 ## Exemple de sortie historique batch comparative
@@ -762,6 +779,7 @@ En mode batch:
 - quand les metriques existent, le bloc inclut aussi `density_preference_batch`.
 - quand les metriques existent, le bloc inclut aussi `longevity_factor_batch`.
 - quand les metriques existent, le bloc inclut aussi `environmental_tolerance_batch`.
+- quand les metriques existent, le bloc inclut aussi `reproduction_timing_batch`.
 
 En mode historique batch:
 - ligne `batch_history: <chemin> id=<batch_id>` quand une campagne est archivee.
@@ -783,6 +801,7 @@ Avec les outils d'analyse:
 - pour l'impact `density_preference`, verifier dans `Batch Comparative Summary` le bloc `density_preference_batch` (usage `seek`, usage `avoid`, part `avoid`, stabilite).
 - pour l'impact `longevity_factor`, verifier dans `Batch Comparative Summary` le bloc `longevity_factor_batch` (effet usure age, reduction drain age, dispersion, stabilite).
 - pour l'impact `environmental_tolerance`, verifier dans `Batch Comparative Summary` le bloc `environmental_tolerance_batch` (effet zone pauvre/riche, dispersion, stabilite).
+- pour l'impact `reproduction_timing`, verifier dans `Batch Comparative Summary` le bloc `reproduction_timing_batch` (effet seuil reproductif, reproduction precoce/prudente, stabilite).
 - pour l'impact `reproduction_timing` en run/multi-runs, verifier `timing_repro_moy`, `rt`/`rt_sigma`, `bias_rt_repro` et `repro_timing_mult`.
 
 Lecture rapide conseillee:
@@ -821,6 +840,7 @@ Lecture rapide conseillee:
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usage `seek`/`avoid`, part `avoid` et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure age, reduction utile du drain age, dispersion et stabilite.
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet zone pauvre/riche, dispersion utile et stabilite.
+- Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet seuil reproductif, reproduction plus precoce/prudente et stabilite.
 - Historique batch leger (archivage multi-campagnes + outil de lecture).
 - Synthese comparative globale de l'historique batch (stable/gen/pop/extinction).
 - Lecture agregee de l'impact des parametres testes dans l'historique batch.

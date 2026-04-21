@@ -1112,6 +1112,111 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("environmental_tolerance_batch:", text)
         self.assertIn("donnees_environmental_tolerance: n/a", text)
 
+    def test_reproduction_timing_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.03,
+                        "reproduction_timing_threshold_multiplier_observed": 0.98,
+                        "reproduction_timing_reproduction_bias": -0.02,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.07,
+                        "reproduction_timing_threshold_multiplier_observed": 1.05,
+                        "reproduction_timing_reproduction_bias": 0.04,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.05,
+                        "reproduction_timing_threshold_multiplier_observed": 0.96,
+                        "reproduction_timing_reproduction_bias": -0.06,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        reproduction_timing = summary.get("reproduction_timing_comparative")
+
+        self.assertIsInstance(reproduction_timing, dict)
+        assert isinstance(reproduction_timing, dict)
+        self.assertTrue(bool(reproduction_timing.get("available", False)))
+        self.assertEqual(
+            reproduction_timing["best_reproduction_timing_threshold_effect"]["winners"],
+            [0.1],
+        )
+        self.assertAlmostEqual(
+            float(reproduction_timing["best_reproduction_timing_threshold_effect"]["value"]),
+            0.05,
+        )
+        self.assertEqual(reproduction_timing["best_earlier_reproduction"]["winners"], [0.2])
+        self.assertAlmostEqual(float(reproduction_timing["best_earlier_reproduction"]["value"]), 0.04)
+        self.assertEqual(reproduction_timing["best_prudent_reproduction"]["winners"], [0.1])
+        self.assertAlmostEqual(float(reproduction_timing["best_prudent_reproduction"]["value"]), 0.05)
+        self.assertEqual(reproduction_timing["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("reproduction_timing_batch:", text)
+        self.assertIn("effet_seuil_reproductif_max:", text)
+        self.assertIn("reproduction_plus_precoce_max:", text)
+        self.assertIn("reproduction_plus_prudente_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_reproduction_timing_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        reproduction_timing = summary.get("reproduction_timing_comparative")
+
+        self.assertIsInstance(reproduction_timing, dict)
+        assert isinstance(reproduction_timing, dict)
+        self.assertFalse(bool(reproduction_timing.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(reproduction_timing.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("reproduction_timing_batch:", text)
+        self.assertIn("donnees_reproduction_timing: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 

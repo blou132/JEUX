@@ -44,6 +44,7 @@ def build_batch_comparative_summary(
     density_preference_candidates: list[Dict[str, float]] = []
     longevity_candidates: list[Dict[str, float]] = []
     environmental_candidates: list[Dict[str, float]] = []
+    reproduction_timing_candidates: list[Dict[str, float]] = []
 
     is_memory_param = batch_param in _MEMORY_BATCH_PARAMS
     is_social_param = batch_param in _SOCIAL_BATCH_PARAMS
@@ -116,6 +117,10 @@ def build_batch_comparative_summary(
         if environmental_metrics is not None:
             environmental_candidates.append({"value": value, **environmental_metrics})
 
+        reproduction_timing_metrics = _read_reproduction_timing_metrics(summary_raw)
+        if reproduction_timing_metrics is not None:
+            reproduction_timing_candidates.append({"value": value, **reproduction_timing_metrics})
+
     if len(candidates) == 0:
         empty: Dict[str, object] = {
             "batch_param": str(batch_param),
@@ -166,6 +171,10 @@ def build_batch_comparative_summary(
         )
         empty["environmental_comparative"] = _build_environmental_comparative(
             environmental_candidates,
+            stable_metric=None,
+        )
+        empty["reproduction_timing_comparative"] = _build_reproduction_timing_comparative(
+            reproduction_timing_candidates,
             stable_metric=None,
         )
         return empty
@@ -266,6 +275,10 @@ def build_batch_comparative_summary(
         environmental_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["reproduction_timing_comparative"] = _build_reproduction_timing_comparative(
+        reproduction_timing_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
 
     return summary
 
@@ -352,6 +365,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     environmental_raw = summary.get("environmental_comparative")
     if isinstance(environmental_raw, dict):
         lines.extend(_format_environmental_comparative(batch_param, environmental_raw))
+
+    reproduction_timing_raw = summary.get("reproduction_timing_comparative")
+    if isinstance(reproduction_timing_raw, dict):
+        lines.extend(_format_reproduction_timing_comparative(batch_param, reproduction_timing_raw))
 
     return "\n".join(lines)
 
@@ -1375,6 +1392,137 @@ def _build_environmental_comparative(
     }
 
 
+def _format_reproduction_timing_comparative(
+    batch_param: str,
+    reproduction_timing_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["reproduction_timing_batch:"]
+
+    if not bool(reproduction_timing_summary.get("available", False)):
+        note = str(reproduction_timing_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_reproduction_timing: n/a ({note})")
+        return lines
+
+    threshold_effect = _read_metric_result(
+        reproduction_timing_summary.get("best_reproduction_timing_threshold_effect")
+    )
+    earlier_repro = _read_metric_result(
+        reproduction_timing_summary.get("best_earlier_reproduction")
+    )
+    prudent_repro = _read_metric_result(
+        reproduction_timing_summary.get("best_prudent_reproduction")
+    )
+    stable_config = _read_metric_result(reproduction_timing_summary.get("most_stable_config"))
+
+    lines.append(
+        "effet_seuil_reproductif_max: {label} (impact_abs_moy={value:.3f})".format(
+            label=_winner_label(batch_param, threshold_effect.get("winners")),
+            value=float(threshold_effect.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "reproduction_plus_precoce_max: {label} (effet_moy={value:.3f})".format(
+            label=_winner_label(batch_param, earlier_repro.get("winners")),
+            value=float(earlier_repro.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "reproduction_plus_prudente_max: {label} (effet_moy={value:.3f})".format(
+            label=_winner_label(batch_param, prudent_repro.get("winners")),
+            value=float(prudent_repro.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    reproduction_timing_note = str(reproduction_timing_summary.get("reproduction_timing_note", "")).strip()
+    if reproduction_timing_note:
+        lines.append(f"note_reproduction_timing: {reproduction_timing_note}")
+    else:
+        lines.append(
+            "note_reproduction_timing: effet_seuil=abs(repro_timing_mult-1), precoce=max(0,1-repro_timing_mult), prudente=max(0,repro_timing_mult-1)"
+        )
+
+    return lines
+
+
+def _build_reproduction_timing_comparative(
+    reproduction_timing_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(reproduction_timing_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact reproduction_timing",
+            "best_reproduction_timing_threshold_effect": _insufficient_metric_result(),
+            "best_earlier_reproduction": _insufficient_metric_result(),
+            "best_prudent_reproduction": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "reproduction_timing_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    earlier_signal_max = max(
+        candidate["earlier_reproduction_strength"] for candidate in reproduction_timing_candidates
+    )
+    prudent_signal_max = max(
+        candidate["prudent_reproduction_strength"] for candidate in reproduction_timing_candidates
+    )
+    reproduction_timing_note = ""
+    if earlier_signal_max <= 0.0 and prudent_signal_max <= 0.0:
+        reproduction_timing_note = (
+            "multiplicateur de seuil neutre/non observe (repro_timing_mult ~= 1): lecture precoce/prudente limitee"
+        )
+    elif earlier_signal_max <= 0.0:
+        reproduction_timing_note = (
+            "aucune tendance reproduction plus precoce observee (repro_timing_mult < 1 non detecte)"
+        )
+    elif prudent_signal_max <= 0.0:
+        reproduction_timing_note = (
+            "aucune tendance reproduction plus prudente observee (repro_timing_mult > 1 non detecte)"
+        )
+
+    return {
+        "available": True,
+        "best_reproduction_timing_threshold_effect": _build_peak_metric(
+            reproduction_timing_candidates,
+            "threshold_effect_strength",
+        ),
+        "best_earlier_reproduction": _build_peak_metric(
+            reproduction_timing_candidates,
+            "earlier_reproduction_strength",
+        ),
+        "best_prudent_reproduction": _build_peak_metric(
+            reproduction_timing_candidates,
+            "prudent_reproduction_strength",
+        ),
+        "most_stable_config": stable_result,
+        "reproduction_timing_note": reproduction_timing_note,
+    }
+
+
 def _build_peak_metric(candidates: list[Dict[str, float]], field: str) -> Dict[str, object]:
     best_value = max(candidate[field] for candidate in candidates)
     winners = [candidate for candidate in candidates if _is_close(candidate[field], best_value)]
@@ -1696,6 +1844,35 @@ def _read_environmental_metrics(summary_raw: Dict[str, object]) -> Dict[str, flo
         "rich_zone_usage_per_tick": max(0.0, rich_usage),
         "poor_zone_effect_strength": abs(poor_bias),
         "rich_zone_effect_strength": abs(rich_bias),
+    }
+
+
+def _read_reproduction_timing_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "reproduction_timing_std",
+        "reproduction_timing_threshold_multiplier_observed",
+        "reproduction_timing_reproduction_bias",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    timing_std = float(avg_trait_raw.get("reproduction_timing_std", 0.0))
+    threshold_multiplier = float(
+        avg_trait_raw.get("reproduction_timing_threshold_multiplier_observed", 1.0)
+    )
+    reproduction_bias = float(avg_trait_raw.get("reproduction_timing_reproduction_bias", 0.0))
+
+    return {
+        "timing_dispersion": max(0.0, timing_std),
+        "threshold_effect_strength": abs(threshold_multiplier - 1.0),
+        "earlier_reproduction_strength": max(0.0, 1.0 - threshold_multiplier),
+        "prudent_reproduction_strength": max(0.0, threshold_multiplier - 1.0),
+        # Kept for possible future reporting while staying purely observatory.
+        "reproduction_usage_bias": reproduction_bias,
     }
 
 
