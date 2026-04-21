@@ -1217,6 +1217,50 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("reproduction_timing_batch:", text)
         self.assertIn("donnees_reproduction_timing: n/a", text)
 
+    def test_reproduction_timing_comparative_reports_ambiguity_when_tied(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.05,
+                        "reproduction_timing_threshold_multiplier_observed": 1.05,
+                        "reproduction_timing_reproduction_bias": 0.04,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "reproduction_timing_std": 0.04,
+                        "reproduction_timing_threshold_multiplier_observed": 0.95,
+                        "reproduction_timing_reproduction_bias": -0.04,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        reproduction_timing = summary.get("reproduction_timing_comparative")
+
+        self.assertIsInstance(reproduction_timing, dict)
+        assert isinstance(reproduction_timing, dict)
+        threshold_effect = reproduction_timing.get("best_reproduction_timing_threshold_effect")
+        self.assertIsInstance(threshold_effect, dict)
+        assert isinstance(threshold_effect, dict)
+        self.assertTrue(bool(threshold_effect.get("tie", False)))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("reproduction_timing_batch:", text)
+        self.assertIn("ambiguite_reproduction_timing: effet_seuil_reproductif", text)
+
 if __name__ == "__main__":
     unittest.main()
 

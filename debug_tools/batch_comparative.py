@@ -1433,6 +1433,14 @@ def _format_reproduction_timing_comparative(
         )
     )
 
+    ambiguity_labels: list[str] = []
+    if bool(threshold_effect.get("tie", False)):
+        ambiguity_labels.append("effet_seuil_reproductif")
+    if bool(earlier_repro.get("tie", False)):
+        ambiguity_labels.append("reproduction_plus_precoce")
+    if bool(prudent_repro.get("tie", False)):
+        ambiguity_labels.append("reproduction_plus_prudente")
+
     if bool(stable_config.get("insufficient", False)):
         lines.append("configuration_plus_stable: n/a")
     else:
@@ -1444,6 +1452,11 @@ def _format_reproduction_timing_comparative(
                 gen=float(stable_config.get("avg_max_generation", 0.0)),
             )
         )
+        if bool(stable_config.get("tie", False)):
+            ambiguity_labels.append("configuration_plus_stable")
+
+    if len(ambiguity_labels) > 0:
+        lines.append(f"ambiguite_reproduction_timing: {', '.join(ambiguity_labels)}")
 
     reproduction_timing_note = str(reproduction_timing_summary.get("reproduction_timing_note", "")).strip()
     if reproduction_timing_note:

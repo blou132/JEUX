@@ -815,7 +815,7 @@ Avec les outils d'analyse:
 - pour l'impact `density_preference`, verifier dans `Batch Comparative Summary` le bloc `density_preference_batch` (usage `seek`, usage `avoid`, part `avoid`, stabilite).
 - pour l'impact `longevity_factor`, verifier dans `Batch Comparative Summary` le bloc `longevity_factor_batch` (effet usure age, reduction drain age, dispersion, stabilite).
 - pour l'impact `environmental_tolerance`, verifier dans `Batch Comparative Summary` le bloc `environmental_tolerance_batch` (effet zone pauvre/riche, dispersion, stabilite).
-- pour l'impact `reproduction_timing`, verifier dans `Batch Comparative Summary` le bloc `reproduction_timing_batch` (effet seuil reproductif, reproduction precoce/prudente, stabilite).
+- pour l'impact `reproduction_timing`, verifier dans `Batch Comparative Summary` le bloc `reproduction_timing_batch` (effet seuil reproductif, reproduction precoce/prudente, stabilite, et `ambiguite_reproduction_timing` en cas d'egalite).
 - pour l'impact `reproduction_timing` en run/multi-runs, verifier `timing_repro_moy`, `rt`/`rt_sigma`, `bias_rt_repro` et `repro_timing_mult`.
 
 Lecture rapide conseillee:
