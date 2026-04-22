@@ -43,6 +43,7 @@ def build_batch_comparative_summary(
     exploration_candidates: list[Dict[str, float]] = []
     density_preference_candidates: list[Dict[str, float]] = []
     gregariousness_candidates: list[Dict[str, float]] = []
+    competition_candidates: list[Dict[str, float]] = []
     mobility_candidates: list[Dict[str, float]] = []
     longevity_candidates: list[Dict[str, float]] = []
     environmental_candidates: list[Dict[str, float]] = []
@@ -117,6 +118,10 @@ def build_batch_comparative_summary(
         if gregariousness_metrics is not None:
             gregariousness_candidates.append({"value": value, **gregariousness_metrics})
 
+        competition_metrics = _read_competition_metrics(summary_raw)
+        if competition_metrics is not None:
+            competition_candidates.append({"value": value, **competition_metrics})
+
         mobility_metrics = _read_mobility_metrics(summary_raw)
         if mobility_metrics is not None:
             mobility_candidates.append({"value": value, **mobility_metrics})
@@ -187,6 +192,10 @@ def build_batch_comparative_summary(
         )
         empty["gregariousness_comparative"] = _build_gregariousness_comparative(
             gregariousness_candidates,
+            stable_metric=None,
+        )
+        empty["competition_comparative"] = _build_competition_comparative(
+            competition_candidates,
             stable_metric=None,
         )
         empty["mobility_comparative"] = _build_mobility_comparative(
@@ -307,6 +316,10 @@ def build_batch_comparative_summary(
         gregariousness_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
     )
+    summary["competition_comparative"] = _build_competition_comparative(
+        competition_candidates,
+        stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
+    )
     summary["mobility_comparative"] = _build_mobility_comparative(
         mobility_candidates,
         stable_metric=summary.get("most_stable") if isinstance(summary.get("most_stable"), dict) else None,
@@ -413,6 +426,10 @@ def format_batch_comparative_summary(summary: Dict[str, object]) -> str:
     gregariousness_raw = summary.get("gregariousness_comparative")
     if isinstance(gregariousness_raw, dict):
         lines.extend(_format_gregariousness_comparative(batch_param, gregariousness_raw))
+
+    competition_raw = summary.get("competition_comparative")
+    if isinstance(competition_raw, dict):
+        lines.extend(_format_competition_comparative(batch_param, competition_raw))
 
     mobility_raw = summary.get("mobility_comparative")
     if isinstance(mobility_raw, dict):
@@ -1369,6 +1386,147 @@ def _build_gregariousness_comparative(
         "best_gregariousness_dispersion": _build_peak_metric(
             gregariousness_candidates,
             "gregariousness_dispersion",
+        ),
+        "most_stable_config": stable_result,
+        "usage_note": usage_note,
+    }
+
+
+def _format_competition_comparative(
+    batch_param: str,
+    competition_summary: Dict[str, object],
+) -> list[str]:
+    lines = ["competition_tolerance_batch:"]
+
+    if not bool(competition_summary.get("available", False)):
+        note = str(competition_summary.get("note", "donnees insuffisantes"))
+        lines.append(f"donnees_competition_tolerance: n/a ({note})")
+        return lines
+
+    stay_usage = _read_metric_result(competition_summary.get("best_stay_usage"))
+    avoid_usage = _read_metric_result(competition_summary.get("best_avoid_usage"))
+    stay_bias = _read_metric_result(competition_summary.get("best_stay_bias"))
+    avoid_bias = _read_metric_result(competition_summary.get("best_avoid_bias"))
+    contested_presence = _read_metric_result(
+        competition_summary.get("best_contested_presence_effect")
+    )
+    competition_dispersion = _read_metric_result(
+        competition_summary.get("best_competition_tolerance_dispersion")
+    )
+    stable_config = _read_metric_result(competition_summary.get("most_stable_config"))
+
+    lines.append(
+        "usage_stay_competition_max: {label} (freq_stay_moy={value:.3f})".format(
+            label=_winner_label(batch_param, stay_usage.get("winners")),
+            value=float(stay_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "usage_avoid_competition_max: {label} (freq_avoid_moy={value:.3f})".format(
+            label=_winner_label(batch_param, avoid_usage.get("winners")),
+            value=float(avoid_usage.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "biais_stay_competition_max: {label} (bias_stay_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, stay_bias.get("winners")),
+            value=float(stay_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "biais_avoid_competition_min: {label} (bias_avoid_moy={value:+.3f})".format(
+            label=_winner_label(batch_param, avoid_bias.get("winners")),
+            value=float(avoid_bias.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "presence_locale_disputee_max: {label} (voisins_moy={value:.3f})".format(
+            label=_winner_label(batch_param, contested_presence.get("winners")),
+            value=float(contested_presence.get("value", 0.0)),
+        )
+    )
+    lines.append(
+        "dispersion_competition_tolerance_max: {label} (ct_sigma_moy={value:.3f})".format(
+            label=_winner_label(batch_param, competition_dispersion.get("winners")),
+            value=float(competition_dispersion.get("value", 0.0)),
+        )
+    )
+
+    if bool(stable_config.get("insufficient", False)):
+        lines.append("configuration_plus_stable: n/a")
+    else:
+        lines.append(
+            "configuration_plus_stable: {label} (taux_ext={ext:.2f}, pop_finale_moy={pop:.2f}, gen_max_moy={gen:.2f})".format(
+                label=_winner_label(batch_param, stable_config.get("winners")),
+                ext=float(stable_config.get("extinction_rate", 0.0)),
+                pop=float(stable_config.get("avg_final_population", 0.0)),
+                gen=float(stable_config.get("avg_max_generation", 0.0)),
+            )
+        )
+
+    usage_note = str(competition_summary.get("usage_note", "")).strip()
+    if usage_note:
+        lines.append(f"note_competition_tolerance: {usage_note}")
+    else:
+        lines.append(
+            "note_competition_tolerance: stay/avoid en usages moyens/tick; biais_stay=max, biais_avoid=min; presence_locale=voisins moyens en zone nourriture disputee"
+        )
+
+    return lines
+
+
+def _build_competition_comparative(
+    competition_candidates: list[Dict[str, float]],
+    stable_metric: Dict[str, object] | None,
+) -> Dict[str, object]:
+    if len(competition_candidates) == 0:
+        return {
+            "available": False,
+            "note": "donnees insuffisantes pour comparer l'impact competition_tolerance",
+            "best_stay_usage": _insufficient_metric_result(),
+            "best_avoid_usage": _insufficient_metric_result(),
+            "best_stay_bias": _insufficient_metric_result(),
+            "best_avoid_bias": _insufficient_metric_result(),
+            "best_contested_presence_effect": _insufficient_metric_result(),
+            "best_competition_tolerance_dispersion": _insufficient_metric_result(),
+            "most_stable_config": _insufficient_metric_result(),
+            "usage_note": "",
+        }
+
+    if stable_metric is None:
+        stable_result = _insufficient_metric_result()
+    else:
+        stable_result = {
+            "winners": _read_winner_values(stable_metric.get("winners")),
+            "tie": bool(stable_metric.get("tie", False)),
+            "value": 0.0,
+            "insufficient": False,
+            "extinction_rate": float(stable_metric.get("extinction_rate", 0.0)),
+            "avg_final_population": float(stable_metric.get("avg_final_population", 0.0)),
+            "avg_max_generation": float(stable_metric.get("avg_max_generation", 0.0)),
+        }
+
+    guided_signal_max = max(candidate["guided_usage_total"] for candidate in competition_candidates)
+    contested_presence_max = max(candidate["neighbor_count_avg"] for candidate in competition_candidates)
+    usage_note = ""
+    if guided_signal_max <= 0.0:
+        usage_note = "usage stay/avoid nul: interpretation limitee (aucun guidage competition_tolerance observe)"
+    elif contested_presence_max <= 0.0:
+        usage_note = "presence locale disputee non observee: interpretation competition_tolerance limitee"
+
+    return {
+        "available": True,
+        "best_stay_usage": _build_peak_metric(competition_candidates, "stay_usage_per_tick"),
+        "best_avoid_usage": _build_peak_metric(competition_candidates, "avoid_usage_per_tick"),
+        "best_stay_bias": _build_peak_metric(competition_candidates, "stay_usage_bias"),
+        "best_avoid_bias": _build_low_metric(competition_candidates, "avoid_usage_bias"),
+        "best_contested_presence_effect": _build_peak_metric(
+            competition_candidates,
+            "neighbor_count_avg",
+        ),
+        "best_competition_tolerance_dispersion": _build_peak_metric(
+            competition_candidates,
+            "competition_dispersion",
         ),
         "most_stable_config": stable_result,
         "usage_note": usage_note,
@@ -2477,6 +2635,42 @@ def _read_gregariousness_metrics(summary_raw: Dict[str, object]) -> Dict[str, fl
         "seek_usage_bias": seek_bias,
         "avoid_usage_bias": avoid_bias,
         "local_proximity_effect_abs": abs(center_delta),
+    }
+
+
+def _read_competition_metrics(summary_raw: Dict[str, object]) -> Dict[str, float] | None:
+    avg_trait_raw = summary_raw.get("avg_trait_impact")
+    if not isinstance(avg_trait_raw, dict):
+        return None
+
+    required = (
+        "competition_tolerance_std",
+        "competition_tolerance_guided_total",
+        "competition_tolerance_stay_usage_per_tick",
+        "competition_tolerance_avoid_usage_per_tick",
+        "competition_tolerance_stay_usage_bias",
+        "competition_tolerance_avoid_usage_bias",
+        "competition_tolerance_neighbor_count_avg",
+    )
+    if any(key not in avg_trait_raw for key in required):
+        return None
+
+    competition_std = float(avg_trait_raw.get("competition_tolerance_std", 0.0))
+    guided_total = float(avg_trait_raw.get("competition_tolerance_guided_total", 0.0))
+    stay_usage = float(avg_trait_raw.get("competition_tolerance_stay_usage_per_tick", 0.0))
+    avoid_usage = float(avg_trait_raw.get("competition_tolerance_avoid_usage_per_tick", 0.0))
+    stay_bias = float(avg_trait_raw.get("competition_tolerance_stay_usage_bias", 0.0))
+    avoid_bias = float(avg_trait_raw.get("competition_tolerance_avoid_usage_bias", 0.0))
+    neighbor_count_avg = float(avg_trait_raw.get("competition_tolerance_neighbor_count_avg", 0.0))
+
+    return {
+        "competition_dispersion": max(0.0, competition_std),
+        "guided_usage_total": max(0.0, guided_total),
+        "stay_usage_per_tick": max(0.0, stay_usage),
+        "avoid_usage_per_tick": max(0.0, avoid_usage),
+        "stay_usage_bias": stay_bias,
+        "avoid_usage_bias": avoid_bias,
+        "neighbor_count_avg": max(0.0, neighbor_count_avg),
     }
 
 

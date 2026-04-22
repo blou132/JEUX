@@ -205,6 +205,9 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "hunger_sensitivity": _parse_float(
                 row.get("run_summary.avg_traits.hunger_sensitivity")
             ),
+            "competition_tolerance": _parse_float(
+                row.get("run_summary.avg_traits.competition_tolerance")
+            ),
         },
         "memory_impact": {
             "food_usage_total": _parse_int(row.get("run_summary.memory_impact.food_usage_total")),
@@ -285,6 +288,30 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "hunger_sensitivity_std": _parse_float(
                 row.get("run_summary.trait_impact.hunger_sensitivity_std")
+            ),
+            "competition_tolerance_mean": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_mean")
+            ),
+            "competition_tolerance_std": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_std")
+            ),
+            "competition_tolerance_guided_total": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_guided_total")
+            ),
+            "competition_tolerance_stay_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_stay_usage_per_tick")
+            ),
+            "competition_tolerance_avoid_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_avoid_usage_per_tick")
+            ),
+            "competition_tolerance_stay_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_stay_usage_bias")
+            ),
+            "competition_tolerance_avoid_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_avoid_usage_bias")
+            ),
+            "competition_tolerance_neighbor_count_avg": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_neighbor_count_avg")
             ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
@@ -498,6 +525,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "hunger_sensitivity": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.hunger_sensitivity")
             ),
+            "competition_tolerance": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.competition_tolerance")
+            ),
         },
         "most_frequent_final_dominant_group": row.get(
             "multi_run_summary.most_frequent_final_dominant_group",
@@ -592,6 +622,30 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "hunger_sensitivity_std": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_std")
+            ),
+            "competition_tolerance_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_mean")
+            ),
+            "competition_tolerance_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_std")
+            ),
+            "competition_tolerance_guided_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_total")
+            ),
+            "competition_tolerance_stay_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_per_tick")
+            ),
+            "competition_tolerance_avoid_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_per_tick")
+            ),
+            "competition_tolerance_stay_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_bias")
+            ),
+            "competition_tolerance_avoid_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_bias")
+            ),
+            "competition_tolerance_neighbor_count_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
             ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
@@ -815,6 +869,9 @@ def _build_batch_payload_from_csv(
                 "hunger_sensitivity": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.hunger_sensitivity")
                 ),
+                "competition_tolerance": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.competition_tolerance")
+                ),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
                 "multi_run_summary.most_frequent_final_dominant_group",
@@ -909,6 +966,30 @@ def _build_batch_payload_from_csv(
                 ),
                 "hunger_sensitivity_std": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.hunger_sensitivity_std")
+                ),
+                "competition_tolerance_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_mean")
+                ),
+                "competition_tolerance_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_std")
+                ),
+                "competition_tolerance_guided_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_total")
+                ),
+                "competition_tolerance_stay_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_per_tick")
+                ),
+                "competition_tolerance_avoid_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_per_tick")
+                ),
+                "competition_tolerance_stay_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_bias")
+                ),
+                "competition_tolerance_avoid_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_bias")
+                ),
+                "competition_tolerance_neighbor_count_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
                 ),
                 "energy_efficiency_drain_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")

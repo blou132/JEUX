@@ -1283,6 +1283,101 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("frequence_recherche_faim_max:", summary)
         self.assertIn("dispersion_hunger_sensitivity_max:", summary)
 
+    def test_batch_competition_analysis_from_csv_shows_competition_comparative(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "mutation_variation",
+            "batch_values": [0.05, 0.10],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 0.05,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 2.0,
+                        "avg_final_population": 9.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                            "competition_tolerance": 0.96,
+                        },
+                        "avg_trait_impact": {
+                            "competition_tolerance_mean": 0.96,
+                            "competition_tolerance_std": 0.03,
+                            "competition_tolerance_guided_total": 4.0,
+                            "competition_tolerance_stay_usage_per_tick": 0.18,
+                            "competition_tolerance_avoid_usage_per_tick": 0.26,
+                            "competition_tolerance_stay_usage_bias": 0.01,
+                            "competition_tolerance_avoid_usage_bias": -0.04,
+                            "competition_tolerance_neighbor_count_avg": 1.4,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 0.10,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 19.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                            "competition_tolerance": 1.06,
+                        },
+                        "avg_trait_impact": {
+                            "competition_tolerance_mean": 1.06,
+                            "competition_tolerance_std": 0.07,
+                            "competition_tolerance_guided_total": 10.0,
+                            "competition_tolerance_stay_usage_per_tick": 0.34,
+                            "competition_tolerance_avoid_usage_per_tick": 0.12,
+                            "competition_tolerance_stay_usage_bias": 0.06,
+                            "competition_tolerance_avoid_usage_bias": -0.02,
+                            "competition_tolerance_neighbor_count_avg": 2.6,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_competition.csv"
+            export_results(payload, str(path), "csv")
+
+            loaded = load_export_payload(str(path), input_format="csv")
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        scenarios = loaded["scenarios"]
+        self.assertIsInstance(scenarios, list)
+        assert isinstance(scenarios, list)
+        self.assertEqual(len(scenarios), 2)
+        first_impact = scenarios[0]["multi_run_summary"]["avg_trait_impact"]
+        self.assertAlmostEqual(float(first_impact["competition_tolerance_mean"]), 0.96)
+        self.assertAlmostEqual(float(first_impact["competition_tolerance_neighbor_count_avg"]), 1.4)
+        self.assertIn("competition_tolerance_batch:", summary)
+        self.assertIn("usage_stay_competition_max:", summary)
+        self.assertIn("usage_avoid_competition_max:", summary)
+        self.assertIn("presence_locale_disputee_max:", summary)
+        self.assertIn("dispersion_competition_tolerance_max:", summary)
+
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 

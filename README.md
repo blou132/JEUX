@@ -51,7 +51,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Evaluation legere de l'impact `mobility_efficiency` (moyenne/dispersion, frequence de mouvement, distance effective observee, biais d'usage chez les plus mobiles) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `hunger_sensitivity` (moyenne/dispersion, frequence de recherche nourriture, biais d'usage du trait chez les chercheurs) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `gregariousness` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet de distance au centre local) visible en stats, synthese run, multi-runs, export et analyse.
-- Evaluation legere de l'impact `competition_tolerance` (moyenne/dispersion, frequences `stay`/`avoid`, biais d'usage et effet de distance a l'ancre nourriture) visible en stats, synthese run et multi-runs.
+- Evaluation legere de l'impact `competition_tolerance` (moyenne/dispersion, frequences `stay`/`avoid`, biais d'usage et presence locale en zone nourriture disputee) visible en stats, synthese run, multi-runs, batch, export et analyse.
 - Evaluation legere de l'impact `density_preference` (moyenne/dispersion, frequences `seek`/`avoid`, biais d'usage et effet local) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `exploration_bias` (moyenne/dispersion, frequences `explore`/`settle`, biais d'usage separes, effet distance a l'ancre) visible en stats, synthese run, multi-runs, export et analyse.
 - Evaluation legere de l'impact `behavior_persistence` (moyenne/dispersion, frequence d'inertie, biais d'usage, oscillations `search_food`<->`wander`) visible en stats, synthese run, multi-runs, export et analyse.
@@ -64,6 +64,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Interpretation batch `exploration_bias` (`exploration_bias_batch`) pour comparer usages `explore`/`settle`/`guided` et stabilite.
 - Interpretation batch `density_preference` (`density_preference_batch`) pour comparer usages `seek`/`avoid`, part `avoid` et stabilite.
 - Interpretation batch `gregariousness` (`gregariousness_batch`) pour comparer usages `seek`/`avoid`, biais `seek`/`avoid`, effet de proximite locale et stabilite.
+- Interpretation batch `competition_tolerance` (`competition_tolerance_batch`) pour comparer usages `stay`/`avoid`, biais `stay`/`avoid`, presence locale disputee et stabilite.
 - Interpretation batch `longevity_factor` (`longevity_factor_batch`) pour comparer effet usure d'age, reduction utile du drain age, dispersion et stabilite.
 - Interpretation batch `environmental_tolerance` (`environmental_tolerance_batch`) pour comparer effet observe zone pauvre/riche, dispersion utile et stabilite.
 - Interpretation batch `reproduction_timing` (`reproduction_timing_batch`) pour comparer effet observe sur le seuil reproductif, reproduction plus precoce/prudente et stabilite.

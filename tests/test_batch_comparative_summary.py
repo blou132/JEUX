@@ -1782,6 +1782,129 @@ class BatchComparativeSummaryTests(unittest.TestCase):
         self.assertIn("gregariousness_batch:", text)
         self.assertIn("donnees_gregariousness: n/a", text)
 
+    def test_competition_tolerance_comparative_includes_expected_winners(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.05,
+                "multi_run_summary": {
+                    "extinction_rate": 0.2,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 10.0,
+                    "avg_trait_impact": {
+                        "competition_tolerance_std": 0.03,
+                        "competition_tolerance_guided_total": 4.0,
+                        "competition_tolerance_stay_usage_per_tick": 0.20,
+                        "competition_tolerance_avoid_usage_per_tick": 0.10,
+                        "competition_tolerance_stay_usage_bias": 0.02,
+                        "competition_tolerance_avoid_usage_bias": -0.01,
+                        "competition_tolerance_neighbor_count_avg": 1.4,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 4.0,
+                    "avg_final_population": 20.0,
+                    "avg_trait_impact": {
+                        "competition_tolerance_std": 0.08,
+                        "competition_tolerance_guided_total": 10.0,
+                        "competition_tolerance_stay_usage_per_tick": 0.35,
+                        "competition_tolerance_avoid_usage_per_tick": 0.18,
+                        "competition_tolerance_stay_usage_bias": 0.07,
+                        "competition_tolerance_avoid_usage_bias": -0.03,
+                        "competition_tolerance_neighbor_count_avg": 2.8,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 18.0,
+                    "avg_trait_impact": {
+                        "competition_tolerance_std": 0.05,
+                        "competition_tolerance_guided_total": 8.0,
+                        "competition_tolerance_stay_usage_per_tick": 0.15,
+                        "competition_tolerance_avoid_usage_per_tick": 0.29,
+                        "competition_tolerance_stay_usage_bias": 0.01,
+                        "competition_tolerance_avoid_usage_bias": -0.08,
+                        "competition_tolerance_neighbor_count_avg": 2.2,
+                    },
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        competition = summary.get("competition_comparative")
+
+        self.assertIsInstance(competition, dict)
+        assert isinstance(competition, dict)
+        self.assertTrue(bool(competition.get("available", False)))
+        self.assertEqual(competition["best_stay_usage"]["winners"], [0.1])
+        self.assertAlmostEqual(float(competition["best_stay_usage"]["value"]), 0.35)
+        self.assertEqual(competition["best_avoid_usage"]["winners"], [0.2])
+        self.assertAlmostEqual(float(competition["best_avoid_usage"]["value"]), 0.29)
+        self.assertEqual(competition["best_stay_bias"]["winners"], [0.1])
+        self.assertAlmostEqual(float(competition["best_stay_bias"]["value"]), 0.07)
+        self.assertEqual(competition["best_avoid_bias"]["winners"], [0.2])
+        self.assertAlmostEqual(float(competition["best_avoid_bias"]["value"]), -0.08)
+        self.assertEqual(competition["best_contested_presence_effect"]["winners"], [0.1])
+        self.assertAlmostEqual(float(competition["best_contested_presence_effect"]["value"]), 2.8)
+        self.assertEqual(competition["best_competition_tolerance_dispersion"]["winners"], [0.1])
+        self.assertAlmostEqual(
+            float(competition["best_competition_tolerance_dispersion"]["value"]),
+            0.08,
+        )
+        self.assertEqual(competition["most_stable_config"]["winners"], [0.1])
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("competition_tolerance_batch:", text)
+        self.assertIn("usage_stay_competition_max:", text)
+        self.assertIn("usage_avoid_competition_max:", text)
+        self.assertIn("biais_stay_competition_max:", text)
+        self.assertIn("biais_avoid_competition_min:", text)
+        self.assertIn("presence_locale_disputee_max:", text)
+        self.assertIn("dispersion_competition_tolerance_max:", text)
+        self.assertIn("configuration_plus_stable:", text)
+
+    def test_competition_tolerance_comparative_with_insufficient_data_is_reported(self) -> None:
+        scenarios = [
+            {
+                "parameter_value": 0.1,
+                "multi_run_summary": {
+                    "extinction_rate": 0.0,
+                    "avg_max_generation": 3.0,
+                    "avg_final_population": 16.0,
+                    "avg_trait_impact": {
+                        "competition_tolerance_std": 0.05,
+                    },
+                },
+            },
+            {
+                "parameter_value": 0.2,
+                "multi_run_summary": {
+                    "extinction_rate": 0.1,
+                    "avg_max_generation": 2.0,
+                    "avg_final_population": 12.0,
+                },
+            },
+        ]
+
+        summary = build_batch_comparative_summary("mutation_variation", scenarios)
+        competition = summary.get("competition_comparative")
+
+        self.assertIsInstance(competition, dict)
+        assert isinstance(competition, dict)
+        self.assertFalse(bool(competition.get("available", True)))
+        self.assertIn("donnees insuffisantes", str(competition.get("note", "")))
+
+        text = format_batch_comparative_summary(summary)
+        self.assertIn("competition_tolerance_batch:", text)
+        self.assertIn("donnees_competition_tolerance: n/a", text)
+
 if __name__ == "__main__":
     unittest.main()
 
