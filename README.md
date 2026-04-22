@@ -14,6 +14,7 @@ The active direction is a minimal but playable sandbox loop:
 - autonomous monsters
 - lightweight autonomous progression (levels 1->3)
 - simple points of interest (POI): camp + ruins
+- POI territorial influence (activation after stable domination)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -36,6 +37,10 @@ The active direction is a minimal but playable sandbox loop:
 - Combat system: [CombatSystem.gd](game3d/scripts/combat/CombatSystem.gd)
 - Magic system: [MagicSystem.gd](game3d/scripts/magic/MagicSystem.gd)
 - Sandbox regulation: [SandboxSystems.gd](game3d/scripts/sandbox/SandboxSystems.gd)
+- POI influence layer (MVP):
+  - `camp` gives a light local boost to humans when human-dominated long enough
+  - `ruins` gives a light local boost to monsters when monster-dominated long enough
+  - effects are bounded and local to POI radius (energy regen + slow periodic XP)
 - Autonomous progression signals:
   - XP triggers on hit/cast/kill + survival time
   - bounded levels (`L1-L3`) with small capped stat gains
@@ -68,8 +73,10 @@ The debug overlay shows:
 - control readability (`control applies`, `slowed alive` total + split H/M)
 - current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
-- POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
+- POI occupancy (`camp`, `ruins`) with dominance duration and active influence status
+- POI influence counters (`active`, activation/deactivation events, regen ticks, XP ticks)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
+- POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - role-aware logs for human actions (labels include role tags)
 
 Validation target for current MVP:
@@ -114,10 +121,11 @@ py -m unittest discover -s tests -v
 - Add behavioral test coverage for IA decisions, POI runtime shape, and monster spawn coherence
 - Add human role MVP (fighter/mage/scout) with stat/behavior differences and HUD/log visibility
 - Add lightweight autonomous progression MVP (XP hit/cast/kill/survival, capped levels, level-up observability)
+- Add POI territorial influence MVP (stable domination -> bounded local faction bonus + runtime logs/HUD counters)
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
-- Add one additional monster archetype focused on utility/disruption
+- Tune POI influence timing/strength to avoid snowball while keeping territorial readability
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

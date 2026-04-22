@@ -5,12 +5,16 @@ class_name WorldManager
 @export var nav_cell_size: float = 2.0
 @export var wander_radius: float = 14.0
 @export var poi_guidance_distance: float = 28.0
+@export var poi_influence_activation_time: float = 8.0
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
 var pois: Array[Dictionary] = []
 var poi_nodes: Dictionary = {}
 var poi_runtime_status: Dictionary = {}
+var poi_dominant_faction: Dictionary = {}
+var poi_dominance_started_at: Dictionary = {}
+var poi_influence_active: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -146,16 +150,24 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         var total_count: int = human_count + monster_count
         var status: String = _compute_poi_status(human_count, monster_count)
         var activity: String = _compute_activity_level(total_count)
+        var dominant_faction: String = _dominant_faction_from_status(status)
+        var dominance_seconds: float = _update_dominance_duration(poi_name, dominant_faction, time_seconds)
+        var influence_kind: String = _compute_influence_kind(str(poi.get("kind", "")), dominant_faction, dominance_seconds)
+        var influence_active: bool = influence_kind != ""
 
         snapshot[poi_name] = {
             "human": human_count,
             "monster": monster_count,
             "total": total_count,
             "status": status,
-            "activity": activity
+            "activity": activity,
+            "dominant_faction": dominant_faction,
+            "dominance_seconds": dominance_seconds,
+            "influence_active": influence_active,
+            "influence_kind": influence_kind
         }
 
-        _apply_poi_visual_state(poi_name, status, total_count, time_seconds)
+        _apply_poi_visual_state(poi_name, status, total_count, time_seconds, influence_active)
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
         if previous_status != "" and previous_status != status:
@@ -181,12 +193,57 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
                     "to": status
                 })
 
+        var previous_active: bool = bool(poi_influence_active.get(poi_name, false))
+        if previous_active != influence_active:
+            if influence_active:
+                events.append({
+                    "kind": "influence_activated",
+                    "poi": poi_name,
+                    "faction": dominant_faction,
+                    "influence_kind": influence_kind,
+                    "dominance_seconds": dominance_seconds
+                })
+            else:
+                events.append({
+                    "kind": "influence_deactivated",
+                    "poi": poi_name
+                })
+
         poi_runtime_status[poi_name] = status
+        poi_influence_active[poi_name] = influence_active
 
     return {
         "snapshot": snapshot,
         "events": events
     }
+
+
+func get_active_poi_influences() -> Array[Dictionary]:
+    var active: Array[Dictionary] = []
+
+    for poi in pois:
+        var poi_name: String = str(poi.get("name", "poi"))
+        if not bool(poi_influence_active.get(poi_name, false)):
+            continue
+
+        var faction: String = str(poi_dominant_faction.get(poi_name, ""))
+        var influence_kind: String = _compute_influence_kind(
+            str(poi.get("kind", "")),
+            faction,
+            poi_influence_activation_time
+        )
+        if influence_kind == "":
+            continue
+
+        active.append({
+            "name": poi_name,
+            "position": poi.get("position", Vector3.ZERO),
+            "radius": float(poi.get("radius", 7.0)),
+            "faction": faction,
+            "influence_kind": influence_kind
+        })
+
+    return active
 
 
 func get_poi_name_for_position(position: Vector3) -> String:
@@ -282,6 +339,11 @@ func _build_pois() -> void:
         "radius": 8.0,
         "color": Color(0.95, 0.60, 0.35)
     })
+
+    poi_runtime_status.clear()
+    poi_dominant_faction.clear()
+    poi_dominance_started_at.clear()
+    poi_influence_active.clear()
 
     _refresh_poi_markers()
 
@@ -436,7 +498,13 @@ func _compute_activity_level(total_count: int) -> String:
     return "high"
 
 
-func _apply_poi_visual_state(poi_name: String, status: String, total_count: int, time_seconds: float) -> void:
+func _apply_poi_visual_state(
+    poi_name: String,
+    status: String,
+    total_count: int,
+    time_seconds: float,
+    influence_active: bool
+) -> void:
     var poi_node: Node3D = poi_nodes.get(poi_name, null)
     if poi_node == null:
         return
@@ -450,14 +518,55 @@ func _apply_poi_visual_state(poi_name: String, status: String, total_count: int,
     var base_scale := 1.0 + min(total_count, 10) * 0.045
     if status == "contested":
         base_scale *= (1.0 + 0.06 * sin(time_seconds * 6.0))
+    elif influence_active:
+        base_scale *= (1.0 + 0.04 * sin(time_seconds * 4.0))
     ring.scale = Vector3(base_scale, 1.0, base_scale)
 
     var status_color := _get_status_color(status)
     var intensity := 0.24 + min(total_count, 10) * 0.05
+    if influence_active:
+        intensity += 0.16
 
     _set_mesh_color(ring, status_color, intensity + 0.05)
     _set_mesh_color(beacon, status_color, intensity + 0.10)
     _set_mesh_color(pillar, status_color.darkened(0.18), intensity * 0.62)
+
+
+func _dominant_faction_from_status(status: String) -> String:
+    if status == "human_dominant":
+        return "human"
+    if status == "monster_dominant":
+        return "monster"
+    return ""
+
+
+func _update_dominance_duration(poi_name: String, dominant_faction: String, time_seconds: float) -> float:
+    var previous_faction: String = str(poi_dominant_faction.get(poi_name, ""))
+    if dominant_faction == "":
+        poi_dominant_faction[poi_name] = ""
+        poi_dominance_started_at[poi_name] = time_seconds
+        return 0.0
+
+    if previous_faction != dominant_faction:
+        poi_dominant_faction[poi_name] = dominant_faction
+        poi_dominance_started_at[poi_name] = time_seconds
+        return 0.0
+
+    var started_at: float = float(poi_dominance_started_at.get(poi_name, time_seconds))
+    var duration: float = max(0.0, time_seconds - started_at)
+    return duration
+
+
+func _compute_influence_kind(poi_kind: String, dominant_faction: String, dominance_seconds: float) -> String:
+    if dominant_faction == "":
+        return ""
+    if dominance_seconds < poi_influence_activation_time:
+        return ""
+    if poi_kind == "camp" and dominant_faction == "human":
+        return "human_camp_influence"
+    if poi_kind == "ruins" and dominant_faction == "monster":
+        return "monster_ruins_influence"
+    return ""
 
 
 func _get_status_color(status: String) -> Color:

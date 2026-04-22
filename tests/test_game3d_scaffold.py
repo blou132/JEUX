@@ -74,12 +74,17 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("update_poi_runtime", content)
         self.assertIn("trigger_poi_entry_effect", content)
         self.assertIn("domination_changed", content)
+        self.assertIn("poi_influence_activation_time", content)
+        self.assertIn("get_active_poi_influences", content)
+        self.assertIn("influence_activated", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
         self.assertIn("domine_humains", content)
         self.assertIn("domine_monstres", content)
         self.assertIn("conteste", content)
+        self.assertIn("POI influence", content)
+        self.assertIn("influence:off", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -125,6 +130,14 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"level_counts"', content)
         self.assertIn('"level_ups_total"', content)
         self.assertIn("avg_level", content)
+
+    def test_game_loop_exposes_poi_influence_runtime_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("POI_INFLUENCE_ENERGY_REGEN_PER_SEC", content)
+        self.assertIn("POI_INFLUENCE_XP_GAIN", content)
+        self.assertIn("_apply_poi_influences", content)
+        self.assertIn("poi_influence_activation_events_total", content)
+        self.assertIn("poi_influence_xp_grants_total", content)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,9 @@ const MAX_EVENT_LOG: int = 14
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
+const POI_INFLUENCE_ENERGY_REGEN_PER_SEC: float = 0.70
+const POI_INFLUENCE_XP_INTERVAL: float = 6.0
+const POI_INFLUENCE_XP_GAIN: float = 0.8
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -36,10 +39,15 @@ var engagements_total: int = 0
 var poi_arrivals_total: int = 0
 var poi_contests_total: int = 0
 var poi_domination_changes_total: int = 0
+var poi_influence_activation_events_total: int = 0
+var poi_influence_deactivation_events_total: int = 0
+var poi_influence_regen_ticks_total: int = 0
+var poi_influence_xp_grants_total: int = 0
 var level_ups_total: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
+var _poi_influence_xp_timers: Dictionary = {}
 
 var event_log: Array[String] = []
 
@@ -74,6 +82,7 @@ func _tick(delta: float) -> void:
 
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
+    _apply_poi_influences(delta)
     _cleanup_dead_actors()
     sandbox_systems.tick_systems(delta, actors, self)
 
@@ -189,6 +198,7 @@ func _cleanup_dead_actors() -> void:
 
         if actor.is_dead:
             actor_poi_presence.erase(actor.actor_id)
+            _clear_actor_influence_timers(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
 
@@ -279,6 +289,11 @@ func _build_snapshot() -> Dictionary:
     var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
     var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
+    var poi_influence_active_count: int = 0
+    for poi_name in poi_runtime_snapshot.keys():
+        var details: Dictionary = poi_runtime_snapshot.get(poi_name, {})
+        if bool(details.get("influence_active", false)):
+            poi_influence_active_count += 1
 
     return {
         "tick": tick_index,
@@ -313,6 +328,11 @@ func _build_snapshot() -> Dictionary:
         "poi_arrivals_total": poi_arrivals_total,
         "poi_contests_total": poi_contests_total,
         "poi_domination_changes_total": poi_domination_changes_total,
+        "poi_influence_activation_events_total": poi_influence_activation_events_total,
+        "poi_influence_deactivation_events_total": poi_influence_deactivation_events_total,
+        "poi_influence_regen_ticks_total": poi_influence_regen_ticks_total,
+        "poi_influence_xp_grants_total": poi_influence_xp_grants_total,
+        "poi_influence_active_count": poi_influence_active_count,
         "level_ups_total": level_ups_total,
         "poi_population": poi_population,
         "poi_snapshot": poi_runtime_snapshot,
@@ -339,6 +359,18 @@ func _update_poi_runtime() -> void:
             record_event("POI domination shift: %s (%s -> %s)." % [poi_name, from_state, to_state])
         elif kind == "contest_resolved":
             record_event("POI calm again: %s." % poi_name)
+        elif kind == "influence_activated":
+            poi_influence_activation_events_total += 1
+            var faction: String = str(transition.get("faction", ""))
+            var influence_kind: String = str(transition.get("influence_kind", "influence"))
+            var held_for: float = float(transition.get("dominance_seconds", 0.0))
+            record_event(
+                "POI influence ON: %s (%s, %s, %.1fs held)."
+                % [poi_name, faction, influence_kind, held_for]
+            )
+        elif kind == "influence_deactivated":
+            poi_influence_deactivation_events_total += 1
+            record_event("POI influence OFF: %s." % poi_name)
 
     for actor in actors:
         if actor == null or actor.is_dead:
@@ -357,6 +389,57 @@ func _update_poi_runtime() -> void:
                 actor_poi_presence.erase(actor.actor_id)
             else:
                 actor_poi_presence[actor.actor_id] = current_poi
+
+
+func _apply_poi_influences(delta: float) -> void:
+    var influences: Array[Dictionary] = world_manager.get_active_poi_influences()
+    if influences.is_empty():
+        _poi_influence_xp_timers.clear()
+        return
+
+    var next_timers: Dictionary = {}
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+
+        for influence in influences:
+            var faction: String = str(influence.get("faction", ""))
+            if faction == "" or actor.faction != faction:
+                continue
+
+            var center: Vector3 = influence.get("position", Vector3.ZERO)
+            var radius: float = float(influence.get("radius", 0.0))
+            if actor.global_position.distance_to(center) > radius:
+                continue
+
+            actor.energy = min(actor.max_energy, actor.energy + POI_INFLUENCE_ENERGY_REGEN_PER_SEC * delta)
+            poi_influence_regen_ticks_total += 1
+
+            var timer_key := "%d:%s" % [actor.actor_id, str(influence.get("name", "poi"))]
+            var timer_value: float = float(_poi_influence_xp_timers.get(timer_key, 0.0))
+            timer_value += delta
+            if timer_value >= POI_INFLUENCE_XP_INTERVAL:
+                timer_value -= POI_INFLUENCE_XP_INTERVAL
+                actor.award_progress_xp(
+                    POI_INFLUENCE_XP_GAIN,
+                    "poi_influence:%s" % str(influence.get("name", "poi")),
+                    self
+                )
+                poi_influence_xp_grants_total += 1
+            next_timers[timer_key] = timer_value
+
+    _poi_influence_xp_timers = next_timers
+
+
+func _clear_actor_influence_timers(actor_id: int) -> void:
+    var prefix := "%d:" % actor_id
+    var to_remove: Array[String] = []
+    for key_variant in _poi_influence_xp_timers.keys():
+        var key_text := str(key_variant)
+        if key_text.begins_with(prefix):
+            to_remove.append(key_text)
+    for key_text in to_remove:
+        _poi_influence_xp_timers.erase(key_text)
 
 
 func _actor_label(actor: Actor) -> String:

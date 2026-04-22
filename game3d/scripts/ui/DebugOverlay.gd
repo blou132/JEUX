@@ -122,6 +122,16 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("poi_domination_changes_total", 0))
         ]
     )
+    lines.append(
+        "POI influence: active=%d on=%d off=%d regen_ticks=%d xp_ticks=%d"
+        % [
+            int(snapshot.get("poi_influence_active_count", 0)),
+            int(snapshot.get("poi_influence_activation_events_total", 0)),
+            int(snapshot.get("poi_influence_deactivation_events_total", 0)),
+            int(snapshot.get("poi_influence_regen_ticks_total", 0)),
+            int(snapshot.get("poi_influence_xp_grants_total", 0))
+        ]
+    )
     lines.append("")
     lines.append(
         "States: wander=%d poi=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
@@ -162,12 +172,20 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
         var details: Dictionary = poi_snapshot.get(poi_name, {})
         var status: String = _status_label(str(details.get("status", "calm")))
         var activity: String = _activity_label(str(details.get("activity", "low")))
+        var influence: String = _influence_label(
+            bool(details.get("influence_active", false)),
+            str(details.get("dominant_faction", "")),
+            str(details.get("influence_kind", ""))
+        )
+        var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         chunks.append(
-            "%s[%s | %s] H:%d M:%d"
+            "%s[%s | %s | %s | dom:%ss] H:%d M:%d"
             % [
                 poi_name,
                 status,
                 activity,
+                influence,
+                dominance_seconds,
                 int(counts.get("human", 0)),
                 int(counts.get("monster", 0))
             ]
@@ -197,3 +215,9 @@ func _activity_label(activity: String) -> String:
             return "actif"
         _:
             return "leger"
+
+
+func _influence_label(active: bool, faction: String, influence_kind: String) -> String:
+    if not active:
+        return "influence:off"
+    return "influence:on(%s,%s)" % [faction, influence_kind]

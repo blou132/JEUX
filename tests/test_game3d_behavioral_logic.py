@@ -178,6 +178,58 @@ def poi_runtime_contract(occupancy: dict, previous_status: dict | None = None) -
     return {"snapshot": snapshot, "events": events, "next_status": next_status}
 
 
+def poi_influence_step_contract(
+    previous_status: str,
+    previous_active: bool,
+    previous_dominant: str,
+    dominant_started_at: float,
+    current_status: str,
+    now: float,
+    poi_kind: str,
+    activation_time: float = 8.0,
+) -> dict:
+    dominant = ""
+    if current_status == "human_dominant":
+        dominant = "human"
+    elif current_status == "monster_dominant":
+        dominant = "monster"
+
+    if dominant == "":
+        dominance_seconds = 0.0
+        dominant_started_at = now
+    elif dominant != previous_dominant:
+        dominance_seconds = 0.0
+        dominant_started_at = now
+    else:
+        dominance_seconds = max(0.0, now - dominant_started_at)
+
+    influence_kind = ""
+    if dominance_seconds >= activation_time:
+        if poi_kind == "camp" and dominant == "human":
+            influence_kind = "human_camp_influence"
+        elif poi_kind == "ruins" and dominant == "monster":
+            influence_kind = "monster_ruins_influence"
+
+    active = influence_kind != ""
+    events: list[str] = []
+    if previous_status != "" and previous_status != current_status:
+        if current_status == "contested":
+            events.append("contest_started")
+        elif current_status in ["human_dominant", "monster_dominant"]:
+            events.append("domination_changed")
+    if previous_active != active:
+        events.append("influence_activated" if active else "influence_deactivated")
+
+    return {
+        "dominant": dominant,
+        "dominance_seconds": dominance_seconds,
+        "active": active,
+        "influence_kind": influence_kind,
+        "dominant_started_at": dominant_started_at,
+        "events": events,
+    }
+
+
 def clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
@@ -289,6 +341,76 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         self.assertIn("fighter", roles)
         self.assertIn("mage", roles)
         self.assertIn("scout", roles)
+
+    def test_poi_influence_activates_after_stable_domination(self):
+        step_1 = poi_influence_step_contract(
+            previous_status="",
+            previous_active=False,
+            previous_dominant="",
+            dominant_started_at=0.0,
+            current_status="human_dominant",
+            now=1.0,
+            poi_kind="camp",
+            activation_time=8.0,
+        )
+        self.assertFalse(step_1["active"])
+
+        step_2 = poi_influence_step_contract(
+            previous_status="human_dominant",
+            previous_active=False,
+            previous_dominant=step_1["dominant"],
+            dominant_started_at=step_1["dominant_started_at"],
+            current_status="human_dominant",
+            now=10.5,
+            poi_kind="camp",
+            activation_time=8.0,
+        )
+        self.assertTrue(step_2["active"])
+        self.assertEqual(step_2["influence_kind"], "human_camp_influence")
+        self.assertIn("influence_activated", step_2["events"])
+
+    def test_poi_influence_deactivates_when_contested(self):
+        step = poi_influence_step_contract(
+            previous_status="human_dominant",
+            previous_active=True,
+            previous_dominant="human",
+            dominant_started_at=0.0,
+            current_status="contested",
+            now=12.0,
+            poi_kind="camp",
+            activation_time=8.0,
+        )
+        self.assertFalse(step["active"])
+        self.assertIn("influence_deactivated", step["events"])
+        self.assertIn("contest_started", step["events"])
+
+    def test_camp_does_not_activate_monster_influence(self):
+        step = poi_influence_step_contract(
+            previous_status="monster_dominant",
+            previous_active=False,
+            previous_dominant="monster",
+            dominant_started_at=0.0,
+            current_status="monster_dominant",
+            now=15.0,
+            poi_kind="camp",
+            activation_time=8.0,
+        )
+        self.assertFalse(step["active"])
+        self.assertEqual(step["influence_kind"], "")
+
+    def test_ruins_activates_monster_influence(self):
+        step = poi_influence_step_contract(
+            previous_status="monster_dominant",
+            previous_active=False,
+            previous_dominant="monster",
+            dominant_started_at=0.0,
+            current_status="monster_dominant",
+            now=11.0,
+            poi_kind="ruins",
+            activation_time=8.0,
+        )
+        self.assertTrue(step["active"])
+        self.assertEqual(step["influence_kind"], "monster_ruins_influence")
 
 
 if __name__ == "__main__":
