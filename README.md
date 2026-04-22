@@ -22,6 +22,7 @@ Observer comment des regles minimales (faim, energie, nourriture, fuite, reprodu
 - Mode multi-runs optionnel pour comparer automatiquement plusieurs seeds.
 - Export optionnel des syntheses en JSON ou CSV.
 - Outil CLI d'analyse des exports (JSON prioritaire, CSV support simple).
+- Analyse CSV alignee sur les syntheses runtime/multi (traits et impacts `density_preference`, `gregariousness`, `resource_commitment` preserves).
 - Mode batch experimental optionnel pour comparer plusieurs valeurs d'un parametre.
 - Interpretation batch memoire (pour parametres memoire) avec comparatifs usage/effet.
 - Interpretation batch sociale (pour parametres sociaux) avec comparatifs usage/part/effet.

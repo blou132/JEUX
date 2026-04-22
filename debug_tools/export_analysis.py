@@ -186,12 +186,16 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("run_summary.avg_traits.prudence")),
             "dominance": _parse_float(row.get("run_summary.avg_traits.dominance")),
             "repro_drive": _parse_float(row.get("run_summary.avg_traits.repro_drive")),
+            "memory_focus": _parse_float(row.get("run_summary.avg_traits.memory_focus")),
+            "social_sensitivity": _parse_float(row.get("run_summary.avg_traits.social_sensitivity")),
             "risk_taking": _parse_float(row.get("run_summary.avg_traits.risk_taking")),
             "stress_tolerance": _parse_float(row.get("run_summary.avg_traits.stress_tolerance")),
             "food_perception": _parse_float(row.get("run_summary.avg_traits.food_perception")),
             "threat_perception": _parse_float(row.get("run_summary.avg_traits.threat_perception")),
             "behavior_persistence": _parse_float(row.get("run_summary.avg_traits.behavior_persistence")),
             "exploration_bias": _parse_float(row.get("run_summary.avg_traits.exploration_bias")),
+            "density_preference": _parse_float(row.get("run_summary.avg_traits.density_preference")),
+            "gregariousness": _parse_float(row.get("run_summary.avg_traits.gregariousness")),
             "mobility_efficiency": _parse_float(row.get("run_summary.avg_traits.mobility_efficiency")),
             "energy_efficiency": _parse_float(row.get("run_summary.avg_traits.energy_efficiency")),
             "exhaustion_resistance": _parse_float(row.get("run_summary.avg_traits.exhaustion_resistance")),
@@ -207,6 +211,9 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance": _parse_float(
                 row.get("run_summary.avg_traits.competition_tolerance")
+            ),
+            "resource_commitment": _parse_float(
+                row.get("run_summary.avg_traits.resource_commitment")
             ),
         },
         "memory_impact": {
@@ -258,6 +265,18 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "exploration_bias_std": _parse_float(
                 row.get("run_summary.trait_impact.exploration_bias_std")
+            ),
+            "density_preference_mean": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_mean")
+            ),
+            "density_preference_std": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_std")
+            ),
+            "gregariousness_mean": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_mean")
+            ),
+            "gregariousness_std": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_std")
             ),
             "mobility_efficiency_mean": _parse_float(
                 row.get("run_summary.trait_impact.mobility_efficiency_mean")
@@ -312,6 +331,58 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance_neighbor_count_avg": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_neighbor_count_avg")
+            ),
+            "resource_commitment_mean": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_mean")
+            ),
+            "resource_commitment_std": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_std")
+            ),
+            "resource_commitment_guided_bias": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_guided_bias")
+            ),
+            "resource_commitment_guided_total": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_guided_total")
+            ),
+            "resource_commitment_stay_total": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_stay_total")
+            ),
+            "resource_commitment_switch_total": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_switch_total")
+            ),
+            "resource_commitment_stay_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_stay_usage_per_tick")
+            ),
+            "resource_commitment_switch_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_switch_usage_per_tick")
+            ),
+            "resource_commitment_stay_share": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_stay_share")
+            ),
+            "resource_commitment_switch_share": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_switch_share")
+            ),
+            "resource_commitment_stay_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_stay_users_avg")
+            ),
+            "resource_commitment_stay_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_stay_usage_bias")
+            ),
+            "resource_commitment_switch_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_switch_users_avg")
+            ),
+            "resource_commitment_switch_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_switch_usage_bias")
+            ),
+            "resource_commitment_anchor_distance_delta": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_anchor_distance_delta")
+            ),
+            "resource_commitment_memory_bias": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_memory_bias")
+            ),
+            "resource_commitment_recall_multiplier_observed": _parse_float(
+                row.get("run_summary.trait_impact.resource_commitment_recall_multiplier_observed"),
+                default=1.0,
             ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("run_summary.trait_impact.energy_efficiency_drain_bias")
@@ -420,6 +491,90 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias_anchor_distance_delta": _parse_float(
                 row.get("run_summary.trait_impact.exploration_bias_anchor_distance_delta")
             ),
+            "density_preference_guided_bias": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_guided_bias")
+            ),
+            "density_preference_guided_total": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_guided_total")
+            ),
+            "density_preference_seek_total": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_seek_total")
+            ),
+            "density_preference_avoid_total": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_avoid_total")
+            ),
+            "density_preference_seek_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_seek_usage_per_tick")
+            ),
+            "density_preference_avoid_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_avoid_usage_per_tick")
+            ),
+            "density_preference_seek_share": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_seek_share")
+            ),
+            "density_preference_avoid_share": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_avoid_share")
+            ),
+            "density_preference_seek_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_seek_users_avg")
+            ),
+            "density_preference_seek_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_seek_usage_bias")
+            ),
+            "density_preference_avoid_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_avoid_users_avg")
+            ),
+            "density_preference_avoid_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_avoid_usage_bias")
+            ),
+            "density_preference_neighbor_count_avg": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_neighbor_count_avg")
+            ),
+            "density_preference_center_distance_delta": _parse_float(
+                row.get("run_summary.trait_impact.density_preference_center_distance_delta")
+            ),
+            "gregariousness_guided_bias": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_guided_bias")
+            ),
+            "gregariousness_guided_total": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_guided_total")
+            ),
+            "gregariousness_seek_total": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_seek_total")
+            ),
+            "gregariousness_avoid_total": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_avoid_total")
+            ),
+            "gregariousness_seek_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_seek_usage_per_tick")
+            ),
+            "gregariousness_avoid_usage_per_tick": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_avoid_usage_per_tick")
+            ),
+            "gregariousness_seek_share": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_seek_share")
+            ),
+            "gregariousness_avoid_share": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_avoid_share")
+            ),
+            "gregariousness_seek_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_seek_users_avg")
+            ),
+            "gregariousness_seek_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_seek_usage_bias")
+            ),
+            "gregariousness_avoid_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_avoid_users_avg")
+            ),
+            "gregariousness_avoid_usage_bias": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_avoid_usage_bias")
+            ),
+            "gregariousness_neighbor_count_avg": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_neighbor_count_avg")
+            ),
+            "gregariousness_center_distance_delta": _parse_float(
+                row.get("run_summary.trait_impact.gregariousness_center_distance_delta")
+            ),
             "persistence_holds_total": _parse_float(
                 row.get("run_summary.trait_impact.persistence_holds_total")
             ),
@@ -498,6 +653,10 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "prudence": _parse_float(row.get("multi_run_summary.avg_final_traits.prudence")),
             "dominance": _parse_float(row.get("multi_run_summary.avg_final_traits.dominance")),
             "repro_drive": _parse_float(row.get("multi_run_summary.avg_final_traits.repro_drive")),
+            "memory_focus": _parse_float(row.get("multi_run_summary.avg_final_traits.memory_focus")),
+            "social_sensitivity": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.social_sensitivity")
+            ),
             "risk_taking": _parse_float(row.get("multi_run_summary.avg_final_traits.risk_taking")),
             "stress_tolerance": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.stress_tolerance")
@@ -509,6 +668,12 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "exploration_bias": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.exploration_bias")
+            ),
+            "density_preference": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.density_preference")
+            ),
+            "gregariousness": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.gregariousness")
             ),
             "mobility_efficiency": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.mobility_efficiency")
@@ -527,6 +692,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance": _parse_float(
                 row.get("multi_run_summary.avg_final_traits.competition_tolerance")
+            ),
+            "resource_commitment": _parse_float(
+                row.get("multi_run_summary.avg_final_traits.resource_commitment")
             ),
         },
         "most_frequent_final_dominant_group": row.get(
@@ -589,6 +757,18 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias_std": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exploration_bias_std")
             ),
+            "density_preference_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_mean")
+            ),
+            "density_preference_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_std")
+            ),
+            "gregariousness_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_mean")
+            ),
+            "gregariousness_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_std")
+            ),
             "mobility_efficiency_mean": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_mean")
             ),
@@ -646,6 +826,58 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance_neighbor_count_avg": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
+            ),
+            "resource_commitment_mean": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_mean")
+            ),
+            "resource_commitment_std": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_std")
+            ),
+            "resource_commitment_guided_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_guided_bias")
+            ),
+            "resource_commitment_guided_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_guided_total")
+            ),
+            "resource_commitment_stay_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_total")
+            ),
+            "resource_commitment_switch_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_total")
+            ),
+            "resource_commitment_stay_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_usage_per_tick")
+            ),
+            "resource_commitment_switch_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_usage_per_tick")
+            ),
+            "resource_commitment_stay_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_share")
+            ),
+            "resource_commitment_switch_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_share")
+            ),
+            "resource_commitment_stay_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_users_avg")
+            ),
+            "resource_commitment_stay_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_usage_bias")
+            ),
+            "resource_commitment_switch_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_users_avg")
+            ),
+            "resource_commitment_switch_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_usage_bias")
+            ),
+            "resource_commitment_anchor_distance_delta": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_anchor_distance_delta")
+            ),
+            "resource_commitment_memory_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_memory_bias")
+            ),
+            "resource_commitment_recall_multiplier_observed": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.resource_commitment_recall_multiplier_observed"),
+                default=1.0,
             ),
             "energy_efficiency_drain_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
@@ -754,6 +986,90 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "exploration_bias_anchor_distance_delta": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.exploration_bias_anchor_distance_delta")
             ),
+            "density_preference_guided_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_guided_bias")
+            ),
+            "density_preference_guided_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_guided_total")
+            ),
+            "density_preference_seek_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_seek_total")
+            ),
+            "density_preference_avoid_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_total")
+            ),
+            "density_preference_seek_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_seek_usage_per_tick")
+            ),
+            "density_preference_avoid_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_usage_per_tick")
+            ),
+            "density_preference_seek_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_seek_share")
+            ),
+            "density_preference_avoid_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_share")
+            ),
+            "density_preference_seek_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_seek_users_avg")
+            ),
+            "density_preference_seek_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_seek_usage_bias")
+            ),
+            "density_preference_avoid_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_users_avg")
+            ),
+            "density_preference_avoid_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_usage_bias")
+            ),
+            "density_preference_neighbor_count_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_neighbor_count_avg")
+            ),
+            "density_preference_center_distance_delta": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.density_preference_center_distance_delta")
+            ),
+            "gregariousness_guided_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_guided_bias")
+            ),
+            "gregariousness_guided_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_guided_total")
+            ),
+            "gregariousness_seek_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_total")
+            ),
+            "gregariousness_avoid_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_total")
+            ),
+            "gregariousness_seek_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_usage_per_tick")
+            ),
+            "gregariousness_avoid_usage_per_tick": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_usage_per_tick")
+            ),
+            "gregariousness_seek_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_share")
+            ),
+            "gregariousness_avoid_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_share")
+            ),
+            "gregariousness_seek_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_users_avg")
+            ),
+            "gregariousness_seek_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_usage_bias")
+            ),
+            "gregariousness_avoid_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_users_avg")
+            ),
+            "gregariousness_avoid_usage_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_usage_bias")
+            ),
+            "gregariousness_neighbor_count_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_neighbor_count_avg")
+            ),
+            "gregariousness_center_distance_delta": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.gregariousness_center_distance_delta")
+            ),
             "persistence_holds_total": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.persistence_holds_total")
             ),
@@ -840,6 +1156,12 @@ def _build_batch_payload_from_csv(
                 "prudence": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.prudence")),
                 "dominance": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.dominance")),
                 "repro_drive": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.repro_drive")),
+                "memory_focus": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.memory_focus")
+                ),
+                "social_sensitivity": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.social_sensitivity")
+                ),
                 "risk_taking": _parse_float(scenario_row.get("multi_run_summary.avg_final_traits.risk_taking")),
                 "stress_tolerance": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.stress_tolerance")
@@ -851,6 +1173,12 @@ def _build_batch_payload_from_csv(
                 ),
                 "exploration_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.exploration_bias")
+                ),
+                "density_preference": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.density_preference")
+                ),
+                "gregariousness": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.gregariousness")
                 ),
                 "mobility_efficiency": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.mobility_efficiency")
@@ -871,6 +1199,9 @@ def _build_batch_payload_from_csv(
                 ),
                 "competition_tolerance": _parse_float(
                     scenario_row.get("multi_run_summary.avg_final_traits.competition_tolerance")
+                ),
+                "resource_commitment": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_final_traits.resource_commitment")
                 ),
             },
             "most_frequent_final_dominant_group": scenario_row.get(
@@ -933,6 +1264,18 @@ def _build_batch_payload_from_csv(
                 "exploration_bias_std": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_std")
                 ),
+                "density_preference_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_mean")
+                ),
+                "density_preference_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_std")
+                ),
+                "gregariousness_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_mean")
+                ),
+                "gregariousness_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_std")
+                ),
                 "mobility_efficiency_mean": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.mobility_efficiency_mean")
                 ),
@@ -990,6 +1333,60 @@ def _build_batch_payload_from_csv(
                 ),
                 "competition_tolerance_neighbor_count_avg": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
+                ),
+                "resource_commitment_mean": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_mean")
+                ),
+                "resource_commitment_std": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_std")
+                ),
+                "resource_commitment_guided_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_guided_bias")
+                ),
+                "resource_commitment_guided_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_guided_total")
+                ),
+                "resource_commitment_stay_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_total")
+                ),
+                "resource_commitment_switch_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_total")
+                ),
+                "resource_commitment_stay_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_usage_per_tick")
+                ),
+                "resource_commitment_switch_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_usage_per_tick")
+                ),
+                "resource_commitment_stay_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_share")
+                ),
+                "resource_commitment_switch_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_share")
+                ),
+                "resource_commitment_stay_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_users_avg")
+                ),
+                "resource_commitment_stay_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_stay_usage_bias")
+                ),
+                "resource_commitment_switch_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_users_avg")
+                ),
+                "resource_commitment_switch_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_switch_usage_bias")
+                ),
+                "resource_commitment_anchor_distance_delta": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_anchor_distance_delta")
+                ),
+                "resource_commitment_memory_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_memory_bias")
+                ),
+                "resource_commitment_recall_multiplier_observed": _parse_float(
+                    scenario_row.get(
+                        "multi_run_summary.avg_trait_impact.resource_commitment_recall_multiplier_observed"
+                    ),
+                    default=1.0,
                 ),
                 "energy_efficiency_drain_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.energy_efficiency_drain_bias")
@@ -1099,6 +1496,90 @@ def _build_batch_payload_from_csv(
                 ),
                 "exploration_bias_anchor_distance_delta": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.exploration_bias_anchor_distance_delta")
+                ),
+                "density_preference_guided_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_guided_bias")
+                ),
+                "density_preference_guided_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_guided_total")
+                ),
+                "density_preference_seek_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_seek_total")
+                ),
+                "density_preference_avoid_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_total")
+                ),
+                "density_preference_seek_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_seek_usage_per_tick")
+                ),
+                "density_preference_avoid_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_usage_per_tick")
+                ),
+                "density_preference_seek_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_seek_share")
+                ),
+                "density_preference_avoid_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_share")
+                ),
+                "density_preference_seek_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_seek_users_avg")
+                ),
+                "density_preference_seek_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_seek_usage_bias")
+                ),
+                "density_preference_avoid_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_users_avg")
+                ),
+                "density_preference_avoid_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_avoid_usage_bias")
+                ),
+                "density_preference_neighbor_count_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_neighbor_count_avg")
+                ),
+                "density_preference_center_distance_delta": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.density_preference_center_distance_delta")
+                ),
+                "gregariousness_guided_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_guided_bias")
+                ),
+                "gregariousness_guided_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_guided_total")
+                ),
+                "gregariousness_seek_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_total")
+                ),
+                "gregariousness_avoid_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_total")
+                ),
+                "gregariousness_seek_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_usage_per_tick")
+                ),
+                "gregariousness_avoid_usage_per_tick": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_usage_per_tick")
+                ),
+                "gregariousness_seek_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_share")
+                ),
+                "gregariousness_avoid_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_share")
+                ),
+                "gregariousness_seek_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_users_avg")
+                ),
+                "gregariousness_seek_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_seek_usage_bias")
+                ),
+                "gregariousness_avoid_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_users_avg")
+                ),
+                "gregariousness_avoid_usage_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_avoid_usage_bias")
+                ),
+                "gregariousness_neighbor_count_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_neighbor_count_avg")
+                ),
+                "gregariousness_center_distance_delta": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.gregariousness_center_distance_delta")
                 ),
                 "persistence_holds_total": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.persistence_holds_total")

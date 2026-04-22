@@ -16,7 +16,7 @@ def print_run_header(config: Dict[str, float | int]) -> None:
         )
     )
     print(
-        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | stress_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy | faim_sens_moy | gregarite_moy | commitment_ressource_moy"
+        "tick | population | vivants | morts | nourriture | energie_moy | age_moy | gen_moy | naissances(T/dT) | deces(T/dT) | vitesse_moy | metabolisme_moy | prudence_moy | dominance_moy | risque_moy | stress_moy | repro_moy | memoire_trait_moy | social_trait_moy | persistance_trait_moy | exploration_trait_moy | densite_trait_moy | mobilite_trait_moy | efficacite_energie_moy | resistance_epuisement_moy | tolerance_env_moy | timing_repro_moy | faim_sens_moy | gregarite_moy | resource_commitment_moy"
     )
 
 

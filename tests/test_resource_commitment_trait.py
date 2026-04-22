@@ -1,6 +1,8 @@
 import random
+import tempfile
 import unittest
 from math import pi
+from pathlib import Path
 
 from ai import HungerAI
 from creatures import Creature
@@ -10,7 +12,9 @@ from debug_tools import (
     build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
+    export_results,
 )
+from debug_tools.export_analysis import load_export_payload
 from genetics import GeneticTraits, inherit_traits
 from simulation import HungerSimulation
 from ui import format_final_run_summary, format_multi_run_summary, format_population_dynamics
@@ -249,6 +253,105 @@ class ResourceCommitmentTraitTests(unittest.TestCase):
         self.assertIn("rc_mu=", multi_text)
         self.assertIn("resource_commitment_moy:", multi_text)
         self.assertIn("recall_rc=", multi_text)
+
+    def test_export_analysis_csv_preserves_resource_density_and_gregarious_metrics(self) -> None:
+        payload = {
+            "mode": "multi",
+            "seeds": [31, 32],
+            "run_count": 2,
+            "multi_run_summary": {
+                "runs": 2,
+                "seeds": [31, 32],
+                "extinction_count": 0,
+                "extinction_rate": 0.0,
+                "avg_max_generation": 5.0,
+                "avg_final_population": 17.0,
+                "avg_final_traits": {
+                    "speed": 1.0,
+                    "metabolism": 1.0,
+                    "prudence": 1.0,
+                    "dominance": 1.0,
+                    "repro_drive": 1.0,
+                    "memory_focus": 1.02,
+                    "social_sensitivity": 0.98,
+                    "risk_taking": 1.0,
+                    "stress_tolerance": 1.0,
+                    "food_perception": 1.0,
+                    "threat_perception": 1.0,
+                    "behavior_persistence": 1.0,
+                    "exploration_bias": 1.0,
+                    "density_preference": 1.03,
+                    "gregariousness": 0.97,
+                    "mobility_efficiency": 1.0,
+                    "energy_efficiency": 1.0,
+                    "exhaustion_resistance": 1.0,
+                    "longevity_factor": 1.0,
+                    "environmental_tolerance": 1.0,
+                    "reproduction_timing": 1.0,
+                    "hunger_sensitivity": 1.0,
+                    "competition_tolerance": 1.0,
+                    "resource_commitment": 1.04,
+                },
+                "avg_trait_impact": {
+                    "density_preference_mean": 1.03,
+                    "density_preference_guided_total": 11.0,
+                    "density_preference_seek_usage_per_tick": 0.27,
+                    "density_preference_avoid_usage_per_tick": 0.19,
+                    "density_preference_avoid_share": 0.41,
+                    "gregariousness_mean": 0.97,
+                    "gregariousness_std": 0.05,
+                    "gregariousness_guided_total": 9.0,
+                    "gregariousness_seek_usage_per_tick": 0.22,
+                    "gregariousness_avoid_usage_per_tick": 0.16,
+                    "gregariousness_seek_usage_bias": 0.03,
+                    "gregariousness_avoid_usage_bias": -0.04,
+                    "gregariousness_center_distance_delta": -0.08,
+                    "resource_commitment_mean": 1.04,
+                    "resource_commitment_std": 0.06,
+                    "resource_commitment_guided_total": 12.0,
+                    "resource_commitment_stay_total": 7.0,
+                    "resource_commitment_switch_total": 5.0,
+                    "resource_commitment_stay_share": 0.58,
+                    "resource_commitment_switch_share": 0.42,
+                    "resource_commitment_stay_users_avg": 1.05,
+                    "resource_commitment_stay_usage_bias": 0.04,
+                    "resource_commitment_switch_users_avg": 0.95,
+                    "resource_commitment_switch_usage_bias": -0.05,
+                    "resource_commitment_memory_bias": 0.02,
+                    "resource_commitment_recall_multiplier_observed": 1.03,
+                },
+                "avg_memory_impact": {},
+                "avg_social_impact": {},
+                "most_frequent_final_dominant_group": "gA",
+                "most_frequent_final_dominant_group_count": 1,
+                "most_frequent_final_dominant_group_share": 0.5,
+            },
+            "per_run": [],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "multi.csv"
+            export_results(payload, str(path), "csv")
+            loaded = load_export_payload(str(path), input_format="csv")
+
+        summary = loaded["multi_run_summary"]
+        avg_traits = summary["avg_final_traits"]
+        avg_trait_impact = summary["avg_trait_impact"]
+
+        self.assertAlmostEqual(float(avg_traits["resource_commitment"]), 1.04)
+        self.assertAlmostEqual(float(avg_traits["density_preference"]), 1.03)
+        self.assertAlmostEqual(float(avg_traits["gregariousness"]), 0.97)
+        self.assertAlmostEqual(float(avg_traits["memory_focus"]), 1.02)
+        self.assertAlmostEqual(float(avg_traits["social_sensitivity"]), 0.98)
+
+        self.assertAlmostEqual(float(avg_trait_impact["resource_commitment_mean"]), 1.04)
+        self.assertAlmostEqual(float(avg_trait_impact["resource_commitment_stay_share"]), 0.58)
+        self.assertAlmostEqual(
+            float(avg_trait_impact["resource_commitment_recall_multiplier_observed"]),
+            1.03,
+        )
+        self.assertAlmostEqual(float(avg_trait_impact["density_preference_guided_total"]), 11.0)
+        self.assertAlmostEqual(float(avg_trait_impact["gregariousness_guided_total"]), 9.0)
 
 
 if __name__ == "__main__":

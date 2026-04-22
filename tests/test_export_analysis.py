@@ -1378,6 +1378,122 @@ class ExportAnalysisTests(unittest.TestCase):
         self.assertIn("presence_locale_disputee_max:", summary)
         self.assertIn("dispersion_competition_tolerance_max:", summary)
 
+    def test_batch_density_and_gregarious_analysis_from_csv_preserves_metrics(self) -> None:
+        payload = {
+            "mode": "batch",
+            "batch_param": "mutation_variation",
+            "batch_values": [0.05, 0.10],
+            "runs_per_value": 2,
+            "scenarios": [
+                {
+                    "parameter_value": 0.05,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 1,
+                        "extinction_rate": 0.5,
+                        "avg_max_generation": 2.0,
+                        "avg_final_population": 9.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                            "density_preference": 0.97,
+                            "gregariousness": 1.04,
+                            "resource_commitment": 0.96,
+                        },
+                        "avg_trait_impact": {
+                            "density_preference_guided_total": 4.0,
+                            "density_preference_seek_usage_per_tick": 0.28,
+                            "density_preference_avoid_usage_per_tick": 0.16,
+                            "density_preference_avoid_share": 0.36,
+                            "gregariousness_mean": 1.04,
+                            "gregariousness_std": 0.03,
+                            "gregariousness_guided_total": 5.0,
+                            "gregariousness_seek_usage_per_tick": 0.21,
+                            "gregariousness_avoid_usage_per_tick": 0.09,
+                            "gregariousness_seek_usage_bias": 0.02,
+                            "gregariousness_avoid_usage_bias": -0.02,
+                            "gregariousness_center_distance_delta": -0.05,
+                            "resource_commitment_mean": 0.96,
+                            "resource_commitment_guided_total": 6.0,
+                        },
+                        "most_frequent_final_dominant_group": "gA",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+                {
+                    "parameter_value": 0.10,
+                    "multi_run_summary": {
+                        "runs": 2,
+                        "seeds": [100, 103],
+                        "extinction_count": 0,
+                        "extinction_rate": 0.0,
+                        "avg_max_generation": 4.0,
+                        "avg_final_population": 19.0,
+                        "avg_final_traits": {
+                            "speed": 1.0,
+                            "metabolism": 1.0,
+                            "prudence": 1.0,
+                            "dominance": 1.0,
+                            "repro_drive": 1.0,
+                            "density_preference": 1.05,
+                            "gregariousness": 0.94,
+                            "resource_commitment": 1.08,
+                        },
+                        "avg_trait_impact": {
+                            "density_preference_guided_total": 10.0,
+                            "density_preference_seek_usage_per_tick": 0.14,
+                            "density_preference_avoid_usage_per_tick": 0.33,
+                            "density_preference_avoid_share": 0.70,
+                            "gregariousness_mean": 0.94,
+                            "gregariousness_std": 0.07,
+                            "gregariousness_guided_total": 10.0,
+                            "gregariousness_seek_usage_per_tick": 0.12,
+                            "gregariousness_avoid_usage_per_tick": 0.30,
+                            "gregariousness_seek_usage_bias": -0.01,
+                            "gregariousness_avoid_usage_bias": -0.09,
+                            "gregariousness_center_distance_delta": 0.11,
+                            "resource_commitment_mean": 1.08,
+                            "resource_commitment_guided_total": 12.0,
+                        },
+                        "most_frequent_final_dominant_group": "gB",
+                        "most_frequent_final_dominant_group_count": 1,
+                        "most_frequent_final_dominant_group_share": 0.5,
+                    },
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch_density_gregarious.csv"
+            export_results(payload, str(path), "csv")
+
+            loaded = load_export_payload(str(path), input_format="csv")
+            summary = summarize_export_payload(loaded)
+
+        self.assertEqual(loaded["mode"], "batch")
+        scenarios = loaded["scenarios"]
+        self.assertIsInstance(scenarios, list)
+        assert isinstance(scenarios, list)
+        self.assertEqual(len(scenarios), 2)
+
+        first_traits = scenarios[0]["multi_run_summary"]["avg_final_traits"]
+        first_impact = scenarios[0]["multi_run_summary"]["avg_trait_impact"]
+
+        self.assertAlmostEqual(float(first_traits["density_preference"]), 0.97)
+        self.assertAlmostEqual(float(first_traits["gregariousness"]), 1.04)
+        self.assertAlmostEqual(float(first_traits["resource_commitment"]), 0.96)
+        self.assertAlmostEqual(float(first_impact["density_preference_guided_total"]), 4.0)
+        self.assertAlmostEqual(float(first_impact["gregariousness_guided_total"]), 5.0)
+        self.assertAlmostEqual(float(first_impact["resource_commitment_guided_total"]), 6.0)
+
+        self.assertIn("density_preference_batch:", summary)
+        self.assertIn("gregariousness_batch:", summary)
+
     def test_cli_analysis_on_real_export_json(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
