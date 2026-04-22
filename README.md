@@ -11,9 +11,11 @@ The priority is now visible gameplay in 3D, not new micro-traits in the old simu
 The active direction is a minimal but playable sandbox loop:
 - autonomous adventurers (humans)
 - autonomous monsters
+- simple points of interest (POI): camp + ruins
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
-- one simple magic projectile spell
+- two simple spells: projectile bolt + short-range nova
+- one additional monster archetype: brute monster
 - sandbox population regulation (minimal respawn)
 - runtime observability (debug HUD + event log)
 
@@ -26,6 +28,7 @@ The active direction is a minimal but playable sandbox loop:
   - [Actor.gd](game3d/scripts/entities/Actor.gd)
   - [HumanAgent.gd](game3d/scripts/entities/HumanAgent.gd)
   - [MonsterAgent.gd](game3d/scripts/entities/MonsterAgent.gd)
+  - [BruteMonster.gd](game3d/scripts/entities/BruteMonster.gd)
 - AI decision layer: [AgentAI.gd](game3d/scripts/ai/AgentAI.gd)
 - Combat system: [CombatSystem.gd](game3d/scripts/combat/CombatSystem.gd)
 - Magic system: [MagicSystem.gd](game3d/scripts/magic/MagicSystem.gd)
@@ -49,9 +52,11 @@ Camera controls:
 ## What to observe in the running sandbox
 The debug overlay shows:
 - alive population split (humans / monsters)
+- brute monster count
 - average HP and energy
-- melee hits, magic hits, casts, kills, deaths, flee events
-- current AI state distribution (`wander`, `detect`, `chase`, `attack`, `cast`, `flee`)
+- melee hits, magic hits, casts (bolt/nova), kills, deaths, flee events
+- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_nova`, `flee`)
+- POI occupancy (`camp`, `ruins`)
 - recent gameplay events (engagements, hits, deaths, casts)
 
 Validation target for current MVP:
@@ -82,13 +87,15 @@ py -m unittest discover -s tests -v
 - Add Godot 4 project alongside existing Python codebase
 - Build minimal 3D sandbox scene with free camera
 - Add autonomous humans/monsters
-- Add FSM AI + melee + magic projectile
+- Add FSM AI + melee + two-spell magic (bolt + nova)
 - Add minimal sandbox regulation and debug observability
+- Add simple POI layer (camp/ruins) with light AI convergence
+- Add brute monster archetype for profile diversity
 
 ### Next
-- Tune combat/magic balance for longer stable emergent encounters
-- Add lightweight POIs (camp, ruins) for clearer interaction hotspots
-- Add one additional spell archetype and one monster archetype
+- Improve POI behavior readability (per-POI event cues and clearer occupancy feedback)
+- Add one extra spell archetype (control/utility) and one ranged monster archetype
+- Tune combat/magic values from play sessions (durability/readability pass)
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

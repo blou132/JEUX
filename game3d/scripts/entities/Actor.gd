@@ -27,6 +27,10 @@ var magic_range: float = 12.0
 var magic_cooldown: float = 3.0
 var magic_cooldown_left: float = 0.0
 var magic_energy_cost: float = 10.0
+var nova_enabled: bool = false
+var nova_damage: float = 14.0
+var nova_radius: float = 3.2
+var nova_energy_cost: float = 16.0
 
 var energy_drain_rate: float = 2.0
 var exhaustion_damage_rate: float = 6.0
@@ -34,6 +38,7 @@ var exhaustion_damage_rate: float = 6.0
 var state: String = "wander"
 var last_reason: String = "spawned"
 var target_actor: Actor = null
+var target_position: Vector3 = Vector3.ZERO
 
 var has_wander_target: bool = false
 var wander_target: Vector3 = Vector3.ZERO
@@ -88,6 +93,7 @@ func tick_actor(
     state = str(decision.get("state", "wander"))
     last_reason = str(decision.get("reason", "none"))
     target_actor = decision.get("target", null)
+    target_position = decision.get("target_position", global_position)
 
     if previous_state != state:
         game_loop.register_state_change(self, previous_state, state, last_reason)
@@ -116,6 +122,14 @@ func tick_actor(
         "cast":
             if target_actor != null and not magic.try_cast(self, target_actor, game_loop):
                 _move_towards(target_actor.global_position, delta, world, 1.0)
+        "cast_nova":
+            if not magic.try_cast_nova(self, all_actors, game_loop):
+                if target_actor != null:
+                    _move_towards(target_actor.global_position, delta, world, 1.0)
+                else:
+                    _wander(delta, world)
+        "poi":
+            _move_towards(target_position, delta, world, 0.90)
         "wander":
             _wander(delta, world)
         _:
@@ -143,6 +157,10 @@ func can_cast_magic() -> bool:
     return magic_enabled and magic_cooldown_left <= 0.0 and energy >= magic_energy_cost
 
 
+func can_cast_nova() -> bool:
+    return nova_enabled and magic_cooldown_left <= 0.0 and energy >= nova_energy_cost
+
+
 func is_enemy(other: Actor) -> bool:
     return other != null and other.faction != faction
 
@@ -157,14 +175,19 @@ func _build_visual() -> void:
     var capsule := CapsuleMesh.new()
     capsule.radius = 0.45
     capsule.height = 1.4
+    if actor_kind == "brute_monster":
+        capsule.radius = 0.60
+        capsule.height = 1.9
     body.mesh = capsule
-    body.position.y = 1.0
+    body.position.y = 1.0 if actor_kind != "brute_monster" else 1.2
 
     var material := StandardMaterial3D.new()
     material.roughness = 0.8
 
     if faction == "human":
         material.albedo_color = Color(0.45, 0.70, 1.00)
+    elif actor_kind == "brute_monster":
+        material.albedo_color = Color(0.78, 0.20, 0.20)
     elif faction == "monster":
         material.albedo_color = Color(0.95, 0.40, 0.40)
     else:

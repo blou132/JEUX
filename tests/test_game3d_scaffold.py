@@ -16,6 +16,7 @@ class TestGame3DScaffold(unittest.TestCase):
             GAME3D / "scripts" / "entities" / "Actor.gd",
             GAME3D / "scripts" / "entities" / "HumanAgent.gd",
             GAME3D / "scripts" / "entities" / "MonsterAgent.gd",
+            GAME3D / "scripts" / "entities" / "BruteMonster.gd",
             GAME3D / "scripts" / "ai" / "AgentAI.gd",
             GAME3D / "scripts" / "combat" / "CombatSystem.gd",
             GAME3D / "scripts" / "magic" / "MagicSystem.gd",
@@ -47,6 +48,20 @@ class TestGame3DScaffold(unittest.TestCase):
         content = (ROOT / "README.md").read_text(encoding="utf-8").lower()
         self.assertIn("game3d", content)
         self.assertIn("legacy python", content)
+        self.assertIn("poi", content)
+        self.assertIn("nova", content)
+        self.assertIn("brute", content)
+
+    def test_magic_system_has_second_spell(self):
+        content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
+        self.assertIn("func try_cast_nova", content)
+        self.assertIn('register_cast(caster, null, "nova")', content)
+
+    def test_world_manager_has_poi(self):
+        content = (GAME3D / "scripts" / "world" / "WorldManager.gd").read_text(encoding="utf-8")
+        self.assertIn('"name": "camp"', content)
+        self.assertIn('"name": "ruins"', content)
+        self.assertIn("get_poi_guidance", content)
 
 
 if __name__ == "__main__":

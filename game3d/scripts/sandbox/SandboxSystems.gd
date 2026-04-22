@@ -6,7 +6,8 @@ class_name SandboxSystems
 @export var min_humans: int = 5
 @export var min_monsters: int = 6
 @export var max_population: int = 40
-@export var respawn_interval: float = 4.0
+@export var respawn_interval: float = 4.8
+@export var brute_spawn_ratio: float = 0.30
 
 var _respawn_timer: float = 0.0
 var _loop: GameLoop = null
@@ -60,7 +61,7 @@ func _spawn_actor(faction: String, actors: Array) -> void:
     if faction == "human":
         actor = HumanAgent.new()
     else:
-        actor = MonsterAgent.new()
+        actor = BruteMonster.new() if randf() < brute_spawn_ratio else MonsterAgent.new()
 
     actor.global_position = _world.get_spawn_point(faction)
     _entities_root.add_child(actor)

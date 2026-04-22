@@ -1,9 +1,10 @@
 extends Node3D
 class_name MagicSystem
 
-@export var projectile_speed: float = 15.0
-@export var projectile_radius: float = 0.80
-@export var projectile_lifetime: float = 2.5
+@export var projectile_speed: float = 13.0
+@export var projectile_radius: float = 0.70
+@export var projectile_lifetime: float = 2.8
+@export var nova_visual_duration: float = 0.30
 
 var projectiles: Array[Dictionary] = []
 
@@ -45,7 +46,43 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
         "faction": caster.faction
     })
 
-    game_loop.register_cast(caster, target)
+    game_loop.register_cast(caster, target, "bolt")
+    return true
+
+
+func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
+    if caster == null or caster.is_dead:
+        return false
+    if not caster.can_cast_nova():
+        return false
+
+    var hits: int = 0
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if not caster.is_enemy(actor):
+            continue
+
+        var distance: float = caster.global_position.distance_to(actor.global_position)
+        if distance > caster.nova_radius:
+            continue
+
+        var falloff := clamp(1.0 - (distance / max(0.001, caster.nova_radius)) * 0.25, 0.75, 1.0)
+        var damage: float = caster.nova_damage * falloff
+        actor.apply_damage(damage, caster, "nova")
+        game_loop.register_attack("magic", caster, actor, damage)
+        hits += 1
+
+        if actor.is_dead:
+            game_loop.register_death(actor, caster, "nova")
+
+    if hits == 0:
+        return false
+
+    caster.magic_cooldown_left = caster.magic_cooldown * 1.15
+    caster.energy = max(0.0, caster.energy - caster.nova_energy_cost)
+    _spawn_nova_visual(caster.global_position + Vector3(0.0, 0.25, 0.0), caster.nova_radius, caster.faction)
+    game_loop.register_cast(caster, null, "nova")
     return true
 
 
@@ -124,3 +161,26 @@ func _create_projectile_visual(faction: String) -> MeshInstance3D:
     projectile.material_override = material
 
     return projectile
+
+
+func _spawn_nova_visual(center: Vector3, radius: float, faction: String) -> void:
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = radius
+    mesh.bottom_radius = radius
+    mesh.height = 0.12
+    ring.mesh = mesh
+    ring.global_position = center
+    ring.scale = Vector3(0.05, 1.0, 0.05)
+
+    var color := Color(0.40, 0.78, 1.0) if faction == "human" else Color(1.0, 0.45, 0.45)
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 0.95
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE, nova_visual_duration)
+    tween.finished.connect(ring.queue_free)

@@ -24,6 +24,8 @@ var kills_total: int = 0
 var melee_hits_total: int = 0
 var magic_hits_total: int = 0
 var casts_total: int = 0
+var bolt_casts_total: int = 0
+var nova_casts_total: int = 0
 var flee_events_total: int = 0
 var engagements_total: int = 0
 
@@ -74,13 +76,13 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if from_state == to_state:
         return
 
-    if to_state in ["detect", "chase", "attack", "cast"]:
+    if to_state in ["detect", "chase", "attack", "cast", "cast_nova"]:
         engagements_total += 1
 
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "flee"]:
+    if to_state in ["attack", "cast", "cast_nova", "flee", "poi"]:
         record_event("%s#%d %s -> %s (%s)." % [actor.actor_kind, actor.actor_id, from_state, to_state, reason])
 
 
@@ -96,9 +98,17 @@ func register_attack(kind: String, attacker: Actor, target: Actor, damage: float
     )
 
 
-func register_cast(caster: Actor, target: Actor) -> void:
+func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bolt") -> void:
     casts_total += 1
-    record_event("Cast: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
+    if spell_kind == "nova":
+        nova_casts_total += 1
+        record_event("Cast[nova]: %s#%d." % [caster.actor_kind, caster.actor_id])
+    else:
+        bolt_casts_total += 1
+        if target != null:
+            record_event("Cast[bolt]: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
+        else:
+            record_event("Cast[bolt]: %s#%d." % [caster.actor_kind, caster.actor_id])
 
 
 func register_death(victim: Actor, killer: Actor, reason: String) -> void:
@@ -140,6 +150,7 @@ func _build_snapshot() -> Dictionary:
     var alive_total: int = 0
     var humans_alive: int = 0
     var monsters_alive: int = 0
+    var brute_alive: int = 0
     var hp_total: float = 0.0
     var energy_total: float = 0.0
 
@@ -149,6 +160,8 @@ func _build_snapshot() -> Dictionary:
         "chase": 0,
         "attack": 0,
         "cast": 0,
+        "cast_nova": 0,
+        "poi": 0,
         "flee": 0
     }
 
@@ -164,6 +177,8 @@ func _build_snapshot() -> Dictionary:
             humans_alive += 1
         elif actor.faction == "monster":
             monsters_alive += 1
+            if actor.actor_kind == "brute_monster":
+                brute_alive += 1
 
         if state_counts.has(actor.state):
             state_counts[actor.state] += 1
@@ -172,6 +187,7 @@ func _build_snapshot() -> Dictionary:
 
     var avg_hp: float = hp_total / alive_total if alive_total > 0 else 0.0
     var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
+    var poi_population := world_manager.get_poi_population_snapshot(actors)
 
     return {
         "tick": tick_index,
@@ -179,6 +195,7 @@ func _build_snapshot() -> Dictionary:
         "alive_total": alive_total,
         "humans_alive": humans_alive,
         "monsters_alive": monsters_alive,
+        "brute_alive": brute_alive,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -187,7 +204,10 @@ func _build_snapshot() -> Dictionary:
         "melee_hits_total": melee_hits_total,
         "magic_hits_total": magic_hits_total,
         "casts_total": casts_total,
+        "bolt_casts_total": bolt_casts_total,
+        "nova_casts_total": nova_casts_total,
         "flee_events_total": flee_events_total,
         "engagements_total": engagements_total,
+        "poi_population": poi_population,
         "state_counts": state_counts
     }

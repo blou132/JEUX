@@ -4,14 +4,17 @@ class_name WorldManager
 @export var map_size: float = 96.0
 @export var nav_cell_size: float = 2.0
 @export var wander_radius: float = 14.0
+@export var poi_guidance_distance: float = 28.0
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
+var pois: Array[Dictionary] = []
 
 
 func setup_world() -> void:
     _build_ground()
     _build_spawn_points()
+    _build_pois()
 
 
 func tick_world(_delta: float) -> void:
@@ -70,6 +73,65 @@ func find_nearest_enemy(source: Actor, all_actors: Array, max_distance: float) -
     return closest
 
 
+func get_poi_guidance(actor_position: Vector3, faction: String) -> Dictionary:
+    if pois.is_empty():
+        return {}
+
+    var selected: Dictionary = {}
+    for poi in pois:
+        if str(poi.get("faction_hint", "")) == faction:
+            selected = poi
+            break
+
+    if selected.is_empty():
+        selected = _get_nearest_poi(actor_position)
+
+    if selected.is_empty():
+        return {}
+
+    var poi_position: Vector3 = selected.get("position", actor_position)
+    var distance: float = actor_position.distance_to(poi_position)
+    if distance > poi_guidance_distance:
+        return {}
+
+    var jitter := Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0))
+    var target_position := clamp_to_world(snap_to_nav_grid(poi_position + jitter))
+    return {
+        "name": str(selected.get("name", "poi")),
+        "target_position": target_position,
+        "distance": distance
+    }
+
+
+func get_poi_population_snapshot(actors: Array) -> Dictionary:
+    var snapshot: Dictionary = {}
+
+    for poi in pois:
+        var poi_name: String = str(poi.get("name", "poi"))
+        var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
+        var poi_radius: float = float(poi.get("radius", 7.0))
+        var humans: int = 0
+        var monsters: int = 0
+
+        for actor in actors:
+            if actor == null or actor.is_dead:
+                continue
+            if actor.global_position.distance_to(poi_pos) > poi_radius:
+                continue
+
+            if actor.faction == "human":
+                humans += 1
+            elif actor.faction == "monster":
+                monsters += 1
+
+        snapshot[poi_name] = {
+            "human": humans,
+            "monster": monsters
+        }
+
+    return snapshot
+
+
 func _build_ground() -> void:
     var old_ground := get_node_or_null("Ground")
     if old_ground:
@@ -100,6 +162,28 @@ func _build_spawn_points() -> void:
         monster_spawn_points.append(Vector3(side, 0.0, lane))
 
     _refresh_markers()
+
+
+func _build_pois() -> void:
+    pois.clear()
+    pois.append({
+        "name": "camp",
+        "kind": "camp",
+        "faction_hint": "human",
+        "position": Vector3(-10.0, 0.0, -6.0),
+        "radius": 8.0,
+        "color": Color(0.40, 0.72, 1.0)
+    })
+    pois.append({
+        "name": "ruins",
+        "kind": "ruins",
+        "faction_hint": "monster",
+        "position": Vector3(10.0, 0.0, 6.0),
+        "radius": 8.0,
+        "color": Color(0.95, 0.60, 0.35)
+    })
+
+    _refresh_poi_markers()
 
 
 func _refresh_markers() -> void:
@@ -133,3 +217,64 @@ func _make_marker(position: Vector3, color: Color) -> MeshInstance3D:
     marker.material_override = material
 
     return marker
+
+
+func _refresh_poi_markers() -> void:
+    var old_root := get_node_or_null("PoiMarkers")
+    if old_root:
+        old_root.queue_free()
+
+    var poi_root := Node3D.new()
+    poi_root.name = "PoiMarkers"
+    add_child(poi_root)
+
+    for poi in pois:
+        poi_root.add_child(_make_poi_marker(poi))
+
+
+func _make_poi_marker(poi: Dictionary) -> Node3D:
+    var poi_node := Node3D.new()
+    poi_node.name = str(poi.get("name", "poi"))
+    poi_node.position = poi.get("position", Vector3.ZERO)
+
+    var color: Color = poi.get("color", Color(0.9, 0.9, 0.9))
+    var ring := MeshInstance3D.new()
+    var ring_mesh := CylinderMesh.new()
+    ring_mesh.top_radius = 2.2
+    ring_mesh.bottom_radius = 2.2
+    ring_mesh.height = 0.1
+    ring.mesh = ring_mesh
+    ring.position.y = 0.05
+    ring.material_override = _make_material(color * 0.85)
+    poi_node.add_child(ring)
+
+    var pillar := MeshInstance3D.new()
+    var pillar_mesh := BoxMesh.new()
+    pillar_mesh.size = Vector3(0.8, 2.0, 0.8)
+    pillar.mesh = pillar_mesh
+    pillar.position.y = 1.0
+    pillar.material_override = _make_material(color)
+    poi_node.add_child(pillar)
+
+    return poi_node
+
+
+func _make_material(color: Color) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 0.30
+    material.roughness = 0.7
+    return material
+
+
+func _get_nearest_poi(position: Vector3) -> Dictionary:
+    var selected: Dictionary = {}
+    var closest_sq: float = INF
+    for poi in pois:
+        var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
+        var d_sq: float = position.distance_squared_to(poi_pos)
+        if d_sq < closest_sq:
+            selected = poi
+            closest_sq = d_sq
+    return selected
