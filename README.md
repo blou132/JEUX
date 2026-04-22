@@ -10,6 +10,7 @@ The priority is now visible gameplay in 3D, not new micro-traits in the old simu
 ## New target (3D gameplay core)
 The active direction is a minimal but playable sandbox loop:
 - autonomous adventurers (humans)
+- human role differentiation (fighter / mage / scout)
 - autonomous monsters
 - simple points of interest (POI): camp + ruins
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
@@ -53,6 +54,7 @@ Camera controls:
 ## What to observe in the running sandbox
 The debug overlay shows:
 - alive population split (humans / monsters)
+- human role split (`fighter`, `mage`, `scout`)
 - brute monster count
 - ranged monster count
 - average HP and energy
@@ -62,6 +64,7 @@ The debug overlay shows:
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
 - POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
+- role-aware logs for human actions (labels include role tags)
 
 Validation target for current MVP:
 - repeated cycles of encounter -> chase/attack/cast -> death or flee -> respawn
@@ -101,10 +104,11 @@ py -m unittest discover -s tests -v
 - Add ranged monster archetype with distance-keeping behavior and bolt pressure
 - Add utility/control spell (short slow) with dedicated logs and HUD counters
 - Add behavioral test coverage for IA decisions, POI runtime shape, and monster spawn coherence
+- Add human role MVP (fighter/mage/scout) with stat/behavior differences and HUD/log visibility
 
 ### Next
-- Add one extra spell archetype (control/utility) and one ranged monster archetype
-- Tune combat/magic values from play sessions (durability/readability pass)
+- Tune role balance and combat pacing from play sessions (durability/readability pass)
+- Add one additional monster archetype focused on utility/disruption
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

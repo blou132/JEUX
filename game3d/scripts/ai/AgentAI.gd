@@ -38,25 +38,28 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 
     if actor.can_cast_control() and distance <= actor.control_range and distance > actor.attack_range * 1.12 and not enemy.is_slowed():
         if enemy.actor_kind in ["brute_monster", "ranged_monster"] or distance <= actor.control_range * 0.78:
-            return {
-                "state": "cast_control",
-                "target": enemy,
-                "reason": "control_window"
-            }
+            if randf() <= actor.control_usage_bias:
+                return {
+                    "state": "cast_control",
+                    "target": enemy,
+                    "reason": "control_window"
+                }
 
     if actor.can_cast_nova() and distance <= actor.nova_radius * 0.95:
-        return {
-            "state": "cast_nova",
-            "target": enemy,
-            "reason": "nova_range"
-        }
+        if randf() <= actor.nova_usage_bias:
+            return {
+                "state": "cast_nova",
+                "target": enemy,
+                "reason": "nova_range"
+            }
 
     if actor.can_cast_magic() and distance <= actor.magic_range and distance > actor.attack_range * 1.2:
-        return {
-            "state": "cast",
-            "target": enemy,
-            "reason": "magic_range" if not is_ranged else "ranged_cast"
-        }
+        if randf() <= actor.magic_usage_bias:
+            return {
+                "state": "cast",
+                "target": enemy,
+                "reason": "magic_range" if not is_ranged else "ranged_cast"
+            }
 
     if distance <= actor.attack_range:
         return {
@@ -85,11 +88,12 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
         }
 
     if is_ranged and distance > actor.attack_range * 1.15 and actor.can_cast_magic():
-        return {
-            "state": "cast",
-            "target": enemy,
-            "reason": "ranged_pressure_cast"
-        }
+        if randf() <= actor.magic_usage_bias:
+            return {
+                "state": "cast",
+                "target": enemy,
+                "reason": "ranged_pressure_cast"
+            }
 
     return {
         "state": "chase",

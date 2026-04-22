@@ -32,6 +32,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var state_counts: Dictionary = snapshot.get("state_counts", {})
     var poi_population: Dictionary = snapshot.get("poi_population", {})
     var poi_snapshot: Dictionary = snapshot.get("poi_snapshot", {})
+    var role_counts: Dictionary = snapshot.get("human_role_counts", {})
     var lines: Array[String] = []
 
     lines.append("SANDBOX FANTASY 3D MVP")
@@ -72,6 +73,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("slowed_alive", 0)),
             int(snapshot.get("slowed_humans", 0)),
             int(snapshot.get("slowed_monsters", 0))
+        ]
+    )
+    lines.append(
+        "Human roles: fighter=%d mage=%d scout=%d"
+        % [
+            int(role_counts.get("fighter", 0)),
+            int(role_counts.get("mage", 0)),
+            int(role_counts.get("scout", 0))
         ]
     )
     lines.append(

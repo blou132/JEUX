@@ -55,6 +55,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("ranged", content)
         self.assertIn("control", content)
         self.assertIn("slow", content)
+        self.assertIn("fighter", content)
+        self.assertIn("mage", content)
+        self.assertIn("scout", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -88,6 +91,22 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("ranged_monster", content)
         self.assertIn('"state": "reposition"', content)
         self.assertIn('"state": "cast_control"', content)
+        self.assertIn("magic_usage_bias", content)
+        self.assertIn("control_usage_bias", content)
+
+    def test_human_agent_has_roles(self):
+        content = (GAME3D / "scripts" / "entities" / "HumanAgent.gd").read_text(encoding="utf-8")
+        self.assertIn('assign_role(role: String)', content)
+        self.assertIn('"fighter"', content)
+        self.assertIn('"mage"', content)
+        self.assertIn('"scout"', content)
+
+    def test_sandbox_assigns_human_roles(self):
+        content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
+        self.assertIn("fighter_role_ratio", content)
+        self.assertIn("mage_role_ratio", content)
+        self.assertIn("scout_role_ratio", content)
+        self.assertIn("assign_role(_pick_human_role())", content)
 
 
 if __name__ == "__main__":

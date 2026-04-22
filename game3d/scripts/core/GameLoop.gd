@@ -78,7 +78,7 @@ func _tick(delta: float) -> void:
 
 func register_spawn(actor: Actor) -> void:
     spawns_total += 1
-    record_event("Spawn %s#%d (%s)." % [actor.actor_kind, actor.actor_id, actor.faction])
+    record_event("Spawn %s (%s)." % [_actor_label(actor), actor.faction])
 
 
 func register_state_change(actor: Actor, from_state: String, to_state: String, reason: String) -> void:
@@ -92,7 +92,7 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
         flee_events_total += 1
 
     if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition"]:
-        record_event("%s#%d %s -> %s (%s)." % [actor.actor_kind, actor.actor_id, from_state, to_state, reason])
+        record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
 
 func register_attack(kind: String, attacker: Actor, target: Actor, damage: float) -> void:
@@ -102,8 +102,8 @@ func register_attack(kind: String, attacker: Actor, target: Actor, damage: float
         magic_hits_total += 1
 
     record_event(
-        "%s hit: %s#%d -> %s#%d (%.1f)."
-        % [kind, attacker.actor_kind, attacker.actor_id, target.actor_kind, target.actor_id, damage]
+        "%s hit: %s -> %s (%.1f)."
+        % [kind, _actor_label(attacker), _actor_label(target), damage]
     )
 
 
@@ -111,27 +111,27 @@ func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bo
     casts_total += 1
     if spell_kind == "nova":
         nova_casts_total += 1
-        record_event("Cast[nova]: %s#%d." % [caster.actor_kind, caster.actor_id])
+        record_event("Cast[nova]: %s." % [_actor_label(caster)])
     elif spell_kind == "control":
         control_casts_total += 1
         if target != null:
-            record_event("Cast[control]: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
+            record_event("Cast[control]: %s -> %s." % [_actor_label(caster), _actor_label(target)])
         else:
-            record_event("Cast[control]: %s#%d." % [caster.actor_kind, caster.actor_id])
+            record_event("Cast[control]: %s." % [_actor_label(caster)])
     else:
         bolt_casts_total += 1
         if target != null:
-            record_event("Cast[bolt]: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
+            record_event("Cast[bolt]: %s -> %s." % [_actor_label(caster), _actor_label(target)])
         else:
-            record_event("Cast[bolt]: %s#%d." % [caster.actor_kind, caster.actor_id])
+            record_event("Cast[bolt]: %s." % [_actor_label(caster)])
 
 
 func register_control(caster: Actor, target: Actor, duration: float, slow_multiplier: float) -> void:
     control_applies_total += 1
     var speed_loss_percent: int = int((1.0 - slow_multiplier) * 100.0)
     record_event(
-        "Control[slow]: %s#%d slowed %s#%d (%ds, -%d%% speed)."
-        % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id, int(round(duration)), speed_loss_percent]
+        "Control[slow]: %s slowed %s (%ds, -%d%% speed)."
+        % [_actor_label(caster), _actor_label(target), int(round(duration)), speed_loss_percent]
     )
 
 
@@ -145,11 +145,11 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     if killer != null:
         kills_total += 1
         record_event(
-            "Death: %s#%d by %s#%d (%s)."
-            % [victim.actor_kind, victim.actor_id, killer.actor_kind, killer.actor_id, reason]
+            "Death: %s by %s (%s)."
+            % [_actor_label(victim), _actor_label(killer), reason]
         )
     else:
-        record_event("Death: %s#%d (%s)." % [victim.actor_kind, victim.actor_id, reason])
+        record_event("Death: %s (%s)." % [_actor_label(victim), reason])
 
 
 func record_event(message: String) -> void:
@@ -180,6 +180,11 @@ func _build_snapshot() -> Dictionary:
     var slowed_alive: int = 0
     var slowed_humans: int = 0
     var slowed_monsters: int = 0
+    var human_role_counts := {
+        "fighter": 0,
+        "mage": 0,
+        "scout": 0
+    }
     var hp_total: float = 0.0
     var energy_total: float = 0.0
 
@@ -206,6 +211,8 @@ func _build_snapshot() -> Dictionary:
 
         if actor.faction == "human":
             humans_alive += 1
+            if human_role_counts.has(actor.human_role):
+                human_role_counts[actor.human_role] += 1
             if actor.is_slowed():
                 slowed_humans += 1
         elif actor.faction == "monster":
@@ -239,6 +246,7 @@ func _build_snapshot() -> Dictionary:
         "slowed_alive": slowed_alive,
         "slowed_humans": slowed_humans,
         "slowed_monsters": slowed_monsters,
+        "human_role_counts": human_role_counts,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -293,9 +301,16 @@ func _update_poi_runtime() -> void:
             if current_poi != "":
                 poi_arrivals_total += 1
                 world_manager.trigger_poi_entry_effect(current_poi, actor.faction)
-                record_event("POI arrival: %s#%d -> %s." % [actor.actor_kind, actor.actor_id, current_poi])
+                record_event("POI arrival: %s -> %s." % [_actor_label(actor), current_poi])
 
             if current_poi == "":
                 actor_poi_presence.erase(actor.actor_id)
             else:
                 actor_poi_presence[actor.actor_id] = current_poi
+
+
+func _actor_label(actor: Actor) -> String:
+    if actor == null:
+        return "unknown"
+    var role_suffix := actor.role_tag()
+    return "%s%s#%d" % [actor.actor_kind, role_suffix, actor.actor_id]

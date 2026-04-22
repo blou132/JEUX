@@ -6,6 +6,7 @@ static var _next_actor_id: int = 1
 var actor_id: int = 0
 var actor_kind: String = "actor"
 var faction: String = "neutral"
+var human_role: String = ""
 
 var max_hp: float = 100.0
 var hp: float = 100.0
@@ -36,6 +37,9 @@ var control_range: float = 10.0
 var control_duration: float = 2.0
 var control_slow_multiplier: float = 0.62
 var control_energy_cost: float = 10.0
+var magic_usage_bias: float = 0.55
+var nova_usage_bias: float = 0.45
+var control_usage_bias: float = 0.35
 var slow_time_left: float = 0.0
 var slow_multiplier: float = 1.0
 
@@ -204,6 +208,12 @@ func mark_death_reported() -> void:
     death_reported = true
 
 
+func role_tag() -> String:
+    if human_role == "":
+        return ""
+    return "[%s]" % human_role
+
+
 func _build_visual() -> void:
     var body := MeshInstance3D.new()
     body.name = "Body"
@@ -228,7 +238,7 @@ func _build_visual() -> void:
     material.roughness = 0.8
 
     if faction == "human":
-        material.albedo_color = Color(0.45, 0.70, 1.00)
+        material.albedo_color = _human_role_color()
     elif actor_kind == "brute_monster":
         material.albedo_color = Color(0.78, 0.20, 0.20)
     elif actor_kind == "ranged_monster":
@@ -323,6 +333,16 @@ func _refresh_control_visual() -> void:
     else:
         material.albedo_color = _base_body_color
         material.emission_enabled = false
+
+
+func _human_role_color() -> Color:
+    match human_role:
+        "mage":
+            return Color(0.55, 0.58, 1.0)
+        "scout":
+            return Color(0.42, 0.95, 0.62)
+        _:
+            return Color(0.45, 0.70, 1.00)
 
 
 func _report_death_if_needed(game_loop: GameLoop) -> void:

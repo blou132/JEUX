@@ -25,6 +25,7 @@ func _init() -> void:
     magic_range = 16.0
     magic_cooldown = 3.0
     magic_energy_cost = 12.0
+    magic_usage_bias = 0.92
 
     nova_enabled = false
     nova_damage = 0.0

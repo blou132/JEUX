@@ -9,6 +9,9 @@ class_name SandboxSystems
 @export var respawn_interval: float = 4.8
 @export var brute_spawn_ratio: float = 0.20
 @export var ranged_spawn_ratio: float = 0.24
+@export var fighter_role_ratio: float = 0.42
+@export var mage_role_ratio: float = 0.32
+@export var scout_role_ratio: float = 0.26
 
 var _respawn_timer: float = 0.0
 var _loop: GameLoop = null
@@ -60,7 +63,9 @@ func _spawn_actor(faction: String, actors: Array) -> void:
 
     var actor: Actor
     if faction == "human":
-        actor = HumanAgent.new()
+        var human := HumanAgent.new()
+        human.assign_role(_pick_human_role())
+        actor = human
     else:
         actor = _spawn_monster_archetype()
 
@@ -80,6 +85,21 @@ func _spawn_monster_archetype() -> Actor:
     if roll < brute_ratio + ranged_ratio:
         return RangedMonster.new()
     return MonsterAgent.new()
+
+
+func _pick_human_role() -> String:
+    var fighter := clamp(fighter_role_ratio, 0.0, 1.0)
+    var mage := clamp(mage_role_ratio, 0.0, 1.0 - fighter)
+    var scout := clamp(scout_role_ratio, 0.0, 1.0 - fighter - mage)
+    var remainder := max(0.0, 1.0 - (fighter + mage + scout))
+
+    fighter += remainder
+    var roll := randf()
+    if roll < fighter:
+        return "fighter"
+    if roll < fighter + mage:
+        return "mage"
+    return "scout"
 
 
 func _count_alive_by_faction(actors: Array) -> Dictionary:

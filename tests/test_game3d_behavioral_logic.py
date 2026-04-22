@@ -39,6 +39,9 @@ class ActorStub:
     can_magic: bool = True
     can_nova: bool = False
     can_control: bool = False
+    magic_usage_bias: float = 1.0
+    nova_usage_bias: float = 1.0
+    control_usage_bias: float = 1.0
 
     def can_cast_magic(self) -> bool:
         return self.can_magic
@@ -62,7 +65,7 @@ class WorldStub:
         return self.poi_guidance
 
 
-def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: float) -> dict:
+def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: float, spell_roll: float = 0.0) -> dict:
     enemy = world.find_nearest_enemy(actor, [], actor.vision_range)
     if enemy is None:
         guidance = world.get_poi_guidance(actor.position, actor.faction)
@@ -95,13 +98,16 @@ def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: floa
         and not enemy.is_slowed()
     ):
         if enemy.actor_kind in ["brute_monster", "ranged_monster"] or distance <= actor.control_range * 0.78:
-            return {"state": "cast_control", "target": enemy, "reason": "control_window"}
+            if spell_roll <= actor.control_usage_bias:
+                return {"state": "cast_control", "target": enemy, "reason": "control_window"}
 
     if actor.can_cast_nova() and distance <= actor.nova_radius * 0.95:
-        return {"state": "cast_nova", "target": enemy, "reason": "nova_range"}
+        if spell_roll <= actor.nova_usage_bias:
+            return {"state": "cast_nova", "target": enemy, "reason": "nova_range"}
 
     if actor.can_cast_magic() and distance <= actor.magic_range and distance > actor.attack_range * 1.2:
-        return {"state": "cast", "target": enemy, "reason": "ranged_cast" if is_ranged else "magic_range"}
+        if spell_roll <= actor.magic_usage_bias:
+            return {"state": "cast", "target": enemy, "reason": "ranged_cast" if is_ranged else "magic_range"}
 
     if distance <= actor.attack_range:
         return {"state": "attack", "target": enemy, "reason": "melee_range"}
@@ -114,7 +120,8 @@ def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: floa
         return {"state": "detect", "target": enemy, "reason": "enemy_detected_far"}
 
     if is_ranged and distance > actor.attack_range * 1.15 and actor.can_cast_magic():
-        return {"state": "cast", "target": enemy, "reason": "ranged_pressure_cast"}
+        if spell_roll <= actor.magic_usage_bias:
+            return {"state": "cast", "target": enemy, "reason": "ranged_pressure_cast"}
 
     return {
         "state": "chase",
@@ -185,6 +192,19 @@ def spawn_kind_contract(roll: float, brute_ratio: float, ranged_ratio: float) ->
     return "monster"
 
 
+def pick_human_role_contract(roll: float, fighter_ratio: float, mage_ratio: float, scout_ratio: float) -> str:
+    fighter = clamp01(fighter_ratio)
+    mage = max(0.0, min(mage_ratio, 1.0 - fighter))
+    scout = max(0.0, min(scout_ratio, 1.0 - fighter - mage))
+    remainder = max(0.0, 1.0 - (fighter + mage + scout))
+    fighter += remainder
+    if roll < fighter:
+        return "fighter"
+    if roll < fighter + mage:
+        return "mage"
+    return "scout"
+
+
 class TestGame3DBehavioralLogic(unittest.TestCase):
     def test_ai_decides_poi_when_no_enemy_and_guidance(self):
         actor = ActorStub()
@@ -194,25 +214,32 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         self.assertIn("poi_guidance", decision["reason"])
 
     def test_ai_decides_cast_nova_in_valid_range(self):
-        actor = ActorStub(can_nova=True, can_magic=False, can_control=False, nova_radius=4.0)
+        actor = ActorStub(can_nova=True, can_magic=False, can_control=False, nova_radius=4.0, nova_usage_bias=0.9)
         enemy = EnemyStub(position=(3.0, 0.0))
         world = WorldStub(enemy=enemy)
-        decision = decide_action_contract(actor, world, random_roll=0.99)
+        decision = decide_action_contract(actor, world, random_roll=0.99, spell_roll=0.2)
         self.assertEqual(decision["state"], "cast_nova")
 
     def test_ai_decides_reposition_for_ranged_when_too_close(self):
-        actor = ActorStub(actor_kind="ranged_monster", attack_range=1.6, can_magic=True, can_control=False)
+        actor = ActorStub(actor_kind="ranged_monster", attack_range=1.6, can_magic=True, can_control=False, magic_usage_bias=0.9)
         enemy = EnemyStub(position=(2.2, 0.0))
         world = WorldStub(enemy=enemy)
-        decision = decide_action_contract(actor, world, random_roll=0.99)
+        decision = decide_action_contract(actor, world, random_roll=0.99, spell_roll=0.2)
         self.assertEqual(decision["state"], "reposition")
         self.assertEqual(decision["reason"], "ranged_keep_distance")
 
     def test_ai_decides_cast_control_when_window_is_good(self):
-        actor = ActorStub(can_control=True, can_nova=False, can_magic=False, attack_range=2.0, control_range=11.0)
+        actor = ActorStub(
+            can_control=True,
+            can_nova=False,
+            can_magic=False,
+            attack_range=2.0,
+            control_range=11.0,
+            control_usage_bias=0.9,
+        )
         enemy = EnemyStub(actor_kind="brute_monster", position=(6.5, 0.0), slowed=False)
         world = WorldStub(enemy=enemy)
-        decision = decide_action_contract(actor, world, random_roll=0.99)
+        decision = decide_action_contract(actor, world, random_roll=0.99, spell_roll=0.2)
         self.assertEqual(decision["state"], "cast_control")
         self.assertEqual(decision["reason"], "control_window")
 
@@ -247,6 +274,21 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         self.assertIn("ranged_monster", kinds)
         self.assertIn("monster", kinds)
         self.assertLessEqual(brute_ratio + ranged_ratio, 1.0)
+
+    def test_human_role_pick_contract_covers_three_roles(self):
+        content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
+        fighter = float(re.search(r"fighter_role_ratio: float = ([0-9.]+)", content).group(1))
+        mage = float(re.search(r"mage_role_ratio: float = ([0-9.]+)", content).group(1))
+        scout = float(re.search(r"scout_role_ratio: float = ([0-9.]+)", content).group(1))
+
+        roles = {
+            pick_human_role_contract(0.00, fighter, mage, scout),
+            pick_human_role_contract(min(0.999, fighter + 0.01), fighter, mage, scout),
+            pick_human_role_contract(0.999, fighter, mage, scout),
+        }
+        self.assertIn("fighter", roles)
+        self.assertIn("mage", roles)
+        self.assertIn("scout", roles)
 
 
 if __name__ == "__main__":
