@@ -13,6 +13,7 @@ from debug_tools import (
 )
 from genetics import GeneticTraits, inherit_traits
 from simulation import HungerSimulation
+from ui import format_final_run_summary, format_multi_run_summary, format_population_dynamics
 from world import FoodField
 
 
@@ -144,6 +145,12 @@ class ResourceCommitmentTraitTests(unittest.TestCase):
         row = snapshot["creatures"][0]
         self.assertIn("resource_commitment", row["traits"])
 
+        dynamics_text = format_population_dynamics(stats)
+        self.assertIn("resource_commitment_tick:", dynamics_text)
+        self.assertIn("resource_commitment_log:", dynamics_text)
+        self.assertIn("rc_bias=", dynamics_text)
+        self.assertIn("recall_rc=", dynamics_text)
+
     def test_resource_commitment_is_visible_in_run_and_multi_summaries(self) -> None:
         tracker = create_proto_temporal_tracker()
         final_stats = {
@@ -181,6 +188,12 @@ class ResourceCommitmentTraitTests(unittest.TestCase):
         self.assertAlmostEqual(float(impact["resource_commitment_switch_share"]), 0.416667)
         self.assertAlmostEqual(float(impact["resource_commitment_memory_bias"]), 0.03)
         self.assertAlmostEqual(float(impact["resource_commitment_recall_multiplier_observed"]), 1.04)
+
+        run_text = format_final_run_summary(run_summary)
+        self.assertIn("rc=", run_text)
+        self.assertIn("rc_mu=", run_text)
+        self.assertIn("resource_commitment:", run_text)
+        self.assertIn("recall_rc=", run_text)
 
         multi_summary = build_multi_run_summary(
             [
@@ -230,6 +243,12 @@ class ResourceCommitmentTraitTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_impact["resource_commitment_switch_usage_bias"]), -0.045)
         self.assertAlmostEqual(float(avg_impact["resource_commitment_memory_bias"]), 0.01)
         self.assertAlmostEqual(float(avg_impact["resource_commitment_recall_multiplier_observed"]), 1.01)
+
+        multi_text = format_multi_run_summary(multi_summary)
+        self.assertIn("rc=", multi_text)
+        self.assertIn("rc_mu=", multi_text)
+        self.assertIn("resource_commitment_moy:", multi_text)
+        self.assertIn("recall_rc=", multi_text)
 
 
 if __name__ == "__main__":
