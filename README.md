@@ -56,8 +56,9 @@ The debug overlay shows:
 - average HP and energy
 - melee hits, magic hits, casts (bolt/nova), kills, deaths, flee events
 - current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_nova`, `flee`)
-- POI occupancy (`camp`, `ruins`)
-- recent gameplay events (engagements, hits, deaths, casts)
+- POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
+- POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
+- recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 
 Validation target for current MVP:
 - repeated cycles of encounter -> chase/attack/cast -> death or flee -> respawn
@@ -90,10 +91,10 @@ py -m unittest discover -s tests -v
 - Add FSM AI + melee + two-spell magic (bolt + nova)
 - Add minimal sandbox regulation and debug observability
 - Add simple POI layer (camp/ruins) with light AI convergence
+- Add POI runtime readability: visual occupation signals, domination indicator, entry pulse effect, POI state events
 - Add brute monster archetype for profile diversity
 
 ### Next
-- Improve POI behavior readability (per-POI event cues and clearer occupancy feedback)
 - Add one extra spell archetype (control/utility) and one ranged monster archetype
 - Tune combat/magic values from play sessions (durability/readability pass)
 

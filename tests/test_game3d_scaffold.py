@@ -62,6 +62,15 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"name": "camp"', content)
         self.assertIn('"name": "ruins"', content)
         self.assertIn("get_poi_guidance", content)
+        self.assertIn("update_poi_runtime", content)
+        self.assertIn("trigger_poi_entry_effect", content)
+        self.assertIn("domination_changed", content)
+
+    def test_debug_overlay_has_poi_status_labels(self):
+        content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
+        self.assertIn("domine_humains", content)
+        self.assertIn("domine_monstres", content)
+        self.assertIn("conteste", content)
 
 
 if __name__ == "__main__":

@@ -28,6 +28,12 @@ var bolt_casts_total: int = 0
 var nova_casts_total: int = 0
 var flee_events_total: int = 0
 var engagements_total: int = 0
+var poi_arrivals_total: int = 0
+var poi_contests_total: int = 0
+var poi_domination_changes_total: int = 0
+
+var actor_poi_presence: Dictionary = {}
+var poi_runtime_snapshot: Dictionary = {}
 
 var event_log: Array[String] = []
 
@@ -61,6 +67,7 @@ func _tick(delta: float) -> void:
         actor.tick_actor(delta, world_manager, actors, ai, combat_system, magic_system, self)
 
     magic_system.tick_projectiles(delta, actors, self)
+    _update_poi_runtime()
     _cleanup_dead_actors()
     sandbox_systems.tick_systems(delta, actors, self)
 
@@ -142,6 +149,7 @@ func _cleanup_dead_actors() -> void:
             continue
 
         if actor.is_dead:
+            actor_poi_presence.erase(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
 
@@ -208,6 +216,49 @@ func _build_snapshot() -> Dictionary:
         "nova_casts_total": nova_casts_total,
         "flee_events_total": flee_events_total,
         "engagements_total": engagements_total,
+        "poi_arrivals_total": poi_arrivals_total,
+        "poi_contests_total": poi_contests_total,
+        "poi_domination_changes_total": poi_domination_changes_total,
         "poi_population": poi_population,
+        "poi_snapshot": poi_runtime_snapshot,
         "state_counts": state_counts
     }
+
+
+func _update_poi_runtime() -> void:
+    var runtime_data: Dictionary = world_manager.update_poi_runtime(actors, elapsed_time)
+    poi_runtime_snapshot = runtime_data.get("snapshot", {})
+
+    var transitions: Array = runtime_data.get("events", [])
+    for transition in transitions:
+        var kind: String = str(transition.get("kind", ""))
+        var poi_name: String = str(transition.get("poi", "poi"))
+        var from_state: String = str(transition.get("from", ""))
+        var to_state: String = str(transition.get("to", ""))
+
+        if kind == "contest_started":
+            poi_contests_total += 1
+            record_event("POI contested: %s (%s -> %s)." % [poi_name, from_state, to_state])
+        elif kind == "domination_changed":
+            poi_domination_changes_total += 1
+            record_event("POI domination shift: %s (%s -> %s)." % [poi_name, from_state, to_state])
+        elif kind == "contest_resolved":
+            record_event("POI calm again: %s." % poi_name)
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+
+        var previous_poi: String = str(actor_poi_presence.get(actor.actor_id, ""))
+        var current_poi: String = world_manager.get_poi_name_for_position(actor.global_position)
+
+        if current_poi != previous_poi:
+            if current_poi != "":
+                poi_arrivals_total += 1
+                world_manager.trigger_poi_entry_effect(current_poi, actor.faction)
+                record_event("POI arrival: %s#%d -> %s." % [actor.actor_kind, actor.actor_id, current_poi])
+
+            if current_poi == "":
+                actor_poi_presence.erase(actor.actor_id)
+            else:
+                actor_poi_presence[actor.actor_id] = current_poi

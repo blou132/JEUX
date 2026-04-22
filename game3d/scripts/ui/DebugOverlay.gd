@@ -31,6 +31,7 @@ func _ready() -> void:
 func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var state_counts: Dictionary = snapshot.get("state_counts", {})
     var poi_population: Dictionary = snapshot.get("poi_population", {})
+    var poi_snapshot: Dictionary = snapshot.get("poi_snapshot", {})
     var lines: Array[String] = []
 
     lines.append("SANDBOX FANTASY 3D MVP")
@@ -69,6 +70,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("engagements_total", 0))
         ]
     )
+    lines.append(
+        "POI events: arrivals=%d contests=%d domination_shifts=%d"
+        % [
+            int(snapshot.get("poi_arrivals_total", 0)),
+            int(snapshot.get("poi_contests_total", 0)),
+            int(snapshot.get("poi_domination_changes_total", 0))
+        ]
+    )
     lines.append("")
     lines.append(
         "States: wander=%d poi=%d detect=%d chase=%d attack=%d cast=%d nova=%d flee=%d"
@@ -84,7 +93,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append("")
-    lines.append(_format_poi_population(poi_population))
+    lines.append(_format_poi_population(poi_population, poi_snapshot))
     lines.append("")
     lines.append("Recent events:")
 
@@ -97,17 +106,22 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     _text.text = "\n".join(lines)
 
 
-func _format_poi_population(poi_population: Dictionary) -> String:
+func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary) -> String:
     if poi_population.is_empty():
         return "POI: none"
 
     var chunks: Array[String] = []
     for poi_name in poi_population.keys():
         var counts: Dictionary = poi_population.get(poi_name, {})
+        var details: Dictionary = poi_snapshot.get(poi_name, {})
+        var status: String = _status_label(str(details.get("status", "calm")))
+        var activity: String = _activity_label(str(details.get("activity", "low")))
         chunks.append(
-            "%s(H:%d M:%d)"
+            "%s[%s | %s] H:%d M:%d"
             % [
                 poi_name,
+                status,
+                activity,
                 int(counts.get("human", 0)),
                 int(counts.get("monster", 0))
             ]
@@ -115,3 +129,25 @@ func _format_poi_population(poi_population: Dictionary) -> String:
 
     chunks.sort()
     return "POI occupancy: %s" % " | ".join(chunks)
+
+
+func _status_label(status: String) -> String:
+    match status:
+        "contested":
+            return "conteste"
+        "human_dominant":
+            return "domine_humains"
+        "monster_dominant":
+            return "domine_monstres"
+        _:
+            return "calme"
+
+
+func _activity_label(activity: String) -> String:
+    match activity:
+        "high":
+            return "actif+"
+        "medium":
+            return "actif"
+        _:
+            return "leger"
