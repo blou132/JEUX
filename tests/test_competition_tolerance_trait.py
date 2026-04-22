@@ -12,6 +12,7 @@ from debug_tools import (
 )
 from genetics import GeneticTraits, inherit_traits
 from simulation import HungerSimulation
+from ui import format_final_run_summary, format_multi_run_summary
 from world import FoodField
 
 
@@ -235,6 +236,16 @@ class CompetitionToleranceTraitTests(unittest.TestCase):
         self.assertAlmostEqual(float(avg_impact["competition_tolerance_stay_usage_bias"]), 0.035)
         self.assertAlmostEqual(float(avg_impact["competition_tolerance_avoid_users_avg"]), 0.955)
         self.assertAlmostEqual(float(avg_impact["competition_tolerance_avoid_usage_bias"]), -0.045)
+
+        run_text = format_final_run_summary(run_summary)
+        self.assertIn("ct=", run_text)
+        self.assertIn("ct_mu=", run_text)
+        self.assertIn("competition:", run_text)
+
+        multi_text = format_multi_run_summary(multi_summary)
+        self.assertIn("ct=", multi_text)
+        self.assertIn("ct_mu=", multi_text)
+        self.assertIn("competition_moy:", multi_text)
 
 
 if __name__ == "__main__":
