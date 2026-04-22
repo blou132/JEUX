@@ -26,6 +26,8 @@ var magic_hits_total: int = 0
 var casts_total: int = 0
 var bolt_casts_total: int = 0
 var nova_casts_total: int = 0
+var control_casts_total: int = 0
+var control_applies_total: int = 0
 var flee_events_total: int = 0
 var engagements_total: int = 0
 var poi_arrivals_total: int = 0
@@ -83,13 +85,13 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if from_state == to_state:
         return
 
-    if to_state in ["detect", "chase", "attack", "cast", "cast_nova", "reposition"]:
+    if to_state in ["detect", "chase", "attack", "cast", "cast_nova", "cast_control", "reposition"]:
         engagements_total += 1
 
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "cast_nova", "flee", "poi", "reposition"]:
+    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition"]:
         record_event("%s#%d %s -> %s (%s)." % [actor.actor_kind, actor.actor_id, from_state, to_state, reason])
 
 
@@ -110,12 +112,27 @@ func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bo
     if spell_kind == "nova":
         nova_casts_total += 1
         record_event("Cast[nova]: %s#%d." % [caster.actor_kind, caster.actor_id])
+    elif spell_kind == "control":
+        control_casts_total += 1
+        if target != null:
+            record_event("Cast[control]: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
+        else:
+            record_event("Cast[control]: %s#%d." % [caster.actor_kind, caster.actor_id])
     else:
         bolt_casts_total += 1
         if target != null:
             record_event("Cast[bolt]: %s#%d -> %s#%d." % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id])
         else:
             record_event("Cast[bolt]: %s#%d." % [caster.actor_kind, caster.actor_id])
+
+
+func register_control(caster: Actor, target: Actor, duration: float, slow_multiplier: float) -> void:
+    control_applies_total += 1
+    var speed_loss_percent: int = int((1.0 - slow_multiplier) * 100.0)
+    record_event(
+        "Control[slow]: %s#%d slowed %s#%d (%ds, -%d%% speed)."
+        % [caster.actor_kind, caster.actor_id, target.actor_kind, target.actor_id, int(round(duration)), speed_loss_percent]
+    )
 
 
 func register_death(victim: Actor, killer: Actor, reason: String) -> void:
@@ -160,6 +177,7 @@ func _build_snapshot() -> Dictionary:
     var monsters_alive: int = 0
     var brute_alive: int = 0
     var ranged_alive: int = 0
+    var slowed_alive: int = 0
     var hp_total: float = 0.0
     var energy_total: float = 0.0
 
@@ -169,6 +187,7 @@ func _build_snapshot() -> Dictionary:
         "chase": 0,
         "attack": 0,
         "cast": 0,
+        "cast_control": 0,
         "cast_nova": 0,
         "reposition": 0,
         "poi": 0,
@@ -191,6 +210,8 @@ func _build_snapshot() -> Dictionary:
                 brute_alive += 1
             elif actor.actor_kind == "ranged_monster":
                 ranged_alive += 1
+        if actor.is_slowed():
+            slowed_alive += 1
 
         if state_counts.has(actor.state):
             state_counts[actor.state] += 1
@@ -209,6 +230,7 @@ func _build_snapshot() -> Dictionary:
         "monsters_alive": monsters_alive,
         "brute_alive": brute_alive,
         "ranged_alive": ranged_alive,
+        "slowed_alive": slowed_alive,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -219,6 +241,8 @@ func _build_snapshot() -> Dictionary:
         "casts_total": casts_total,
         "bolt_casts_total": bolt_casts_total,
         "nova_casts_total": nova_casts_total,
+        "control_casts_total": control_casts_total,
+        "control_applies_total": control_applies_total,
         "flee_events_total": flee_events_total,
         "engagements_total": engagements_total,
         "poi_arrivals_total": poi_arrivals_total,

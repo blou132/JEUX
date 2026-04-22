@@ -29,6 +29,11 @@ func _init() -> void:
     nova_damage = 18.0
     nova_radius = 3.5
     nova_energy_cost = 22.0
+    control_enabled = true
+    control_range = 11.5
+    control_duration = 2.2
+    control_slow_multiplier = 0.58
+    control_energy_cost = 10.0
 
     energy_drain_rate = 2.2
     exhaustion_damage_rate = 6.5

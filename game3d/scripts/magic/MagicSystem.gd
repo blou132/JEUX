@@ -5,6 +5,7 @@ class_name MagicSystem
 @export var projectile_radius: float = 0.70
 @export var projectile_lifetime: float = 2.8
 @export var nova_visual_duration: float = 0.30
+@export var control_visual_duration: float = 0.32
 
 var projectiles: Array[Dictionary] = []
 
@@ -83,6 +84,33 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
     caster.energy = max(0.0, caster.energy - caster.nova_energy_cost)
     _spawn_nova_visual(caster.global_position + Vector3(0.0, 0.25, 0.0), caster.nova_radius, caster.faction)
     game_loop.register_cast(caster, null, "nova")
+    return true
+
+
+func try_cast_control(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
+    if caster == null or target == null:
+        return false
+    if caster.is_dead or target.is_dead:
+        return false
+    if not caster.can_cast_control():
+        return false
+    if not caster.is_enemy(target):
+        return false
+    if target.is_slowed():
+        return false
+
+    var distance: float = caster.global_position.distance_to(target.global_position)
+    if distance > caster.control_range:
+        return false
+
+    caster.magic_cooldown_left = caster.magic_cooldown * 0.95
+    caster.energy = max(0.0, caster.energy - caster.control_energy_cost)
+
+    target.apply_slow(caster.control_slow_multiplier, caster.control_duration)
+    _spawn_control_visual(target.global_position + Vector3(0.0, 0.06, 0.0), caster.faction)
+
+    game_loop.register_cast(caster, target, "control")
+    game_loop.register_control(caster, target, caster.control_duration, caster.control_slow_multiplier)
     return true
 
 
@@ -183,4 +211,27 @@ func _spawn_nova_visual(center: Vector3, radius: float, faction: String) -> void
 
     var tween := create_tween()
     tween.tween_property(ring, "scale", Vector3.ONE, nova_visual_duration)
+    tween.finished.connect(ring.queue_free)
+
+
+func _spawn_control_visual(center: Vector3, faction: String) -> void:
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.1
+    mesh.bottom_radius = 1.1
+    mesh.height = 0.10
+    ring.mesh = mesh
+    ring.global_position = center
+    ring.scale = Vector3(0.45, 1.0, 0.45)
+
+    var color := Color(0.30, 0.86, 0.92) if faction == "human" else Color(0.98, 0.55, 0.32)
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 0.95
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.24, control_visual_duration)
     tween.finished.connect(ring.queue_free)

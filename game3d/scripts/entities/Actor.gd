@@ -31,6 +31,13 @@ var nova_enabled: bool = false
 var nova_damage: float = 14.0
 var nova_radius: float = 3.2
 var nova_energy_cost: float = 16.0
+var control_enabled: bool = false
+var control_range: float = 10.0
+var control_duration: float = 2.0
+var control_slow_multiplier: float = 0.62
+var control_energy_cost: float = 10.0
+var slow_time_left: float = 0.0
+var slow_multiplier: float = 1.0
 
 var energy_drain_rate: float = 2.0
 var exhaustion_damage_rate: float = 6.0
@@ -82,6 +89,7 @@ func tick_actor(
     age_seconds += delta
     melee_cooldown_left = max(0.0, melee_cooldown_left - delta)
     magic_cooldown_left = max(0.0, magic_cooldown_left - delta)
+    _update_control_state(delta)
 
     _update_energy_and_exhaustion(delta)
     if is_dead:
@@ -127,6 +135,9 @@ func tick_actor(
         "cast":
             if target_actor != null and not magic.try_cast(self, target_actor, game_loop):
                 _move_towards(target_actor.global_position, delta, world, 1.0)
+        "cast_control":
+            if target_actor != null and not magic.try_cast_control(self, target_actor, game_loop):
+                _move_towards(target_actor.global_position, delta, world, 0.95)
         "cast_nova":
             if not magic.try_cast_nova(self, all_actors, game_loop):
                 if target_actor != null:
@@ -164,6 +175,22 @@ func can_cast_magic() -> bool:
 
 func can_cast_nova() -> bool:
     return nova_enabled and magic_cooldown_left <= 0.0 and energy >= nova_energy_cost
+
+
+func can_cast_control() -> bool:
+    return control_enabled and magic_cooldown_left <= 0.0 and energy >= control_energy_cost
+
+
+func apply_slow(multiplier: float, duration: float) -> void:
+    var new_multiplier := clamp(multiplier, 0.35, 1.0)
+    var new_duration := max(0.1, duration)
+    if slow_time_left <= 0.0 or new_multiplier < slow_multiplier:
+        slow_multiplier = new_multiplier
+    slow_time_left = max(slow_time_left, new_duration)
+
+
+func is_slowed() -> bool:
+    return slow_time_left > 0.0
 
 
 func is_enemy(other: Actor) -> bool:
@@ -227,10 +254,11 @@ func _move_towards(target_position: Vector3, delta: float, world: WorldManager, 
     if to_target.length() < 0.05:
         return
 
-    var velocity := to_target.normalized() * speed * speed_multiplier
+    var final_speed_multiplier := speed_multiplier * _movement_control_factor()
+    var velocity := to_target.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
-    _spend_energy(energy_drain_rate * 0.30 * speed_multiplier * delta)
+    _spend_energy(energy_drain_rate * 0.30 * final_speed_multiplier * delta)
 
 
 func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager, speed_multiplier: float = 1.0) -> void:
@@ -240,10 +268,11 @@ func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager
     if away_vector.length() < 0.05:
         away_vector = Vector3.RIGHT
 
-    var velocity := away_vector.normalized() * speed * speed_multiplier
+    var final_speed_multiplier := speed_multiplier * _movement_control_factor()
+    var velocity := away_vector.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
-    _spend_energy(energy_drain_rate * 0.42 * speed_multiplier * delta)
+    _spend_energy(energy_drain_rate * 0.42 * final_speed_multiplier * delta)
 
 
 func _update_energy_and_exhaustion(delta: float) -> void:
@@ -255,6 +284,20 @@ func _update_energy_and_exhaustion(delta: float) -> void:
 
 func _spend_energy(amount: float) -> void:
     energy = clamp(energy - amount, 0.0, max_energy)
+
+
+func _update_control_state(delta: float) -> void:
+    if slow_time_left <= 0.0:
+        slow_multiplier = 1.0
+        return
+
+    slow_time_left = max(0.0, slow_time_left - delta)
+    if slow_time_left <= 0.0:
+        slow_multiplier = 1.0
+
+
+func _movement_control_factor() -> float:
+    return slow_multiplier if slow_time_left > 0.0 else 1.0
 
 
 func _report_death_if_needed(game_loop: GameLoop) -> void:

@@ -53,11 +53,15 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("nova", content)
         self.assertIn("brute", content)
         self.assertIn("ranged", content)
+        self.assertIn("control", content)
+        self.assertIn("slow", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
         self.assertIn("func try_cast_nova", content)
         self.assertIn('register_cast(caster, null, "nova")', content)
+        self.assertIn("func try_cast_control", content)
+        self.assertIn('register_cast(caster, target, "control")', content)
 
     def test_world_manager_has_poi(self):
         content = (GAME3D / "scripts" / "world" / "WorldManager.gd").read_text(encoding="utf-8")
@@ -83,6 +87,7 @@ class TestGame3DScaffold(unittest.TestCase):
         content = (GAME3D / "scripts" / "ai" / "AgentAI.gd").read_text(encoding="utf-8")
         self.assertIn("ranged_monster", content)
         self.assertIn('"state": "reposition"', content)
+        self.assertIn('"state": "cast_control"', content)
 
 
 if __name__ == "__main__":

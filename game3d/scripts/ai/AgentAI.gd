@@ -36,6 +36,14 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
             "reason": "pressure_and_threat"
         }
 
+    if actor.can_cast_control() and distance <= actor.control_range and distance > actor.attack_range * 1.12 and not enemy.is_slowed():
+        if enemy.actor_kind in ["brute_monster", "ranged_monster"] or distance <= actor.control_range * 0.78:
+            return {
+                "state": "cast_control",
+                "target": enemy,
+                "reason": "control_window"
+            }
+
     if actor.can_cast_nova() and distance <= actor.nova_radius * 0.95:
         return {
             "state": "cast_nova",

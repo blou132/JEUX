@@ -14,7 +14,7 @@ The active direction is a minimal but playable sandbox loop:
 - simple points of interest (POI): camp + ruins
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
-- two simple spells: projectile bolt + short-range nova
+- three simple spells: projectile bolt + short-range nova + control slow
 - two additional monster archetypes: brute monster + ranged monster
 - sandbox population regulation (minimal respawn)
 - runtime observability (debug HUD + event log)
@@ -56,8 +56,9 @@ The debug overlay shows:
 - brute monster count
 - ranged monster count
 - average HP and energy
-- melee hits, magic hits, casts (bolt/nova), kills, deaths, flee events
-- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_nova`, `reposition`, `flee`)
+- melee hits, magic hits, casts (bolt/control/nova), kills, deaths, flee events
+- control readability (`control applies`, `slowed alive`)
+- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
 - POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
@@ -96,6 +97,7 @@ py -m unittest discover -s tests -v
 - Add POI runtime readability: visual occupation signals, domination indicator, entry pulse effect, POI state events
 - Add brute monster archetype for profile diversity
 - Add ranged monster archetype with distance-keeping behavior and bolt pressure
+- Add utility/control spell (short slow) with dedicated logs and HUD counters
 
 ### Next
 - Add one extra spell archetype (control/utility) and one ranged monster archetype
