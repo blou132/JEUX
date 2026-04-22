@@ -12,6 +12,12 @@ var max_hp: float = 100.0
 var hp: float = 100.0
 var max_energy: float = 100.0
 var energy: float = 100.0
+var progress_xp: float = 0.0
+var level: int = 1
+var max_level: int = 3
+var level_xp_thresholds: Array[float] = [0.0, 14.0, 34.0]
+var survival_xp_interval: float = 7.5
+var _survival_xp_timer: float = 0.0
 
 var speed: float = 4.0
 var vision_range: float = 16.0
@@ -96,6 +102,7 @@ func tick_actor(
     melee_cooldown_left = max(0.0, melee_cooldown_left - delta)
     magic_cooldown_left = max(0.0, magic_cooldown_left - delta)
     _update_control_state(delta)
+    _update_survival_progress(delta, game_loop)
 
     _update_energy_and_exhaustion(delta)
     if is_dead:
@@ -214,6 +221,18 @@ func role_tag() -> String:
     return "[%s]" % human_role
 
 
+func level_tag() -> String:
+    return "[L%d]" % level
+
+
+func award_progress_xp(amount: float, reason: String, game_loop: GameLoop) -> void:
+    if is_dead or amount <= 0.0:
+        return
+
+    progress_xp += amount
+    _check_level_up(reason, game_loop)
+
+
 func _build_visual() -> void:
     var body := MeshInstance3D.new()
     body.name = "Body"
@@ -318,6 +337,54 @@ func _movement_control_factor() -> float:
     return slow_multiplier if slow_time_left > 0.0 else 1.0
 
 
+func _update_survival_progress(delta: float, game_loop: GameLoop) -> void:
+    if level >= max_level:
+        return
+    _survival_xp_timer += delta
+    if _survival_xp_timer < survival_xp_interval:
+        return
+
+    _survival_xp_timer -= survival_xp_interval
+    award_progress_xp(1.0, "survival", game_loop)
+
+
+func _check_level_up(reason: String, game_loop: GameLoop) -> void:
+    while level < max_level:
+        var next_threshold: float = level_xp_thresholds[level]
+        if progress_xp < next_threshold:
+            return
+
+        var old_level := level
+        level += 1
+        _apply_level_bonus()
+        _spawn_level_up_signal()
+        if game_loop != null:
+            game_loop.register_level_up(self, old_level, level, reason)
+
+
+func _apply_level_bonus() -> void:
+    var old_max_hp: float = max_hp
+    var old_max_energy: float = max_energy
+
+    max_hp *= 1.055
+    max_energy *= 1.04
+    melee_damage *= 1.045
+    magic_damage *= 1.05
+    speed *= 1.018
+    vision_range *= 1.01
+
+    max_hp = min(max_hp, 240.0)
+    max_energy = min(max_energy, 220.0)
+    melee_damage = min(melee_damage, 38.0)
+    magic_damage = min(magic_damage, 34.0)
+    speed = min(speed, 7.1)
+
+    hp += max_hp - old_max_hp
+    energy += max_energy - old_max_energy
+    hp = clamp(hp, 0.0, max_hp)
+    energy = clamp(energy, 0.0, max_energy)
+
+
 func _refresh_control_visual() -> void:
     if _body_visual == null:
         return
@@ -333,6 +400,29 @@ func _refresh_control_visual() -> void:
     else:
         material.albedo_color = _base_body_color
         material.emission_enabled = false
+
+
+func _spawn_level_up_signal() -> void:
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.2
+    mesh.bottom_radius = 1.2
+    mesh.height = 0.10
+    ring.mesh = mesh
+    ring.position = Vector3(0.0, 0.1, 0.0)
+    ring.scale = Vector3(0.15, 1.0, 0.15)
+
+    var material := StandardMaterial3D.new()
+    var color := Color(1.0, 0.90, 0.32)
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.2
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.4, 0.34)
+    tween.finished.connect(ring.queue_free)
 
 
 func _human_role_color() -> Color:

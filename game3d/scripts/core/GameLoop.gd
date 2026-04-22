@@ -3,6 +3,9 @@ class_name GameLoop
 
 const TICK_RATE: float = 8.0
 const MAX_EVENT_LOG: int = 14
+const XP_ON_HIT: float = 1.5
+const XP_ON_CAST: float = 0.75
+const XP_ON_KILL: float = 5.0
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -33,6 +36,7 @@ var engagements_total: int = 0
 var poi_arrivals_total: int = 0
 var poi_contests_total: int = 0
 var poi_domination_changes_total: int = 0
+var level_ups_total: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
@@ -106,6 +110,9 @@ func register_attack(kind: String, attacker: Actor, target: Actor, damage: float
         % [kind, _actor_label(attacker), _actor_label(target), damage]
     )
 
+    if attacker != null and not attacker.is_dead:
+        attacker.award_progress_xp(XP_ON_HIT, "%s_hit" % kind, self)
+
 
 func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bolt") -> void:
     casts_total += 1
@@ -124,6 +131,9 @@ func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bo
             record_event("Cast[bolt]: %s -> %s." % [_actor_label(caster), _actor_label(target)])
         else:
             record_event("Cast[bolt]: %s." % [_actor_label(caster)])
+
+    if caster != null and not caster.is_dead:
+        caster.award_progress_xp(XP_ON_CAST, "cast_%s" % spell_kind, self)
 
 
 func register_control(caster: Actor, target: Actor, duration: float, slow_multiplier: float) -> void:
@@ -144,12 +154,24 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
 
     if killer != null:
         kills_total += 1
+        if not killer.is_dead:
+            killer.award_progress_xp(XP_ON_KILL, "kill", self)
         record_event(
             "Death: %s by %s (%s)."
             % [_actor_label(victim), _actor_label(killer), reason]
         )
     else:
         record_event("Death: %s (%s)." % [_actor_label(victim), reason])
+
+
+func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
+    if actor == null:
+        return
+    level_ups_total += 1
+    record_event(
+        "Level up: %s L%d -> L%d (%s)."
+        % [_actor_label(actor), old_level, new_level, reason]
+    )
 
 
 func record_event(message: String) -> void:
@@ -187,6 +209,22 @@ func _build_snapshot() -> Dictionary:
     }
     var hp_total: float = 0.0
     var energy_total: float = 0.0
+    var level_total: float = 0.0
+    var level_counts := {
+        "L1": 0,
+        "L2": 0,
+        "L3": 0
+    }
+    var human_level_counts := {
+        "L1": 0,
+        "L2": 0,
+        "L3": 0
+    }
+    var monster_level_counts := {
+        "L1": 0,
+        "L2": 0,
+        "L3": 0
+    }
 
     var state_counts := {
         "wander": 0,
@@ -208,15 +246,21 @@ func _build_snapshot() -> Dictionary:
         alive_total += 1
         hp_total += actor.hp
         energy_total += actor.energy
+        level_total += float(actor.level)
+
+        var level_key := "L%d" % clampi(actor.level, 1, 3)
+        level_counts[level_key] += 1
 
         if actor.faction == "human":
             humans_alive += 1
+            human_level_counts[level_key] += 1
             if human_role_counts.has(actor.human_role):
                 human_role_counts[actor.human_role] += 1
             if actor.is_slowed():
                 slowed_humans += 1
         elif actor.faction == "monster":
             monsters_alive += 1
+            monster_level_counts[level_key] += 1
             if actor.actor_kind == "brute_monster":
                 brute_alive += 1
             elif actor.actor_kind == "ranged_monster":
@@ -233,6 +277,7 @@ func _build_snapshot() -> Dictionary:
 
     var avg_hp: float = hp_total / alive_total if alive_total > 0 else 0.0
     var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
+    var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
 
     return {
@@ -247,6 +292,10 @@ func _build_snapshot() -> Dictionary:
         "slowed_humans": slowed_humans,
         "slowed_monsters": slowed_monsters,
         "human_role_counts": human_role_counts,
+        "level_counts": level_counts,
+        "human_level_counts": human_level_counts,
+        "monster_level_counts": monster_level_counts,
+        "avg_level": avg_level,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -264,6 +313,7 @@ func _build_snapshot() -> Dictionary:
         "poi_arrivals_total": poi_arrivals_total,
         "poi_contests_total": poi_contests_total,
         "poi_domination_changes_total": poi_domination_changes_total,
+        "level_ups_total": level_ups_total,
         "poi_population": poi_population,
         "poi_snapshot": poi_runtime_snapshot,
         "state_counts": state_counts
@@ -313,4 +363,5 @@ func _actor_label(actor: Actor) -> String:
     if actor == null:
         return "unknown"
     var role_suffix := actor.role_tag()
-    return "%s%s#%d" % [actor.actor_kind, role_suffix, actor.actor_id]
+    var level_suffix := actor.level_tag()
+    return "%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, actor.actor_id]

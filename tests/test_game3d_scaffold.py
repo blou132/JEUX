@@ -108,6 +108,24 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("scout_role_ratio", content)
         self.assertIn("assign_role(_pick_human_role())", content)
 
+    def test_actor_has_progression_fields(self):
+        content = (GAME3D / "scripts" / "entities" / "Actor.gd").read_text(encoding="utf-8")
+        self.assertIn("var progress_xp: float", content)
+        self.assertIn("var level: int", content)
+        self.assertIn("var max_level: int", content)
+        self.assertIn("award_progress_xp", content)
+        self.assertIn("_check_level_up", content)
+
+    def test_game_loop_exposes_progression_runtime_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("const XP_ON_HIT", content)
+        self.assertIn("const XP_ON_CAST", content)
+        self.assertIn("const XP_ON_KILL", content)
+        self.assertIn("register_level_up", content)
+        self.assertIn('"level_counts"', content)
+        self.assertIn('"level_ups_total"', content)
+        self.assertIn("avg_level", content)
+
 
 if __name__ == "__main__":
     unittest.main()

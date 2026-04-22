@@ -12,6 +12,7 @@ The active direction is a minimal but playable sandbox loop:
 - autonomous adventurers (humans)
 - human role differentiation (fighter / mage / scout)
 - autonomous monsters
+- lightweight autonomous progression (levels 1->3)
 - simple points of interest (POI): camp + ruins
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
@@ -35,6 +36,10 @@ The active direction is a minimal but playable sandbox loop:
 - Combat system: [CombatSystem.gd](game3d/scripts/combat/CombatSystem.gd)
 - Magic system: [MagicSystem.gd](game3d/scripts/magic/MagicSystem.gd)
 - Sandbox regulation: [SandboxSystems.gd](game3d/scripts/sandbox/SandboxSystems.gd)
+- Autonomous progression signals:
+  - XP triggers on hit/cast/kill + survival time
+  - bounded levels (`L1-L3`) with small capped stat gains
+  - level-up event log + lightweight visual ring on level-up
 - Debug UI:
   - [DebugOverlay.gd](game3d/scripts/ui/DebugOverlay.gd)
   - [FreeCamera.gd](game3d/scripts/ui/FreeCamera.gd)
@@ -58,6 +63,7 @@ The debug overlay shows:
 - brute monster count
 - ranged monster count
 - average HP and energy
+- progression visibility (`avg_level`, `level_ups`, level distribution `L1/L2/L3`, split humans/monsters)
 - melee hits, magic hits, casts (bolt/control/nova), kills, deaths, flee events
 - control readability (`control applies`, `slowed alive` total + split H/M)
 - current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
@@ -79,11 +85,13 @@ You can still run the old simulator and analytics if needed, but this is now sec
 Current scaffold checks for the 3D pivot:
 - [test_game3d_scaffold.py](tests/test_game3d_scaffold.py)
 - [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime, spawn mix)
+- [test_game3d_progression_behavior.py](tests/test_game3d_progression_behavior.py) (progression contracts: thresholds, XP triggers, survival pacing, snapshot fields)
 
 Run targeted tests:
 ```bash
 py -m unittest tests.test_game3d_scaffold -v
 py -m unittest tests.test_game3d_behavioral_logic -v
+py -m unittest tests.test_game3d_progression_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -105,6 +113,7 @@ py -m unittest discover -s tests -v
 - Add utility/control spell (short slow) with dedicated logs and HUD counters
 - Add behavioral test coverage for IA decisions, POI runtime shape, and monster spawn coherence
 - Add human role MVP (fighter/mage/scout) with stat/behavior differences and HUD/log visibility
+- Add lightweight autonomous progression MVP (XP hit/cast/kill/survival, capped levels, level-up observability)
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)

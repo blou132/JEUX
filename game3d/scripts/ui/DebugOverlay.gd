@@ -33,6 +33,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var poi_population: Dictionary = snapshot.get("poi_population", {})
     var poi_snapshot: Dictionary = snapshot.get("poi_snapshot", {})
     var role_counts: Dictionary = snapshot.get("human_role_counts", {})
+    var level_counts: Dictionary = snapshot.get("level_counts", {})
+    var human_level_counts: Dictionary = snapshot.get("human_level_counts", {})
+    var monster_level_counts: Dictionary = snapshot.get("monster_level_counts", {})
     var lines: Array[String] = []
 
     lines.append("SANDBOX FANTASY 3D MVP")
@@ -81,6 +84,27 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(role_counts.get("fighter", 0)),
             int(role_counts.get("mage", 0)),
             int(role_counts.get("scout", 0))
+        ]
+    )
+    lines.append(
+        "Progression: avg_level=%.2f | level_ups=%d | L1=%d L2=%d L3=%d"
+        % [
+            float(snapshot.get("avg_level", 0.0)),
+            int(snapshot.get("level_ups_total", 0)),
+            int(level_counts.get("L1", 0)),
+            int(level_counts.get("L2", 0)),
+            int(level_counts.get("L3", 0))
+        ]
+    )
+    lines.append(
+        "Levels split H(L1/L2/L3)=%d/%d/%d M=%d/%d/%d"
+        % [
+            int(human_level_counts.get("L1", 0)),
+            int(human_level_counts.get("L2", 0)),
+            int(human_level_counts.get("L3", 0)),
+            int(monster_level_counts.get("L1", 0)),
+            int(monster_level_counts.get("L2", 0)),
+            int(monster_level_counts.get("L3", 0))
         ]
     )
     lines.append(
