@@ -15,7 +15,7 @@ The active direction is a minimal but playable sandbox loop:
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - two simple spells: projectile bolt + short-range nova
-- one additional monster archetype: brute monster
+- two additional monster archetypes: brute monster + ranged monster
 - sandbox population regulation (minimal respawn)
 - runtime observability (debug HUD + event log)
 
@@ -29,6 +29,7 @@ The active direction is a minimal but playable sandbox loop:
   - [HumanAgent.gd](game3d/scripts/entities/HumanAgent.gd)
   - [MonsterAgent.gd](game3d/scripts/entities/MonsterAgent.gd)
   - [BruteMonster.gd](game3d/scripts/entities/BruteMonster.gd)
+  - [RangedMonster.gd](game3d/scripts/entities/RangedMonster.gd)
 - AI decision layer: [AgentAI.gd](game3d/scripts/ai/AgentAI.gd)
 - Combat system: [CombatSystem.gd](game3d/scripts/combat/CombatSystem.gd)
 - Magic system: [MagicSystem.gd](game3d/scripts/magic/MagicSystem.gd)
@@ -53,9 +54,10 @@ Camera controls:
 The debug overlay shows:
 - alive population split (humans / monsters)
 - brute monster count
+- ranged monster count
 - average HP and energy
 - melee hits, magic hits, casts (bolt/nova), kills, deaths, flee events
-- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_nova`, `flee`)
+- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
 - POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
@@ -93,6 +95,7 @@ py -m unittest discover -s tests -v
 - Add simple POI layer (camp/ruins) with light AI convergence
 - Add POI runtime readability: visual occupation signals, domination indicator, entry pulse effect, POI state events
 - Add brute monster archetype for profile diversity
+- Add ranged monster archetype with distance-keeping behavior and bolt pressure
 
 ### Next
 - Add one extra spell archetype (control/utility) and one ranged monster archetype

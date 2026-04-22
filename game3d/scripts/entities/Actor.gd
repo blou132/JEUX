@@ -104,6 +104,11 @@ func tick_actor(
                 _move_away_from(target_actor.global_position, delta, world, 1.18)
             else:
                 _wander(delta, world)
+        "reposition":
+            if target_actor != null:
+                _move_away_from(target_actor.global_position, delta, world, 1.06)
+            else:
+                _wander(delta, world)
         "detect":
             if target_actor != null:
                 _move_towards(target_actor.global_position, delta, world, 0.95)
@@ -178,8 +183,16 @@ func _build_visual() -> void:
     if actor_kind == "brute_monster":
         capsule.radius = 0.60
         capsule.height = 1.9
+    elif actor_kind == "ranged_monster":
+        capsule.radius = 0.38
+        capsule.height = 1.25
     body.mesh = capsule
-    body.position.y = 1.0 if actor_kind != "brute_monster" else 1.2
+    if actor_kind == "brute_monster":
+        body.position.y = 1.2
+    elif actor_kind == "ranged_monster":
+        body.position.y = 0.92
+    else:
+        body.position.y = 1.0
 
     var material := StandardMaterial3D.new()
     material.roughness = 0.8
@@ -188,6 +201,8 @@ func _build_visual() -> void:
         material.albedo_color = Color(0.45, 0.70, 1.00)
     elif actor_kind == "brute_monster":
         material.albedo_color = Color(0.78, 0.20, 0.20)
+    elif actor_kind == "ranged_monster":
+        material.albedo_color = Color(0.86, 0.73, 0.30)
     elif faction == "monster":
         material.albedo_color = Color(0.95, 0.40, 0.40)
     else:

@@ -19,6 +19,15 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 
     var distance: float = actor.global_position.distance_to(enemy.global_position)
     var under_pressure: bool = _is_under_pressure(actor)
+    var is_ranged: bool = actor.actor_kind == "ranged_monster"
+    var preferred_min_distance: float = actor.attack_range * 1.85
+
+    if is_ranged and distance < preferred_min_distance and not under_pressure:
+        return {
+            "state": "reposition",
+            "target": enemy,
+            "reason": "ranged_keep_distance"
+        }
 
     if under_pressure and distance <= actor.vision_range * 0.9:
         return {
@@ -38,7 +47,7 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
         return {
             "state": "cast",
             "target": enemy,
-            "reason": "magic_range"
+            "reason": "magic_range" if not is_ranged else "ranged_cast"
         }
 
     if distance <= actor.attack_range:
@@ -55,16 +64,29 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                 "target": enemy,
                 "reason": "brute_commit"
             }
+        if is_ranged and distance <= actor.magic_range * 1.08:
+            return {
+                "state": "detect",
+                "target": enemy,
+                "reason": "ranged_hold_line"
+            }
         return {
             "state": "detect",
             "target": enemy,
             "reason": "enemy_detected_far"
         }
 
+    if is_ranged and distance > actor.attack_range * 1.15 and actor.can_cast_magic():
+        return {
+            "state": "cast",
+            "target": enemy,
+            "reason": "ranged_pressure_cast"
+        }
+
     return {
         "state": "chase",
         "target": enemy,
-        "reason": "enemy_detected_near"
+        "reason": "enemy_detected_near" if not is_ranged else "ranged_reposition_chase"
     }
 
 

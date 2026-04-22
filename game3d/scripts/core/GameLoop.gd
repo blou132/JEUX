@@ -83,13 +83,13 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if from_state == to_state:
         return
 
-    if to_state in ["detect", "chase", "attack", "cast", "cast_nova"]:
+    if to_state in ["detect", "chase", "attack", "cast", "cast_nova", "reposition"]:
         engagements_total += 1
 
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "cast_nova", "flee", "poi"]:
+    if to_state in ["attack", "cast", "cast_nova", "flee", "poi", "reposition"]:
         record_event("%s#%d %s -> %s (%s)." % [actor.actor_kind, actor.actor_id, from_state, to_state, reason])
 
 
@@ -159,6 +159,7 @@ func _build_snapshot() -> Dictionary:
     var humans_alive: int = 0
     var monsters_alive: int = 0
     var brute_alive: int = 0
+    var ranged_alive: int = 0
     var hp_total: float = 0.0
     var energy_total: float = 0.0
 
@@ -169,6 +170,7 @@ func _build_snapshot() -> Dictionary:
         "attack": 0,
         "cast": 0,
         "cast_nova": 0,
+        "reposition": 0,
         "poi": 0,
         "flee": 0
     }
@@ -187,6 +189,8 @@ func _build_snapshot() -> Dictionary:
             monsters_alive += 1
             if actor.actor_kind == "brute_monster":
                 brute_alive += 1
+            elif actor.actor_kind == "ranged_monster":
+                ranged_alive += 1
 
         if state_counts.has(actor.state):
             state_counts[actor.state] += 1
@@ -204,6 +208,7 @@ func _build_snapshot() -> Dictionary:
         "humans_alive": humans_alive,
         "monsters_alive": monsters_alive,
         "brute_alive": brute_alive,
+        "ranged_alive": ranged_alive,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,

@@ -39,12 +39,13 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append("")
 
     lines.append(
-        "Population: %d alive (H:%d M:%d, Brute:%d) | deaths total: %d"
+        "Population: %d alive (H:%d M:%d, Brute:%d, Ranged:%d) | deaths total: %d"
         % [
             int(snapshot.get("alive_total", 0)),
             int(snapshot.get("humans_alive", 0)),
             int(snapshot.get("monsters_alive", 0)),
             int(snapshot.get("brute_alive", 0)),
+            int(snapshot.get("ranged_alive", 0)),
             int(snapshot.get("deaths_total", 0))
         ]
     )
@@ -80,7 +81,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     )
     lines.append("")
     lines.append(
-        "States: wander=%d poi=%d detect=%d chase=%d attack=%d cast=%d nova=%d flee=%d"
+        "States: wander=%d poi=%d detect=%d chase=%d attack=%d cast=%d nova=%d reposition=%d flee=%d"
         % [
             int(state_counts.get("wander", 0)),
             int(state_counts.get("poi", 0)),
@@ -89,6 +90,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(state_counts.get("attack", 0)),
             int(state_counts.get("cast", 0)),
             int(state_counts.get("cast_nova", 0)),
+            int(state_counts.get("reposition", 0)),
             int(state_counts.get("flee", 0))
         ]
     )

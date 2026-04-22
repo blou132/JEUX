@@ -17,6 +17,7 @@ class TestGame3DScaffold(unittest.TestCase):
             GAME3D / "scripts" / "entities" / "HumanAgent.gd",
             GAME3D / "scripts" / "entities" / "MonsterAgent.gd",
             GAME3D / "scripts" / "entities" / "BruteMonster.gd",
+            GAME3D / "scripts" / "entities" / "RangedMonster.gd",
             GAME3D / "scripts" / "ai" / "AgentAI.gd",
             GAME3D / "scripts" / "combat" / "CombatSystem.gd",
             GAME3D / "scripts" / "magic" / "MagicSystem.gd",
@@ -51,6 +52,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("poi", content)
         self.assertIn("nova", content)
         self.assertIn("brute", content)
+        self.assertIn("ranged", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -71,6 +73,16 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("domine_humains", content)
         self.assertIn("domine_monstres", content)
         self.assertIn("conteste", content)
+
+    def test_sandbox_has_ranged_spawn_ratio(self):
+        content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
+        self.assertIn("ranged_spawn_ratio", content)
+        self.assertIn("RangedMonster.new()", content)
+
+    def test_ai_has_ranged_reposition_logic(self):
+        content = (GAME3D / "scripts" / "ai" / "AgentAI.gd").read_text(encoding="utf-8")
+        self.assertIn("ranged_monster", content)
+        self.assertIn('"state": "reposition"', content)
 
 
 if __name__ == "__main__":
