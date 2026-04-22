@@ -41,6 +41,7 @@ def create_initial_population(count: int, world_map: SimpleMap, random_source: R
             hunger_sensitivity=random_source.uniform(0.97, 1.03),
             gregariousness=random_source.uniform(0.97, 1.03),
             competition_tolerance=random_source.uniform(0.97, 1.03),
+            resource_commitment=random_source.uniform(0.97, 1.03),
         ).clamp()
 
         creature = Creature(

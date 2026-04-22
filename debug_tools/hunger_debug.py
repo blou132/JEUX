@@ -44,6 +44,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
                     "hunger_sensitivity": round(creature.traits.hunger_sensitivity, 3),
                     "gregariousness": round(creature.traits.gregariousness, 3),
                     "competition_tolerance": round(creature.traits.competition_tolerance, 3),
+                    "resource_commitment": round(creature.traits.resource_commitment, 3),
                 },
                 "intent": None if intent is None else intent.action,
                 "action_reason": _intent_reason(intent),
@@ -143,6 +144,12 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         if total_creatures > 0
         else 0.0
     )
+    avg_resource_commitment_population = (
+        sum(creature.traits.resource_commitment for creature in simulation.creatures)
+        / total_creatures
+        if total_creatures > 0
+        else 0.0
+    )
     density_preference_seek_users_avg_last_tick = (
         simulation.density_preference_sum_seek_last_tick / simulation.density_preference_seek_moves_last_tick
         if simulation.density_preference_seek_moves_last_tick > 0
@@ -206,6 +213,66 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         / simulation.total_competition_tolerance_avoid_moves
         if simulation.total_competition_tolerance_avoid_moves > 0
         else 0.0
+    )
+    resource_commitment_guided_users_avg_last_tick = (
+        simulation.resource_commitment_sum_guided_last_tick
+        / simulation.resource_commitment_guided_moves_last_tick
+        if simulation.resource_commitment_guided_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_guided_users_avg_total = (
+        simulation.total_resource_commitment_sum_guided
+        / simulation.total_resource_commitment_guided_moves
+        if simulation.total_resource_commitment_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_stay_users_avg_last_tick = (
+        simulation.resource_commitment_sum_stay_last_tick
+        / simulation.resource_commitment_stay_moves_last_tick
+        if simulation.resource_commitment_stay_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_stay_users_avg_total = (
+        simulation.total_resource_commitment_sum_stay
+        / simulation.total_resource_commitment_stay_moves
+        if simulation.total_resource_commitment_stay_moves > 0
+        else 0.0
+    )
+    resource_commitment_switch_users_avg_last_tick = (
+        simulation.resource_commitment_sum_switch_last_tick
+        / simulation.resource_commitment_switch_moves_last_tick
+        if simulation.resource_commitment_switch_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_switch_users_avg_total = (
+        simulation.total_resource_commitment_sum_switch
+        / simulation.total_resource_commitment_switch_moves
+        if simulation.total_resource_commitment_switch_moves > 0
+        else 0.0
+    )
+    resource_commitment_memory_users_avg_last_tick = (
+        simulation.resource_commitment_sum_food_memory_last_tick
+        / simulation.food_memory_guided_moves_last_tick
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_memory_users_avg_total = (
+        simulation.total_resource_commitment_sum_food_memory
+        / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_recall_multiplier_avg_last_tick = (
+        simulation.resource_commitment_recall_multiplier_sum_last_tick
+        / simulation.food_memory_guided_moves_last_tick
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 1.0
+    )
+    resource_commitment_recall_multiplier_avg_total = (
+        simulation.total_resource_commitment_recall_multiplier_sum
+        / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 1.0
     )
     age_wear_multiplier_avg_last_tick = (
         simulation.age_wear_multiplier_sum_last_tick / simulation.age_wear_active_events_last_tick
@@ -550,6 +617,97 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "avg_competition_tolerance_anchor_distance_delta_last_tick": (
             simulation.avg_competition_tolerance_anchor_distance_delta_last_tick
         ),
+        "resource_commitment_guided_moves_last_tick": simulation.resource_commitment_guided_moves_last_tick,
+        "total_resource_commitment_guided_moves": simulation.total_resource_commitment_guided_moves,
+        "resource_commitment_guided_users_avg_last_tick": resource_commitment_guided_users_avg_last_tick,
+        "resource_commitment_guided_users_avg_total": resource_commitment_guided_users_avg_total,
+        "resource_commitment_guided_usage_bias_last_tick": (
+            resource_commitment_guided_users_avg_last_tick - avg_resource_commitment_population
+            if simulation.resource_commitment_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_guided_usage_bias_total": (
+            resource_commitment_guided_users_avg_total - avg_resource_commitment_population
+            if simulation.total_resource_commitment_guided_moves > 0
+            else 0.0
+        ),
+        "resource_commitment_stay_moves_last_tick": simulation.resource_commitment_stay_moves_last_tick,
+        "total_resource_commitment_stay_moves": simulation.total_resource_commitment_stay_moves,
+        "resource_commitment_stay_users_avg_last_tick": resource_commitment_stay_users_avg_last_tick,
+        "resource_commitment_stay_users_avg_total": resource_commitment_stay_users_avg_total,
+        "resource_commitment_stay_usage_bias_last_tick": (
+            resource_commitment_stay_users_avg_last_tick - avg_resource_commitment_population
+            if simulation.resource_commitment_stay_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_stay_usage_bias_total": (
+            resource_commitment_stay_users_avg_total - avg_resource_commitment_population
+            if simulation.total_resource_commitment_stay_moves > 0
+            else 0.0
+        ),
+        "resource_commitment_switch_moves_last_tick": simulation.resource_commitment_switch_moves_last_tick,
+        "total_resource_commitment_switch_moves": simulation.total_resource_commitment_switch_moves,
+        "resource_commitment_switch_users_avg_last_tick": resource_commitment_switch_users_avg_last_tick,
+        "resource_commitment_switch_users_avg_total": resource_commitment_switch_users_avg_total,
+        "resource_commitment_switch_usage_bias_last_tick": (
+            resource_commitment_switch_users_avg_last_tick - avg_resource_commitment_population
+            if simulation.resource_commitment_switch_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_switch_usage_bias_total": (
+            resource_commitment_switch_users_avg_total - avg_resource_commitment_population
+            if simulation.total_resource_commitment_switch_moves > 0
+            else 0.0
+        ),
+        "resource_commitment_stay_share_last_tick": (
+            simulation.resource_commitment_stay_moves_last_tick
+            / simulation.resource_commitment_guided_moves_last_tick
+            if simulation.resource_commitment_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_stay_share_total": (
+            simulation.total_resource_commitment_stay_moves
+            / simulation.total_resource_commitment_guided_moves
+            if simulation.total_resource_commitment_guided_moves > 0
+            else 0.0
+        ),
+        "resource_commitment_switch_share_last_tick": (
+            simulation.resource_commitment_switch_moves_last_tick
+            / simulation.resource_commitment_guided_moves_last_tick
+            if simulation.resource_commitment_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_switch_share_total": (
+            simulation.total_resource_commitment_switch_moves
+            / simulation.total_resource_commitment_guided_moves
+            if simulation.total_resource_commitment_guided_moves > 0
+            else 0.0
+        ),
+        "avg_resource_commitment_anchor_distance_delta_last_tick": (
+            simulation.avg_resource_commitment_anchor_distance_delta_last_tick
+        ),
+        "resource_commitment_memory_users_avg_last_tick": (
+            resource_commitment_memory_users_avg_last_tick
+        ),
+        "resource_commitment_memory_users_avg_total": (
+            resource_commitment_memory_users_avg_total
+        ),
+        "resource_commitment_memory_usage_bias_last_tick": (
+            resource_commitment_memory_users_avg_last_tick - avg_resource_commitment_population
+            if simulation.food_memory_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_memory_usage_bias_total": (
+            resource_commitment_memory_users_avg_total - avg_resource_commitment_population
+            if simulation.total_food_memory_guided_moves > 0
+            else 0.0
+        ),
+        "resource_commitment_recall_multiplier_avg_last_tick": (
+            resource_commitment_recall_multiplier_avg_last_tick
+        ),
+        "resource_commitment_recall_multiplier_avg_total": (
+            resource_commitment_recall_multiplier_avg_total
+        ),
         "age_wear_active_events_last_tick": simulation.age_wear_active_events_last_tick,
         "total_age_wear_active_events": simulation.total_age_wear_active_events,
         "age_wear_multiplier_avg_last_tick": age_wear_multiplier_avg_last_tick,
@@ -622,6 +780,7 @@ def build_hunger_snapshot(simulation: HungerSimulation) -> Dict[str, object]:
         "total_hunger_search_actions": simulation.total_hunger_search_actions,
         "avg_hunger_sensitivity_population": avg_hunger_sensitivity_population,
         "avg_competition_tolerance_population": avg_competition_tolerance_population,
+        "avg_resource_commitment_population": avg_resource_commitment_population,
         "hunger_sensitivity_search_users_avg_last_tick": (
             hunger_sensitivity_search_users_avg_last_tick
         ),

@@ -44,6 +44,8 @@ class GeneticTraits:
     #   during targetless movement, <1.0 tends to keep slightly more distance.
     # - competition_tolerance: >1.0 tends to stay a bit longer near contested
     #   food zones; <1.0 tends to avoid local food competition sooner.
+    # - resource_commitment: >1.0 tends to keep exploiting a recent local
+    #   food anchor; <1.0 tends to switch away a bit sooner.
     prudence: float = 1.0
     dominance: float = 1.0
     repro_drive: float = 1.0
@@ -63,6 +65,7 @@ class GeneticTraits:
     hunger_sensitivity: float = 1.0
     gregariousness: float = 1.0
     competition_tolerance: float = 1.0
+    resource_commitment: float = 1.0
 
     def clamp(self) -> "GeneticTraits":
         self.speed = max(0.1, self.speed)
@@ -93,5 +96,6 @@ class GeneticTraits:
         self.hunger_sensitivity = max(0.85, min(1.15, self.hunger_sensitivity))
         self.gregariousness = max(0.85, min(1.15, self.gregariousness))
         self.competition_tolerance = max(0.85, min(1.15, self.competition_tolerance))
+        self.resource_commitment = max(0.85, min(1.15, self.resource_commitment))
         return self
 

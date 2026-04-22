@@ -206,6 +206,25 @@ class HungerSimulation:
         self.competition_tolerance_anchor_distance_delta_last_tick = 0.0
         self.total_competition_tolerance_anchor_distance_delta = 0.0
         self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
+        self.resource_commitment_guided_moves_last_tick = 0
+        self.total_resource_commitment_guided_moves = 0
+        self.resource_commitment_sum_guided_last_tick = 0.0
+        self.total_resource_commitment_sum_guided = 0.0
+        self.resource_commitment_stay_moves_last_tick = 0
+        self.total_resource_commitment_stay_moves = 0
+        self.resource_commitment_sum_stay_last_tick = 0.0
+        self.total_resource_commitment_sum_stay = 0.0
+        self.resource_commitment_switch_moves_last_tick = 0
+        self.total_resource_commitment_switch_moves = 0
+        self.resource_commitment_sum_switch_last_tick = 0.0
+        self.total_resource_commitment_sum_switch = 0.0
+        self.resource_commitment_anchor_distance_delta_last_tick = 0.0
+        self.total_resource_commitment_anchor_distance_delta = 0.0
+        self.avg_resource_commitment_anchor_distance_delta_last_tick = 0.0
+        self.resource_commitment_sum_food_memory_last_tick = 0.0
+        self.total_resource_commitment_sum_food_memory = 0.0
+        self.resource_commitment_recall_multiplier_sum_last_tick = 0.0
+        self.total_resource_commitment_recall_multiplier_sum = 0.0
         self.movement_actions_last_tick = 0
         self.total_movement_actions = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
@@ -364,6 +383,16 @@ class HungerSimulation:
         self.competition_tolerance_neighbor_count_sum_last_tick = 0.0
         self.competition_tolerance_anchor_distance_delta_last_tick = 0.0
         self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
+        self.resource_commitment_guided_moves_last_tick = 0
+        self.resource_commitment_sum_guided_last_tick = 0.0
+        self.resource_commitment_stay_moves_last_tick = 0
+        self.resource_commitment_sum_stay_last_tick = 0.0
+        self.resource_commitment_switch_moves_last_tick = 0
+        self.resource_commitment_sum_switch_last_tick = 0.0
+        self.resource_commitment_anchor_distance_delta_last_tick = 0.0
+        self.avg_resource_commitment_anchor_distance_delta_last_tick = 0.0
+        self.resource_commitment_sum_food_memory_last_tick = 0.0
+        self.resource_commitment_recall_multiplier_sum_last_tick = 0.0
         self.movement_actions_last_tick = 0
         self.mobility_efficiency_sum_movement_last_tick = 0.0
         self.movement_multiplier_sum_last_tick = 0.0
@@ -729,6 +758,14 @@ class HungerSimulation:
         else:
             self.avg_competition_tolerance_anchor_distance_delta_last_tick = 0.0
 
+        if self.resource_commitment_guided_moves_last_tick > 0:
+            self.avg_resource_commitment_anchor_distance_delta_last_tick = (
+                self.resource_commitment_anchor_distance_delta_last_tick
+                / self.resource_commitment_guided_moves_last_tick
+            )
+        else:
+            self.avg_resource_commitment_anchor_distance_delta_last_tick = 0.0
+
         if self.movement_actions_last_tick > 0:
             self.avg_movement_multiplier_last_tick = (
                 self.movement_multiplier_sum_last_tick / self.movement_actions_last_tick
@@ -905,7 +942,10 @@ class HungerSimulation:
         if not creature.has_food_memory:
             return False
 
-        effective_recall_distance = self.food_memory_recall_distance * creature.traits.memory_focus
+        recall_multiplier = self._compute_resource_commitment_recall_multiplier(creature)
+        effective_recall_distance = (
+            self.food_memory_recall_distance * creature.traits.memory_focus * recall_multiplier
+        )
         if effective_recall_distance <= 0.0:
             return False
 
@@ -933,6 +973,10 @@ class HungerSimulation:
         self.total_food_memory_guided_moves += 1
         self.memory_focus_sum_food_memory_last_tick += creature.traits.memory_focus
         self.total_memory_focus_sum_food_memory += creature.traits.memory_focus
+        self.resource_commitment_sum_food_memory_last_tick += creature.traits.resource_commitment
+        self.total_resource_commitment_sum_food_memory += creature.traits.resource_commitment
+        self.resource_commitment_recall_multiplier_sum_last_tick += recall_multiplier
+        self.total_resource_commitment_recall_multiplier_sum += recall_multiplier
         self.food_memory_distance_gain_last_tick += distance_gain
         self.total_food_memory_distance_gain += distance_gain
         return True
@@ -1297,6 +1341,40 @@ class HungerSimulation:
                             else:
                                 competition_mode = None
 
+        resource_anchor: tuple[float, float] | None = None
+        resource_mode: str | None = None
+        before_resource_anchor_distance = 0.0
+        if allow_exploration_bias and creature.has_food_memory and creature.last_food_zone is not None:
+            resource_strength = min(
+                0.2,
+                abs(creature.traits.resource_commitment - 1.0) * 0.8,
+            )
+            if resource_strength > 0.0:
+                anchor_x, anchor_y = creature.last_food_zone
+                to_anchor_x = anchor_x - creature.x
+                to_anchor_y = anchor_y - creature.y
+                anchor_norm = hypot(to_anchor_x, to_anchor_y)
+                if anchor_norm > 1e-9:
+                    if creature.traits.resource_commitment >= 1.0:
+                        bias_x = to_anchor_x / anchor_norm
+                        bias_y = to_anchor_y / anchor_norm
+                        resource_mode = "stay"
+                    else:
+                        bias_x = -to_anchor_x / anchor_norm
+                        bias_y = -to_anchor_y / anchor_norm
+                        resource_mode = "switch"
+
+                    blended_x = ((1.0 - resource_strength) * dir_x) + (resource_strength * bias_x)
+                    blended_y = ((1.0 - resource_strength) * dir_y) + (resource_strength * bias_y)
+                    blended_norm = hypot(blended_x, blended_y)
+                    if blended_norm > 1e-9:
+                        dir_x = blended_x / blended_norm
+                        dir_y = blended_y / blended_norm
+                        resource_anchor = (anchor_x, anchor_y)
+                        before_resource_anchor_distance = creature.distance_to(anchor_x, anchor_y)
+                    else:
+                        resource_mode = None
+
         target_x = creature.x + (dir_x * distance)
         target_y = creature.y + (dir_y * distance)
         before_x = creature.x
@@ -1401,6 +1479,29 @@ class HungerSimulation:
                 self.competition_tolerance_sum_avoid_last_tick += creature.traits.competition_tolerance
                 self.total_competition_tolerance_sum_avoid += creature.traits.competition_tolerance
 
+        if resource_anchor is not None and resource_mode is not None:
+            after_resource_anchor_distance = creature.distance_to(
+                resource_anchor[0],
+                resource_anchor[1],
+            )
+            anchor_distance_delta = after_resource_anchor_distance - before_resource_anchor_distance
+            self.resource_commitment_guided_moves_last_tick += 1
+            self.total_resource_commitment_guided_moves += 1
+            self.resource_commitment_sum_guided_last_tick += creature.traits.resource_commitment
+            self.total_resource_commitment_sum_guided += creature.traits.resource_commitment
+            self.resource_commitment_anchor_distance_delta_last_tick += anchor_distance_delta
+            self.total_resource_commitment_anchor_distance_delta += anchor_distance_delta
+            if resource_mode == "stay":
+                self.resource_commitment_stay_moves_last_tick += 1
+                self.total_resource_commitment_stay_moves += 1
+                self.resource_commitment_sum_stay_last_tick += creature.traits.resource_commitment
+                self.total_resource_commitment_sum_stay += creature.traits.resource_commitment
+            else:
+                self.resource_commitment_switch_moves_last_tick += 1
+                self.total_resource_commitment_switch_moves += 1
+                self.resource_commitment_sum_switch_last_tick += creature.traits.resource_commitment
+                self.total_resource_commitment_sum_switch += creature.traits.resource_commitment
+
     # THREAT/FLEE: move in the opposite direction of the threat (no pathfinding).
     def _flee_from(
         self,
@@ -1469,6 +1570,13 @@ class HungerSimulation:
         # - >1.0 waits for slightly more energy margin before reproducing.
         # - <1.0 accepts reproducing with slightly less margin.
         return max(0.9, min(1.1, 1.0 + (0.1 * (creature.traits.reproduction_timing - 1.0))))
+
+    @staticmethod
+    def _compute_resource_commitment_recall_multiplier(creature: Creature) -> float:
+        # Light individual bias:
+        # - >1.0 keeps local food-memory recall slightly longer.
+        # - <1.0 drops local food-memory guidance slightly sooner.
+        return max(0.9, min(1.1, 1.0 + (0.7 * (creature.traits.resource_commitment - 1.0))))
 
     @staticmethod
     def _compute_mobility_efficiency_multiplier(creature: Creature) -> float:

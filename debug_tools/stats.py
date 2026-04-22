@@ -84,6 +84,7 @@ def build_population_stats(
             "avg_hunger_sensitivity": 0.0,
             "avg_gregariousness": 0.0,
             "avg_competition_tolerance": 0.0,
+            "avg_resource_commitment": 0.0,
             "std_memory_focus": 0.0,
             "std_social_sensitivity": 0.0,
             "std_food_perception": 0.0,
@@ -102,6 +103,7 @@ def build_population_stats(
             "std_hunger_sensitivity": 0.0,
             "std_gregariousness": 0.0,
             "std_competition_tolerance": 0.0,
+            "std_resource_commitment": 0.0,
             "avg_effective_energy_drain_multiplier": 0.0,
             "avg_reproduction_cost_multiplier": 0.0,
             "avg_reproduction_timing_threshold_multiplier": 1.0,
@@ -398,6 +400,42 @@ def build_population_stats(
             "avg_competition_tolerance_neighbor_count_total": 0.0,
             "avg_competition_tolerance_anchor_distance_delta_last_tick": 0.0,
             "avg_competition_tolerance_anchor_distance_delta_total": 0.0,
+            "resource_commitment_guided_moves_last_tick": 0,
+            "total_resource_commitment_guided_moves": 0,
+            "resource_commitment_usage_per_alive_tick": 0.0,
+            "resource_commitment_usage_per_tick_total": 0.0,
+            "resource_commitment_stay_moves_last_tick": 0,
+            "total_resource_commitment_stay_moves": 0,
+            "resource_commitment_stay_usage_per_alive_tick": 0.0,
+            "resource_commitment_stay_usage_per_tick_total": 0.0,
+            "resource_commitment_stay_users_avg_tick": 0.0,
+            "resource_commitment_stay_users_avg_total": 0.0,
+            "resource_commitment_stay_usage_bias_tick": 0.0,
+            "resource_commitment_stay_usage_bias_total": 0.0,
+            "resource_commitment_switch_moves_last_tick": 0,
+            "total_resource_commitment_switch_moves": 0,
+            "resource_commitment_switch_usage_per_alive_tick": 0.0,
+            "resource_commitment_switch_usage_per_tick_total": 0.0,
+            "resource_commitment_switch_users_avg_tick": 0.0,
+            "resource_commitment_switch_users_avg_total": 0.0,
+            "resource_commitment_switch_usage_bias_tick": 0.0,
+            "resource_commitment_switch_usage_bias_total": 0.0,
+            "resource_commitment_stay_share_last_tick": 0.0,
+            "resource_commitment_stay_share_total": 0.0,
+            "resource_commitment_switch_share_last_tick": 0.0,
+            "resource_commitment_switch_share_total": 0.0,
+            "resource_commitment_guided_users_avg_tick": 0.0,
+            "resource_commitment_guided_users_avg_total": 0.0,
+            "resource_commitment_guided_usage_bias_tick": 0.0,
+            "resource_commitment_guided_usage_bias_total": 0.0,
+            "avg_resource_commitment_anchor_distance_delta_last_tick": 0.0,
+            "avg_resource_commitment_anchor_distance_delta_total": 0.0,
+            "resource_commitment_memory_users_avg_tick": 0.0,
+            "resource_commitment_memory_users_avg_total": 0.0,
+            "resource_commitment_memory_usage_bias_tick": 0.0,
+            "resource_commitment_memory_usage_bias_total": 0.0,
+            "resource_commitment_recall_multiplier_avg_last_tick": 1.0,
+            "resource_commitment_recall_multiplier_avg_total": 1.0,
             "search_wander_switches_last_tick": 0,
             "total_search_wander_switches": 0,
             "search_wander_switches_prevented_last_tick": 0,
@@ -465,6 +503,9 @@ def build_population_stats(
     avg_gregariousness = sum(c.traits.gregariousness for c in simulation.creatures) / total
     avg_competition_tolerance = (
         sum(c.traits.competition_tolerance for c in simulation.creatures) / total
+    )
+    avg_resource_commitment = (
+        sum(c.traits.resource_commitment for c in simulation.creatures) / total
     )
     avg_effective_energy_drain_multiplier = avg_metabolism * max(0.1, 1.0 - (0.25 * (avg_energy_efficiency - 1.0)))
     avg_reproduction_cost_multiplier = max(0.1, 1.0 - (0.3 * (avg_exhaustion_resistance - 1.0)))
@@ -764,6 +805,7 @@ def build_population_stats(
     hunger_sensitivity_values = [c.traits.hunger_sensitivity for c in simulation.creatures]
     gregariousness_values = [c.traits.gregariousness for c in simulation.creatures]
     competition_tolerance_values = [c.traits.competition_tolerance for c in simulation.creatures]
+    resource_commitment_values = [c.traits.resource_commitment for c in simulation.creatures]
 
     std_memory_focus = _stddev_from_mean(memory_focus_values, avg_memory_focus)
     std_social_sensitivity = _stddev_from_mean(social_sensitivity_values, avg_social_sensitivity)
@@ -797,6 +839,10 @@ def build_population_stats(
     std_competition_tolerance = _stddev_from_mean(
         competition_tolerance_values,
         avg_competition_tolerance,
+    )
+    std_resource_commitment = _stddev_from_mean(
+        resource_commitment_values,
+        avg_resource_commitment,
     )
 
     avg_memory_focus_food_users_tick = (
@@ -1326,6 +1372,124 @@ def build_population_stats(
         if simulation.total_competition_tolerance_guided_moves > 0
         else 0.0
     )
+    avg_resource_commitment_guided_users_tick = (
+        simulation.resource_commitment_sum_guided_last_tick
+        / simulation.resource_commitment_guided_moves_last_tick
+        if simulation.resource_commitment_guided_moves_last_tick > 0
+        else 0.0
+    )
+    avg_resource_commitment_guided_users_total = (
+        simulation.total_resource_commitment_sum_guided
+        / simulation.total_resource_commitment_guided_moves
+        if simulation.total_resource_commitment_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_guided_usage_bias_tick = (
+        avg_resource_commitment_guided_users_tick - avg_resource_commitment
+        if simulation.resource_commitment_guided_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_guided_usage_bias_total = (
+        avg_resource_commitment_guided_users_total - avg_resource_commitment
+        if simulation.total_resource_commitment_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_stay_share_last_tick = (
+        simulation.resource_commitment_stay_moves_last_tick
+        / simulation.resource_commitment_guided_moves_last_tick
+        if simulation.resource_commitment_guided_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_stay_share_total = (
+        simulation.total_resource_commitment_stay_moves
+        / simulation.total_resource_commitment_guided_moves
+        if simulation.total_resource_commitment_guided_moves > 0
+        else 0.0
+    )
+    avg_resource_commitment_stay_users_tick = (
+        simulation.resource_commitment_sum_stay_last_tick
+        / simulation.resource_commitment_stay_moves_last_tick
+        if simulation.resource_commitment_stay_moves_last_tick > 0
+        else 0.0
+    )
+    avg_resource_commitment_stay_users_total = (
+        simulation.total_resource_commitment_sum_stay
+        / simulation.total_resource_commitment_stay_moves
+        if simulation.total_resource_commitment_stay_moves > 0
+        else 0.0
+    )
+    resource_commitment_stay_usage_bias_tick = (
+        avg_resource_commitment_stay_users_tick - avg_resource_commitment
+        if simulation.resource_commitment_stay_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_stay_usage_bias_total = (
+        avg_resource_commitment_stay_users_total - avg_resource_commitment
+        if simulation.total_resource_commitment_stay_moves > 0
+        else 0.0
+    )
+    avg_resource_commitment_switch_users_tick = (
+        simulation.resource_commitment_sum_switch_last_tick
+        / simulation.resource_commitment_switch_moves_last_tick
+        if simulation.resource_commitment_switch_moves_last_tick > 0
+        else 0.0
+    )
+    avg_resource_commitment_switch_users_total = (
+        simulation.total_resource_commitment_sum_switch
+        / simulation.total_resource_commitment_switch_moves
+        if simulation.total_resource_commitment_switch_moves > 0
+        else 0.0
+    )
+    resource_commitment_switch_usage_bias_tick = (
+        avg_resource_commitment_switch_users_tick - avg_resource_commitment
+        if simulation.resource_commitment_switch_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_switch_usage_bias_total = (
+        avg_resource_commitment_switch_users_total - avg_resource_commitment
+        if simulation.total_resource_commitment_switch_moves > 0
+        else 0.0
+    )
+    avg_resource_commitment_anchor_distance_delta_total = (
+        simulation.total_resource_commitment_anchor_distance_delta
+        / simulation.total_resource_commitment_guided_moves
+        if simulation.total_resource_commitment_guided_moves > 0
+        else 0.0
+    )
+    avg_resource_commitment_memory_users_tick = (
+        simulation.resource_commitment_sum_food_memory_last_tick
+        / simulation.food_memory_guided_moves_last_tick
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 0.0
+    )
+    avg_resource_commitment_memory_users_total = (
+        simulation.total_resource_commitment_sum_food_memory
+        / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_memory_usage_bias_tick = (
+        avg_resource_commitment_memory_users_tick - avg_resource_commitment
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 0.0
+    )
+    resource_commitment_memory_usage_bias_total = (
+        avg_resource_commitment_memory_users_total - avg_resource_commitment
+        if simulation.total_food_memory_guided_moves > 0
+        else 0.0
+    )
+    resource_commitment_recall_multiplier_avg_last_tick = (
+        simulation.resource_commitment_recall_multiplier_sum_last_tick
+        / simulation.food_memory_guided_moves_last_tick
+        if simulation.food_memory_guided_moves_last_tick > 0
+        else 1.0
+    )
+    resource_commitment_recall_multiplier_avg_total = (
+        simulation.total_resource_commitment_recall_multiplier_sum
+        / simulation.total_food_memory_guided_moves
+        if simulation.total_food_memory_guided_moves > 0
+        else 1.0
+    )
     search_wander_switch_rate_last_tick = (
         simulation.search_wander_switches_last_tick / simulation.search_wander_oscillation_events_last_tick
         if simulation.search_wander_oscillation_events_last_tick > 0
@@ -1479,6 +1643,7 @@ def build_population_stats(
         "avg_hunger_sensitivity": avg_hunger_sensitivity,
         "avg_gregariousness": avg_gregariousness,
         "avg_competition_tolerance": avg_competition_tolerance,
+        "avg_resource_commitment": avg_resource_commitment,
         "std_memory_focus": std_memory_focus,
         "std_social_sensitivity": std_social_sensitivity,
         "std_food_perception": std_food_perception,
@@ -1497,6 +1662,7 @@ def build_population_stats(
         "std_hunger_sensitivity": std_hunger_sensitivity,
         "std_gregariousness": std_gregariousness,
         "std_competition_tolerance": std_competition_tolerance,
+        "std_resource_commitment": std_resource_commitment,
         "avg_effective_energy_drain_multiplier": avg_effective_energy_drain_multiplier,
         "avg_reproduction_cost_multiplier": avg_reproduction_cost_multiplier,
         "avg_reproduction_timing_threshold_multiplier": avg_reproduction_timing_threshold_multiplier,
@@ -1885,6 +2051,72 @@ def build_population_stats(
         "avg_competition_tolerance_anchor_distance_delta_total": (
             avg_competition_tolerance_anchor_distance_delta_total
         ),
+        "resource_commitment_guided_moves_last_tick": (
+            simulation.resource_commitment_guided_moves_last_tick
+        ),
+        "total_resource_commitment_guided_moves": simulation.total_resource_commitment_guided_moves,
+        "resource_commitment_usage_per_alive_tick": (
+            simulation.resource_commitment_guided_moves_last_tick / max(1, alive)
+        ),
+        "resource_commitment_usage_per_tick_total": (
+            simulation.total_resource_commitment_guided_moves / max(1, simulation.tick_count)
+        ),
+        "resource_commitment_guided_users_avg_tick": avg_resource_commitment_guided_users_tick,
+        "resource_commitment_guided_users_avg_total": avg_resource_commitment_guided_users_total,
+        "resource_commitment_guided_usage_bias_tick": resource_commitment_guided_usage_bias_tick,
+        "resource_commitment_guided_usage_bias_total": resource_commitment_guided_usage_bias_total,
+        "resource_commitment_stay_moves_last_tick": simulation.resource_commitment_stay_moves_last_tick,
+        "total_resource_commitment_stay_moves": simulation.total_resource_commitment_stay_moves,
+        "resource_commitment_stay_usage_per_alive_tick": (
+            simulation.resource_commitment_stay_moves_last_tick / max(1, alive)
+        ),
+        "resource_commitment_stay_usage_per_tick_total": (
+            simulation.total_resource_commitment_stay_moves / max(1, simulation.tick_count)
+        ),
+        "resource_commitment_stay_users_avg_tick": avg_resource_commitment_stay_users_tick,
+        "resource_commitment_stay_users_avg_total": avg_resource_commitment_stay_users_total,
+        "resource_commitment_stay_usage_bias_tick": resource_commitment_stay_usage_bias_tick,
+        "resource_commitment_stay_usage_bias_total": resource_commitment_stay_usage_bias_total,
+        "resource_commitment_switch_moves_last_tick": simulation.resource_commitment_switch_moves_last_tick,
+        "total_resource_commitment_switch_moves": simulation.total_resource_commitment_switch_moves,
+        "resource_commitment_switch_usage_per_alive_tick": (
+            simulation.resource_commitment_switch_moves_last_tick / max(1, alive)
+        ),
+        "resource_commitment_switch_usage_per_tick_total": (
+            simulation.total_resource_commitment_switch_moves / max(1, simulation.tick_count)
+        ),
+        "resource_commitment_switch_users_avg_tick": avg_resource_commitment_switch_users_tick,
+        "resource_commitment_switch_users_avg_total": avg_resource_commitment_switch_users_total,
+        "resource_commitment_switch_usage_bias_tick": resource_commitment_switch_usage_bias_tick,
+        "resource_commitment_switch_usage_bias_total": resource_commitment_switch_usage_bias_total,
+        "resource_commitment_stay_share_last_tick": resource_commitment_stay_share_last_tick,
+        "resource_commitment_stay_share_total": resource_commitment_stay_share_total,
+        "resource_commitment_switch_share_last_tick": (
+            1.0 - resource_commitment_stay_share_last_tick
+            if simulation.resource_commitment_guided_moves_last_tick > 0
+            else 0.0
+        ),
+        "resource_commitment_switch_share_total": (
+            1.0 - resource_commitment_stay_share_total
+            if simulation.total_resource_commitment_guided_moves > 0
+            else 0.0
+        ),
+        "avg_resource_commitment_anchor_distance_delta_last_tick": (
+            simulation.avg_resource_commitment_anchor_distance_delta_last_tick
+        ),
+        "avg_resource_commitment_anchor_distance_delta_total": (
+            avg_resource_commitment_anchor_distance_delta_total
+        ),
+        "resource_commitment_memory_users_avg_tick": avg_resource_commitment_memory_users_tick,
+        "resource_commitment_memory_users_avg_total": avg_resource_commitment_memory_users_total,
+        "resource_commitment_memory_usage_bias_tick": resource_commitment_memory_usage_bias_tick,
+        "resource_commitment_memory_usage_bias_total": resource_commitment_memory_usage_bias_total,
+        "resource_commitment_recall_multiplier_avg_last_tick": (
+            resource_commitment_recall_multiplier_avg_last_tick
+        ),
+        "resource_commitment_recall_multiplier_avg_total": (
+            resource_commitment_recall_multiplier_avg_total
+        ),
         "search_wander_switches_last_tick": simulation.search_wander_switches_last_tick,
         "total_search_wander_switches": simulation.total_search_wander_switches,
         "search_wander_switches_prevented_last_tick": simulation.search_wander_switches_prevented_last_tick,
@@ -2050,6 +2282,8 @@ def build_final_run_summary(
         "gregariousness_std": float(final_stats.get("std_gregariousness", 0.0)),
         "competition_tolerance_mean": float(final_stats.get("avg_competition_tolerance", 0.0)),
         "competition_tolerance_std": float(final_stats.get("std_competition_tolerance", 0.0)),
+        "resource_commitment_mean": float(final_stats.get("avg_resource_commitment", 0.0)),
+        "resource_commitment_std": float(final_stats.get("std_resource_commitment", 0.0)),
         "energy_efficiency_drain_bias": float(final_stats.get("energy_efficiency_drain_usage_bias_total", 0.0)),
         "exhaustion_resistance_reproduction_bias": float(
             final_stats.get("exhaustion_resistance_reproduction_usage_bias_total", 0.0)
@@ -2255,6 +2489,51 @@ def build_final_run_summary(
         "competition_tolerance_anchor_distance_delta": float(
             final_stats.get("avg_competition_tolerance_anchor_distance_delta_total", 0.0)
         ),
+        "resource_commitment_guided_bias": float(
+            final_stats.get("resource_commitment_guided_usage_bias_total", 0.0)
+        ),
+        "resource_commitment_guided_total": int(
+            final_stats.get("total_resource_commitment_guided_moves", 0)
+        ),
+        "resource_commitment_stay_total": int(
+            final_stats.get("total_resource_commitment_stay_moves", 0)
+        ),
+        "resource_commitment_switch_total": int(
+            final_stats.get("total_resource_commitment_switch_moves", 0)
+        ),
+        "resource_commitment_stay_usage_per_tick": float(
+            final_stats.get("resource_commitment_stay_usage_per_tick_total", 0.0)
+        ),
+        "resource_commitment_switch_usage_per_tick": float(
+            final_stats.get("resource_commitment_switch_usage_per_tick_total", 0.0)
+        ),
+        "resource_commitment_stay_share": float(
+            final_stats.get("resource_commitment_stay_share_total", 0.0)
+        ),
+        "resource_commitment_switch_share": float(
+            final_stats.get("resource_commitment_switch_share_total", 0.0)
+        ),
+        "resource_commitment_stay_users_avg": float(
+            final_stats.get("resource_commitment_stay_users_avg_total", 0.0)
+        ),
+        "resource_commitment_stay_usage_bias": float(
+            final_stats.get("resource_commitment_stay_usage_bias_total", 0.0)
+        ),
+        "resource_commitment_switch_users_avg": float(
+            final_stats.get("resource_commitment_switch_users_avg_total", 0.0)
+        ),
+        "resource_commitment_switch_usage_bias": float(
+            final_stats.get("resource_commitment_switch_usage_bias_total", 0.0)
+        ),
+        "resource_commitment_anchor_distance_delta": float(
+            final_stats.get("avg_resource_commitment_anchor_distance_delta_total", 0.0)
+        ),
+        "resource_commitment_memory_bias": float(
+            final_stats.get("resource_commitment_memory_usage_bias_total", 0.0)
+        ),
+        "resource_commitment_recall_multiplier_observed": float(
+            final_stats.get("resource_commitment_recall_multiplier_avg_total", 1.0)
+        ),
         "persistence_holds_total": int(final_stats.get("total_persistence_holds", 0)),
         "behavior_persistence_oscillation_switch_rate": float(
             final_stats.get("search_wander_switch_rate_total", 0.0)
@@ -2350,6 +2629,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "hunger_sensitivity": 0.0,
                 "gregariousness": 0.0,
                 "competition_tolerance": 0.0,
+                "resource_commitment": 0.0,
             },
             "avg_memory_impact": {
                 "food_usage_total": 0.0,
@@ -2409,6 +2689,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "gregariousness_std": 0.0,
                 "competition_tolerance_mean": 0.0,
                 "competition_tolerance_std": 0.0,
+                "resource_commitment_mean": 0.0,
+                "resource_commitment_std": 0.0,
                 "energy_efficiency_drain_bias": 0.0,
                 "exhaustion_resistance_reproduction_bias": 0.0,
                 "reproduction_timing_reproduction_bias": 0.0,
@@ -2492,6 +2774,21 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 "competition_tolerance_avoid_usage_bias": 0.0,
                 "competition_tolerance_neighbor_count_avg": 0.0,
                 "competition_tolerance_anchor_distance_delta": 0.0,
+                "resource_commitment_guided_bias": 0.0,
+                "resource_commitment_guided_total": 0.0,
+                "resource_commitment_stay_total": 0.0,
+                "resource_commitment_switch_total": 0.0,
+                "resource_commitment_stay_usage_per_tick": 0.0,
+                "resource_commitment_switch_usage_per_tick": 0.0,
+                "resource_commitment_stay_share": 0.0,
+                "resource_commitment_switch_share": 0.0,
+                "resource_commitment_stay_users_avg": 0.0,
+                "resource_commitment_stay_usage_bias": 0.0,
+                "resource_commitment_switch_users_avg": 0.0,
+                "resource_commitment_switch_usage_bias": 0.0,
+                "resource_commitment_anchor_distance_delta": 0.0,
+                "resource_commitment_memory_bias": 0.0,
+                "resource_commitment_recall_multiplier_observed": 1.0,
                 "persistence_holds_total": 0.0,
                 "behavior_persistence_oscillation_switch_rate": 0.0,
                 "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -2543,6 +2840,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "hunger_sensitivity": 0.0,
         "gregariousness": 0.0,
         "competition_tolerance": 0.0,
+        "resource_commitment": 0.0,
     }
     avg_memory_acc = {
         "food_usage_total": 0.0,
@@ -2602,6 +2900,8 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "gregariousness_std": 0.0,
         "competition_tolerance_mean": 0.0,
         "competition_tolerance_std": 0.0,
+        "resource_commitment_mean": 0.0,
+        "resource_commitment_std": 0.0,
         "energy_efficiency_drain_bias": 0.0,
         "exhaustion_resistance_reproduction_bias": 0.0,
         "reproduction_timing_reproduction_bias": 0.0,
@@ -2685,6 +2985,21 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
         "competition_tolerance_avoid_usage_bias": 0.0,
         "competition_tolerance_neighbor_count_avg": 0.0,
         "competition_tolerance_anchor_distance_delta": 0.0,
+        "resource_commitment_guided_bias": 0.0,
+        "resource_commitment_guided_total": 0.0,
+        "resource_commitment_stay_total": 0.0,
+        "resource_commitment_switch_total": 0.0,
+        "resource_commitment_stay_usage_per_tick": 0.0,
+        "resource_commitment_switch_usage_per_tick": 0.0,
+        "resource_commitment_stay_share": 0.0,
+        "resource_commitment_switch_share": 0.0,
+        "resource_commitment_stay_users_avg": 0.0,
+        "resource_commitment_stay_usage_bias": 0.0,
+        "resource_commitment_switch_users_avg": 0.0,
+        "resource_commitment_switch_usage_bias": 0.0,
+        "resource_commitment_anchor_distance_delta": 0.0,
+        "resource_commitment_memory_bias": 0.0,
+        "resource_commitment_recall_multiplier_observed": 0.0,
         "persistence_holds_total": 0.0,
         "behavior_persistence_oscillation_switch_rate": 0.0,
         "behavior_persistence_oscillation_prevented_rate": 0.0,
@@ -2758,6 +3073,9 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_traits_acc["gregariousness"] += float(traits_raw.get("gregariousness", 0.0))
                 avg_traits_acc["competition_tolerance"] += float(
                     traits_raw.get("competition_tolerance", 0.0)
+                )
+                avg_traits_acc["resource_commitment"] += float(
+                    traits_raw.get("resource_commitment", 0.0)
                 )
 
             memory_raw = run_summary.get("memory_impact")
@@ -2864,6 +3182,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 )
                 avg_trait_impact_acc["competition_tolerance_std"] += float(
                     trait_impact_raw.get("competition_tolerance_std", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_mean"] += float(
+                    trait_impact_raw.get("resource_commitment_mean", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_std"] += float(
+                    trait_impact_raw.get("resource_commitment_std", 0.0)
                 )
                 avg_trait_impact_acc["energy_efficiency_drain_bias"] += float(
                     trait_impact_raw.get("energy_efficiency_drain_bias", 0.0)
@@ -3098,6 +3422,51 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
                 avg_trait_impact_acc["competition_tolerance_anchor_distance_delta"] += float(
                     trait_impact_raw.get("competition_tolerance_anchor_distance_delta", 0.0)
                 )
+                avg_trait_impact_acc["resource_commitment_guided_bias"] += float(
+                    trait_impact_raw.get("resource_commitment_guided_bias", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_guided_total"] += float(
+                    trait_impact_raw.get("resource_commitment_guided_total", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_stay_total"] += float(
+                    trait_impact_raw.get("resource_commitment_stay_total", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_switch_total"] += float(
+                    trait_impact_raw.get("resource_commitment_switch_total", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_stay_usage_per_tick"] += float(
+                    trait_impact_raw.get("resource_commitment_stay_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_switch_usage_per_tick"] += float(
+                    trait_impact_raw.get("resource_commitment_switch_usage_per_tick", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_stay_share"] += float(
+                    trait_impact_raw.get("resource_commitment_stay_share", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_switch_share"] += float(
+                    trait_impact_raw.get("resource_commitment_switch_share", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_stay_users_avg"] += float(
+                    trait_impact_raw.get("resource_commitment_stay_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_stay_usage_bias"] += float(
+                    trait_impact_raw.get("resource_commitment_stay_usage_bias", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_switch_users_avg"] += float(
+                    trait_impact_raw.get("resource_commitment_switch_users_avg", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_switch_usage_bias"] += float(
+                    trait_impact_raw.get("resource_commitment_switch_usage_bias", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_anchor_distance_delta"] += float(
+                    trait_impact_raw.get("resource_commitment_anchor_distance_delta", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_memory_bias"] += float(
+                    trait_impact_raw.get("resource_commitment_memory_bias", 0.0)
+                )
+                avg_trait_impact_acc["resource_commitment_recall_multiplier_observed"] += float(
+                    trait_impact_raw.get("resource_commitment_recall_multiplier_observed", 1.0)
+                )
                 avg_trait_impact_acc["persistence_holds_total"] += float(
                     trait_impact_raw.get("persistence_holds_total", 0.0)
                 )
@@ -3190,6 +3559,7 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             "hunger_sensitivity": avg_traits_acc["hunger_sensitivity"] / run_count,
             "gregariousness": avg_traits_acc["gregariousness"] / run_count,
             "competition_tolerance": avg_traits_acc["competition_tolerance"] / run_count,
+            "resource_commitment": avg_traits_acc["resource_commitment"] / run_count,
         },
         "avg_memory_impact": {
             "food_usage_total": avg_memory_acc["food_usage_total"] / run_count,
@@ -3252,6 +3622,12 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "competition_tolerance_std": (
                 avg_trait_impact_acc["competition_tolerance_std"] / run_count
+            ),
+            "resource_commitment_mean": (
+                avg_trait_impact_acc["resource_commitment_mean"] / run_count
+            ),
+            "resource_commitment_std": (
+                avg_trait_impact_acc["resource_commitment_std"] / run_count
             ),
             "energy_efficiency_drain_bias": avg_trait_impact_acc["energy_efficiency_drain_bias"] / run_count,
             "exhaustion_resistance_reproduction_bias": (
@@ -3475,6 +3851,51 @@ def build_multi_run_summary(run_results: Iterable[Dict[str, object]]) -> Dict[st
             ),
             "competition_tolerance_anchor_distance_delta": (
                 avg_trait_impact_acc["competition_tolerance_anchor_distance_delta"] / run_count
+            ),
+            "resource_commitment_guided_bias": (
+                avg_trait_impact_acc["resource_commitment_guided_bias"] / run_count
+            ),
+            "resource_commitment_guided_total": (
+                avg_trait_impact_acc["resource_commitment_guided_total"] / run_count
+            ),
+            "resource_commitment_stay_total": (
+                avg_trait_impact_acc["resource_commitment_stay_total"] / run_count
+            ),
+            "resource_commitment_switch_total": (
+                avg_trait_impact_acc["resource_commitment_switch_total"] / run_count
+            ),
+            "resource_commitment_stay_usage_per_tick": (
+                avg_trait_impact_acc["resource_commitment_stay_usage_per_tick"] / run_count
+            ),
+            "resource_commitment_switch_usage_per_tick": (
+                avg_trait_impact_acc["resource_commitment_switch_usage_per_tick"] / run_count
+            ),
+            "resource_commitment_stay_share": (
+                avg_trait_impact_acc["resource_commitment_stay_share"] / run_count
+            ),
+            "resource_commitment_switch_share": (
+                avg_trait_impact_acc["resource_commitment_switch_share"] / run_count
+            ),
+            "resource_commitment_stay_users_avg": (
+                avg_trait_impact_acc["resource_commitment_stay_users_avg"] / run_count
+            ),
+            "resource_commitment_stay_usage_bias": (
+                avg_trait_impact_acc["resource_commitment_stay_usage_bias"] / run_count
+            ),
+            "resource_commitment_switch_users_avg": (
+                avg_trait_impact_acc["resource_commitment_switch_users_avg"] / run_count
+            ),
+            "resource_commitment_switch_usage_bias": (
+                avg_trait_impact_acc["resource_commitment_switch_usage_bias"] / run_count
+            ),
+            "resource_commitment_anchor_distance_delta": (
+                avg_trait_impact_acc["resource_commitment_anchor_distance_delta"] / run_count
+            ),
+            "resource_commitment_memory_bias": (
+                avg_trait_impact_acc["resource_commitment_memory_bias"] / run_count
+            ),
+            "resource_commitment_recall_multiplier_observed": (
+                avg_trait_impact_acc["resource_commitment_recall_multiplier_observed"] / run_count
             ),
             "persistence_holds_total": avg_trait_impact_acc["persistence_holds_total"] / run_count,
             "behavior_persistence_oscillation_switch_rate": (
@@ -3763,6 +4184,7 @@ def _read_avg_traits(final_stats: Dict[str, object]) -> Dict[str, float]:
         "hunger_sensitivity": float(final_stats.get("avg_hunger_sensitivity", 0.0)),
         "gregariousness": float(final_stats.get("avg_gregariousness", 0.0)),
         "competition_tolerance": float(final_stats.get("avg_competition_tolerance", 0.0)),
+        "resource_commitment": float(final_stats.get("avg_resource_commitment", 0.0)),
     }
 
 

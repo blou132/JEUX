@@ -55,6 +55,7 @@ def inherit_traits(
     avg_competition_tolerance = (
         parent_a.competition_tolerance + parent_b.competition_tolerance
     ) / 2.0
+    avg_resource_commitment = (parent_a.resource_commitment + parent_b.resource_commitment) / 2.0
 
     # Keep the same number of RNG draws as the original MVP inheritance logic
     # so overall simulation dynamics stay comparable.
@@ -89,5 +90,6 @@ def inherit_traits(
         hunger_sensitivity=_mutate_with_delta(avg_hunger_sensitivity, behavior_delta),
         gregariousness=_mutate_with_delta(avg_gregariousness, behavior_delta),
         competition_tolerance=_mutate_with_delta(avg_competition_tolerance, behavior_delta),
+        resource_commitment=_mutate_with_delta(avg_resource_commitment, behavior_delta),
     )
     return child_traits.clamp()
