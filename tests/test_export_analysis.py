@@ -1311,11 +1311,19 @@ class ExportAnalysisTests(unittest.TestCase):
                             "competition_tolerance_mean": 0.96,
                             "competition_tolerance_std": 0.03,
                             "competition_tolerance_guided_total": 4.0,
+                            "competition_tolerance_guided_bias": -0.02,
+                            "competition_tolerance_stay_total": 1.0,
+                            "competition_tolerance_avoid_total": 3.0,
                             "competition_tolerance_stay_usage_per_tick": 0.18,
                             "competition_tolerance_avoid_usage_per_tick": 0.26,
+                            "competition_tolerance_stay_share": 0.25,
+                            "competition_tolerance_avoid_share": 0.75,
+                            "competition_tolerance_stay_users_avg": 0.94,
+                            "competition_tolerance_avoid_users_avg": 1.02,
                             "competition_tolerance_stay_usage_bias": 0.01,
                             "competition_tolerance_avoid_usage_bias": -0.04,
                             "competition_tolerance_neighbor_count_avg": 1.4,
+                            "competition_tolerance_anchor_distance_delta": 0.12,
                         },
                         "most_frequent_final_dominant_group": "gA",
                         "most_frequent_final_dominant_group_count": 1,
@@ -1343,11 +1351,19 @@ class ExportAnalysisTests(unittest.TestCase):
                             "competition_tolerance_mean": 1.06,
                             "competition_tolerance_std": 0.07,
                             "competition_tolerance_guided_total": 10.0,
+                            "competition_tolerance_guided_bias": 0.05,
+                            "competition_tolerance_stay_total": 7.0,
+                            "competition_tolerance_avoid_total": 3.0,
                             "competition_tolerance_stay_usage_per_tick": 0.34,
                             "competition_tolerance_avoid_usage_per_tick": 0.12,
+                            "competition_tolerance_stay_share": 0.7,
+                            "competition_tolerance_avoid_share": 0.3,
+                            "competition_tolerance_stay_users_avg": 1.11,
+                            "competition_tolerance_avoid_users_avg": 0.97,
                             "competition_tolerance_stay_usage_bias": 0.06,
                             "competition_tolerance_avoid_usage_bias": -0.02,
                             "competition_tolerance_neighbor_count_avg": 2.6,
+                            "competition_tolerance_anchor_distance_delta": -0.05,
                         },
                         "most_frequent_final_dominant_group": "gB",
                         "most_frequent_final_dominant_group_count": 1,
@@ -1372,6 +1388,9 @@ class ExportAnalysisTests(unittest.TestCase):
         first_impact = scenarios[0]["multi_run_summary"]["avg_trait_impact"]
         self.assertAlmostEqual(float(first_impact["competition_tolerance_mean"]), 0.96)
         self.assertAlmostEqual(float(first_impact["competition_tolerance_neighbor_count_avg"]), 1.4)
+        self.assertAlmostEqual(float(first_impact["competition_tolerance_stay_share"]), 0.25)
+        self.assertAlmostEqual(float(first_impact["competition_tolerance_avoid_share"]), 0.75)
+        self.assertAlmostEqual(float(first_impact["competition_tolerance_anchor_distance_delta"]), 0.12)
         self.assertIn("competition_tolerance_batch:", summary)
         self.assertIn("usage_stay_competition_max:", summary)
         self.assertIn("usage_avoid_competition_max:", summary)

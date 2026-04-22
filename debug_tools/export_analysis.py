@@ -317,11 +317,32 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "competition_tolerance_guided_total": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_guided_total")
             ),
+            "competition_tolerance_guided_bias": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_guided_bias")
+            ),
+            "competition_tolerance_stay_total": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_stay_total")
+            ),
+            "competition_tolerance_avoid_total": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_avoid_total")
+            ),
             "competition_tolerance_stay_usage_per_tick": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_stay_usage_per_tick")
             ),
             "competition_tolerance_avoid_usage_per_tick": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_avoid_usage_per_tick")
+            ),
+            "competition_tolerance_stay_share": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_stay_share")
+            ),
+            "competition_tolerance_avoid_share": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_avoid_share")
+            ),
+            "competition_tolerance_stay_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_stay_users_avg")
+            ),
+            "competition_tolerance_avoid_users_avg": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_avoid_users_avg")
             ),
             "competition_tolerance_stay_usage_bias": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_stay_usage_bias")
@@ -331,6 +352,9 @@ def _build_single_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance_neighbor_count_avg": _parse_float(
                 row.get("run_summary.trait_impact.competition_tolerance_neighbor_count_avg")
+            ),
+            "competition_tolerance_anchor_distance_delta": _parse_float(
+                row.get("run_summary.trait_impact.competition_tolerance_anchor_distance_delta")
             ),
             "resource_commitment_mean": _parse_float(
                 row.get("run_summary.trait_impact.resource_commitment_mean")
@@ -812,11 +836,32 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             "competition_tolerance_guided_total": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_total")
             ),
+            "competition_tolerance_guided_bias": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_bias")
+            ),
+            "competition_tolerance_stay_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_total")
+            ),
+            "competition_tolerance_avoid_total": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_total")
+            ),
             "competition_tolerance_stay_usage_per_tick": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_per_tick")
             ),
             "competition_tolerance_avoid_usage_per_tick": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_per_tick")
+            ),
+            "competition_tolerance_stay_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_share")
+            ),
+            "competition_tolerance_avoid_share": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_share")
+            ),
+            "competition_tolerance_stay_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_users_avg")
+            ),
+            "competition_tolerance_avoid_users_avg": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_users_avg")
             ),
             "competition_tolerance_stay_usage_bias": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_bias")
@@ -826,6 +871,9 @@ def _build_multi_payload_from_csv(row: Dict[str, str]) -> Dict[str, object]:
             ),
             "competition_tolerance_neighbor_count_avg": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
+            ),
+            "competition_tolerance_anchor_distance_delta": _parse_float(
+                row.get("multi_run_summary.avg_trait_impact.competition_tolerance_anchor_distance_delta")
             ),
             "resource_commitment_mean": _parse_float(
                 row.get("multi_run_summary.avg_trait_impact.resource_commitment_mean")
@@ -1319,11 +1367,32 @@ def _build_batch_payload_from_csv(
                 "competition_tolerance_guided_total": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_total")
                 ),
+                "competition_tolerance_guided_bias": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_guided_bias")
+                ),
+                "competition_tolerance_stay_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_total")
+                ),
+                "competition_tolerance_avoid_total": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_total")
+                ),
                 "competition_tolerance_stay_usage_per_tick": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_per_tick")
                 ),
                 "competition_tolerance_avoid_usage_per_tick": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_usage_per_tick")
+                ),
+                "competition_tolerance_stay_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_share")
+                ),
+                "competition_tolerance_avoid_share": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_share")
+                ),
+                "competition_tolerance_stay_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_users_avg")
+                ),
+                "competition_tolerance_avoid_users_avg": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_avoid_users_avg")
                 ),
                 "competition_tolerance_stay_usage_bias": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_stay_usage_bias")
@@ -1333,6 +1402,9 @@ def _build_batch_payload_from_csv(
                 ),
                 "competition_tolerance_neighbor_count_avg": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_neighbor_count_avg")
+                ),
+                "competition_tolerance_anchor_distance_delta": _parse_float(
+                    scenario_row.get("multi_run_summary.avg_trait_impact.competition_tolerance_anchor_distance_delta")
                 ),
                 "resource_commitment_mean": _parse_float(
                     scenario_row.get("multi_run_summary.avg_trait_impact.resource_commitment_mean")
