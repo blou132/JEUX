@@ -178,6 +178,8 @@ func _build_snapshot() -> Dictionary:
     var brute_alive: int = 0
     var ranged_alive: int = 0
     var slowed_alive: int = 0
+    var slowed_humans: int = 0
+    var slowed_monsters: int = 0
     var hp_total: float = 0.0
     var energy_total: float = 0.0
 
@@ -204,12 +206,16 @@ func _build_snapshot() -> Dictionary:
 
         if actor.faction == "human":
             humans_alive += 1
+            if actor.is_slowed():
+                slowed_humans += 1
         elif actor.faction == "monster":
             monsters_alive += 1
             if actor.actor_kind == "brute_monster":
                 brute_alive += 1
             elif actor.actor_kind == "ranged_monster":
                 ranged_alive += 1
+            if actor.is_slowed():
+                slowed_monsters += 1
         if actor.is_slowed():
             slowed_alive += 1
 
@@ -231,6 +237,8 @@ func _build_snapshot() -> Dictionary:
         "brute_alive": brute_alive,
         "ranged_alive": ranged_alive,
         "slowed_alive": slowed_alive,
+        "slowed_humans": slowed_humans,
+        "slowed_monsters": slowed_monsters,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,

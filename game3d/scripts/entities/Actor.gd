@@ -55,6 +55,8 @@ var is_dead: bool = false
 var death_reason: String = ""
 var death_reported: bool = false
 var last_attacker: Actor = null
+var _body_visual: MeshInstance3D = null
+var _base_body_color: Color = Color(0.75, 0.75, 0.75)
 
 
 func _ready() -> void:
@@ -187,6 +189,7 @@ func apply_slow(multiplier: float, duration: float) -> void:
     if slow_time_left <= 0.0 or new_multiplier < slow_multiplier:
         slow_multiplier = new_multiplier
     slow_time_left = max(slow_time_left, new_duration)
+    _refresh_control_visual()
 
 
 func is_slowed() -> bool:
@@ -237,6 +240,9 @@ func _build_visual() -> void:
 
     body.material_override = material
     add_child(body)
+    _body_visual = body
+    _base_body_color = material.albedo_color
+    _refresh_control_visual()
 
 
 func _wander(delta: float, world: WorldManager) -> void:
@@ -289,15 +295,34 @@ func _spend_energy(amount: float) -> void:
 func _update_control_state(delta: float) -> void:
     if slow_time_left <= 0.0:
         slow_multiplier = 1.0
+        _refresh_control_visual()
         return
 
     slow_time_left = max(0.0, slow_time_left - delta)
     if slow_time_left <= 0.0:
         slow_multiplier = 1.0
+    _refresh_control_visual()
 
 
 func _movement_control_factor() -> float:
     return slow_multiplier if slow_time_left > 0.0 else 1.0
+
+
+func _refresh_control_visual() -> void:
+    if _body_visual == null:
+        return
+    var material := _body_visual.material_override as StandardMaterial3D
+    if material == null:
+        return
+
+    if slow_time_left > 0.0:
+        var slow_color := _base_body_color.lerp(Color(0.46, 0.92, 1.0), 0.35)
+        material.albedo_color = slow_color
+        material.emission_enabled = true
+        material.emission = Color(0.42, 0.90, 1.0) * 0.28
+    else:
+        material.albedo_color = _base_body_color
+        material.emission_enabled = false
 
 
 func _report_death_if_needed(game_loop: GameLoop) -> void:

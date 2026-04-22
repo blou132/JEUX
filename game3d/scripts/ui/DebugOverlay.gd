@@ -66,10 +66,12 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
-        "Control applies: %d | Slowed alive: %d"
+        "Control applies: %d | Slowed alive: %d (H:%d M:%d)"
         % [
             int(snapshot.get("control_applies_total", 0)),
-            int(snapshot.get("slowed_alive", 0))
+            int(snapshot.get("slowed_alive", 0)),
+            int(snapshot.get("slowed_humans", 0)),
+            int(snapshot.get("slowed_monsters", 0))
         ]
     )
     lines.append(

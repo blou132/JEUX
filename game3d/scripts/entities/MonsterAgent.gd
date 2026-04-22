@@ -6,19 +6,19 @@ func _init() -> void:
     actor_kind = "monster"
     faction = "monster"
 
-    max_hp = 138.0
+    max_hp = 142.0
     hp = max_hp
 
     max_energy = 100.0
     energy = max_energy
 
-    speed = 4.5
+    speed = 4.4
     vision_range = 18.0
     attack_range = 2.0
     flee_health_ratio = 0.18
 
-    melee_damage = 17.0
-    melee_cooldown = 1.26
+    melee_damage = 16.0
+    melee_cooldown = 1.32
 
     magic_enabled = false
     magic_damage = 0.0

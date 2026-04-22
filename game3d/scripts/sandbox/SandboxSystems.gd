@@ -7,8 +7,8 @@ class_name SandboxSystems
 @export var min_monsters: int = 6
 @export var max_population: int = 40
 @export var respawn_interval: float = 4.8
-@export var brute_spawn_ratio: float = 0.24
-@export var ranged_spawn_ratio: float = 0.28
+@export var brute_spawn_ratio: float = 0.20
+@export var ranged_spawn_ratio: float = 0.24
 
 var _respawn_timer: float = 0.0
 var _loop: GameLoop = null

@@ -1,11 +1,11 @@
 extends Node3D
 class_name MagicSystem
 
-@export var projectile_speed: float = 13.0
+@export var projectile_speed: float = 12.5
 @export var projectile_radius: float = 0.70
 @export var projectile_lifetime: float = 2.8
 @export var nova_visual_duration: float = 0.30
-@export var control_visual_duration: float = 0.32
+@export var control_visual_duration: float = 0.45
 
 var projectiles: Array[Dictionary] = []
 
@@ -103,7 +103,7 @@ func try_cast_control(caster: Actor, target: Actor, game_loop: GameLoop) -> bool
     if distance > caster.control_range:
         return false
 
-    caster.magic_cooldown_left = caster.magic_cooldown * 0.95
+    caster.magic_cooldown_left = caster.magic_cooldown * 1.10
     caster.energy = max(0.0, caster.energy - caster.control_energy_cost)
 
     target.apply_slow(caster.control_slow_multiplier, caster.control_duration)

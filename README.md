@@ -57,7 +57,7 @@ The debug overlay shows:
 - ranged monster count
 - average HP and energy
 - melee hits, magic hits, casts (bolt/control/nova), kills, deaths, flee events
-- control readability (`control applies`, `slowed alive`)
+- control readability (`control applies`, `slowed alive` total + split H/M)
 - current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
 - POI occupancy (`camp`, `ruins`) with clearer format and POI event counters
@@ -75,10 +75,12 @@ You can still run the old simulator and analytics if needed, but this is now sec
 ## Tests
 Current scaffold checks for the 3D pivot:
 - [test_game3d_scaffold.py](tests/test_game3d_scaffold.py)
+- [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime, spawn mix)
 
 Run targeted tests:
 ```bash
 py -m unittest tests.test_game3d_scaffold -v
+py -m unittest tests.test_game3d_behavioral_logic -v
 ```
 
 Run full existing suite if needed:
@@ -98,6 +100,7 @@ py -m unittest discover -s tests -v
 - Add brute monster archetype for profile diversity
 - Add ranged monster archetype with distance-keeping behavior and bolt pressure
 - Add utility/control spell (short slow) with dedicated logs and HUD counters
+- Add behavioral test coverage for IA decisions, POI runtime shape, and monster spawn coherence
 
 ### Next
 - Add one extra spell archetype (control/utility) and one ranged monster archetype
