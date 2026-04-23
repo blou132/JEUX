@@ -78,6 +78,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("bounty", content)
         self.assertIn("marked target", content)
         self.assertIn("hunt", content)
+        self.assertIn("renown", content)
+        self.assertIn("notoriety", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -136,6 +138,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Relic carriers:", content)
         self.assertIn("Bounty:", content)
         self.assertIn("Bounty events:", content)
+        self.assertIn("Renown:", content)
+        self.assertIn("Notoriety:", content)
+        self.assertIn("Top renown figures:", content)
+        self.assertIn("Top notoriety figures:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -152,12 +158,15 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"state": "rally"', content)
         self.assertIn('"state": "raid"', content)
         self.assertIn("rally_regroup", content)
+        self.assertIn("rally_renown_regroup", content)
         self.assertIn("rally_pressure", content)
         self.assertIn("raid_pressure", content)
         self.assertIn('"state": "hunt"', content)
         self.assertIn("get_bounty_guidance", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
+        self.assertIn("notoriety_avoid", content)
+        self.assertIn("_find_notoriety_focus_enemy", content)
 
     def test_human_agent_has_roles(self):
         content = (GAME3D / "scripts" / "entities" / "HumanAgent.gd").read_text(encoding="utf-8")
@@ -204,6 +213,14 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("bounty_marked", content)
         self.assertIn("set_bounty_marked", content)
         self.assertIn("bounty_tag", content)
+        self.assertIn("var renown: float", content)
+        self.assertIn("var notoriety: float", content)
+        self.assertIn("add_renown", content)
+        self.assertIn("add_notoriety", content)
+        self.assertIn("decay_notability", content)
+        self.assertIn("renown_tag", content)
+        self.assertIn("notoriety_tag", content)
+        self.assertIn("can_lead_rally", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -294,6 +311,13 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"bounty_active"', content)
         self.assertIn('"bounty_started_total"', content)
         self.assertIn("_grant_bounty_clear_reward", content)
+        self.assertIn("BOUNTY_NOTORIETY_PRIORITY_MIN", content)
+        self.assertIn("Renown Rising", content)
+        self.assertIn("Notoriety Rising", content)
+        self.assertIn('"avg_renown"', content)
+        self.assertIn('"avg_notoriety"', content)
+        self.assertIn('"top_renown_labels"', content)
+        self.assertIn('"top_notoriety_labels"', content)
 
 
 if __name__ == "__main__":

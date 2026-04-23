@@ -37,6 +37,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var human_level_counts: Dictionary = snapshot.get("human_level_counts", {})
     var monster_level_counts: Dictionary = snapshot.get("monster_level_counts", {})
     var relic_active_labels: Array = snapshot.get("relic_active_labels", [])
+    var top_renown_labels: Array = snapshot.get("top_renown_labels", [])
+    var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var lines: Array[String] = []
@@ -142,6 +144,34 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("champion_promotions_total", 0)),
             int(snapshot.get("champion_kills_total", 0))
         ]
+    )
+    lines.append(
+        "Renown: avg=%.1f | notable=%d (H:%d M:%d) | rising=%d"
+        % [
+            float(snapshot.get("avg_renown", 0.0)),
+            int(snapshot.get("renown_figures_total", 0)),
+            int(snapshot.get("renown_figures_humans", 0)),
+            int(snapshot.get("renown_figures_monsters", 0)),
+            int(snapshot.get("renown_rising_events_total", 0))
+        ]
+    )
+    lines.append(
+        "Top renown figures: %s"
+        % (" | ".join(top_renown_labels) if not top_renown_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Notoriety: avg=%.1f | notable=%d (H:%d M:%d) | rising=%d"
+        % [
+            float(snapshot.get("avg_notoriety", 0.0)),
+            int(snapshot.get("notoriety_figures_total", 0)),
+            int(snapshot.get("notoriety_figures_humans", 0)),
+            int(snapshot.get("notoriety_figures_monsters", 0)),
+            int(snapshot.get("notoriety_rising_events_total", 0))
+        ]
+    )
+    lines.append(
+        "Top notoriety figures: %s"
+        % (" | ".join(top_notoriety_labels) if not top_notoriety_labels.is_empty() else "(none)")
     )
     lines.append(
         "Special arrivals: active=%d (H:%d M:%d) | total=%d (H:%d M:%d) | fallen=%d"

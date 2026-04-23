@@ -46,6 +46,21 @@ const BOUNTY_MAX_ACTIVE: int = 1
 const BOUNTY_DURATION: float = 24.0
 const BOUNTY_CLEAR_XP: float = 1.6
 const BOUNTY_CLEAR_XP_RADIUS: float = 20.0
+const BOUNTY_NOTORIETY_PRIORITY_MIN: float = 36.0
+const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
+const RENOWN_GAIN_ON_KILL: float = 1.3
+const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
+const RENOWN_GAIN_ON_CHAMPION: float = 12.0
+const RENOWN_GAIN_ON_SPECIAL_ARRIVAL: float = 14.0
+const RENOWN_GAIN_ON_RELIC: float = 7.0
+const RENOWN_GAIN_ON_BOUNTY_MARK: float = 1.8
+const RENOWN_GAIN_ON_BOUNTY_CLEAR_KILL: float = 2.0
+const NOTORIETY_GAIN_ON_KILL: float = 4.5
+const NOTORIETY_GAIN_ON_CHAMPION: float = 8.0
+const NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL: float = 10.0
+const NOTORIETY_GAIN_ON_RELIC: float = 4.0
+const NOTORIETY_GAIN_ON_BOUNTY_MARK: float = 11.0
+const NOTORIETY_GAIN_ON_BOUNTY_CLEAR_KILL: float = 2.2
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -122,6 +137,8 @@ var relic_lost_total: int = 0
 var bounty_started_total: int = 0
 var bounty_cleared_total: int = 0
 var bounty_expired_total: int = 0
+var renown_rising_events_total: int = 0
+var notoriety_rising_events_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -144,6 +161,8 @@ var _relic_check_timer: float = 0.0
 var _relic_cooldown_left: float = RELIC_START_DELAY
 var _bounty_check_timer: float = 0.0
 var _bounty_cooldown_left: float = BOUNTY_START_DELAY
+var _renown_tier_by_actor: Dictionary = {}
+var _notoriety_tier_by_actor: Dictionary = {}
 
 var event_log: Array[String] = []
 
@@ -272,6 +291,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
         if not killer.is_dead:
             killer.register_kill()
             killer.award_progress_xp(XP_ON_KILL, "kill", self)
+            _apply_notability_gain(killer, RENOWN_GAIN_ON_KILL, NOTORIETY_GAIN_ON_KILL, "kill")
             _try_promote_champion(killer, "kill")
         record_event(
             "Death: %s by %s (%s)."
@@ -298,6 +318,11 @@ func register_level_up(actor: Actor, old_level: int, new_level: int, reason: Str
     if actor == null:
         return
     level_ups_total += 1
+    var renown_gain: float = RENOWN_GAIN_ON_LEVEL_UP + max(0.0, float(new_level - 2)) * 1.2
+    var notoriety_gain: float = 0.0
+    if new_level >= actor.max_level:
+        notoriety_gain = 1.1
+    _apply_notability_gain(actor, renown_gain, notoriety_gain, "level_up:%s" % reason)
     record_event(
         "Level up: %s L%d -> L%d (%s)."
         % [_actor_label(actor), old_level, new_level, reason]
@@ -583,6 +608,18 @@ func _spawn_special_arrival(candidate: Dictionary) -> void:
     entities_root.add_child(actor)
     actors.append(actor)
     register_spawn(actor)
+    var arrival_renown_gain: float = RENOWN_GAIN_ON_SPECIAL_ARRIVAL
+    var arrival_notoriety_gain: float = NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL
+    if variant_id == "summoned_hero":
+        arrival_notoriety_gain *= 0.72
+    elif variant_id == "calamity_invader":
+        arrival_notoriety_gain *= 1.12
+    _apply_notability_gain(
+        actor,
+        arrival_renown_gain,
+        arrival_notoriety_gain,
+        "special_arrival:%s" % variant_id
+    )
 
     special_arrivals_total += 1
     if faction == "human":
@@ -811,6 +848,7 @@ func _award_relic_to_holder(candidate: Dictionary) -> void:
     )
 
     holder.set_relic(relic_id, relic_title)
+    _apply_notability_gain(holder, RENOWN_GAIN_ON_RELIC, NOTORIETY_GAIN_ON_RELIC, "relic:%s" % relic_id)
     relic_acquired_total += 1
     record_event("Relic ACQUIRED: %s by %s." % [relic_title, _actor_label(holder)])
 
@@ -936,13 +974,20 @@ func _pick_bounty_target(source_faction: String, source_position: Vector3) -> Ac
 func _bounty_priority(actor: Actor) -> int:
     if actor == null or actor.is_dead:
         return 0
+    var priority: int = 0
+    if actor.notoriety >= 72.0:
+        priority = max(priority, 3)
+    elif actor.notoriety >= 52.0:
+        priority = max(priority, 2)
+    elif actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+        priority = max(priority, 1)
     if actor.has_relic():
-        return 3
+        priority = max(priority, 3)
     if actor.is_special_arrival():
-        return 2
+        priority = max(priority, 2)
     if actor.is_champion:
-        return 1
-    return 0
+        priority = max(priority, 1)
+    return priority
 
 
 func _start_bounty(source: Dictionary, target: Actor) -> void:
@@ -961,6 +1006,12 @@ func _start_bounty(source: Dictionary, target: Actor) -> void:
     _bounty_cooldown_left = BOUNTY_COOLDOWN
 
     target.set_bounty_marked(true)
+    _apply_notability_gain(
+        target,
+        RENOWN_GAIN_ON_BOUNTY_MARK,
+        NOTORIETY_GAIN_ON_BOUNTY_MARK,
+        "bounty_marked"
+    )
     bounty_target_label = _actor_label(target)
     _push_bounty_state_to_world()
 
@@ -997,6 +1048,13 @@ func _handle_bounty_target_death(victim: Actor, killer: Actor) -> void:
         return
 
     victim.set_bounty_marked(false)
+    if killer != null and not killer.is_dead:
+        _apply_notability_gain(
+            killer,
+            RENOWN_GAIN_ON_BOUNTY_CLEAR_KILL,
+            NOTORIETY_GAIN_ON_BOUNTY_CLEAR_KILL,
+            "bounty_clear_kill"
+        )
     var rewarded_allies: int = _grant_bounty_clear_reward()
     bounty_cleared_total += 1
     var killer_label := _actor_label(killer) if killer != null else "unknown"
@@ -1075,6 +1133,10 @@ func _bounty_target_kind_label(actor: Actor) -> String:
         return "relic_carrier"
     if actor.is_special_arrival():
         return "special_arrival"
+    if actor.notoriety >= 52.0:
+        return "high_notoriety"
+    if actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+        return "notoriety"
     if actor.is_champion:
         return "champion"
     return "notable"
@@ -1101,6 +1163,7 @@ func _cleanup_dead_actors() -> void:
             actor_poi_presence.erase(actor.actor_id)
             _clear_actor_influence_timers(actor.actor_id)
             _clear_actor_rally_tracking(actor.actor_id)
+            _clear_actor_notability_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
 
@@ -1137,6 +1200,16 @@ func _build_snapshot() -> Dictionary:
     var allegiance_affiliated_humans: int = 0
     var allegiance_affiliated_monsters: int = 0
     var allegiance_member_counts: Dictionary = {}
+    var renown_total: float = 0.0
+    var notoriety_total: float = 0.0
+    var renown_figures_total: int = 0
+    var renown_figures_humans: int = 0
+    var renown_figures_monsters: int = 0
+    var notoriety_figures_total: int = 0
+    var notoriety_figures_humans: int = 0
+    var notoriety_figures_monsters: int = 0
+    var renown_entries: Array[Dictionary] = []
+    var notoriety_entries: Array[Dictionary] = []
     var hp_total: float = 0.0
     var energy_total: float = 0.0
     var level_total: float = 0.0
@@ -1180,6 +1253,30 @@ func _build_snapshot() -> Dictionary:
         hp_total += actor.hp
         energy_total += actor.energy
         level_total += float(actor.level)
+        renown_total += actor.renown
+        notoriety_total += actor.notoriety
+        if actor.renown >= 28.0:
+            renown_figures_total += 1
+            if actor.faction == "human":
+                renown_figures_humans += 1
+            elif actor.faction == "monster":
+                renown_figures_monsters += 1
+        if actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+            notoriety_figures_total += 1
+            if actor.faction == "human":
+                notoriety_figures_humans += 1
+            elif actor.faction == "monster":
+                notoriety_figures_monsters += 1
+        if actor.renown >= 1.0:
+            renown_entries.append({
+                "score": actor.renown,
+                "label": _actor_label(actor)
+            })
+        if actor.notoriety >= 1.0:
+            notoriety_entries.append({
+                "score": actor.notoriety,
+                "label": _actor_label(actor)
+            })
         if actor.is_champion:
             champion_alive_total += 1
             champion_kills_total += actor.kill_count
@@ -1245,6 +1342,8 @@ func _build_snapshot() -> Dictionary:
     var avg_hp: float = hp_total / alive_total if alive_total > 0 else 0.0
     var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
     var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
+    var avg_renown: float = renown_total / alive_total if alive_total > 0 else 0.0
+    var avg_notoriety: float = notoriety_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
     var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances()
     var allegiance_structure_labels: Array[String] = []
@@ -1267,6 +1366,8 @@ func _build_snapshot() -> Dictionary:
         if bool(details.get("structure_active", false)):
             poi_structure_active_count += 1
     relic_active_labels.sort()
+    var top_renown_labels: Array[String] = _top_notability_labels(renown_entries, 4)
+    var top_notoriety_labels: Array[String] = _top_notability_labels(notoriety_entries, 4)
 
     return {
         "tick": tick_index,
@@ -1284,6 +1385,16 @@ func _build_snapshot() -> Dictionary:
         "human_level_counts": human_level_counts,
         "monster_level_counts": monster_level_counts,
         "avg_level": avg_level,
+        "avg_renown": avg_renown,
+        "avg_notoriety": avg_notoriety,
+        "renown_figures_total": renown_figures_total,
+        "renown_figures_humans": renown_figures_humans,
+        "renown_figures_monsters": renown_figures_monsters,
+        "notoriety_figures_total": notoriety_figures_total,
+        "notoriety_figures_humans": notoriety_figures_humans,
+        "notoriety_figures_monsters": notoriety_figures_monsters,
+        "top_renown_labels": top_renown_labels,
+        "top_notoriety_labels": top_notoriety_labels,
         "champion_alive_total": champion_alive_total,
         "human_champions_alive": human_champions_alive,
         "monster_champions_alive": monster_champions_alive,
@@ -1313,6 +1424,8 @@ func _build_snapshot() -> Dictionary:
         "bounty_started_total": bounty_started_total,
         "bounty_cleared_total": bounty_cleared_total,
         "bounty_expired_total": bounty_expired_total,
+        "renown_rising_events_total": renown_rising_events_total,
+        "notoriety_rising_events_total": notoriety_rising_events_total,
         "allegiance_active_count": active_allegiances.size(),
         "allegiance_affiliated_total": allegiance_affiliated_total,
         "allegiance_affiliated_humans": allegiance_affiliated_humans,
@@ -1407,7 +1520,7 @@ func _update_rally_runtime() -> void:
 
         if leader_id != 0:
             var leader: Actor = alive_by_id.get(leader_id, null)
-            if leader == null or leader.is_dead or not leader.is_champion or leader.faction != actor.faction:
+            if leader == null or leader.is_dead or not leader.can_lead_rally() or leader.faction != actor.faction:
                 leader_id = 0
 
         actor.rally_leader_id = leader_id
@@ -1670,6 +1783,11 @@ func _clear_actor_rally_tracking(actor_id: int) -> void:
             actor.rally_relic_bonus_active = false
 
 
+func _clear_actor_notability_tracking(actor_id: int) -> void:
+    _renown_tier_by_actor.erase(actor_id)
+    _notoriety_tier_by_actor.erase(actor_id)
+
+
 func _scan_for_champion_promotion(delta: float) -> void:
     _champion_scan_timer += delta
     if _champion_scan_timer < 2.0:
@@ -1701,6 +1819,7 @@ func _try_promote_champion(actor: Actor, promotion_reason: String) -> void:
         return
 
     actor.promote_to_champion(promotion_reason)
+    _apply_notability_gain(actor, RENOWN_GAIN_ON_CHAMPION, NOTORIETY_GAIN_ON_CHAMPION, "champion:%s" % promotion_reason)
     champion_promotions_total += 1
     record_event(
         "Champion promoted: %s (%s, kills=%d, age=%.1fs)."
@@ -1748,6 +1867,63 @@ func _count_alive_special_arrivals(faction_filter: String) -> int:
     return total
 
 
+func _apply_notability_gain(actor: Actor, renown_gain: float, notoriety_gain: float, reason: String) -> void:
+    if actor == null or actor.is_dead:
+        return
+    var renown_before: float = actor.renown
+    var notoriety_before: float = actor.notoriety
+    if renown_gain > 0.0:
+        actor.add_renown(renown_gain)
+    if notoriety_gain > 0.0:
+        actor.add_notoriety(notoriety_gain)
+    _emit_notability_threshold_events(actor, renown_before, notoriety_before, reason)
+
+
+func _emit_notability_threshold_events(actor: Actor, renown_before: float, notoriety_before: float, reason: String) -> void:
+    var actor_id: int = actor.actor_id
+    var renown_tier_before: int = _notability_tier(renown_before)
+    var renown_tier_after: int = _notability_tier(actor.renown)
+    var renown_peak_tier: int = int(_renown_tier_by_actor.get(actor_id, 0))
+    if renown_tier_after > renown_tier_before and renown_tier_after > renown_peak_tier:
+        _renown_tier_by_actor[actor_id] = renown_tier_after
+        renown_rising_events_total += 1
+        record_event("Renown Rising: %s -> %.1f (%s)." % [_actor_label(actor), actor.renown, reason])
+
+    var notoriety_tier_before: int = _notability_tier(notoriety_before)
+    var notoriety_tier_after: int = _notability_tier(actor.notoriety)
+    var notoriety_peak_tier: int = int(_notoriety_tier_by_actor.get(actor_id, 0))
+    if notoriety_tier_after > notoriety_tier_before and notoriety_tier_after > notoriety_peak_tier:
+        _notoriety_tier_by_actor[actor_id] = notoriety_tier_after
+        notoriety_rising_events_total += 1
+        record_event("Notoriety Rising: %s -> %.1f (%s)." % [_actor_label(actor), actor.notoriety, reason])
+
+
+func _notability_tier(score: float) -> int:
+    var tier: int = 0
+    for threshold in NOTABILITY_LOG_THRESHOLDS:
+        if score >= float(threshold):
+            tier += 1
+    return tier
+
+
+func _top_notability_labels(entries: Array[Dictionary], limit: int = 4) -> Array[String]:
+    if entries.is_empty():
+        return []
+    var sorted_entries: Array[Dictionary] = entries.duplicate(true)
+    sorted_entries.sort_custom(func(a, b):
+        var score_a: float = float(a.get("score", 0.0))
+        var score_b: float = float(b.get("score", 0.0))
+        if is_equal_approx(score_a, score_b):
+            return str(a.get("label", "")) < str(b.get("label", ""))
+        return score_a > score_b
+    )
+    var labels: Array[String] = []
+    for idx in range(min(limit, sorted_entries.size())):
+        var item: Dictionary = sorted_entries[idx]
+        labels.append("%s(%.0f)" % [str(item.get("label", "unknown")), float(item.get("score", 0.0))])
+    return labels
+
+
 func _actor_label(actor: Actor) -> String:
     if actor == null:
         return "unknown"
@@ -1757,5 +1933,7 @@ func _actor_label(actor: Actor) -> String:
     var special_suffix := actor.special_tag()
     var relic_suffix := actor.relic_tag()
     var bounty_suffix := actor.bounty_tag()
+    var renown_suffix := actor.renown_tag()
+    var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
-    return "%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, allegiance_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, actor.actor_id]

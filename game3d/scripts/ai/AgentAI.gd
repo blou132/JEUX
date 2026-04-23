@@ -7,6 +7,8 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
     var rally_leader: Actor = rally_context.get("leader", null)
     var rally_bonus: bool = bool(rally_context.get("bonus_active", false))
     var rally_pressure_target: Actor = rally_context.get("pressure_target", null)
+    var rally_leader_kind: String = str(rally_context.get("leader_kind", "champion"))
+    var rally_regroup_chance: float = float(rally_context.get("regroup_chance", 0.66))
     var enemy: Actor = world.find_nearest_enemy(actor, all_actors, actor.vision_range)
     if enemy == null:
         if rally_leader != null:
@@ -16,19 +18,19 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                         "state": "rally",
                         "target": rally_pressure_target,
                         "target_position": rally_pressure_target.global_position,
-                        "reason": "rally_pressure"
+                        "reason": "rally_renown_pressure" if rally_leader_kind == "renown" else "rally_pressure"
                     },
                     rally_leader,
                     rally_bonus
                 )
 
             var rally_distance: float = float(rally_context.get("distance", INF))
-            if rally_distance > actor.attack_range * 1.05 and randf() <= 0.66:
+            if rally_distance > actor.attack_range * 1.05 and randf() <= rally_regroup_chance:
                 return _with_rally(
                     {
                         "state": "rally",
                         "target_position": rally_leader.global_position,
-                        "reason": "rally_regroup"
+                        "reason": "rally_renown_regroup" if rally_leader_kind == "renown" else "rally_regroup"
                     },
                     rally_leader,
                     rally_bonus
@@ -115,10 +117,26 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
         if pressure_distance <= actor.vision_range * 1.08 and randf() <= 0.34:
             enemy = rally_pressure_target
 
+    var notoriety_focus_target: Actor = _find_notoriety_focus_enemy(actor, all_actors, actor.vision_range * 1.05)
+    if notoriety_focus_target != null and notoriety_focus_target != enemy:
+        if _can_prefer_notoriety_target(actor) and randf() <= 0.22:
+            enemy = notoriety_focus_target
+
     var distance: float = actor.global_position.distance_to(enemy.global_position)
     var under_pressure: bool = _is_under_pressure(actor)
     var is_ranged: bool = actor.actor_kind == "ranged_monster"
     var preferred_min_distance: float = actor.attack_range * 1.85
+
+    if _should_avoid_notorious_enemy(actor, enemy, distance) and randf() <= 0.26:
+        return _with_rally(
+            {
+                "state": "flee",
+                "target": enemy,
+                "reason": "notoriety_avoid"
+            },
+            rally_leader,
+            rally_bonus
+        )
 
     if is_ranged and distance < preferred_min_distance and not under_pressure:
         return _with_rally(
@@ -257,22 +275,30 @@ func _with_rally(base_decision: Dictionary, rally_leader: Actor, rally_bonus: bo
 
 
 func _build_rally_context(actor: Actor, all_actors: Array) -> Dictionary:
-    if actor.is_champion:
+    if actor.can_lead_rally():
         return {
             "leader": null,
             "distance": INF,
             "bonus_active": false,
-            "pressure_target": null
+            "pressure_target": null,
+            "leader_kind": "",
+            "regroup_chance": 0.0
         }
 
     var max_distance := min(actor.vision_range * 0.72, 14.0)
     var leader: Actor = _find_nearby_allied_champion(actor, all_actors, max_distance)
+    var leader_kind: String = "champion"
+    if leader == null:
+        leader = _find_nearby_allied_renown_figure(actor, all_actors, max_distance * 0.94)
+        leader_kind = "renown"
     if leader == null:
         return {
             "leader": null,
             "distance": INF,
             "bonus_active": false,
-            "pressure_target": null
+            "pressure_target": null,
+            "leader_kind": "",
+            "regroup_chance": 0.0
         }
 
     var distance := actor.global_position.distance_to(leader.global_position)
@@ -280,11 +306,15 @@ func _build_rally_context(actor: Actor, all_actors: Array) -> Dictionary:
     if leader.target_actor != null and not leader.target_actor.is_dead and _is_engagement_state(leader.state):
         pressure_target = leader.target_actor
 
+    var bonus_distance: float = 3.6 if leader_kind == "champion" else 3.0
+    var regroup_chance: float = 0.66 if leader_kind == "champion" else 0.52
     return {
         "leader": leader,
         "distance": distance,
-        "bonus_active": distance <= 3.6,
-        "pressure_target": pressure_target
+        "bonus_active": distance <= bonus_distance,
+        "pressure_target": pressure_target,
+        "leader_kind": leader_kind,
+        "regroup_chance": regroup_chance
     }
 
 
@@ -304,6 +334,68 @@ func _find_nearby_allied_champion(actor: Actor, all_actors: Array, max_distance:
             closest = other
             closest_dist_sq = dist_sq
     return closest
+
+
+func _find_nearby_allied_renown_figure(actor: Actor, all_actors: Array, max_distance: float) -> Actor:
+    var closest: Actor = null
+    var closest_dist_sq: float = max_distance * max_distance
+    for other in all_actors:
+        if other == null or other == actor or other.is_dead:
+            continue
+        if other.faction != actor.faction:
+            continue
+        if not other.can_lead_rally() or other.is_champion:
+            continue
+        if actor.allegiance_id != "" and other.allegiance_id != "" and other.allegiance_id != actor.allegiance_id:
+            continue
+
+        var dist_sq := actor.global_position.distance_squared_to(other.global_position)
+        if dist_sq <= closest_dist_sq:
+            closest = other
+            closest_dist_sq = dist_sq
+    return closest
+
+
+func _find_notoriety_focus_enemy(actor: Actor, all_actors: Array, max_distance: float) -> Actor:
+    var selected: Actor = null
+    var best_notoriety: float = 0.0
+    var best_dist_sq: float = max_distance * max_distance
+    for other in all_actors:
+        if other == null or other == actor or other.is_dead:
+            continue
+        if not actor.is_enemy(other):
+            continue
+        if other.notoriety < 38.0:
+            continue
+
+        var dist_sq := actor.global_position.distance_squared_to(other.global_position)
+        if dist_sq > max_distance * max_distance:
+            continue
+        if other.notoriety > best_notoriety or (is_equal_approx(other.notoriety, best_notoriety) and dist_sq < best_dist_sq):
+            selected = other
+            best_notoriety = other.notoriety
+            best_dist_sq = dist_sq
+    return selected
+
+
+func _can_prefer_notoriety_target(actor: Actor) -> bool:
+    if actor == null:
+        return false
+    if actor.is_champion or actor.actor_kind == "brute_monster":
+        return true
+    return actor.has_relic() or actor.is_special_arrival()
+
+
+func _should_avoid_notorious_enemy(actor: Actor, enemy: Actor, distance: float) -> bool:
+    if actor == null or enemy == null:
+        return false
+    if enemy.notoriety < 56.0:
+        return false
+    if actor.is_champion or actor.actor_kind == "brute_monster" or actor.has_relic() or actor.is_special_arrival():
+        return false
+    if distance > actor.vision_range * 0.70:
+        return false
+    return actor.hp <= actor.max_hp * 0.82 or actor.energy <= actor.max_energy * 0.55
 
 
 func _is_engagement_state(state: String) -> bool:

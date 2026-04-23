@@ -24,6 +24,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
 - lightweight bounty / marked-target layer (rare notable hunt pressure)
+- lightweight renown/notoriety layer (known figures with bounded social pressure)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -94,6 +95,12 @@ The active direction is a minimal but playable sandbox loop:
   - lightweight integration: emitter-side hunt guidance (`hunt` state) nudges allied convergence toward marked target zone
   - clear bounded reward: on target fall, nearby emitter allies receive a small XP pulse
   - observability: dedicated `Bounty START/CLEARED/EXPIRED` logs, HUD active status + source/target + counters, light marker signal on target
+- Renown / notoriety layer (MVP):
+  - each actor now carries bounded `renown` (admiration) and `notoriety` (threat) scores (`0..100`)
+  - score gains reuse existing notable runtime signals (kill, level-up, champion promotion, special arrival, relic acquisition, active bounty mark)
+  - light passive dissipation reduces long-term snowball while preserving notable spikes
+  - AI integration stays lightweight: nearby allies can rally around non-champion renowned figures; weak units may avoid very notorious enemies; high-notoriety enemies are slightly easier bounty targets
+  - observability: dedicated `Renown Rising` / `Notoriety Rising` threshold logs, HUD split counters, and top notable figures lists
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -132,6 +139,8 @@ The debug overlay shows:
 - average HP and energy
 - progression visibility (`avg_level`, `level_ups`, level distribution `L1/L2/L3`, split humans/monsters)
 - champion visibility (`alive`, split humans/monsters, promotions, champion kills)
+- renown/notoriety visibility (`avg`, split notable figures, rising threshold counters)
+- top notable figure labels (`renown` and `notoriety` leaders)
 - rally visibility (`leaders`, `followers`, split humans/monsters, near-leader bonus followers)
 - melee hits, magic hits, casts (bolt/control/nova), kills, deaths, flee events
 - control readability (`control applies`, `slowed alive` total + split H/M)
@@ -156,6 +165,7 @@ The debug overlay shows:
 - special arrival logs (`START`/`FALLEN`) for rare exceptional units
 - relic logs (`APPEAR`/`ACQUIRED`/`LOST`) for rare artifact stories
 - bounty logs (`START`/`CLEARED`/`EXPIRED`) for marked hunt stories
+- notability logs (`Renown Rising`/`Notoriety Rising`) for emerging known figures
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -178,6 +188,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_special_arrivals_behavior.py](tests/test_game3d_special_arrivals_behavior.py) (special arrival contracts: trigger conditions, cooldown/cap gates, bounded integration hooks)
 - [test_game3d_relics_behavior.py](tests/test_game3d_relics_behavior.py) (relic contracts: bounded appearance, carrier gating, cooldown/cap, loss reset)
 - [test_game3d_bounties_behavior.py](tests/test_game3d_bounties_behavior.py) (bounty contracts: target selection priority, cooldown/cap gates, bounded clear/expire flow)
+- [test_game3d_renown_behavior.py](tests/test_game3d_renown_behavior.py) (renown/notoriety contracts: bounded gain, threshold tiers, light behavior bias, dissipation)
 
 Run targeted tests:
 ```bash
@@ -188,6 +199,7 @@ py -m unittest tests.test_game3d_world_events_behavior -v
 py -m unittest tests.test_game3d_special_arrivals_behavior -v
 py -m unittest tests.test_game3d_relics_behavior -v
 py -m unittest tests.test_game3d_bounties_behavior -v
+py -m unittest tests.test_game3d_renown_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -220,6 +232,7 @@ py -m unittest discover -s tests -v
 - Add rare special arrivals MVP (`Summoned Hero` / `Calamity Invader`) with bounded spawn conditions, champion seeding, and runtime visibility
 - Add rare relic/artifact MVP (`Arcane Sigil` / `Oath Standard`) with bounded carrier assignment and death-reset behavior
 - Add rare bounty/marked-target MVP with bounded hunt pressure, notable target selection, and lightweight clear reward
+- Add lightweight renown/notoriety MVP with bounded per-actor fame/threat, threshold logs, and small AI behavior bias
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -233,6 +246,7 @@ py -m unittest discover -s tests -v
 - Tune special arrival rarity gates (dominance threshold/cooldown/cap) for memorable spikes without destabilizing baseline simulation
 - Tune relic appearance and effect strengths (cooldown/gates/bonuses) for memorable local stories without runaway scaling
 - Tune bounty rarity/weight/reward values to keep hunts memorable without overriding baseline raid/rally behavior
+- Tune renown/notoriety gain/decay thresholds so notable figures stay readable without persistent global snowball
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

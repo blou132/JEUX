@@ -21,6 +21,10 @@ var _survival_xp_timer: float = 0.0
 var kill_count: int = 0
 var is_champion: bool = false
 var champion_reason: String = ""
+var renown: float = 0.0
+var notoriety: float = 0.0
+var renown_decay_per_sec: float = 0.16
+var notoriety_decay_per_sec: float = 0.14
 
 var speed: float = 4.0
 var vision_range: float = 16.0
@@ -119,6 +123,7 @@ func tick_actor(
     _update_control_state(delta)
     _update_survival_progress(delta, game_loop)
     _update_world_event_context(game_loop)
+    decay_notability(delta)
 
     _update_energy_and_exhaustion(delta)
     if is_dead:
@@ -292,6 +297,34 @@ func bounty_tag() -> String:
     return "[MARKED]"
 
 
+func renown_tag() -> String:
+    if renown >= 70.0:
+        return "[RENOWN++]"
+    if renown >= 40.0:
+        return "[RENOWN+]"
+    return ""
+
+
+func notoriety_tag() -> String:
+    if notoriety >= 70.0:
+        return "[INFAMOUS]"
+    if notoriety >= 40.0:
+        return "[NOTORIOUS]"
+    return ""
+
+
+func can_lead_rally() -> bool:
+    if is_dead:
+        return false
+    if is_champion or is_special_arrival() or has_relic():
+        return true
+    return renown >= 28.0
+
+
+func has_high_notoriety() -> bool:
+    return notoriety >= 52.0
+
+
 func is_special_arrival() -> bool:
     return special_arrival_id != ""
 
@@ -388,6 +421,48 @@ func award_progress_xp(amount: float, reason: String, game_loop: GameLoop) -> vo
 
 func register_kill() -> void:
     kill_count += 1
+
+
+func add_renown(amount: float) -> float:
+    if is_dead or amount <= 0.0:
+        return 0.0
+    var before := renown
+    renown = clampf(renown + amount, 0.0, 100.0)
+    if not is_equal_approx(before, renown):
+        _refresh_control_visual()
+    return renown - before
+
+
+func add_notoriety(amount: float) -> float:
+    if is_dead or amount <= 0.0:
+        return 0.0
+    var before := notoriety
+    notoriety = clampf(notoriety + amount, 0.0, 100.0)
+    if not is_equal_approx(before, notoriety):
+        _refresh_control_visual()
+    return notoriety - before
+
+
+func decay_notability(delta: float) -> void:
+    if is_dead or delta <= 0.0:
+        return
+
+    var damping: float = 1.0
+    if is_champion:
+        damping *= 0.72
+    if is_special_arrival():
+        damping *= 0.68
+    if has_relic():
+        damping *= 0.74
+    if bounty_marked:
+        damping *= 0.58
+
+    var renown_before := renown
+    var notoriety_before := notoriety
+    renown = max(0.0, renown - renown_decay_per_sec * damping * delta)
+    notoriety = max(0.0, notoriety - notoriety_decay_per_sec * damping * delta)
+    if absf(renown_before - renown) > 0.001 or absf(notoriety_before - notoriety) > 0.001:
+        _refresh_control_visual()
 
 
 func is_ready_for_champion(
@@ -528,7 +603,7 @@ func _movement_control_factor() -> float:
 
 func _update_rally_context_from_decision(decision: Dictionary) -> void:
     var rally_leader: Actor = decision.get("rally_leader", null)
-    if rally_leader == null or rally_leader == self or rally_leader.is_dead or rally_leader.faction != faction:
+    if rally_leader == null or rally_leader == self or rally_leader.is_dead or rally_leader.faction != faction or not rally_leader.can_lead_rally():
         rally_leader_id = 0
         rally_bonus_active = false
         rally_relic_bonus_active = false
@@ -690,6 +765,22 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = bounty_glow * 0.34
+        var renown_signal := _notability_signal_strength(renown)
+        if renown_signal > 0.0:
+            var renown_glow := _renown_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(renown_glow, renown_signal * 0.24)
+            else:
+                material.emission_enabled = true
+                material.emission = renown_glow * 0.28 * renown_signal
+        var notoriety_signal := _notability_signal_strength(notoriety)
+        if notoriety_signal > 0.0:
+            var notoriety_glow := _notoriety_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(notoriety_glow, notoriety_signal * 0.26)
+            else:
+                material.emission_enabled = true
+                material.emission = notoriety_glow * 0.30 * notoriety_signal
 
 
 func _spawn_level_up_signal() -> void:
@@ -852,6 +943,24 @@ func _bounty_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.38, 0.38)
     return Color(1.0, 0.74, 0.24)
+
+
+func _renown_glow_color() -> Color:
+    if faction == "human":
+        return Color(0.64, 0.86, 1.0)
+    return Color(1.0, 0.68, 0.78)
+
+
+func _notoriety_glow_color() -> Color:
+    if faction == "human":
+        return Color(1.0, 0.52, 0.52)
+    return Color(1.0, 0.66, 0.26)
+
+
+func _notability_signal_strength(score: float) -> float:
+    if score <= 35.0:
+        return 0.0
+    return clampf((score - 35.0) / 50.0, 0.0, 1.0)
 
 
 func _human_role_color() -> Color:

@@ -24,13 +24,21 @@ def _extract_int(content: str, pattern: str) -> int:
 
 
 def _target_priority(candidate: dict) -> int:
+    priority = 0
+    notoriety = float(candidate.get("notoriety", 0.0))
+    if notoriety >= 72.0:
+        priority = max(priority, 3)
+    elif notoriety >= 52.0:
+        priority = max(priority, 2)
+    elif notoriety >= 36.0:
+        priority = max(priority, 1)
     if bool(candidate.get("has_relic", False)):
-        return 3
+        priority = max(priority, 3)
     if bool(candidate.get("is_special_arrival", False)):
-        return 2
+        priority = max(priority, 2)
     if bool(candidate.get("is_champion", False)):
-        return 1
-    return 0
+        priority = max(priority, 1)
+    return priority
 
 
 def pick_bounty_target_contract(candidates: list[dict]) -> dict | None:
@@ -96,6 +104,10 @@ class TestGame3DBountiesBehavior(unittest.TestCase):
         self.max_active = _extract_int(self.loop_content, r"BOUNTY_MAX_ACTIVE:\s*int\s*=\s*([0-9]+)")
         self.duration = _extract_float(self.loop_content, r"BOUNTY_DURATION:\s*float\s*=\s*([0-9.]+)")
         self.clear_xp = _extract_float(self.loop_content, r"BOUNTY_CLEAR_XP:\s*float\s*=\s*([0-9.]+)")
+        self.notoriety_priority_min = _extract_float(
+            self.loop_content,
+            r"BOUNTY_NOTORIETY_PRIORITY_MIN:\s*float\s*=\s*([0-9.]+)",
+        )
 
     def test_bounty_constants_are_rare_and_bounded(self):
         self.assertGreaterEqual(self.cooldown, 60.0)
@@ -109,6 +121,8 @@ class TestGame3DBountiesBehavior(unittest.TestCase):
         self.assertLessEqual(self.duration, 40.0)
         self.assertGreater(self.clear_xp, 0.0)
         self.assertLessEqual(self.clear_xp, 2.5)
+        self.assertGreaterEqual(self.notoriety_priority_min, 30.0)
+        self.assertLessEqual(self.notoriety_priority_min, 45.0)
 
     def test_target_selection_prioritizes_relic_special_champion(self):
         candidates = [
@@ -126,6 +140,15 @@ class TestGame3DBountiesBehavior(unittest.TestCase):
         ]
         picked = pick_bounty_target_contract(tied)
         self.assertEqual(picked["id"], "relic_near")
+
+    def test_target_selection_can_use_notoriety_threshold(self):
+        candidates = [
+            {"id": "neutral", "is_champion": False, "is_special_arrival": False, "has_relic": False, "distance": 3.0, "notoriety": 10.0},
+            {"id": "notorious", "is_champion": False, "is_special_arrival": False, "has_relic": False, "distance": 8.0, "notoriety": 55.0},
+        ]
+        picked = pick_bounty_target_contract(candidates)
+        self.assertIsNotNone(picked)
+        self.assertEqual(picked["id"], "notorious")
 
     def test_spawn_step_respects_cooldown_cap_and_trigger(self):
         cooldown_left, started = bounty_spawn_step_contract(
@@ -192,6 +215,8 @@ class TestGame3DBountiesBehavior(unittest.TestCase):
         self.assertIn("set_bounty_marked", self.actor_content)
         self.assertIn("bounty_tag", self.actor_content)
         self.assertIn("Bounty:", self.overlay_content)
+        self.assertIn("BOUNTY_NOTORIETY_PRIORITY_MIN", self.loop_content)
+        self.assertIn("high_notoriety", self.loop_content)
 
 
 if __name__ == "__main__":
