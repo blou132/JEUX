@@ -147,9 +147,14 @@ var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
 var project_interrupted_total: int = 0
+var vendetta_started_total: int = 0
+var vendetta_ended_total: int = 0
+var vendetta_resolved_total: int = 0
+var vendetta_expired_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
+var bounty_target_allegiance_id: String = ""
 var bounty_target_label: String = ""
 var bounty_source_faction: String = ""
 var bounty_source_allegiance_id: String = ""
@@ -964,7 +969,8 @@ func _update_bounty_system(delta: float) -> void:
     if source_faction == "":
         return
     var source_position: Vector3 = source.get("position", Vector3.ZERO)
-    var target: Actor = _pick_bounty_target(source_faction, source_position)
+    var source_allegiance_id: String = str(source.get("allegiance_id", ""))
+    var target: Actor = _pick_bounty_target(source_faction, source_position, source_allegiance_id)
     if target == null:
         return
 
@@ -991,10 +997,13 @@ func _pick_bounty_source() -> Dictionary:
     return pool[randi() % pool.size()]
 
 
-func _pick_bounty_target(source_faction: String, source_position: Vector3) -> Actor:
+func _pick_bounty_target(source_faction: String, source_position: Vector3, source_allegiance_id: String = "") -> Actor:
     var selected: Actor = null
     var best_priority: int = 0
     var best_distance: float = INF
+    var vendetta_target_allegiance_id: String = ""
+    if source_allegiance_id != "":
+        vendetta_target_allegiance_id = world_manager.get_allegiance_vendetta_target(source_allegiance_id)
 
     for actor in actors:
         if actor == null or actor.is_dead:
@@ -1003,6 +1012,8 @@ func _pick_bounty_target(source_faction: String, source_position: Vector3) -> Ac
             continue
 
         var priority: int = _bounty_priority(actor)
+        if priority > 0 and vendetta_target_allegiance_id != "" and actor.allegiance_id == vendetta_target_allegiance_id:
+            priority += 1
         if priority <= 0:
             continue
 
@@ -1041,6 +1052,7 @@ func _start_bounty(source: Dictionary, target: Actor) -> void:
     bounty_active = true
     bounty_target_actor_id = target.actor_id
     bounty_target_faction = target.faction
+    bounty_target_allegiance_id = target.allegiance_id
     bounty_source_faction = str(source.get("faction", ""))
     bounty_source_allegiance_id = str(source.get("allegiance_id", ""))
     bounty_source_poi = str(source.get("home_poi", ""))
@@ -1092,6 +1104,15 @@ func _handle_bounty_target_death(victim: Actor, killer: Actor) -> void:
         return
 
     victim.set_bounty_marked(false)
+    if victim.allegiance_id != "" and bounty_source_allegiance_id != "" and victim.allegiance_id != bounty_source_allegiance_id:
+        var vendetta_event: Dictionary = world_manager.register_vendetta_incident(
+            victim.allegiance_id,
+            bounty_source_allegiance_id,
+            "bounty_kill",
+            elapsed_time
+        )
+        if not vendetta_event.is_empty():
+            _handle_vendetta_transition(vendetta_event)
     if killer != null and not killer.is_dead:
         _apply_notability_gain(
             killer,
@@ -1137,6 +1158,7 @@ func _clear_bounty_state() -> void:
     bounty_active = false
     bounty_target_actor_id = 0
     bounty_target_faction = ""
+    bounty_target_allegiance_id = ""
     bounty_target_label = ""
     bounty_source_faction = ""
     bounty_source_allegiance_id = ""
@@ -1155,7 +1177,8 @@ func _push_bounty_state_to_world() -> void:
         bounty_target_position,
         bounty_target_actor_id,
         bounty_target_label,
-        bounty_target_faction
+        bounty_target_faction,
+        bounty_target_allegiance_id
     )
 
 
@@ -1404,21 +1427,29 @@ func _build_snapshot() -> Dictionary:
         "ritual_focus": 0
     }
     var allegiance_project_active_count: int = 0
+    var allegiance_vendetta_labels: Array[String] = []
+    var allegiance_vendetta_active_count: int = 0
     for allegiance in active_allegiances:
         var doctrine: String = str(allegiance.get("doctrine", ""))
         var project_id: String = str(allegiance.get("project", ""))
         var project_remaining: float = float(allegiance.get("project_remaining", 0.0))
+        var vendetta_target: String = str(allegiance.get("vendetta_target", ""))
+        var vendetta_remaining: float = float(allegiance.get("vendetta_remaining", 0.0))
         var project_label: String = project_id if project_id != "" else "none"
         if project_id != "":
             project_label = "%s@%.0fs" % [project_id, project_remaining]
+        var vendetta_label: String = vendetta_target if vendetta_target != "" else "none"
+        if vendetta_target != "":
+            vendetta_label = "%s@%.0fs" % [vendetta_target, vendetta_remaining]
         allegiance_structure_labels.append(
-            "%s[%s,%s,%s,%s]"
+            "%s[%s,%s,%s,%s,%s]"
             % [
                 str(allegiance.get("allegiance_id", "")),
                 str(allegiance.get("home_poi", "")),
                 str(allegiance.get("structure_state", "")),
                 doctrine if doctrine != "" else "none",
-                project_label
+                project_label,
+                vendetta_label
             ]
         )
         if doctrine != "":
@@ -1433,9 +1464,16 @@ func _build_snapshot() -> Dictionary:
             )
             if allegiance_project_counts.has(project_id):
                 allegiance_project_counts[project_id] += 1
+        if vendetta_target != "":
+            allegiance_vendetta_active_count += 1
+            allegiance_vendetta_labels.append(
+                "%s->%s(%.0fs)"
+                % [str(allegiance.get("allegiance_id", "")), vendetta_target, vendetta_remaining]
+            )
     allegiance_structure_labels.sort()
     allegiance_doctrine_labels.sort()
     allegiance_project_labels.sort()
+    allegiance_vendetta_labels.sort()
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1500,6 +1538,7 @@ func _build_snapshot() -> Dictionary:
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,
+        "bounty_target_allegiance_id": bounty_target_allegiance_id,
         "bounty_source_faction": bounty_source_faction,
         "bounty_source_poi": bounty_source_poi,
         "bounty_marked_total": bounty_marked_total,
@@ -1526,6 +1565,12 @@ func _build_snapshot() -> Dictionary:
         "project_started_total": project_started_total,
         "project_ended_total": project_ended_total,
         "project_interrupted_total": project_interrupted_total,
+        "allegiance_vendetta_active_count": allegiance_vendetta_active_count,
+        "allegiance_vendetta_labels": allegiance_vendetta_labels,
+        "vendetta_started_total": vendetta_started_total,
+        "vendetta_ended_total": vendetta_ended_total,
+        "vendetta_resolved_total": vendetta_resolved_total,
+        "vendetta_expired_total": vendetta_expired_total,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,
@@ -1769,6 +1814,8 @@ func _update_poi_runtime() -> void:
             var reason: String = str(transition.get("reason", "interrupted"))
             var poi_label: String = poi_name if poi_name != "" else "unknown"
             record_event("Project INTERRUPTED: %s -> %s at %s (%s)." % [allegiance_id, project_id, poi_label, reason])
+        elif kind == "vendetta_started" or kind == "vendetta_resolved" or kind == "vendetta_expired":
+            _handle_vendetta_transition(transition)
         elif kind == "raid_started":
             raid_started_total += 1
             var attacker_faction: String = str(transition.get("attacker_faction", ""))
@@ -1823,6 +1870,35 @@ func _update_poi_runtime() -> void:
                 actor_poi_presence.erase(actor.actor_id)
             else:
                 actor_poi_presence[actor.actor_id] = current_poi
+
+
+func _handle_vendetta_transition(transition: Dictionary) -> void:
+    var kind: String = str(transition.get("kind", ""))
+    var source_allegiance_id: String = str(transition.get("source_allegiance_id", "allegiance"))
+    var target_allegiance_id: String = str(transition.get("target_allegiance_id", "target"))
+    var reason: String = str(transition.get("reason", "vendetta"))
+
+    if kind == "vendetta_started":
+        vendetta_started_total += 1
+        var duration: float = float(transition.get("duration", 0.0))
+        record_event(
+            "Vendetta START: %s -> %s (%s, %.0fs)."
+            % [source_allegiance_id, target_allegiance_id, reason, duration]
+        )
+        return
+
+    if kind == "vendetta_resolved":
+        vendetta_resolved_total += 1
+        vendetta_ended_total += 1
+        record_event("Vendetta RESOLVED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
+        record_event("Vendetta END: %s -> %s (resolved)." % [source_allegiance_id, target_allegiance_id])
+        return
+
+    if kind == "vendetta_expired":
+        vendetta_expired_total += 1
+        vendetta_ended_total += 1
+        record_event("Vendetta EXPIRED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
+        record_event("Vendetta END: %s -> %s (expired)." % [source_allegiance_id, target_allegiance_id])
 
 
 func _apply_poi_influences(delta: float) -> void:

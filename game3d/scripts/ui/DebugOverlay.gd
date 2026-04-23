@@ -45,6 +45,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_doctrine_counts: Dictionary = snapshot.get("allegiance_doctrine_counts", {})
     var allegiance_project_labels: Array = snapshot.get("allegiance_project_labels", [])
     var allegiance_project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
+    var allegiance_vendetta_labels: Array = snapshot.get("allegiance_vendetta_labels", [])
     var lines: Array[String] = []
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
@@ -311,6 +312,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % (" | ".join(allegiance_project_labels) if not allegiance_project_labels.is_empty() else "(none)")
     )
     lines.append(
+        "Vendettas: active=%d | start=%d end=%d resolved=%d expired=%d"
+        % [
+            int(snapshot.get("allegiance_vendetta_active_count", 0)),
+            int(snapshot.get("vendetta_started_total", 0)),
+            int(snapshot.get("vendetta_ended_total", 0)),
+            int(snapshot.get("vendetta_resolved_total", 0)),
+            int(snapshot.get("vendetta_expired_total", 0))
+        ]
+    )
+    lines.append(
+        "Vendetta map: %s"
+        % (" | ".join(allegiance_vendetta_labels) if not allegiance_vendetta_labels.is_empty() else "(none)")
+    )
+    lines.append(
         "Allegiance cores: %s"
         % (" | ".join(allegiance_structure_labels) if not allegiance_structure_labels.is_empty() else "(none)")
     )
@@ -447,7 +462,9 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             str(details.get("allegiance_id", "")),
             str(details.get("allegiance_doctrine", "")),
             str(details.get("allegiance_project", "")),
-            float(details.get("allegiance_project_remaining", 0.0))
+            float(details.get("allegiance_project_remaining", 0.0)),
+            str(details.get("allegiance_vendetta_target", "")),
+            float(details.get("allegiance_vendetta_remaining", 0.0))
         )
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
@@ -531,7 +548,9 @@ func _allegiance_label(
     allegiance_id: String,
     doctrine: String = "",
     project_id: String = "",
-    project_remaining: float = 0.0
+    project_remaining: float = 0.0,
+    vendetta_target: String = "",
+    vendetta_remaining: float = 0.0
 ) -> String:
     if allegiance_id == "":
         return "allegiance:none"
@@ -540,6 +559,8 @@ func _allegiance_label(
         tags.append(doctrine)
     if project_id != "":
         tags.append("%s@%.0fs" % [project_id, project_remaining])
+    if vendetta_target != "":
+        tags.append("vs:%s@%.0fs" % [vendetta_target, vendetta_remaining])
     if not tags.is_empty():
         return "allegiance:%s[%s]" % [allegiance_id, "|".join(tags)]
     return "allegiance:%s" % allegiance_id

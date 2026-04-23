@@ -25,6 +25,9 @@ const ALLEGIANCE_PROJECT_TYPES: Array[String] = ["fortify", "warband_muster", "r
 @export var allegiance_project_cooldown: float = 26.0
 @export var allegiance_project_check_interval: float = 5.0
 @export var allegiance_project_start_chance: float = 0.32
+@export var allegiance_vendetta_duration_min: float = 24.0
+@export var allegiance_vendetta_duration_max: float = 40.0
+@export var allegiance_vendetta_cooldown: float = 26.0
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
@@ -58,6 +61,8 @@ var allegiance_doctrine_by_id: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
 var allegiance_project_next_attempt_at_by_id: Dictionary = {}
+var allegiance_vendetta_runtime_by_id: Dictionary = {}
+var allegiance_vendetta_cooldown_until_by_id: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -92,7 +97,8 @@ func set_bounty_state(
     target_position: Vector3 = Vector3.ZERO,
     target_actor_id: int = 0,
     target_label: String = "",
-    target_faction: String = ""
+    target_faction: String = "",
+    target_allegiance_id: String = ""
 ) -> void:
     if not active:
         bounty_state.clear()
@@ -105,7 +111,8 @@ func set_bounty_state(
         "target_position": target_position,
         "target_actor_id": target_actor_id,
         "target_label": target_label,
-        "target_faction": target_faction
+        "target_faction": target_faction,
+        "target_allegiance_id": target_allegiance_id
     }
 
 
@@ -309,6 +316,7 @@ func get_raid_guidance(
 
     var jitter := Vector3(randf_range(-2.3, 2.3), 0.0, randf_range(-2.3, 2.3))
     var source_poi: String = str(poi_raid_state.get("source_poi", ""))
+    var target_allegiance_id: String = str(poi_allegiance_id.get(target_name, ""))
     var weight: float = 0.74
     if allegiance_id != "":
         if home_poi == source_poi:
@@ -319,6 +327,8 @@ func get_raid_guidance(
         weight += float(doctrine_modifiers.get("raid_weight_delta", 0.0))
         var project_modifiers: Dictionary = get_allegiance_project_modifiers(allegiance_id)
         weight += float(project_modifiers.get("raid_weight_delta", 0.0))
+        var vendetta_modifiers: Dictionary = get_allegiance_vendetta_modifiers(allegiance_id, target_allegiance_id)
+        weight += float(vendetta_modifiers.get("raid_weight_delta", 0.0))
     weight *= raid_pressure_global_multiplier
     if faction == "human":
         weight *= raid_pressure_human_multiplier
@@ -356,12 +366,16 @@ func get_bounty_guidance(
     var weight: float = 0.56
     var source_allegiance_id: String = str(bounty_state.get("source_allegiance_id", ""))
     var source_poi: String = str(bounty_state.get("source_poi", ""))
+    var target_allegiance_id: String = str(bounty_state.get("target_allegiance_id", ""))
     if allegiance_id != "" and source_allegiance_id != "" and allegiance_id == source_allegiance_id:
         weight += 0.14
     if home_poi != "" and source_poi != "" and home_poi == source_poi:
         weight += 0.07
     if bool(poi_raid_state.get("active", false)) and str(poi_raid_state.get("attacker_faction", "")) == faction:
         weight += 0.06
+    if allegiance_id != "":
+        var vendetta_modifiers: Dictionary = get_allegiance_vendetta_modifiers(allegiance_id, target_allegiance_id)
+        weight += float(vendetta_modifiers.get("bounty_weight_delta", 0.0))
 
     var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
     return {
@@ -431,7 +445,9 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
             "structure_state": structure_state,
             "doctrine": get_allegiance_doctrine(allegiance_id),
             "project": get_allegiance_project(allegiance_id),
-            "project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds)
+            "project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
+            "vendetta_target": get_allegiance_vendetta_target(allegiance_id),
+            "vendetta_remaining": get_allegiance_vendetta_remaining(allegiance_id, time_seconds)
         })
     return active
 
@@ -548,7 +564,9 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "allegiance_id": allegiance_id,
             "allegiance_doctrine": get_allegiance_doctrine(allegiance_id),
             "allegiance_project": get_allegiance_project(allegiance_id),
-            "allegiance_project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds)
+            "allegiance_project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
+            "allegiance_vendetta_target": get_allegiance_vendetta_target(allegiance_id),
+            "allegiance_vendetta_remaining": get_allegiance_vendetta_remaining(allegiance_id, time_seconds)
         }
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
@@ -613,12 +631,19 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
     for raid_event in raid_events:
         events.append(raid_event)
 
+    var vendetta_runtime: Dictionary = _update_vendetta_runtime(snapshot, time_seconds)
+    var vendetta_events: Array = vendetta_runtime.get("events", [])
+    for vendetta_event in vendetta_events:
+        events.append(vendetta_event)
+
     for poi_name in snapshot.keys():
         var details: Dictionary = snapshot.get(poi_name, {})
         var details_allegiance_id: String = str(details.get("allegiance_id", ""))
         details["allegiance_doctrine"] = get_allegiance_doctrine(details_allegiance_id)
         details["allegiance_project"] = get_allegiance_project(details_allegiance_id)
         details["allegiance_project_remaining"] = get_allegiance_project_remaining(details_allegiance_id, time_seconds)
+        details["allegiance_vendetta_target"] = get_allegiance_vendetta_target(details_allegiance_id)
+        details["allegiance_vendetta_remaining"] = get_allegiance_vendetta_remaining(details_allegiance_id, time_seconds)
         if str(poi_name) == str(gate_runtime.get("poi", "")):
             details["gate_status"] = str(gate_runtime.get("status", "dormant"))
             details["gate_active"] = bool(gate_runtime.get("active", false))
@@ -823,6 +848,75 @@ func get_allegiance_project_modifiers(allegiance_id: String) -> Dictionary:
             }
 
 
+func get_allegiance_vendetta_target(allegiance_id: String) -> String:
+    if allegiance_id == "":
+        return ""
+    var runtime: Dictionary = allegiance_vendetta_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return ""
+    return str(runtime.get("target_allegiance_id", ""))
+
+
+func get_allegiance_vendetta_remaining(allegiance_id: String, time_seconds: float = -1.0) -> float:
+    if allegiance_id == "" or time_seconds < 0.0:
+        return 0.0
+    var runtime: Dictionary = allegiance_vendetta_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return 0.0
+    var end_at: float = float(runtime.get("end_at", time_seconds))
+    return max(0.0, end_at - time_seconds)
+
+
+func get_allegiance_vendetta_modifiers(
+    source_allegiance_id: String,
+    target_allegiance_id: String = ""
+) -> Dictionary:
+    var vendetta_target_id: String = get_allegiance_vendetta_target(source_allegiance_id)
+    var target_match: bool = (
+        vendetta_target_id != ""
+        and target_allegiance_id != ""
+        and vendetta_target_id == target_allegiance_id
+    )
+    if target_match:
+        return {
+            "active": true,
+            "target_allegiance_id": vendetta_target_id,
+            "raid_weight_delta": 0.10,
+            "bounty_weight_delta": 0.12
+        }
+    return {
+        "active": vendetta_target_id != "",
+        "target_allegiance_id": vendetta_target_id,
+        "raid_weight_delta": 0.0,
+        "bounty_weight_delta": 0.0
+    }
+
+
+func get_active_vendettas(time_seconds: float = -1.0) -> Array[Dictionary]:
+    var active: Array[Dictionary] = []
+    for allegiance_variant in allegiance_vendetta_runtime_by_id.keys():
+        var source_allegiance_id: String = str(allegiance_variant)
+        var runtime: Dictionary = allegiance_vendetta_runtime_by_id.get(source_allegiance_id, {})
+        if runtime.is_empty():
+            continue
+        active.append({
+            "source_allegiance_id": source_allegiance_id,
+            "target_allegiance_id": str(runtime.get("target_allegiance_id", "")),
+            "reason": str(runtime.get("reason", "")),
+            "remaining": get_allegiance_vendetta_remaining(source_allegiance_id, time_seconds)
+        })
+    return active
+
+
+func register_vendetta_incident(
+    source_allegiance_id: String,
+    target_allegiance_id: String,
+    reason: String,
+    time_seconds: float
+) -> Dictionary:
+    return _try_start_vendetta(source_allegiance_id, target_allegiance_id, reason, time_seconds)
+
+
 func get_poi_name_for_position(position: Vector3) -> String:
     for poi in pois:
         var poi_name: String = str(poi.get("name", "poi"))
@@ -945,6 +1039,8 @@ func _build_pois() -> void:
     allegiance_project_runtime_by_id.clear()
     allegiance_project_cooldown_until_by_id.clear()
     allegiance_project_next_attempt_at_by_id.clear()
+    allegiance_vendetta_runtime_by_id.clear()
+    allegiance_vendetta_cooldown_until_by_id.clear()
     poi_raid_state.clear()
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
@@ -1605,6 +1701,127 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
     }
 
 
+func _try_start_vendetta(
+    source_allegiance_id: String,
+    target_allegiance_id: String,
+    reason: String,
+    time_seconds: float
+) -> Dictionary:
+    if source_allegiance_id == "" or target_allegiance_id == "":
+        return {}
+    if source_allegiance_id == target_allegiance_id:
+        return {}
+    if not _is_allegiance_anchor_active(source_allegiance_id):
+        return {}
+    if not _is_allegiance_anchor_active(target_allegiance_id):
+        return {}
+
+    var current: Dictionary = allegiance_vendetta_runtime_by_id.get(source_allegiance_id, {})
+    if not current.is_empty():
+        var current_target: String = str(current.get("target_allegiance_id", ""))
+        if current_target == target_allegiance_id:
+            var refreshed_end: float = max(
+                float(current.get("end_at", time_seconds)),
+                time_seconds + allegiance_vendetta_duration_min * 0.45
+            )
+            current["end_at"] = min(
+                refreshed_end,
+                time_seconds + max(allegiance_vendetta_duration_min, allegiance_vendetta_duration_max)
+            )
+            allegiance_vendetta_runtime_by_id[source_allegiance_id] = current
+        return {}
+
+    var cooldown_until: float = float(allegiance_vendetta_cooldown_until_by_id.get(source_allegiance_id, 0.0))
+    if time_seconds < cooldown_until:
+        return {}
+
+    var duration: float = randf_range(
+        min(allegiance_vendetta_duration_min, allegiance_vendetta_duration_max),
+        max(allegiance_vendetta_duration_min, allegiance_vendetta_duration_max)
+    )
+    allegiance_vendetta_runtime_by_id[source_allegiance_id] = {
+        "target_allegiance_id": target_allegiance_id,
+        "reason": reason,
+        "started_at": time_seconds,
+        "end_at": time_seconds + duration
+    }
+    return {
+        "kind": "vendetta_started",
+        "source_allegiance_id": source_allegiance_id,
+        "target_allegiance_id": target_allegiance_id,
+        "reason": reason,
+        "duration": duration
+    }
+
+
+func _is_allegiance_anchor_active(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    for poi_name_variant in poi_allegiance_id.keys():
+        var poi_name: String = str(poi_name_variant)
+        if str(poi_allegiance_id.get(poi_name, "")) != allegiance_id:
+            continue
+        if str(poi_structure_state.get(poi_name, "")) == "":
+            continue
+        return true
+    return false
+
+
+func _update_vendetta_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:
+    var events: Array[Dictionary] = []
+    var active_allegiances: Dictionary = {}
+    for poi_name_variant in snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        var details: Dictionary = snapshot.get(poi_name, {})
+        var allegiance_id: String = str(details.get("allegiance_id", ""))
+        if allegiance_id == "":
+            continue
+        if not bool(details.get("structure_active", false)):
+            continue
+        active_allegiances[allegiance_id] = true
+
+    var runtime_ids: Array = allegiance_vendetta_runtime_by_id.keys()
+    for source_variant in runtime_ids:
+        var source_allegiance_id: String = str(source_variant)
+        var runtime: Dictionary = allegiance_vendetta_runtime_by_id.get(source_allegiance_id, {})
+        var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+        var reason: String = str(runtime.get("reason", "vendetta"))
+        if not active_allegiances.has(source_allegiance_id):
+            allegiance_vendetta_runtime_by_id.erase(source_allegiance_id)
+            continue
+        if target_allegiance_id == "" or not active_allegiances.has(target_allegiance_id):
+            allegiance_vendetta_runtime_by_id.erase(source_allegiance_id)
+            allegiance_vendetta_cooldown_until_by_id[source_allegiance_id] = time_seconds + allegiance_vendetta_cooldown
+            events.append({
+                "kind": "vendetta_resolved",
+                "source_allegiance_id": source_allegiance_id,
+                "target_allegiance_id": target_allegiance_id,
+                "reason": reason
+            })
+            continue
+        var end_at: float = float(runtime.get("end_at", time_seconds))
+        if time_seconds >= end_at:
+            allegiance_vendetta_runtime_by_id.erase(source_allegiance_id)
+            allegiance_vendetta_cooldown_until_by_id[source_allegiance_id] = time_seconds + allegiance_vendetta_cooldown
+            events.append({
+                "kind": "vendetta_expired",
+                "source_allegiance_id": source_allegiance_id,
+                "target_allegiance_id": target_allegiance_id,
+                "reason": reason
+            })
+
+    var cooldown_ids: Array = allegiance_vendetta_cooldown_until_by_id.keys()
+    for source_variant in cooldown_ids:
+        var source_allegiance_id: String = str(source_variant)
+        if active_allegiances.has(source_allegiance_id):
+            continue
+        allegiance_vendetta_cooldown_until_by_id.erase(source_allegiance_id)
+
+    return {
+        "events": events
+    }
+
+
 func _is_neutral_gate_kind(poi_kind: String) -> bool:
     return poi_kind == "rift_gate"
 
@@ -1736,6 +1953,8 @@ func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictiona
         var source_poi: String = str(poi_raid_state.get("source_poi", ""))
         var target_poi: String = str(poi_raid_state.get("target_poi", ""))
         var attacker_faction: String = str(poi_raid_state.get("attacker_faction", ""))
+        var attacker_allegiance_id: String = str(poi_raid_state.get("attacker_allegiance_id", ""))
+        var defender_allegiance_id: String = str(poi_raid_state.get("defender_allegiance_id", ""))
         var started_at: float = float(poi_raid_state.get("started_at", time_seconds))
 
         var source_details: Dictionary = snapshot.get(source_poi, {})
@@ -1749,6 +1968,15 @@ func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictiona
             var target_dominant_faction: String = str(target_details.get("dominant_faction", ""))
             var target_dom_seconds: float = float(target_details.get("dominance_seconds", 0.0))
             if target_dominant_faction == attacker_faction and target_dom_seconds >= poi_raid_success_hold:
+                if defender_allegiance_id != "" and attacker_allegiance_id != "":
+                    var vendetta_event: Dictionary = _try_start_vendetta(
+                        defender_allegiance_id,
+                        attacker_allegiance_id,
+                        "raid_loss",
+                        time_seconds
+                    )
+                    if not vendetta_event.is_empty():
+                        events.append(vendetta_event)
                 events.append(_end_raid("success", time_seconds))
             elif time_seconds - started_at >= poi_raid_duration:
                 events.append(_end_raid("timeout", time_seconds))
@@ -1761,12 +1989,16 @@ func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictiona
             var source_poi_name: String = _find_structure_poi(snapshot, "human_outpost") if next_attacker == "human" else _find_structure_poi(snapshot, "monster_lair")
             var target_poi_name: String = _find_structure_poi(snapshot, "monster_lair") if next_attacker == "human" else _find_structure_poi(snapshot, "human_outpost")
             if source_poi_name != "" and target_poi_name != "":
+                var attacker_allegiance_id: String = str(poi_allegiance_id.get(source_poi_name, ""))
+                var defender_allegiance_id: String = str(poi_allegiance_id.get(target_poi_name, ""))
                 poi_raid_state = {
                     "active": true,
                     "attacker_faction": next_attacker,
                     "defender_faction": "monster" if next_attacker == "human" else "human",
                     "source_poi": source_poi_name,
                     "target_poi": target_poi_name,
+                    "attacker_allegiance_id": attacker_allegiance_id,
+                    "defender_allegiance_id": defender_allegiance_id,
                     "started_at": time_seconds
                 }
                 poi_last_raid_attacker = next_attacker
@@ -1775,7 +2007,9 @@ func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictiona
                     "attacker_faction": next_attacker,
                     "defender_faction": str(poi_raid_state.get("defender_faction", "")),
                     "source_poi": source_poi_name,
-                    "target_poi": target_poi_name
+                    "target_poi": target_poi_name,
+                    "attacker_allegiance_id": attacker_allegiance_id,
+                    "defender_allegiance_id": defender_allegiance_id
                 })
 
     return {
@@ -1792,6 +2026,8 @@ func _end_raid(outcome: String, time_seconds: float) -> Dictionary:
         "defender_faction": str(poi_raid_state.get("defender_faction", "")),
         "source_poi": str(poi_raid_state.get("source_poi", "")),
         "target_poi": str(poi_raid_state.get("target_poi", "")),
+        "attacker_allegiance_id": str(poi_raid_state.get("attacker_allegiance_id", "")),
+        "defender_allegiance_id": str(poi_raid_state.get("defender_allegiance_id", "")),
         "duration": max(0.0, time_seconds - float(poi_raid_state.get("started_at", time_seconds)))
     }
     poi_raid_state.clear()

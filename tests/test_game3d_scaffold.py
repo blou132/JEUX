@@ -88,6 +88,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("fortify", content)
         self.assertIn("warband", content)
         self.assertIn("ritual", content)
+        self.assertIn("vendetta", content)
+        self.assertIn("grudge", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -137,6 +139,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_allegiance_project", content)
         self.assertIn("get_allegiance_project_modifiers", content)
         self.assertIn("_update_allegiance_projects_runtime", content)
+        self.assertIn("get_allegiance_vendetta_target", content)
+        self.assertIn("get_allegiance_vendetta_modifiers", content)
+        self.assertIn("register_vendetta_incident", content)
+        self.assertIn("vendetta_started", content)
+        self.assertIn("vendetta_resolved", content)
+        self.assertIn("vendetta_expired", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -169,6 +177,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Doctrine map:", content)
         self.assertIn("Projects:", content)
         self.assertIn("Project map:", content)
+        self.assertIn("Vendettas:", content)
+        self.assertIn("Vendetta map:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -358,6 +368,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Project INTERRUPTED", content)
         self.assertIn('"allegiance_project_counts"', content)
         self.assertIn('"project_started_total"', content)
+        self.assertIn("Vendetta START", content)
+        self.assertIn("Vendetta END", content)
+        self.assertIn("Vendetta RESOLVED", content)
+        self.assertIn("Vendetta EXPIRED", content)
+        self.assertIn('"allegiance_vendetta_labels"', content)
+        self.assertIn('"vendetta_started_total"', content)
 
 
 if __name__ == "__main__":

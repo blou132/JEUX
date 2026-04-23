@@ -22,6 +22,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight allegiance/proto-faction layer (structure-anchored)
 - lightweight allegiance doctrine/ethos layer (bounded behavior bias)
 - lightweight allegiance projects layer (temporary objective pulses)
+- lightweight allegiance vendetta/grudge layer (bounded conflict memory)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
@@ -87,6 +88,13 @@ The active direction is a minimal but playable sandbox loop:
     - `ritual_focus`: slight magic efficiency boost (damage up, energy cost down)
   - lifecycle is explicit and safe: `Project START` -> `Project END`, with `Project INTERRUPTED` on anchor/allegiance loss
   - observability: HUD project counters/map and project label in allegiance/POI labels
+- Allegiance vendettas / grudges layer (MVP):
+  - each active allegiance can hold at most one vendetta target at a time (`source -> target`) with bounded duration and cooldown
+  - trigger signals reuse existing conflict events: mainly raid losses, plus notable bounty-kill incidents when safe
+  - lifecycle is bounded: `Vendetta START` then `Vendetta RESOLVED` (target gone) or `Vendetta EXPIRED` (time), both producing `Vendetta END`
+  - bounded behavior bias only: small raid-priority increase versus vendetta target allegiance and slight bounty pressure bias toward that target allegiance
+  - integration stays light and readable with doctrine/projects by additive small deltas (no diplomacy matrix)
+  - observability: vendetta counters + source/target map in HUD, plus vendetta tags in allegiance labels
 - World events layer (MVP):
   - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
   - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
@@ -179,6 +187,7 @@ The debug overlay shows:
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
+- vendetta counters (`active`, `start/end/resolved/expired`) + active vendetta map (`source->target`)
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
@@ -196,6 +205,7 @@ The debug overlay shows:
 - notability logs (`Renown Rising`/`Notoriety Rising`) for emerging known figures
 - doctrine logs (`Doctrine assigned`) for proto-faction identity emergence
 - project logs (`Project START` / `Project END` / `Project INTERRUPTED`) for temporary faction objectives
+- vendetta logs (`Vendetta START` / `Vendetta END` / `Vendetta RESOLVED` / `Vendetta EXPIRED`) for conflict memory
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
@@ -223,6 +233,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_neutral_gate_behavior.py](tests/test_game3d_neutral_gate_behavior.py) (neutral gate contracts: bounded open/close cycle, single breach pulse, light AI pressure hooks)
 - [test_game3d_doctrines_behavior.py](tests/test_game3d_doctrines_behavior.py) (doctrine contracts: bounded assignment, lightweight behavior deltas, cleanup on allegiance loss)
 - [test_game3d_faction_projects_behavior.py](tests/test_game3d_faction_projects_behavior.py) (faction project contracts: bounded launch, single active project, clean end/interruption, lightweight effect hooks)
+- [test_game3d_vendetta_behavior.py](tests/test_game3d_vendetta_behavior.py) (vendetta contracts: bounded creation, one active vendetta per allegiance, clean resolved/expired lifecycle, lightweight raid+bounty bias)
 
 Run targeted tests:
 ```bash
@@ -237,6 +248,7 @@ py -m unittest tests.test_game3d_renown_behavior -v
 py -m unittest tests.test_game3d_neutral_gate_behavior -v
 py -m unittest tests.test_game3d_doctrines_behavior -v
 py -m unittest tests.test_game3d_faction_projects_behavior -v
+py -m unittest tests.test_game3d_vendetta_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -273,6 +285,7 @@ py -m unittest discover -s tests -v
 - Add neutral `rift_gate` POI MVP with rare autonomous open/close cycle, single breach pulse, and lightweight local pressure
 - Add lightweight allegiance doctrines/ethos MVP with bounded identity bias (`warlike`/`steadfast`/`arcane`) and runtime observability
 - Add lightweight faction projects MVP (`fortify`/`warband_muster`/`ritual_focus`) with one-active-project cap, cooldown, and bounded temporary behavior bias
+- Add lightweight vendetta/grudge MVP with one-active-target cap, bounded duration/cooldown, and small raid+bounty bias
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -290,6 +303,7 @@ py -m unittest discover -s tests -v
 - Tune neutral gate cadence/open duration and breach strength to keep third-pressure stories visible but bounded
 - Tune doctrine assignment heuristics and small bias deltas so group identity stays readable without overriding baseline simulation
 - Tune faction project cadence/duration/modifier strength so temporary objectives remain visible without overriding baseline raid/rally dynamics
+- Tune vendetta trigger rates/duration/bias so conflict memory stays readable without creating permanent hostility loops
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets
