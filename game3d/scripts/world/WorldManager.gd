@@ -29,6 +29,10 @@ var poi_allegiance_id: Dictionary = {}
 var poi_raid_state: Dictionary = {}
 var poi_raid_cooldown_until: float = 0.0
 var poi_last_raid_attacker: String = ""
+var raid_pressure_global_multiplier: float = 1.0
+var raid_pressure_human_multiplier: float = 1.0
+var raid_pressure_monster_multiplier: float = 1.0
+var world_event_visual_id: String = ""
 
 
 func setup_world() -> void:
@@ -39,6 +43,20 @@ func setup_world() -> void:
 
 func tick_world(_delta: float) -> void:
     pass
+
+
+func set_raid_pressure_modifiers(
+    global_multiplier: float = 1.0,
+    human_multiplier: float = 1.0,
+    monster_multiplier: float = 1.0
+) -> void:
+    raid_pressure_global_multiplier = clampf(global_multiplier, 0.45, 1.35)
+    raid_pressure_human_multiplier = clampf(human_multiplier, 0.45, 1.35)
+    raid_pressure_monster_multiplier = clampf(monster_multiplier, 0.45, 1.35)
+
+
+func set_world_event_visual(event_id: String) -> void:
+    world_event_visual_id = event_id
 
 
 func clamp_to_world(position: Vector3) -> Vector3:
@@ -181,6 +199,11 @@ func get_raid_guidance(
             weight += 0.12
         elif home_poi != "":
             weight -= 0.16
+    weight *= raid_pressure_global_multiplier
+    if faction == "human":
+        weight *= raid_pressure_human_multiplier
+    elif faction == "monster":
+        weight *= raid_pressure_monster_multiplier
 
     return {
         "reason": "raid_pressure:%s->%s" % [source_poi if source_poi != "" else "src", target_name],
@@ -795,6 +818,8 @@ func _apply_poi_visual_state(
     else:
         structure_halo.visible = false
 
+    _apply_world_event_visual_bias(ring, beacon, status_color, intensity, time_seconds)
+
     if raid_role == "source":
         var source_pulse := 1.0 + 0.10 * sin(time_seconds * 5.0)
         ring.scale *= Vector3(source_pulse, 1.0, source_pulse)
@@ -1077,3 +1102,22 @@ func _set_mesh_color(mesh: MeshInstance3D, color: Color, emission_strength: floa
     material.albedo_color = color
     material.emission_enabled = true
     material.emission = color * emission_strength
+
+
+func _apply_world_event_visual_bias(
+    ring: MeshInstance3D,
+    beacon: MeshInstance3D,
+    status_color: Color,
+    intensity: float,
+    time_seconds: float
+) -> void:
+    match world_event_visual_id:
+        "mana_surge":
+            var surge_mix := 0.22 + 0.06 * sin(time_seconds * 5.0)
+            _set_mesh_color(beacon, status_color.lerp(Color(0.74, 0.56, 1.0), surge_mix), intensity + 0.22)
+        "monster_frenzy":
+            var frenzy_mix := 0.24 + 0.05 * sin(time_seconds * 6.2)
+            _set_mesh_color(ring, status_color.lerp(Color(1.0, 0.38, 0.30), frenzy_mix), intensity + 0.18)
+        "sanctuary_calm":
+            var calm_mix := 0.20 + 0.04 * sin(time_seconds * 3.4)
+            _set_mesh_color(ring, status_color.lerp(Color(0.52, 0.82, 1.0), calm_mix), intensity + 0.10)

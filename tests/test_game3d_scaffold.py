@@ -65,6 +65,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("structure", content)
         self.assertIn("raid", content)
         self.assertIn("allegiance", content)
+        self.assertIn("world event", content)
+        self.assertIn("mana surge", content)
+        self.assertIn("monster frenzy", content)
+        self.assertIn("sanctuary calm", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -97,6 +101,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("resolve_actor_allegiance", content)
         self.assertIn("allegiance_created", content)
         self.assertIn("allegiance_removed", content)
+        self.assertIn("set_raid_pressure_modifiers", content)
+        self.assertIn("set_world_event_visual", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -113,6 +119,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("allegiance:none", content)
         self.assertIn("Champions:", content)
         self.assertIn("Rally:", content)
+        self.assertIn("World Event:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -206,6 +213,19 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("rally_groups_formed_total", content)
         self.assertIn("rally_followers_active", content)
         self.assertIn("_update_rally_runtime", content)
+
+    def test_game_loop_has_world_event_scheduler_and_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("WORLD_EVENT_TYPES", content)
+        self.assertIn("_update_world_events", content)
+        self.assertIn("World Event START", content)
+        self.assertIn("World Event END", content)
+        self.assertIn('"world_event_active_id"', content)
+        self.assertIn('"world_event_started_total"', content)
+        self.assertIn("get_magic_modifiers", content)
+        self.assertIn("get_melee_damage_multiplier", content)
+        self.assertIn("get_speed_multiplier", content)
+        self.assertIn("get_energy_regen_bonus_per_sec", content)
 
 
 if __name__ == "__main__":

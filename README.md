@@ -20,6 +20,7 @@ The active direction is a minimal but playable sandbox loop:
 - POI persistent structures (camp -> outpost, ruins -> lair)
 - POI raid pressure cycles (outpost <-> lair)
 - lightweight allegiance/proto-faction layer (structure-anchored)
+- lightweight global world events layer (single active temporary perturbation)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -64,6 +65,12 @@ The active direction is a minimal but playable sandbox loop:
   - allegiance is lost automatically if the anchor disappears
   - bounded behavior effect: same-allegiance cohesion for champion rally and home-defense bias under raid pressure
   - observability: `Allegiance UP/DOWN/assign/lost` logs, allegiance counters in HUD, and allegiance id per POI snapshot
+- World events layer (MVP):
+  - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
+  - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
+  - `monster_frenzy` (Monster Frenzy): light monster pressure boost (monster melee/speed up, monster raid pressure up)
+  - `sanctuary_calm` (Sanctuary Calm): light human stabilization (human passive energy regen, raid pressure reduced)
+  - observability: dedicated `World Event START/END` logs, HUD active event + remaining time + start/end counters, subtle POI tint shift
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -112,11 +119,13 @@ The debug overlay shows:
 - POI structure counters (`active`, created/lost, extra regen ticks from structures)
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
+- world event counters (`active`, remaining/next timer, starts/ends)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 - POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - POI structure events (`UP`/`DOWN`) when persistent structures are created or destroyed
 - raid events (`START`/`END`) for autonomous pressure cycles between structures
 - allegiance events (`UP`/`DOWN` + unit assignment/loss) to track emerging proto-factions
+- world event logs (`START`/`END`) for temporary global perturbations
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -135,12 +144,14 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_scaffold.py](tests/test_game3d_scaffold.py)
 - [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime/influence/structure/raid/allegiance, spawn mix)
 - [test_game3d_progression_behavior.py](tests/test_game3d_progression_behavior.py) (progression contracts: thresholds, XP triggers, survival pacing, snapshot fields)
+- [test_game3d_world_events_behavior.py](tests/test_game3d_world_events_behavior.py) (world event contracts: trigger cadence, end/reset, bounded modifiers)
 
 Run targeted tests:
 ```bash
 py -m unittest tests.test_game3d_scaffold -v
 py -m unittest tests.test_game3d_behavioral_logic -v
 py -m unittest tests.test_game3d_progression_behavior -v
+py -m unittest tests.test_game3d_world_events_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -169,6 +180,7 @@ py -m unittest discover -s tests -v
 - Add POI persistent structures MVP (`human_outpost` / `monster_lair`) with bounded local bonus and destroy-on-instability behavior
 - Add autonomous POI raid pressure MVP (temporary source->target raid guidance with cooldown and bounded conflict cycles)
 - Add lightweight allegiance/proto-faction MVP anchored on structures, with unit affiliation stability and bounded behavior bias
+- Add autonomous world events MVP (single active event, bounded temporary effects, dedicated observability)
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -178,6 +190,7 @@ py -m unittest discover -s tests -v
 - Tune allegiance assignment radius and defense bias to improve group coherence without hard-locking unit behavior
 - Tune champion rarity thresholds (promotion criteria/cap) from live runs
 - Tune rally distances/probabilities to avoid over-clumping while keeping readable group behavior
+- Tune world event cadence/duration/effect strength for high variety without persistent snowball
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

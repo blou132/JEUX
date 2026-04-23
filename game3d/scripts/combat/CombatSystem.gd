@@ -17,9 +17,10 @@ func try_melee(attacker: Actor, target: Actor, game_loop: GameLoop) -> bool:
         return false
 
     attacker.melee_cooldown_left = attacker.melee_cooldown
-    target.apply_damage(attacker.melee_damage, attacker, "melee")
+    var damage: float = attacker.melee_damage * game_loop.get_melee_damage_multiplier(attacker)
+    target.apply_damage(damage, attacker, "melee")
 
-    game_loop.register_attack("melee", attacker, target, attacker.melee_damage)
+    game_loop.register_attack("melee", attacker, target, damage)
     if target.is_dead:
         game_loop.register_death(target, attacker, "melee")
 

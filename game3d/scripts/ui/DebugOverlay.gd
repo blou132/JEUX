@@ -39,9 +39,32 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var lines: Array[String] = []
+    var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
+    var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
+    var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
+    var world_event_next_in: float = float(snapshot.get("world_event_next_in", 0.0))
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
+    if world_event_id != "":
+        lines.append(
+            "World Event: %s (%.1fs left) | starts=%d ends=%d"
+            % [
+                world_event_name,
+                world_event_remaining,
+                int(snapshot.get("world_event_started_total", 0)),
+                int(snapshot.get("world_event_ended_total", 0))
+            ]
+        )
+    else:
+        lines.append(
+            "World Event: None (next in %.1fs) | starts=%d ends=%d"
+            % [
+                world_event_next_in,
+                int(snapshot.get("world_event_started_total", 0)),
+                int(snapshot.get("world_event_ended_total", 0))
+            ]
+        )
     lines.append("")
 
     lines.append(

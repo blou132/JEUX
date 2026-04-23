@@ -20,6 +20,12 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
     if not caster.is_enemy(target):
         return false
 
+    var magic_modifiers: Dictionary = game_loop.get_magic_modifiers(caster)
+    var damage_mult: float = float(magic_modifiers.get("damage_mult", 1.0))
+    var energy_cost: float = caster.magic_energy_cost * float(magic_modifiers.get("energy_cost_mult", 1.0))
+    if caster.energy < energy_cost:
+        return false
+
     var distance: float = caster.global_position.distance_to(target.global_position)
     if distance > caster.magic_range:
         return false
@@ -31,7 +37,7 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
     direction = direction.normalized()
 
     caster.magic_cooldown_left = caster.magic_cooldown
-    caster.energy = max(0.0, caster.energy - caster.magic_energy_cost)
+    caster.energy = max(0.0, caster.energy - energy_cost)
 
     var visual := _create_projectile_visual(caster.faction)
     visual.global_position = caster.global_position + Vector3(0.0, 1.2, 0.0)
@@ -42,7 +48,7 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
         "position": visual.global_position,
         "direction": direction,
         "lifetime": projectile_lifetime,
-        "damage": caster.magic_damage,
+        "damage": caster.magic_damage * damage_mult,
         "caster": caster,
         "faction": caster.faction
     })
@@ -57,6 +63,12 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
     if not caster.can_cast_nova():
         return false
 
+    var magic_modifiers: Dictionary = game_loop.get_magic_modifiers(caster)
+    var damage_mult: float = float(magic_modifiers.get("damage_mult", 1.0))
+    var energy_cost: float = caster.nova_energy_cost * float(magic_modifiers.get("energy_cost_mult", 1.0))
+    if caster.energy < energy_cost:
+        return false
+
     var hits: int = 0
     for actor in actors:
         if actor == null or actor.is_dead:
@@ -69,7 +81,7 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
             continue
 
         var falloff := clamp(1.0 - (distance / max(0.001, caster.nova_radius)) * 0.25, 0.75, 1.0)
-        var damage: float = caster.nova_damage * falloff
+        var damage: float = caster.nova_damage * damage_mult * falloff
         actor.apply_damage(damage, caster, "nova")
         game_loop.register_attack("magic", caster, actor, damage)
         hits += 1
@@ -81,7 +93,7 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
         return false
 
     caster.magic_cooldown_left = caster.magic_cooldown * 1.15
-    caster.energy = max(0.0, caster.energy - caster.nova_energy_cost)
+    caster.energy = max(0.0, caster.energy - energy_cost)
     _spawn_nova_visual(caster.global_position + Vector3(0.0, 0.25, 0.0), caster.nova_radius, caster.faction)
     game_loop.register_cast(caster, null, "nova")
     return true
@@ -99,12 +111,17 @@ func try_cast_control(caster: Actor, target: Actor, game_loop: GameLoop) -> bool
     if target.is_slowed():
         return false
 
+    var magic_modifiers: Dictionary = game_loop.get_magic_modifiers(caster)
+    var energy_cost: float = caster.control_energy_cost * float(magic_modifiers.get("energy_cost_mult", 1.0))
+    if caster.energy < energy_cost:
+        return false
+
     var distance: float = caster.global_position.distance_to(target.global_position)
     if distance > caster.control_range:
         return false
 
     caster.magic_cooldown_left = caster.magic_cooldown * 1.10
-    caster.energy = max(0.0, caster.energy - caster.control_energy_cost)
+    caster.energy = max(0.0, caster.energy - energy_cost)
 
     target.apply_slow(caster.control_slow_multiplier, caster.control_duration)
     _spawn_control_visual(target.global_position + Vector3(0.0, 0.06, 0.0), caster.faction)

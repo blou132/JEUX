@@ -16,6 +16,10 @@ const POI_INFLUENCE_ENERGY_REGEN_PER_SEC: float = 0.70
 const POI_STRUCTURE_EXTRA_ENERGY_REGEN_PER_SEC: float = 0.30
 const POI_INFLUENCE_XP_INTERVAL: float = 6.0
 const POI_INFLUENCE_XP_GAIN: float = 0.8
+const WORLD_EVENT_START_DELAY: float = 22.0
+const WORLD_EVENT_COOLDOWN_MIN: float = 28.0
+const WORLD_EVENT_COOLDOWN_MAX: float = 52.0
+const WORLD_EVENT_TYPES: Array[String] = ["mana_surge", "monster_frenzy", "sanctuary_calm"]
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -75,6 +79,13 @@ var rally_monster_leaders_active: int = 0
 var rally_human_followers_active: int = 0
 var rally_monster_followers_active: int = 0
 var rally_bonus_followers_active: int = 0
+var world_event_active_id: String = ""
+var world_event_remaining: float = 0.0
+var world_event_next_in: float = WORLD_EVENT_START_DELAY
+var world_event_started_total: int = 0
+var world_event_ended_total: int = 0
+var world_event_last_id: String = ""
+var world_event_modifiers: Dictionary = {}
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
@@ -88,7 +99,9 @@ var event_log: Array[String] = []
 
 func _ready() -> void:
     randomize()
+    world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
+    _apply_world_event_to_world_manager()
     sandbox_systems.setup(self, world_manager, entities_root)
     sandbox_systems.spawn_initial_population(actors)
     record_event("Sandbox boot complete.")
@@ -107,6 +120,7 @@ func _tick(delta: float) -> void:
     elapsed_time += delta
     tick_index += 1
 
+    _update_world_events(delta)
     world_manager.tick_world(delta)
 
     for actor in actors:
@@ -230,6 +244,151 @@ func record_event(message: String) -> void:
     event_log.append("[%05d] %s" % [tick_index, message])
     while event_log.size() > MAX_EVENT_LOG:
         event_log.remove_at(0)
+
+
+func get_magic_modifiers(_caster: Actor) -> Dictionary:
+    return {
+        "damage_mult": float(world_event_modifiers.get("magic_damage_mult", 1.0)),
+        "energy_cost_mult": float(world_event_modifiers.get("magic_energy_cost_mult", 1.0))
+    }
+
+
+func get_melee_damage_multiplier(attacker: Actor) -> float:
+    if attacker == null or attacker.faction != "monster":
+        return 1.0
+    return float(world_event_modifiers.get("monster_melee_damage_mult", 1.0))
+
+
+func get_speed_multiplier(actor: Actor) -> float:
+    if actor == null or actor.faction != "monster":
+        return 1.0
+    return float(world_event_modifiers.get("monster_speed_mult", 1.0))
+
+
+func get_energy_regen_bonus_per_sec(actor: Actor) -> float:
+    if actor == null or actor.faction != "human":
+        return 0.0
+    return float(world_event_modifiers.get("human_energy_regen_per_sec", 0.0))
+
+
+func _update_world_events(delta: float) -> void:
+    if world_event_active_id == "":
+        world_event_next_in = max(0.0, world_event_next_in - delta)
+        if world_event_next_in <= 0.0:
+            _start_world_event(_pick_next_world_event_id())
+        return
+
+    world_event_remaining = max(0.0, world_event_remaining - delta)
+    if world_event_remaining <= 0.0:
+        _end_world_event()
+
+
+func _start_world_event(event_id: String) -> void:
+    if event_id == "":
+        return
+
+    world_event_active_id = event_id
+    world_event_last_id = event_id
+    world_event_remaining = _world_event_duration(event_id)
+    world_event_started_total += 1
+    world_event_modifiers = _modifiers_for_world_event(event_id)
+    _apply_world_event_to_world_manager()
+    record_event(
+        "World Event START: %s (%.0fs)."
+        % [_world_event_label(event_id), world_event_remaining]
+    )
+
+
+func _end_world_event() -> void:
+    if world_event_active_id == "":
+        return
+
+    var finished_id := world_event_active_id
+    world_event_active_id = ""
+    world_event_remaining = 0.0
+    world_event_next_in = randf_range(WORLD_EVENT_COOLDOWN_MIN, WORLD_EVENT_COOLDOWN_MAX)
+    world_event_modifiers = _default_world_event_modifiers()
+    world_event_ended_total += 1
+    _apply_world_event_to_world_manager()
+    record_event(
+        "World Event END: %s (next in ~%.0fs)."
+        % [_world_event_label(finished_id), world_event_next_in]
+    )
+
+
+func _pick_next_world_event_id() -> String:
+    var choices: Array = WORLD_EVENT_TYPES.duplicate()
+    if choices.size() > 1 and world_event_last_id != "":
+        choices.erase(world_event_last_id)
+    if choices.is_empty():
+        choices = WORLD_EVENT_TYPES.duplicate()
+    if choices.is_empty():
+        return ""
+    return choices[randi() % choices.size()]
+
+
+func _world_event_duration(event_id: String) -> float:
+    match event_id:
+        "mana_surge":
+            return 18.0
+        "monster_frenzy":
+            return 16.0
+        "sanctuary_calm":
+            return 20.0
+        _:
+            return 15.0
+
+
+func _default_world_event_modifiers() -> Dictionary:
+    return {
+        "magic_damage_mult": 1.0,
+        "magic_energy_cost_mult": 1.0,
+        "monster_melee_damage_mult": 1.0,
+        "monster_speed_mult": 1.0,
+        "human_energy_regen_per_sec": 0.0,
+        "raid_pressure_global_mult": 1.0,
+        "raid_pressure_human_mult": 1.0,
+        "raid_pressure_monster_mult": 1.0
+    }
+
+
+func _modifiers_for_world_event(event_id: String) -> Dictionary:
+    var modifiers: Dictionary = _default_world_event_modifiers()
+    match event_id:
+        "mana_surge":
+            modifiers["magic_damage_mult"] = 1.18
+            modifiers["magic_energy_cost_mult"] = 0.86
+            modifiers["raid_pressure_global_mult"] = 1.03
+        "monster_frenzy":
+            modifiers["monster_melee_damage_mult"] = 1.14
+            modifiers["monster_speed_mult"] = 1.08
+            modifiers["raid_pressure_monster_mult"] = 1.16
+        "sanctuary_calm":
+            modifiers["human_energy_regen_per_sec"] = 0.55
+            modifiers["raid_pressure_global_mult"] = 0.90
+            modifiers["raid_pressure_monster_mult"] = 0.78
+    return modifiers
+
+
+func _apply_world_event_to_world_manager() -> void:
+    world_manager.set_raid_pressure_modifiers(
+        float(world_event_modifiers.get("raid_pressure_global_mult", 1.0)),
+        float(world_event_modifiers.get("raid_pressure_human_mult", 1.0)),
+        float(world_event_modifiers.get("raid_pressure_monster_mult", 1.0))
+    )
+    world_manager.set_world_event_visual(world_event_active_id)
+
+
+func _world_event_label(event_id: String) -> String:
+    match event_id:
+        "mana_surge":
+            return "Mana Surge"
+        "monster_frenzy":
+            return "Monster Frenzy"
+        "sanctuary_calm":
+            return "Sanctuary Calm"
+        _:
+            return "None"
 
 
 func _cleanup_dead_actors() -> void:
@@ -447,6 +606,12 @@ func _build_snapshot() -> Dictionary:
         "raid_success_total": raid_success_total,
         "raid_interrupted_total": raid_interrupted_total,
         "raid_timeout_total": raid_timeout_total,
+        "world_event_active_id": world_event_active_id,
+        "world_event_active_name": _world_event_label(world_event_active_id),
+        "world_event_remaining": world_event_remaining,
+        "world_event_next_in": world_event_next_in,
+        "world_event_started_total": world_event_started_total,
+        "world_event_ended_total": world_event_ended_total,
         "allegiance_created_total": allegiance_created_total,
         "allegiance_removed_total": allegiance_removed_total,
         "allegiance_assignments_total": allegiance_assignments_total,

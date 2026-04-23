@@ -63,6 +63,8 @@ var allegiance_id: String = ""
 var home_poi: String = ""
 var rally_leader_id: int = 0
 var rally_bonus_active: bool = false
+var world_speed_multiplier: float = 1.0
+var world_energy_regen_per_sec: float = 0.0
 
 var has_wander_target: bool = false
 var wander_target: Vector3 = Vector3.ZERO
@@ -110,6 +112,7 @@ func tick_actor(
     magic_cooldown_left = max(0.0, magic_cooldown_left - delta)
     _update_control_state(delta)
     _update_survival_progress(delta, game_loop)
+    _update_world_event_context(game_loop)
 
     _update_energy_and_exhaustion(delta)
     if is_dead:
@@ -359,7 +362,7 @@ func _move_towards(target_position: Vector3, delta: float, world: WorldManager, 
     if to_target.length() < 0.05:
         return
 
-    var final_speed_multiplier := speed_multiplier * _movement_control_factor()
+    var final_speed_multiplier := speed_multiplier * _movement_control_factor() * world_speed_multiplier
     var velocity := to_target.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
@@ -373,7 +376,7 @@ func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager
     if away_vector.length() < 0.05:
         away_vector = Vector3.RIGHT
 
-    var final_speed_multiplier := speed_multiplier * _movement_control_factor()
+    var final_speed_multiplier := speed_multiplier * _movement_control_factor() * world_speed_multiplier
     var velocity := away_vector.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
@@ -382,6 +385,8 @@ func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager
 
 func _update_energy_and_exhaustion(delta: float) -> void:
     _spend_energy(energy_drain_rate * _rally_energy_drain_multiplier() * delta)
+    if world_energy_regen_per_sec > 0.0:
+        energy = min(max_energy, energy + world_energy_regen_per_sec * delta)
 
     if energy <= 0.0:
         apply_damage(exhaustion_damage_rate * delta, null, "exhaustion")
@@ -422,6 +427,15 @@ func _rally_energy_drain_multiplier() -> float:
     if rally_bonus_active and not is_champion:
         return 0.92
     return 1.0
+
+
+func _update_world_event_context(game_loop: GameLoop) -> void:
+    if game_loop == null:
+        world_speed_multiplier = 1.0
+        world_energy_regen_per_sec = 0.0
+        return
+    world_speed_multiplier = clampf(game_loop.get_speed_multiplier(self), 0.72, 1.35)
+    world_energy_regen_per_sec = max(0.0, game_loop.get_energy_regen_bonus_per_sec(self))
 
 
 func _update_survival_progress(delta: float, game_loop: GameLoop) -> void:
