@@ -51,11 +51,23 @@ var poi_influence_regen_ticks_total: int = 0
 var poi_influence_xp_grants_total: int = 0
 var level_ups_total: int = 0
 var champion_promotions_total: int = 0
+var rally_groups_formed_total: int = 0
+var rally_groups_dissolved_total: int = 0
+var rally_follow_ticks_total: int = 0
+var rally_bonus_ticks_total: int = 0
+var rally_leaders_active: int = 0
+var rally_followers_active: int = 0
+var rally_human_leaders_active: int = 0
+var rally_monster_leaders_active: int = 0
+var rally_human_followers_active: int = 0
+var rally_monster_followers_active: int = 0
+var rally_bonus_followers_active: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
 var _poi_influence_xp_timers: Dictionary = {}
 var _champion_scan_timer: float = 0.0
+var _prev_rally_leader_counts: Dictionary = {}
 
 var event_log: Array[String] = []
 
@@ -88,6 +100,7 @@ func _tick(delta: float) -> void:
             continue
         actor.tick_actor(delta, world_manager, actors, ai, combat_system, magic_system, self)
 
+    _update_rally_runtime()
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _apply_poi_influences(delta)
@@ -113,7 +126,7 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition"]:
+    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally"]:
         record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
 
@@ -214,6 +227,7 @@ func _cleanup_dead_actors() -> void:
         if actor.is_dead:
             actor_poi_presence.erase(actor.actor_id)
             _clear_actor_influence_timers(actor.actor_id)
+            _clear_actor_rally_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
 
@@ -264,6 +278,7 @@ func _build_snapshot() -> Dictionary:
         "cast_control": 0,
         "cast_nova": 0,
         "reposition": 0,
+        "rally": 0,
         "poi": 0,
         "flee": 0
     }
@@ -341,6 +356,13 @@ func _build_snapshot() -> Dictionary:
         "human_champions_alive": human_champions_alive,
         "monster_champions_alive": monster_champions_alive,
         "champion_kills_total": champion_kills_total,
+        "rally_leaders_active": rally_leaders_active,
+        "rally_followers_active": rally_followers_active,
+        "rally_human_leaders_active": rally_human_leaders_active,
+        "rally_monster_leaders_active": rally_monster_leaders_active,
+        "rally_human_followers_active": rally_human_followers_active,
+        "rally_monster_followers_active": rally_monster_followers_active,
+        "rally_bonus_followers_active": rally_bonus_followers_active,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -365,10 +387,103 @@ func _build_snapshot() -> Dictionary:
         "poi_influence_active_count": poi_influence_active_count,
         "level_ups_total": level_ups_total,
         "champion_promotions_total": champion_promotions_total,
+        "rally_groups_formed_total": rally_groups_formed_total,
+        "rally_groups_dissolved_total": rally_groups_dissolved_total,
+        "rally_follow_ticks_total": rally_follow_ticks_total,
+        "rally_bonus_ticks_total": rally_bonus_ticks_total,
         "poi_population": poi_population,
         "poi_snapshot": poi_runtime_snapshot,
         "state_counts": state_counts
     }
+
+
+func _update_rally_runtime() -> void:
+    var alive_by_id: Dictionary = {}
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        alive_by_id[actor.actor_id] = actor
+
+    var followers_by_leader: Dictionary = {}
+    var followers_total: int = 0
+    var human_followers: int = 0
+    var monster_followers: int = 0
+    var bonus_followers: int = 0
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+
+        var leader_id: int = actor.rally_leader_id
+        if leader_id == actor.actor_id:
+            leader_id = 0
+
+        if leader_id != 0:
+            var leader: Actor = alive_by_id.get(leader_id, null)
+            if leader == null or leader.is_dead or not leader.is_champion or leader.faction != actor.faction:
+                leader_id = 0
+
+        actor.rally_leader_id = leader_id
+        if leader_id == 0:
+            actor.rally_bonus_active = false
+            continue
+
+        followers_total += 1
+        if actor.faction == "human":
+            human_followers += 1
+        elif actor.faction == "monster":
+            monster_followers += 1
+
+        if actor.rally_bonus_active:
+            bonus_followers += 1
+            rally_bonus_ticks_total += 1
+        rally_follow_ticks_total += 1
+
+        followers_by_leader[leader_id] = int(followers_by_leader.get(leader_id, 0)) + 1
+
+    var leaders_total: int = 0
+    var human_leaders: int = 0
+    var monster_leaders: int = 0
+    for leader_id_variant in followers_by_leader.keys():
+        var leader_id: int = int(leader_id_variant)
+        var leader: Actor = alive_by_id.get(leader_id, null)
+        if leader == null:
+            continue
+
+        leaders_total += 1
+        if leader.faction == "human":
+            human_leaders += 1
+        elif leader.faction == "monster":
+            monster_leaders += 1
+
+        var current_followers: int = int(followers_by_leader.get(leader_id, 0))
+        var previous_followers: int = int(_prev_rally_leader_counts.get(leader_id, 0))
+        if previous_followers <= 0 and current_followers > 0:
+            rally_groups_formed_total += 1
+            record_event("Rally formed: %s (+%d allies)." % [_actor_label(leader), current_followers])
+
+    for leader_id_variant in _prev_rally_leader_counts.keys():
+        var leader_id: int = int(leader_id_variant)
+        if followers_by_leader.has(leader_id):
+            continue
+        var previous_followers: int = int(_prev_rally_leader_counts.get(leader_id, 0))
+        if previous_followers <= 0:
+            continue
+        rally_groups_dissolved_total += 1
+        var label := "champion#%d" % leader_id
+        var leader: Actor = alive_by_id.get(leader_id, null)
+        if leader != null:
+            label = _actor_label(leader)
+        record_event("Rally dissolved: %s (-%d allies)." % [label, previous_followers])
+
+    rally_leaders_active = leaders_total
+    rally_followers_active = followers_total
+    rally_human_leaders_active = human_leaders
+    rally_monster_leaders_active = monster_leaders
+    rally_human_followers_active = human_followers
+    rally_monster_followers_active = monster_followers
+    rally_bonus_followers_active = bonus_followers
+    _prev_rally_leader_counts = followers_by_leader
 
 
 func _update_poi_runtime() -> void:
@@ -471,6 +586,16 @@ func _clear_actor_influence_timers(actor_id: int) -> void:
             to_remove.append(key_text)
     for key_text in to_remove:
         _poi_influence_xp_timers.erase(key_text)
+
+
+func _clear_actor_rally_tracking(actor_id: int) -> void:
+    _prev_rally_leader_counts.erase(actor_id)
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.rally_leader_id == actor_id:
+            actor.rally_leader_id = 0
+            actor.rally_bonus_active = false
 
 
 func _scan_for_champion_promotion(delta: float) -> void:

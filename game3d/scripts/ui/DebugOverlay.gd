@@ -118,6 +118,27 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
+        "Rally: leaders=%d (H:%d M:%d) | followers=%d (H:%d M:%d) | bonus_near_leader=%d"
+        % [
+            int(snapshot.get("rally_leaders_active", 0)),
+            int(snapshot.get("rally_human_leaders_active", 0)),
+            int(snapshot.get("rally_monster_leaders_active", 0)),
+            int(snapshot.get("rally_followers_active", 0)),
+            int(snapshot.get("rally_human_followers_active", 0)),
+            int(snapshot.get("rally_monster_followers_active", 0)),
+            int(snapshot.get("rally_bonus_followers_active", 0))
+        ]
+    )
+    lines.append(
+        "Rally events: formed=%d dissolved=%d | follow_ticks=%d | bonus_ticks=%d"
+        % [
+            int(snapshot.get("rally_groups_formed_total", 0)),
+            int(snapshot.get("rally_groups_dissolved_total", 0)),
+            int(snapshot.get("rally_follow_ticks_total", 0)),
+            int(snapshot.get("rally_bonus_ticks_total", 0))
+        ]
+    )
+    lines.append(
         "Flee events: %d | Engagement transitions: %d"
         % [
             int(snapshot.get("flee_events_total", 0)),
@@ -144,10 +165,11 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     )
     lines.append("")
     lines.append(
-        "States: wander=%d poi=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
+        "States: wander=%d poi=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
         % [
             int(state_counts.get("wander", 0)),
             int(state_counts.get("poi", 0)),
+            int(state_counts.get("rally", 0)),
             int(state_counts.get("detect", 0)),
             int(state_counts.get("chase", 0)),
             int(state_counts.get("attack", 0)),

@@ -59,6 +59,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("mage", content)
         self.assertIn("scout", content)
         self.assertIn("champion", content)
+        self.assertIn("rally", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -87,6 +88,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("POI influence", content)
         self.assertIn("influence:off", content)
         self.assertIn("Champions:", content)
+        self.assertIn("Rally:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -100,6 +102,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"state": "cast_control"', content)
         self.assertIn("magic_usage_bias", content)
         self.assertIn("control_usage_bias", content)
+        self.assertIn('"state": "rally"', content)
+        self.assertIn("rally_regroup", content)
+        self.assertIn("rally_pressure", content)
 
     def test_human_agent_has_roles(self):
         content = (GAME3D / "scripts" / "entities" / "HumanAgent.gd").read_text(encoding="utf-8")
@@ -127,6 +132,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("champion_tag()", content)
         self.assertIn("is_ready_for_champion", content)
         self.assertIn("promote_to_champion", content)
+        self.assertIn("rally_leader_id", content)
+        self.assertIn("rally_bonus_active", content)
+        self.assertIn('"rally":', content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -155,6 +163,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("_try_promote_champion", content)
         self.assertIn("_scan_for_champion_promotion", content)
         self.assertIn('"champion_alive_total"', content)
+        self.assertIn("rally_groups_formed_total", content)
+        self.assertIn("rally_followers_active", content)
+        self.assertIn("_update_rally_runtime", content)
 
 
 if __name__ == "__main__":

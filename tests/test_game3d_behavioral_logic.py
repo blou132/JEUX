@@ -14,8 +14,11 @@ GAME3D = ROOT / "game3d"
 @dataclass
 class EnemyStub:
     actor_kind: str = "monster"
+    faction: str = "monster"
+    actor_id: int = 999
     position: tuple[float, float] = (0.0, 0.0)
     slowed: bool = False
+    is_dead: bool = False
 
     def is_slowed(self) -> bool:
         return self.slowed
@@ -23,9 +26,14 @@ class EnemyStub:
 
 @dataclass
 class ActorStub:
+    actor_id: int = 1
     actor_kind: str = "adventurer"
     faction: str = "human"
     position: tuple[float, float] = (0.0, 0.0)
+    is_dead: bool = False
+    is_champion: bool = False
+    state: str = "wander"
+    target_actor: EnemyStub | None = None
     vision_range: float = 20.0
     attack_range: float = 2.0
     magic_range: float = 13.0
@@ -65,17 +73,64 @@ class WorldStub:
         return self.poi_guidance
 
 
-def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: float, spell_roll: float = 0.0) -> dict:
-    enemy = world.find_nearest_enemy(actor, [], actor.vision_range)
+def decide_action_contract(
+    actor: ActorStub,
+    world: WorldStub,
+    random_roll: float,
+    spell_roll: float = 0.0,
+    all_actors: list[ActorStub] | None = None,
+) -> dict:
+    all_actors = all_actors or []
+    rally = _build_rally_context_contract(actor, all_actors)
+    rally_leader = rally["leader"]
+    rally_bonus = rally["bonus_active"]
+    rally_pressure_target = rally["pressure_target"]
+
+    enemy = world.find_nearest_enemy(actor, all_actors, actor.vision_range)
     if enemy is None:
+        if rally_leader is not None:
+            if rally_pressure_target is not None:
+                return _with_rally_contract(
+                    {
+                        "state": "rally",
+                        "target": rally_pressure_target,
+                        "target_position": rally_pressure_target.position,
+                        "reason": "rally_pressure",
+                    },
+                    rally_leader,
+                    rally_bonus,
+                )
+            if rally["distance"] > actor.attack_range * 1.05 and random_roll <= 0.66:
+                return _with_rally_contract(
+                    {
+                        "state": "rally",
+                        "target_position": rally_leader.position,
+                        "reason": "rally_regroup",
+                    },
+                    rally_leader,
+                    rally_bonus,
+                )
+
         guidance = world.get_poi_guidance(actor.position, actor.faction)
         if guidance and random_roll <= 0.58:
-            return {
-                "state": "poi",
-                "target_position": guidance.get("target_position", actor.position),
-                "reason": f"poi_guidance:{guidance.get('name', 'poi')}",
-            }
-        return {"state": "wander", "reason": "no_enemy_visible"}
+            return _with_rally_contract(
+                {
+                    "state": "poi",
+                    "target_position": guidance.get("target_position", actor.position),
+                    "reason": f"poi_guidance:{guidance.get('name', 'poi')}",
+                },
+                rally_leader,
+                rally_bonus,
+            )
+        return _with_rally_contract({"state": "wander", "reason": "no_enemy_visible"}, rally_leader, rally_bonus)
+
+    if (
+        rally_pressure_target is not None
+        and rally_pressure_target is not enemy
+        and math.dist(actor.position, rally_pressure_target.position) <= actor.vision_range * 1.08
+        and random_roll <= 0.34
+    ):
+        enemy = rally_pressure_target
 
     distance = math.dist(actor.position, enemy.position)
     under_pressure = (
@@ -86,10 +141,18 @@ def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: floa
     preferred_min_distance = actor.attack_range * 1.85
 
     if is_ranged and distance < preferred_min_distance and not under_pressure:
-        return {"state": "reposition", "target": enemy, "reason": "ranged_keep_distance"}
+        return _with_rally_contract(
+            {"state": "reposition", "target": enemy, "reason": "ranged_keep_distance"},
+            rally_leader,
+            rally_bonus,
+        )
 
     if under_pressure and distance <= actor.vision_range * 0.9:
-        return {"state": "flee", "target": enemy, "reason": "pressure_and_threat"}
+        return _with_rally_contract(
+            {"state": "flee", "target": enemy, "reason": "pressure_and_threat"},
+            rally_leader,
+            rally_bonus,
+        )
 
     if (
         actor.can_cast_control()
@@ -99,35 +162,122 @@ def decide_action_contract(actor: ActorStub, world: WorldStub, random_roll: floa
     ):
         if enemy.actor_kind in ["brute_monster", "ranged_monster"] or distance <= actor.control_range * 0.78:
             if spell_roll <= actor.control_usage_bias:
-                return {"state": "cast_control", "target": enemy, "reason": "control_window"}
+                return _with_rally_contract(
+                    {"state": "cast_control", "target": enemy, "reason": "control_window"},
+                    rally_leader,
+                    rally_bonus,
+                )
 
     if actor.can_cast_nova() and distance <= actor.nova_radius * 0.95:
         if spell_roll <= actor.nova_usage_bias:
-            return {"state": "cast_nova", "target": enemy, "reason": "nova_range"}
+            return _with_rally_contract(
+                {"state": "cast_nova", "target": enemy, "reason": "nova_range"},
+                rally_leader,
+                rally_bonus,
+            )
 
     if actor.can_cast_magic() and distance <= actor.magic_range and distance > actor.attack_range * 1.2:
         if spell_roll <= actor.magic_usage_bias:
-            return {"state": "cast", "target": enemy, "reason": "ranged_cast" if is_ranged else "magic_range"}
+            return _with_rally_contract(
+                {"state": "cast", "target": enemy, "reason": "ranged_cast" if is_ranged else "magic_range"},
+                rally_leader,
+                rally_bonus,
+            )
 
     if distance <= actor.attack_range:
-        return {"state": "attack", "target": enemy, "reason": "melee_range"}
+        return _with_rally_contract(
+            {"state": "attack", "target": enemy, "reason": "melee_range"},
+            rally_leader,
+            rally_bonus,
+        )
 
     if distance > actor.vision_range * 0.55:
         if actor.actor_kind == "brute_monster":
-            return {"state": "chase", "target": enemy, "reason": "brute_commit"}
+            return _with_rally_contract(
+                {"state": "chase", "target": enemy, "reason": "brute_commit"},
+                rally_leader,
+                rally_bonus,
+            )
         if is_ranged and distance <= actor.magic_range * 1.08:
-            return {"state": "detect", "target": enemy, "reason": "ranged_hold_line"}
-        return {"state": "detect", "target": enemy, "reason": "enemy_detected_far"}
+            return _with_rally_contract(
+                {"state": "detect", "target": enemy, "reason": "ranged_hold_line"},
+                rally_leader,
+                rally_bonus,
+            )
+        return _with_rally_contract(
+            {"state": "detect", "target": enemy, "reason": "enemy_detected_far"},
+            rally_leader,
+            rally_bonus,
+        )
 
     if is_ranged and distance > actor.attack_range * 1.15 and actor.can_cast_magic():
         if spell_roll <= actor.magic_usage_bias:
-            return {"state": "cast", "target": enemy, "reason": "ranged_pressure_cast"}
+            return _with_rally_contract(
+                {"state": "cast", "target": enemy, "reason": "ranged_pressure_cast"},
+                rally_leader,
+                rally_bonus,
+            )
+
+    return _with_rally_contract(
+        {
+            "state": "chase",
+            "target": enemy,
+            "reason": "ranged_reposition_chase" if is_ranged else "enemy_detected_near",
+        },
+        rally_leader,
+        rally_bonus,
+    )
+
+
+def _with_rally_contract(base_decision: dict, rally_leader: ActorStub | None, rally_bonus: bool) -> dict:
+    decision = dict(base_decision)
+    if rally_leader is not None and not rally_leader.is_dead:
+        decision["rally_leader"] = rally_leader
+        decision["rally_bonus"] = rally_bonus
+    return decision
+
+
+def _build_rally_context_contract(actor: ActorStub, all_actors: list[ActorStub]) -> dict:
+    if actor.is_champion:
+        return {"leader": None, "distance": math.inf, "bonus_active": False, "pressure_target": None}
+
+    max_distance = min(actor.vision_range * 0.72, 14.0)
+    leader = _find_nearby_allied_champion_contract(actor, all_actors, max_distance)
+    if leader is None:
+        return {"leader": None, "distance": math.inf, "bonus_active": False, "pressure_target": None}
+
+    distance = math.dist(actor.position, leader.position)
+    pressure_target = None
+    if (
+        leader.target_actor is not None
+        and not leader.target_actor.is_dead
+        and leader.state in {"detect", "chase", "attack", "cast", "cast_control", "cast_nova", "reposition"}
+    ):
+        pressure_target = leader.target_actor
 
     return {
-        "state": "chase",
-        "target": enemy,
-        "reason": "ranged_reposition_chase" if is_ranged else "enemy_detected_near",
+        "leader": leader,
+        "distance": distance,
+        "bonus_active": distance <= 3.6,
+        "pressure_target": pressure_target,
     }
+
+
+def _find_nearby_allied_champion_contract(actor: ActorStub, all_actors: list[ActorStub], max_distance: float) -> ActorStub | None:
+    closest = None
+    best_dist = max_distance
+    for other in all_actors:
+        if other is actor:
+            continue
+        if other.is_dead or not other.is_champion:
+            continue
+        if other.faction != actor.faction:
+            continue
+        dist = math.dist(actor.position, other.position)
+        if dist <= best_dist:
+            closest = other
+            best_dist = dist
+    return closest
 
 
 def poi_runtime_contract(occupancy: dict, previous_status: dict | None = None) -> dict:
@@ -286,6 +436,39 @@ def champion_promotion_contract(
 
 
 class TestGame3DBehavioralLogic(unittest.TestCase):
+    def test_ai_decides_rally_when_nearby_champion_exists(self):
+        actor = ActorStub(actor_id=1, faction="human", position=(0.0, 0.0), attack_range=2.0)
+        champion = ActorStub(
+            actor_id=2,
+            faction="human",
+            position=(7.0, 0.0),
+            is_champion=True,
+            state="wander",
+        )
+        world = WorldStub(enemy=None, poi_guidance={})
+        decision = decide_action_contract(actor, world, random_roll=0.20, all_actors=[actor, champion])
+        self.assertEqual(decision["state"], "rally")
+        self.assertEqual(decision["reason"], "rally_regroup")
+        self.assertEqual(decision["rally_leader"].actor_id, 2)
+
+    def test_ai_decides_rally_pressure_when_leader_is_engaged(self):
+        actor = ActorStub(actor_id=10, faction="monster", position=(1.0, 0.0), attack_range=1.8)
+        target = EnemyStub(actor_kind="adventurer", faction="human", actor_id=70, position=(9.0, 0.0))
+        champion = ActorStub(
+            actor_id=11,
+            actor_kind="brute_monster",
+            faction="monster",
+            position=(3.0, 0.0),
+            is_champion=True,
+            state="chase",
+            target_actor=target,
+        )
+        world = WorldStub(enemy=None, poi_guidance={})
+        decision = decide_action_contract(actor, world, random_roll=0.90, all_actors=[actor, champion])
+        self.assertEqual(decision["state"], "rally")
+        self.assertEqual(decision["reason"], "rally_pressure")
+        self.assertIs(decision["target"], target)
+
     def test_ai_decides_poi_when_no_enemy_and_guidance(self):
         actor = ActorStub()
         world = WorldStub(enemy=None, poi_guidance={"name": "camp", "target_position": (4.0, -3.0)})

@@ -59,6 +59,8 @@ var state: String = "wander"
 var last_reason: String = "spawned"
 var target_actor: Actor = null
 var target_position: Vector3 = Vector3.ZERO
+var rally_leader_id: int = 0
+var rally_bonus_active: bool = false
 
 var has_wander_target: bool = false
 var wander_target: Vector3 = Vector3.ZERO
@@ -118,6 +120,7 @@ func tick_actor(
     last_reason = str(decision.get("reason", "none"))
     target_actor = decision.get("target", null)
     target_position = decision.get("target_position", global_position)
+    _update_rally_context_from_decision(decision)
 
     if previous_state != state:
         game_loop.register_state_change(self, previous_state, state, last_reason)
@@ -162,6 +165,11 @@ func tick_actor(
                     _wander(delta, world)
         "poi":
             _move_towards(target_position, delta, world, 0.90)
+        "rally":
+            if target_actor != null:
+                _move_towards(target_actor.global_position, delta, world, 0.96)
+            else:
+                _move_towards(target_position, delta, world, 0.92)
         "wander":
             _wander(delta, world)
         _:
@@ -338,7 +346,7 @@ func _move_towards(target_position: Vector3, delta: float, world: WorldManager, 
     var velocity := to_target.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
-    _spend_energy(energy_drain_rate * 0.30 * final_speed_multiplier * delta)
+    _spend_energy(energy_drain_rate * 0.30 * final_speed_multiplier * _rally_energy_drain_multiplier() * delta)
 
 
 func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager, speed_multiplier: float = 1.0) -> void:
@@ -352,11 +360,11 @@ func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager
     var velocity := away_vector.normalized() * speed * final_speed_multiplier
     var next_position := global_position + velocity * delta
     global_position = world.clamp_to_world(next_position)
-    _spend_energy(energy_drain_rate * 0.42 * final_speed_multiplier * delta)
+    _spend_energy(energy_drain_rate * 0.42 * final_speed_multiplier * _rally_energy_drain_multiplier() * delta)
 
 
 func _update_energy_and_exhaustion(delta: float) -> void:
-    _spend_energy(energy_drain_rate * delta)
+    _spend_energy(energy_drain_rate * _rally_energy_drain_multiplier() * delta)
 
     if energy <= 0.0:
         apply_damage(exhaustion_damage_rate * delta, null, "exhaustion")
@@ -380,6 +388,23 @@ func _update_control_state(delta: float) -> void:
 
 func _movement_control_factor() -> float:
     return slow_multiplier if slow_time_left > 0.0 else 1.0
+
+
+func _update_rally_context_from_decision(decision: Dictionary) -> void:
+    var rally_leader: Actor = decision.get("rally_leader", null)
+    if rally_leader == null or rally_leader == self or rally_leader.is_dead or rally_leader.faction != faction:
+        rally_leader_id = 0
+        rally_bonus_active = false
+        return
+
+    rally_leader_id = rally_leader.actor_id
+    rally_bonus_active = bool(decision.get("rally_bonus", false))
+
+
+func _rally_energy_drain_multiplier() -> float:
+    if rally_bonus_active and not is_champion:
+        return 0.92
+    return 1.0
 
 
 func _update_survival_progress(delta: float, game_loop: GameLoop) -> void:
