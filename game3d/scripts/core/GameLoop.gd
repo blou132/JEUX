@@ -20,6 +20,14 @@ const WORLD_EVENT_START_DELAY: float = 22.0
 const WORLD_EVENT_COOLDOWN_MIN: float = 28.0
 const WORLD_EVENT_COOLDOWN_MAX: float = 52.0
 const WORLD_EVENT_TYPES: Array[String] = ["mana_surge", "monster_frenzy", "sanctuary_calm"]
+const SPECIAL_ARRIVAL_START_DELAY: float = 40.0
+const SPECIAL_ARRIVAL_COOLDOWN: float = 78.0
+const SPECIAL_ARRIVAL_CHECK_INTERVAL: float = 3.0
+const SPECIAL_ARRIVAL_TRIGGER_CHANCE: float = 0.34
+const SPECIAL_ARRIVAL_MIN_DOMINANCE_SECONDS: float = 15.0
+const SPECIAL_ARRIVAL_MIN_POPULATION: int = 10
+const SPECIAL_ARRIVAL_MAX_ACTIVE: int = 2
+const SPECIAL_ARRIVAL_MAX_ACTIVE_PER_FACTION: int = 1
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -86,6 +94,10 @@ var world_event_started_total: int = 0
 var world_event_ended_total: int = 0
 var world_event_last_id: String = ""
 var world_event_modifiers: Dictionary = {}
+var special_arrivals_total: int = 0
+var special_arrivals_human_total: int = 0
+var special_arrivals_monster_total: int = 0
+var special_arrivals_fallen_total: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
@@ -93,6 +105,8 @@ var active_raid_snapshot: Dictionary = {}
 var _poi_influence_xp_timers: Dictionary = {}
 var _champion_scan_timer: float = 0.0
 var _prev_rally_leader_counts: Dictionary = {}
+var _special_arrival_check_timer: float = 0.0
+var _special_arrival_cooldown_left: float = SPECIAL_ARRIVAL_START_DELAY
 
 var event_log: Array[String] = []
 
@@ -132,6 +146,7 @@ func _tick(delta: float) -> void:
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
+    _update_special_arrivals(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _cleanup_dead_actors()
@@ -227,6 +242,9 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
 
     if victim.is_champion:
         record_event("Champion fallen: %s." % _actor_label(victim))
+    if victim.is_special_arrival():
+        special_arrivals_fallen_total += 1
+        record_event("Special Arrival FALLEN: %s." % _actor_label(victim))
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -391,6 +409,166 @@ func _world_event_label(event_id: String) -> String:
             return "None"
 
 
+func _update_special_arrivals(delta: float) -> void:
+    _special_arrival_cooldown_left = max(0.0, _special_arrival_cooldown_left - delta)
+    _special_arrival_check_timer += delta
+    if _special_arrival_check_timer < SPECIAL_ARRIVAL_CHECK_INTERVAL:
+        return
+    _special_arrival_check_timer = 0.0
+
+    if world_event_active_id == "":
+        return
+    if _special_arrival_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < SPECIAL_ARRIVAL_MIN_POPULATION:
+        return
+    if _count_alive_special_arrivals("") >= SPECIAL_ARRIVAL_MAX_ACTIVE:
+        return
+
+    var candidates: Array[Dictionary] = _collect_special_arrival_candidates()
+    if candidates.is_empty():
+        return
+    if randf() > SPECIAL_ARRIVAL_TRIGGER_CHANCE:
+        return
+
+    var picked: Dictionary = candidates[randi() % candidates.size()]
+    _spawn_special_arrival(picked)
+    _special_arrival_cooldown_left = SPECIAL_ARRIVAL_COOLDOWN
+
+
+func _collect_special_arrival_candidates() -> Array[Dictionary]:
+    var candidates: Array[Dictionary] = []
+
+    if world_event_active_id == "sanctuary_calm":
+        if _count_alive_special_arrivals("human") < SPECIAL_ARRIVAL_MAX_ACTIVE_PER_FACTION:
+            var human_anchor: Dictionary = _find_special_arrival_anchor("human_outpost")
+            if not human_anchor.is_empty():
+                human_anchor["variant_id"] = "summoned_hero"
+                human_anchor["faction"] = "human"
+                human_anchor["title"] = "Summoned Hero"
+                candidates.append(human_anchor)
+
+    if world_event_active_id == "monster_frenzy":
+        if _count_alive_special_arrivals("monster") < SPECIAL_ARRIVAL_MAX_ACTIVE_PER_FACTION:
+            var monster_anchor: Dictionary = _find_special_arrival_anchor("monster_lair")
+            if not monster_anchor.is_empty():
+                monster_anchor["variant_id"] = "calamity_invader"
+                monster_anchor["faction"] = "monster"
+                monster_anchor["title"] = "Calamity Invader"
+                candidates.append(monster_anchor)
+
+    return candidates
+
+
+func _find_special_arrival_anchor(structure_state: String) -> Dictionary:
+    var selected: Dictionary = {}
+    var best_dominance_seconds: float = -1.0
+
+    for poi_name_variant in poi_runtime_snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        var details: Dictionary = poi_runtime_snapshot.get(poi_name, {})
+        if not bool(details.get("structure_active", false)):
+            continue
+        if str(details.get("structure_state", "")) != structure_state:
+            continue
+
+        var dominance_seconds: float = float(details.get("dominance_seconds", 0.0))
+        if dominance_seconds < SPECIAL_ARRIVAL_MIN_DOMINANCE_SECONDS:
+            continue
+        if dominance_seconds <= best_dominance_seconds:
+            continue
+
+        selected = {
+            "poi_name": poi_name,
+            "position": _get_poi_position_by_name(poi_name),
+            "dominance_seconds": dominance_seconds,
+            "allegiance_id": str(details.get("allegiance_id", ""))
+        }
+        best_dominance_seconds = dominance_seconds
+
+    return selected
+
+
+func _get_poi_position_by_name(poi_name: String) -> Vector3:
+    for poi in world_manager.pois:
+        if str(poi.get("name", "")) != poi_name:
+            continue
+        return poi.get("position", Vector3.ZERO)
+    return Vector3.ZERO
+
+
+func _spawn_special_arrival(candidate: Dictionary) -> void:
+    var variant_id: String = str(candidate.get("variant_id", ""))
+    var faction: String = str(candidate.get("faction", ""))
+    var title: String = str(candidate.get("title", "Special Arrival"))
+    var poi_name: String = str(candidate.get("poi_name", ""))
+    var anchor_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    var allegiance_id: String = str(candidate.get("allegiance_id", ""))
+
+    var actor: Actor = _make_special_arrival_actor(variant_id)
+    if actor == null:
+        return
+
+    actor.global_position = _special_arrival_spawn_position(anchor_position, faction)
+    actor.set_special_arrival(variant_id, title)
+    actor.promote_to_champion("special_arrival:%s" % variant_id)
+    actor.apply_special_arrival_bonus(variant_id)
+    if allegiance_id != "":
+        actor.set_allegiance(allegiance_id, poi_name)
+
+    entities_root.add_child(actor)
+    actors.append(actor)
+    register_spawn(actor)
+
+    special_arrivals_total += 1
+    if faction == "human":
+        special_arrivals_human_total += 1
+    elif faction == "monster":
+        special_arrivals_monster_total += 1
+
+    var poi_label := poi_name if poi_name != "" else "wilds"
+    record_event(
+        "Special Arrival START: %s at %s (%s)."
+        % [title, poi_label, _world_event_label(world_event_active_id)]
+    )
+
+
+func _make_special_arrival_actor(variant_id: String) -> Actor:
+    if variant_id == "summoned_hero":
+        var hero := HumanAgent.new()
+        hero.assign_role(_pick_special_human_role())
+        hero.level = hero.max_level
+        hero.progress_xp = 38.0
+        hero.kill_count = CHAMPION_MIN_KILLS
+        hero.age_seconds = CHAMPION_MIN_AGE_SECONDS
+        return hero
+    if variant_id == "calamity_invader":
+        var invader := BruteMonster.new()
+        invader.level = invader.max_level
+        invader.progress_xp = 38.0
+        invader.kill_count = CHAMPION_MIN_KILLS
+        invader.age_seconds = CHAMPION_MIN_AGE_SECONDS
+        return invader
+    return null
+
+
+func _pick_special_human_role() -> String:
+    var roll := randf()
+    if roll < 0.46:
+        return "fighter"
+    if roll < 0.84:
+        return "mage"
+    return "scout"
+
+
+func _special_arrival_spawn_position(anchor_position: Vector3, faction: String) -> Vector3:
+    var base_position: Vector3 = anchor_position
+    if base_position == Vector3.ZERO:
+        base_position = world_manager.get_spawn_point(faction)
+    var jitter := Vector3(randf_range(-2.2, 2.2), 0.0, randf_range(-2.2, 2.2))
+    return world_manager.clamp_to_world(world_manager.snap_to_nav_grid(base_position + jitter))
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -424,6 +602,9 @@ func _build_snapshot() -> Dictionary:
     var human_champions_alive: int = 0
     var monster_champions_alive: int = 0
     var champion_kills_total: int = 0
+    var special_arrivals_active_total: int = 0
+    var special_arrivals_active_humans: int = 0
+    var special_arrivals_active_monsters: int = 0
     var allegiance_affiliated_total: int = 0
     var allegiance_affiliated_humans: int = 0
     var allegiance_affiliated_monsters: int = 0
@@ -473,6 +654,12 @@ func _build_snapshot() -> Dictionary:
         if actor.is_champion:
             champion_alive_total += 1
             champion_kills_total += actor.kill_count
+        if actor.is_special_arrival():
+            special_arrivals_active_total += 1
+            if actor.faction == "human":
+                special_arrivals_active_humans += 1
+            elif actor.faction == "monster":
+                special_arrivals_active_monsters += 1
         if actor.allegiance_id != "":
             allegiance_affiliated_total += 1
             allegiance_member_counts[actor.allegiance_id] = int(allegiance_member_counts.get(actor.allegiance_id, 0)) + 1
@@ -557,6 +744,13 @@ func _build_snapshot() -> Dictionary:
         "human_champions_alive": human_champions_alive,
         "monster_champions_alive": monster_champions_alive,
         "champion_kills_total": champion_kills_total,
+        "special_arrivals_active_total": special_arrivals_active_total,
+        "special_arrivals_active_humans": special_arrivals_active_humans,
+        "special_arrivals_active_monsters": special_arrivals_active_monsters,
+        "special_arrivals_total": special_arrivals_total,
+        "special_arrivals_human_total": special_arrivals_human_total,
+        "special_arrivals_monster_total": special_arrivals_monster_total,
+        "special_arrivals_fallen_total": special_arrivals_fallen_total,
         "allegiance_active_count": active_allegiances.size(),
         "allegiance_affiliated_total": allegiance_affiliated_total,
         "allegiance_affiliated_humans": allegiance_affiliated_humans,
@@ -971,11 +1165,23 @@ func _count_alive_champions(faction_filter: String) -> int:
     return total
 
 
+func _count_alive_special_arrivals(faction_filter: String) -> int:
+    var total := 0
+    for actor in actors:
+        if actor == null or actor.is_dead or not actor.is_special_arrival():
+            continue
+        if faction_filter != "" and actor.faction != faction_filter:
+            continue
+        total += 1
+    return total
+
+
 func _actor_label(actor: Actor) -> String:
     if actor == null:
         return "unknown"
     var role_suffix := actor.role_tag()
     var level_suffix := actor.level_tag()
     var champion_suffix := actor.champion_tag()
+    var special_suffix := actor.special_tag()
     var allegiance_suffix := actor.allegiance_tag()
-    return "%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, allegiance_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, allegiance_suffix, actor.actor_id]

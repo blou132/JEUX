@@ -143,6 +143,18 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
+        "Special arrivals: active=%d (H:%d M:%d) | total=%d (H:%d M:%d) | fallen=%d"
+        % [
+            int(snapshot.get("special_arrivals_active_total", 0)),
+            int(snapshot.get("special_arrivals_active_humans", 0)),
+            int(snapshot.get("special_arrivals_active_monsters", 0)),
+            int(snapshot.get("special_arrivals_total", 0)),
+            int(snapshot.get("special_arrivals_human_total", 0)),
+            int(snapshot.get("special_arrivals_monster_total", 0)),
+            int(snapshot.get("special_arrivals_fallen_total", 0))
+        ]
+    )
+    lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"
         % [
             int(snapshot.get("allegiance_active_count", 0)),

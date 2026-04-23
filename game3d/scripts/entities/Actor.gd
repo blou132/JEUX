@@ -63,6 +63,8 @@ var allegiance_id: String = ""
 var home_poi: String = ""
 var rally_leader_id: int = 0
 var rally_bonus_active: bool = false
+var special_arrival_id: String = ""
+var special_arrival_title: String = ""
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -256,6 +258,65 @@ func allegiance_tag() -> String:
         return ""
     var short_id := allegiance_id.replace(":", ".")
     return "[%s]" % short_id
+
+
+func special_tag() -> String:
+    match special_arrival_id:
+        "summoned_hero":
+            return "[SUMMONED]"
+        "calamity_invader":
+            return "[CALAMITY]"
+        _:
+            return ""
+
+
+func is_special_arrival() -> bool:
+    return special_arrival_id != ""
+
+
+func set_special_arrival(origin_id: String, title: String) -> void:
+    special_arrival_id = origin_id
+    special_arrival_title = title
+    _refresh_control_visual()
+
+
+func apply_special_arrival_bonus(origin_id: String = "") -> void:
+    if origin_id != "":
+        special_arrival_id = origin_id
+    if special_arrival_id == "" or is_dead:
+        return
+
+    var old_max_hp: float = max_hp
+    var old_max_energy: float = max_energy
+
+    match special_arrival_id:
+        "summoned_hero":
+            max_hp *= 1.07
+            max_energy *= 1.09
+            magic_damage *= 1.08
+            control_duration += 0.12
+            speed *= 1.02
+        "calamity_invader":
+            max_hp *= 1.12
+            melee_damage *= 1.10
+            speed *= 1.05
+            vision_range += 0.9
+            flee_health_ratio *= 0.82
+
+    max_hp = min(max_hp, 330.0)
+    max_energy = min(max_energy, 265.0)
+    melee_damage = min(melee_damage, 49.0)
+    magic_damage = min(magic_damage, 44.0)
+    speed = min(speed, 8.1)
+    control_duration = min(control_duration, 3.2)
+    flee_health_ratio = clampf(flee_health_ratio, 0.08, 0.45)
+
+    hp += max_hp - old_max_hp
+    energy += max_energy - old_max_energy
+    hp = clamp(hp, 0.0, max_hp)
+    energy = clamp(energy, 0.0, max_energy)
+    _spawn_special_arrival_signal()
+    _refresh_control_visual()
 
 
 func set_allegiance(next_allegiance_id: String, next_home_poi: String) -> void:
@@ -539,7 +600,13 @@ func _refresh_control_visual() -> void:
         material.emission = Color(0.42, 0.90, 1.0) * 0.28
     else:
         material.albedo_color = _base_body_color
-        if is_champion:
+        if special_arrival_id != "":
+            var special_glow := _special_glow_color()
+            if is_champion:
+                special_glow = special_glow.lerp(_champion_glow_color(), 0.28)
+            material.emission_enabled = true
+            material.emission = special_glow * 0.58
+        elif is_champion:
             var champion_glow := _champion_glow_color()
             material.emission_enabled = true
             material.emission = champion_glow * 0.42
@@ -597,10 +664,46 @@ func _spawn_champion_promotion_signal() -> void:
     tween.finished.connect(ring.queue_free)
 
 
+func _spawn_special_arrival_signal() -> void:
+    if special_arrival_id == "":
+        return
+
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.55
+    mesh.bottom_radius = 1.55
+    mesh.height = 0.12
+    ring.mesh = mesh
+    ring.position = Vector3(0.0, 0.16, 0.0)
+    ring.scale = Vector3(0.16, 1.0, 0.16)
+
+    var color := _special_glow_color()
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.45
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.64, 0.46)
+    tween.finished.connect(ring.queue_free)
+
+
 func _champion_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.88, 0.34)
     return Color(1.0, 0.44, 0.58)
+
+
+func _special_glow_color() -> Color:
+    match special_arrival_id:
+        "summoned_hero":
+            return Color(0.52, 0.82, 1.0)
+        "calamity_invader":
+            return Color(1.0, 0.36, 0.32)
+        _:
+            return Color(0.88, 0.88, 0.88)
 
 
 func _allegiance_glow_color() -> Color:

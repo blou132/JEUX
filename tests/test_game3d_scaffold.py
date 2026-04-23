@@ -69,6 +69,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("mana surge", content)
         self.assertIn("monster frenzy", content)
         self.assertIn("sanctuary calm", content)
+        self.assertIn("special arrival", content)
+        self.assertIn("summoned hero", content)
+        self.assertIn("calamity invader", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -118,6 +121,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Allegiances:", content)
         self.assertIn("allegiance:none", content)
         self.assertIn("Champions:", content)
+        self.assertIn("Special arrivals:", content)
         self.assertIn("Rally:", content)
         self.assertIn("World Event:", content)
 
@@ -174,6 +178,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("home_poi", content)
         self.assertIn("set_allegiance", content)
         self.assertIn("allegiance_tag", content)
+        self.assertIn("special_arrival_id", content)
+        self.assertIn("special_tag", content)
+        self.assertIn("is_special_arrival", content)
+        self.assertIn("apply_special_arrival_bonus", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -226,6 +234,18 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_melee_damage_multiplier", content)
         self.assertIn("get_speed_multiplier", content)
         self.assertIn("get_energy_regen_bonus_per_sec", content)
+
+    def test_game_loop_has_special_arrival_scheduler_and_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("SPECIAL_ARRIVAL_COOLDOWN", content)
+        self.assertIn("SPECIAL_ARRIVAL_MAX_ACTIVE", content)
+        self.assertIn("_update_special_arrivals", content)
+        self.assertIn("_collect_special_arrival_candidates", content)
+        self.assertIn("Special Arrival START", content)
+        self.assertIn("Special Arrival FALLEN", content)
+        self.assertIn('"special_arrivals_active_total"', content)
+        self.assertIn('"special_arrivals_total"', content)
+        self.assertIn("_count_alive_special_arrivals", content)
 
 
 if __name__ == "__main__":
