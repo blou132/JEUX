@@ -165,6 +165,8 @@ func tick_actor(
                     _wander(delta, world)
         "poi":
             _move_towards(target_position, delta, world, 0.90)
+        "raid":
+            _move_towards(target_position, delta, world, 0.98)
         "rally":
             if target_actor != null:
                 _move_towards(target_actor.global_position, delta, world, 0.96)

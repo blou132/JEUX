@@ -53,6 +53,11 @@ var poi_influence_xp_grants_total: int = 0
 var poi_structure_established_total: int = 0
 var poi_structure_lost_total: int = 0
 var poi_structure_regen_bonus_ticks_total: int = 0
+var raid_started_total: int = 0
+var raid_ended_total: int = 0
+var raid_success_total: int = 0
+var raid_interrupted_total: int = 0
+var raid_timeout_total: int = 0
 var level_ups_total: int = 0
 var champion_promotions_total: int = 0
 var rally_groups_formed_total: int = 0
@@ -69,6 +74,7 @@ var rally_bonus_followers_active: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
+var active_raid_snapshot: Dictionary = {}
 var _poi_influence_xp_timers: Dictionary = {}
 var _champion_scan_timer: float = 0.0
 var _prev_rally_leader_counts: Dictionary = {}
@@ -130,7 +136,7 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally"]:
+    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally", "raid"]:
         record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
 
@@ -282,6 +288,7 @@ func _build_snapshot() -> Dictionary:
         "cast_control": 0,
         "cast_nova": 0,
         "reposition": 0,
+        "raid": 0,
         "rally": 0,
         "poi": 0,
         "flee": 0
@@ -396,6 +403,15 @@ func _build_snapshot() -> Dictionary:
         "poi_structure_established_total": poi_structure_established_total,
         "poi_structure_lost_total": poi_structure_lost_total,
         "poi_structure_regen_bonus_ticks_total": poi_structure_regen_bonus_ticks_total,
+        "raid_active": bool(active_raid_snapshot.get("active", false)),
+        "raid_attacker_faction": str(active_raid_snapshot.get("attacker_faction", "")),
+        "raid_source_poi": str(active_raid_snapshot.get("source_poi", "")),
+        "raid_target_poi": str(active_raid_snapshot.get("target_poi", "")),
+        "raid_started_total": raid_started_total,
+        "raid_ended_total": raid_ended_total,
+        "raid_success_total": raid_success_total,
+        "raid_interrupted_total": raid_interrupted_total,
+        "raid_timeout_total": raid_timeout_total,
         "level_ups_total": level_ups_total,
         "champion_promotions_total": champion_promotions_total,
         "rally_groups_formed_total": rally_groups_formed_total,
@@ -500,6 +516,7 @@ func _update_rally_runtime() -> void:
 func _update_poi_runtime() -> void:
     var runtime_data: Dictionary = world_manager.update_poi_runtime(actors, elapsed_time)
     poi_runtime_snapshot = runtime_data.get("snapshot", {})
+    active_raid_snapshot = runtime_data.get("raid", {})
 
     var transitions: Array = runtime_data.get("events", [])
     for transition in transitions:
@@ -537,6 +554,25 @@ func _update_poi_runtime() -> void:
             poi_structure_lost_total += 1
             var structure_state: String = str(transition.get("structure_state", "structure"))
             record_event("POI structure DOWN: %s lost %s." % [poi_name, structure_state])
+        elif kind == "raid_started":
+            raid_started_total += 1
+            var attacker_faction: String = str(transition.get("attacker_faction", ""))
+            var source_poi: String = str(transition.get("source_poi", ""))
+            var target_poi: String = str(transition.get("target_poi", ""))
+            record_event("Raid START: %s from %s -> %s." % [attacker_faction, source_poi, target_poi])
+        elif kind == "raid_ended":
+            raid_ended_total += 1
+            var outcome: String = str(transition.get("outcome", "ended"))
+            var attacker_faction: String = str(transition.get("attacker_faction", ""))
+            var source_poi: String = str(transition.get("source_poi", ""))
+            var target_poi: String = str(transition.get("target_poi", ""))
+            if outcome == "success":
+                raid_success_total += 1
+            elif outcome == "interrupted":
+                raid_interrupted_total += 1
+            elif outcome == "timeout":
+                raid_timeout_total += 1
+            record_event("Raid END: %s (%s %s -> %s)." % [outcome, attacker_faction, source_poi, target_poi])
 
     for actor in actors:
         if actor == null or actor.is_dead:

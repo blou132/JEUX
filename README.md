@@ -18,6 +18,7 @@ The active direction is a minimal but playable sandbox loop:
 - simple points of interest (POI): camp + ruins
 - POI territorial influence (activation after stable domination)
 - POI persistent structures (camp -> outpost, ruins -> lair)
+- POI raid pressure cycles (outpost <-> lair)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -50,6 +51,12 @@ The active direction is a minimal but playable sandbox loop:
   - structures are runtime-persistent but can be lost if control stays broken long enough
   - bounded gameplay effect: active structures add a small local regen bonus on top of POI influence
   - observability: dedicated logs (`POI structure UP/DOWN`), structure status in HUD/POI snapshot, light `StructureHalo` visual
+- Raid pressure layer (MVP):
+  - when both `human_outpost` and `monster_lair` are active, temporary raids can start between structures
+  - each raid has a source/target POI, finite duration, and simple cooldown
+  - raid pressure lightly increases allied convergence toward the enemy structure (`raid` guidance state)
+  - raid ends cleanly on success/timeout/interruption (structure loss or control break)
+  - observability: `Raid START` / `Raid END` logs, raid status in HUD, and raid source/target POI markers
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -96,9 +103,11 @@ The debug overlay shows:
 - POI occupancy (`camp`, `ruins`) with dominance duration, influence status, and structure status (`outpost`/`lair`)
 - POI influence counters (`active`, activation/deactivation events, regen ticks, XP ticks)
 - POI structure counters (`active`, created/lost, extra regen ticks from structures)
+- raid counters (`active`, starts/ends, success/interrupted/timeout)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 - POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - POI structure events (`UP`/`DOWN`) when persistent structures are created or destroyed
+- raid events (`START`/`END`) for autonomous pressure cycles between structures
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -115,7 +124,7 @@ You can still run the old simulator and analytics if needed, but this is now sec
 ## Tests
 Current scaffold checks for the 3D pivot:
 - [test_game3d_scaffold.py](tests/test_game3d_scaffold.py)
-- [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime/influence/structure, spawn mix)
+- [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime/influence/structure/raid, spawn mix)
 - [test_game3d_progression_behavior.py](tests/test_game3d_progression_behavior.py) (progression contracts: thresholds, XP triggers, survival pacing, snapshot fields)
 
 Run targeted tests:
@@ -149,11 +158,13 @@ py -m unittest discover -s tests -v
 - Add emergent champion MVP (rare hero/elite promotions with bounded bonuses and runtime visibility)
 - Add champion-led rally/warband MVP (temporary local regrouping + bounded cohesion bonus + runtime counters/logs)
 - Add POI persistent structures MVP (`human_outpost` / `monster_lair`) with bounded local bonus and destroy-on-instability behavior
+- Add autonomous POI raid pressure MVP (temporary source->target raid guidance with cooldown and bounded conflict cycles)
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
 - Tune POI influence timing/strength to avoid snowball while keeping territorial readability
 - Tune POI structure thresholds (activation/loss/presence) to keep structures visible but not snowballing
+- Tune raid timing/cooldowns/success conditions for readable pressure cycles without permanent snowball
 - Tune champion rarity thresholds (promotion criteria/cap) from live runs
 - Tune rally distances/probabilities to avoid over-clumping while keeping readable group behavior
 

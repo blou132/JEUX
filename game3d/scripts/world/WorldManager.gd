@@ -9,6 +9,9 @@ class_name WorldManager
 @export var poi_structure_activation_time: float = 20.0
 @export var poi_structure_loss_time: float = 10.0
 @export var poi_structure_min_presence: int = 3
+@export var poi_raid_duration: float = 18.0
+@export var poi_raid_cooldown: float = 16.0
+@export var poi_raid_success_hold: float = 5.0
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
@@ -22,6 +25,9 @@ var poi_structure_state: Dictionary = {}
 var poi_structure_faction: Dictionary = {}
 var poi_structure_started_at: Dictionary = {}
 var poi_structure_unstable_started_at: Dictionary = {}
+var poi_raid_state: Dictionary = {}
+var poi_raid_cooldown_until: float = 0.0
+var poi_last_raid_attacker: String = ""
 
 
 func setup_world() -> void:
@@ -145,6 +151,35 @@ func get_poi_population_snapshot(actors: Array) -> Dictionary:
     return snapshot
 
 
+func get_raid_guidance(actor_position: Vector3, faction: String) -> Dictionary:
+    if not bool(poi_raid_state.get("active", false)):
+        return {}
+    if str(poi_raid_state.get("attacker_faction", "")) != faction:
+        return {}
+
+    var target_name: String = str(poi_raid_state.get("target_poi", ""))
+    var target_poi: Dictionary = _get_poi_by_name(target_name)
+    if target_poi.is_empty():
+        return {}
+
+    var target_position: Vector3 = target_poi.get("position", actor_position)
+    var distance: float = actor_position.distance_to(target_position)
+    if distance > poi_guidance_distance * 1.55:
+        return {}
+
+    var jitter := Vector3(randf_range(-2.3, 2.3), 0.0, randf_range(-2.3, 2.3))
+    return {
+        "reason": "raid_pressure:%s->%s" % [str(poi_raid_state.get("source_poi", "src")), target_name],
+        "target_position": clamp_to_world(snap_to_nav_grid(target_position + jitter)),
+        "distance": distance,
+        "weight": 0.74
+    }
+
+
+func get_active_raid_state() -> Dictionary:
+    return poi_raid_state.duplicate(true)
+
+
 func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
     var snapshot: Dictionary = {}
     var events: Array[Dictionary] = []
@@ -194,8 +229,6 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "structure_seconds": structure_seconds
         }
 
-        _apply_poi_visual_state(poi_name, status, total_count, time_seconds, influence_active, structure_state)
-
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
         if previous_status != "" and previous_status != status:
             if status == "contested":
@@ -243,9 +276,29 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         poi_runtime_status[poi_name] = status
         poi_influence_active[poi_name] = influence_active
 
+    var raid_runtime: Dictionary = _update_raid_runtime(snapshot, time_seconds)
+    var raid_events: Array = raid_runtime.get("events", [])
+    for raid_event in raid_events:
+        events.append(raid_event)
+
+    for poi_name in snapshot.keys():
+        var details: Dictionary = snapshot.get(poi_name, {})
+        details["raid_role"] = _get_raid_role_for_poi(str(poi_name))
+        snapshot[poi_name] = details
+        _apply_poi_visual_state(
+            str(poi_name),
+            str(details.get("status", "calm")),
+            int(details.get("total", 0)),
+            time_seconds,
+            bool(details.get("influence_active", false)),
+            str(details.get("structure_state", "")),
+            str(details.get("raid_role", "none"))
+        )
+
     return {
         "snapshot": snapshot,
-        "events": events
+        "events": events,
+        "raid": poi_raid_state.duplicate(true)
     }
 
 
@@ -383,6 +436,9 @@ func _build_pois() -> void:
     poi_structure_faction.clear()
     poi_structure_started_at.clear()
     poi_structure_unstable_started_at.clear()
+    poi_raid_state.clear()
+    poi_raid_cooldown_until = 0.0
+    poi_last_raid_attacker = ""
 
     _refresh_poi_markers()
 
@@ -508,6 +564,13 @@ func _get_nearest_poi(position: Vector3) -> Dictionary:
     return selected
 
 
+func _get_poi_by_name(poi_name: String) -> Dictionary:
+    for poi in pois:
+        if str(poi.get("name", "")) == poi_name:
+            return poi
+    return {}
+
+
 func _count_poi_occupancy(poi: Dictionary, actors: Array) -> Dictionary:
     var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
     var poi_radius: float = float(poi.get("radius", 7.0))
@@ -563,7 +626,8 @@ func _apply_poi_visual_state(
     total_count: int,
     time_seconds: float,
     influence_active: bool,
-    structure_state: String
+    structure_state: String,
+    raid_role: String
 ) -> void:
     var poi_node: Node3D = poi_nodes.get(poi_name, null)
     if poi_node == null:
@@ -599,6 +663,15 @@ func _apply_poi_visual_state(
         _set_mesh_color(structure_halo, _structure_color(structure_state), 0.82)
     else:
         structure_halo.visible = false
+
+    if raid_role == "source":
+        var source_pulse := 1.0 + 0.10 * sin(time_seconds * 5.0)
+        ring.scale *= Vector3(source_pulse, 1.0, source_pulse)
+        _set_mesh_color(beacon, status_color.lightened(0.20), intensity + 0.26)
+    elif raid_role == "target":
+        var target_pulse := 1.0 + 0.08 * sin(time_seconds * 7.0)
+        ring.scale *= Vector3(target_pulse, 1.0, target_pulse)
+        _set_mesh_color(ring, Color(1.0, 0.62, 0.30), intensity + 0.24)
 
 
 func _dominant_faction_from_status(status: String) -> String:
@@ -725,6 +798,99 @@ func _update_structure_runtime(
         "structure_seconds": structure_seconds,
         "events": events
     }
+
+
+func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:
+    var events: Array[Dictionary] = []
+    var has_outpost: bool = _find_structure_poi(snapshot, "human_outpost") != ""
+    var has_lair: bool = _find_structure_poi(snapshot, "monster_lair") != ""
+
+    var raid_active: bool = bool(poi_raid_state.get("active", false))
+    if raid_active:
+        var source_poi: String = str(poi_raid_state.get("source_poi", ""))
+        var target_poi: String = str(poi_raid_state.get("target_poi", ""))
+        var attacker_faction: String = str(poi_raid_state.get("attacker_faction", ""))
+        var defender_faction: String = str(poi_raid_state.get("defender_faction", ""))
+        var started_at: float = float(poi_raid_state.get("started_at", time_seconds))
+
+        var source_details: Dictionary = snapshot.get(source_poi, {})
+        var target_details: Dictionary = snapshot.get(target_poi, {})
+        var source_structure_ok: bool = bool(source_details.get("structure_active", false))
+        var target_structure_ok: bool = bool(target_details.get("structure_active", false))
+
+        if not source_structure_ok or not target_structure_ok:
+            events.append(_end_raid("interrupted", time_seconds))
+        else:
+            var target_dominant_faction: String = str(target_details.get("dominant_faction", ""))
+            var target_dom_seconds: float = float(target_details.get("dominance_seconds", 0.0))
+            if target_dominant_faction == attacker_faction and target_dom_seconds >= poi_raid_success_hold:
+                events.append(_end_raid("success", time_seconds))
+            elif time_seconds - started_at >= poi_raid_duration:
+                events.append(_end_raid("timeout", time_seconds))
+    else:
+        if time_seconds >= poi_raid_cooldown_until and has_outpost and has_lair:
+            var next_attacker: String = "human"
+            if poi_last_raid_attacker == "human":
+                next_attacker = "monster"
+
+            var source_poi_name: String = _find_structure_poi(snapshot, "human_outpost") if next_attacker == "human" else _find_structure_poi(snapshot, "monster_lair")
+            var target_poi_name: String = _find_structure_poi(snapshot, "monster_lair") if next_attacker == "human" else _find_structure_poi(snapshot, "human_outpost")
+            if source_poi_name != "" and target_poi_name != "":
+                poi_raid_state = {
+                    "active": true,
+                    "attacker_faction": next_attacker,
+                    "defender_faction": "monster" if next_attacker == "human" else "human",
+                    "source_poi": source_poi_name,
+                    "target_poi": target_poi_name,
+                    "started_at": time_seconds
+                }
+                poi_last_raid_attacker = next_attacker
+                events.append({
+                    "kind": "raid_started",
+                    "attacker_faction": next_attacker,
+                    "defender_faction": str(poi_raid_state.get("defender_faction", "")),
+                    "source_poi": source_poi_name,
+                    "target_poi": target_poi_name
+                })
+
+    return {
+        "state": poi_raid_state.duplicate(true),
+        "events": events
+    }
+
+
+func _end_raid(outcome: String, time_seconds: float) -> Dictionary:
+    var event := {
+        "kind": "raid_ended",
+        "outcome": outcome,
+        "attacker_faction": str(poi_raid_state.get("attacker_faction", "")),
+        "defender_faction": str(poi_raid_state.get("defender_faction", "")),
+        "source_poi": str(poi_raid_state.get("source_poi", "")),
+        "target_poi": str(poi_raid_state.get("target_poi", "")),
+        "duration": max(0.0, time_seconds - float(poi_raid_state.get("started_at", time_seconds)))
+    }
+    poi_raid_state.clear()
+    poi_raid_cooldown_until = time_seconds + poi_raid_cooldown
+    return event
+
+
+func _find_structure_poi(snapshot: Dictionary, structure_state: String) -> String:
+    for poi_name_variant in snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        var details: Dictionary = snapshot.get(poi_name, {})
+        if str(details.get("structure_state", "")) == structure_state and bool(details.get("structure_active", false)):
+            return poi_name
+    return ""
+
+
+func _get_raid_role_for_poi(poi_name: String) -> String:
+    if not bool(poi_raid_state.get("active", false)):
+        return "none"
+    if str(poi_raid_state.get("source_poi", "")) == poi_name:
+        return "source"
+    if str(poi_raid_state.get("target_poi", "")) == poi_name:
+        return "target"
+    return "none"
 
 
 func _structure_color(structure_state: String) -> Color:

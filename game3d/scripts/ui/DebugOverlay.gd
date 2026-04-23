@@ -172,12 +172,27 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("poi_structure_regen_bonus_ticks_total", 0))
         ]
     )
+    lines.append(
+        "Raid: active=%s attacker=%s source=%s target=%s | starts=%d ends=%d success=%d interrupted=%d timeout=%d"
+        % [
+            "yes" if bool(snapshot.get("raid_active", false)) else "no",
+            str(snapshot.get("raid_attacker_faction", "-")),
+            str(snapshot.get("raid_source_poi", "-")),
+            str(snapshot.get("raid_target_poi", "-")),
+            int(snapshot.get("raid_started_total", 0)),
+            int(snapshot.get("raid_ended_total", 0)),
+            int(snapshot.get("raid_success_total", 0)),
+            int(snapshot.get("raid_interrupted_total", 0)),
+            int(snapshot.get("raid_timeout_total", 0))
+        ]
+    )
     lines.append("")
     lines.append(
-        "States: wander=%d poi=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
+        "States: wander=%d poi=%d raid=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
         % [
             int(state_counts.get("wander", 0)),
             int(state_counts.get("poi", 0)),
+            int(state_counts.get("raid", 0)),
             int(state_counts.get("rally", 0)),
             int(state_counts.get("detect", 0)),
             int(state_counts.get("chase", 0)),
@@ -222,16 +237,18 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             bool(details.get("structure_active", false)),
             str(details.get("structure_state", ""))
         )
+        var raid_role: String = _raid_role_label(str(details.get("raid_role", "none")))
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
         chunks.append(
-            "%s[%s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
+            "%s[%s | %s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
             % [
                 poi_name,
                 status,
                 activity,
                 influence,
                 structure,
+                raid_role,
                 dominance_seconds,
                 structure_seconds,
                 int(counts.get("human", 0)),
@@ -279,3 +296,11 @@ func _structure_label(active: bool, structure_state: String) -> String:
     if structure_state == "monster_lair":
         return "structure:lair"
     return "structure:%s" % structure_state
+
+
+func _raid_role_label(raid_role: String) -> String:
+    if raid_role == "source":
+        return "raid:source"
+    if raid_role == "target":
+        return "raid:target"
+    return "raid:none"

@@ -34,6 +34,20 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                     rally_bonus
                 )
 
+        var raid_guidance: Dictionary = world.get_raid_guidance(actor.global_position, actor.faction)
+        if not raid_guidance.is_empty():
+            var raid_weight: float = float(raid_guidance.get("weight", 0.65))
+            if randf() <= clampf(raid_weight, 0.25, 0.90):
+                return _with_rally(
+                    {
+                        "state": "raid",
+                        "target_position": raid_guidance.get("target_position", actor.global_position),
+                        "reason": str(raid_guidance.get("reason", "raid_pressure"))
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
         var poi_guidance: Dictionary = world.get_poi_guidance(actor.global_position, actor.faction)
         if not poi_guidance.is_empty() and randf() <= 0.58:
             return _with_rally(

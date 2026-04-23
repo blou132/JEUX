@@ -63,6 +63,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("outpost", content)
         self.assertIn("lair", content)
         self.assertIn("structure", content)
+        self.assertIn("raid", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -87,6 +88,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("structure_established", content)
         self.assertIn("structure_lost", content)
         self.assertIn("StructureHalo", content)
+        self.assertIn("poi_raid_duration", content)
+        self.assertIn("get_raid_guidance", content)
+        self.assertIn("raid_started", content)
+        self.assertIn("raid_ended", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -97,6 +102,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("influence:off", content)
         self.assertIn("structure:off", content)
         self.assertIn("POI structures:", content)
+        self.assertIn("Raid: active=", content)
+        self.assertIn("raid:source", content)
         self.assertIn("Champions:", content)
         self.assertIn("Rally:", content)
 
@@ -113,8 +120,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("magic_usage_bias", content)
         self.assertIn("control_usage_bias", content)
         self.assertIn('"state": "rally"', content)
+        self.assertIn('"state": "raid"', content)
         self.assertIn("rally_regroup", content)
         self.assertIn("rally_pressure", content)
+        self.assertIn("raid_pressure", content)
 
     def test_human_agent_has_roles(self):
         content = (GAME3D / "scripts" / "entities" / "HumanAgent.gd").read_text(encoding="utf-8")
@@ -166,6 +175,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("POI_STRUCTURE_EXTRA_ENERGY_REGEN_PER_SEC", content)
         self.assertIn("poi_structure_established_total", content)
         self.assertIn("poi_structure_lost_total", content)
+        self.assertIn("raid_started_total", content)
+        self.assertIn("raid_success_total", content)
 
     def test_game_loop_has_champion_metrics_and_promotion_hooks(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")

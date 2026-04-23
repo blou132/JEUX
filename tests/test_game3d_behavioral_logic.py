@@ -62,15 +62,24 @@ class ActorStub:
 
 
 class WorldStub:
-    def __init__(self, enemy: EnemyStub | None, poi_guidance: dict | None = None):
+    def __init__(
+        self,
+        enemy: EnemyStub | None,
+        poi_guidance: dict | None = None,
+        raid_guidance: dict | None = None,
+    ):
         self.enemy = enemy
         self.poi_guidance = poi_guidance or {}
+        self.raid_guidance = raid_guidance or {}
 
     def find_nearest_enemy(self, _source, _all, _max_distance):
         return self.enemy
 
     def get_poi_guidance(self, _position, _faction):
         return self.poi_guidance
+
+    def get_raid_guidance(self, _position, _faction):
+        return self.raid_guidance
 
 
 def decide_action_contract(
@@ -110,6 +119,18 @@ def decide_action_contract(
                     rally_leader,
                     rally_bonus,
                 )
+
+        raid_guidance = world.get_raid_guidance(actor.position, actor.faction)
+        if raid_guidance and random_roll <= max(0.25, min(0.90, float(raid_guidance.get("weight", 0.74)))):
+            return _with_rally_contract(
+                {
+                    "state": "raid",
+                    "target_position": raid_guidance.get("target_position", actor.position),
+                    "reason": str(raid_guidance.get("reason", "raid_pressure")),
+                },
+                rally_leader,
+                rally_bonus,
+            )
 
         guidance = world.get_poi_guidance(actor.position, actor.faction)
         if guidance and random_roll <= 0.58:
@@ -454,6 +475,64 @@ def poi_structure_step_contract(
     }
 
 
+def raid_runtime_step_contract(
+    *,
+    previous_raid_state: dict,
+    cooldown_until: float,
+    last_attacker: str,
+    now: float,
+    has_human_outpost: bool,
+    has_monster_lair: bool,
+    source_ok: bool = True,
+    target_ok: bool = True,
+    target_dominant_faction: str = "",
+    target_dominance_seconds: float = 0.0,
+    raid_duration: float = 18.0,
+    raid_cooldown: float = 16.0,
+    raid_success_hold: float = 5.0,
+) -> dict:
+    raid_state = dict(previous_raid_state)
+    events: list[str] = []
+    next_cooldown_until = cooldown_until
+    next_last_attacker = last_attacker
+
+    if raid_state.get("active", False):
+        attacker = str(raid_state.get("attacker_faction", ""))
+        started_at = float(raid_state.get("started_at", now))
+        if not source_ok or not target_ok:
+            events.append("raid_ended:interrupted")
+            raid_state = {}
+            next_cooldown_until = now + raid_cooldown
+        elif target_dominant_faction == attacker and target_dominance_seconds >= raid_success_hold:
+            events.append("raid_ended:success")
+            raid_state = {}
+            next_cooldown_until = now + raid_cooldown
+        elif now - started_at >= raid_duration:
+            events.append("raid_ended:timeout")
+            raid_state = {}
+            next_cooldown_until = now + raid_cooldown
+    else:
+        if now >= cooldown_until and has_human_outpost and has_monster_lair:
+            attacker = "monster" if last_attacker == "human" else "human"
+            raid_state = {
+                "active": True,
+                "attacker_faction": attacker,
+                "defender_faction": "monster" if attacker == "human" else "human",
+                "source_poi": "camp" if attacker == "human" else "ruins",
+                "target_poi": "ruins" if attacker == "human" else "camp",
+                "started_at": now,
+            }
+            next_last_attacker = attacker
+            events.append("raid_started")
+
+    return {
+        "raid_state": raid_state,
+        "events": events,
+        "cooldown_until": next_cooldown_until,
+        "last_attacker": next_last_attacker,
+    }
+
+
 def clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
@@ -549,6 +628,17 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         decision = decide_action_contract(actor, world, random_roll=0.30)
         self.assertEqual(decision["state"], "poi")
         self.assertIn("poi_guidance", decision["reason"])
+
+    def test_ai_decides_raid_when_raid_guidance_exists(self):
+        actor = ActorStub()
+        world = WorldStub(
+            enemy=None,
+            poi_guidance={"name": "camp", "target_position": (4.0, -3.0)},
+            raid_guidance={"reason": "raid_pressure:camp->ruins", "target_position": (10.0, 4.0), "weight": 0.80},
+        )
+        decision = decide_action_contract(actor, world, random_roll=0.40)
+        self.assertEqual(decision["state"], "raid")
+        self.assertIn("raid_pressure", decision["reason"])
 
     def test_ai_decides_cast_nova_in_valid_range(self):
         actor = ActorStub(can_nova=True, can_magic=False, can_control=False, nova_radius=4.0, nova_usage_bias=0.9)
@@ -777,6 +867,65 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         )
         self.assertEqual(step["state"], "")
         self.assertNotIn("structure_established", step["events"])
+
+    def test_raid_starts_when_both_structures_active_and_cooldown_done(self):
+        step = raid_runtime_step_contract(
+            previous_raid_state={},
+            cooldown_until=10.0,
+            last_attacker="",
+            now=12.0,
+            has_human_outpost=True,
+            has_monster_lair=True,
+        )
+        self.assertTrue(step["raid_state"].get("active", False))
+        self.assertIn("raid_started", step["events"])
+
+    def test_raid_ends_success_on_target_control_hold(self):
+        active_raid = {
+            "active": True,
+            "attacker_faction": "human",
+            "defender_faction": "monster",
+            "source_poi": "camp",
+            "target_poi": "ruins",
+            "started_at": 20.0,
+        }
+        step = raid_runtime_step_contract(
+            previous_raid_state=active_raid,
+            cooldown_until=0.0,
+            last_attacker="human",
+            now=30.0,
+            has_human_outpost=True,
+            has_monster_lair=True,
+            source_ok=True,
+            target_ok=True,
+            target_dominant_faction="human",
+            target_dominance_seconds=6.0,
+        )
+        self.assertFalse(step["raid_state"].get("active", False))
+        self.assertIn("raid_ended:success", step["events"])
+        self.assertGreater(step["cooldown_until"], 30.0)
+
+    def test_raid_ends_interrupted_when_structure_lost(self):
+        active_raid = {
+            "active": True,
+            "attacker_faction": "monster",
+            "defender_faction": "human",
+            "source_poi": "ruins",
+            "target_poi": "camp",
+            "started_at": 50.0,
+        }
+        step = raid_runtime_step_contract(
+            previous_raid_state=active_raid,
+            cooldown_until=0.0,
+            last_attacker="monster",
+            now=56.0,
+            has_human_outpost=True,
+            has_monster_lair=True,
+            source_ok=False,
+            target_ok=True,
+        )
+        self.assertFalse(step["raid_state"].get("active", False))
+        self.assertIn("raid_ended:interrupted", step["events"])
 
     def test_champion_promotion_requires_notable_actor_profile(self):
         self.assertFalse(
