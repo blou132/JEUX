@@ -37,6 +37,15 @@ const RELIC_MIN_POPULATION: int = 10
 const RELIC_MAX_ACTIVE: int = 2
 const RELIC_HOLDER_MAX_DISTANCE: float = 11.0
 const RELIC_TYPES: Array[String] = ["arcane_sigil", "oath_standard"]
+const BOUNTY_START_DELAY: float = 66.0
+const BOUNTY_COOLDOWN: float = 94.0
+const BOUNTY_CHECK_INTERVAL: float = 3.0
+const BOUNTY_TRIGGER_CHANCE: float = 0.28
+const BOUNTY_MIN_POPULATION: int = 12
+const BOUNTY_MAX_ACTIVE: int = 1
+const BOUNTY_DURATION: float = 24.0
+const BOUNTY_CLEAR_XP: float = 1.6
+const BOUNTY_CLEAR_XP_RADIUS: float = 20.0
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -110,6 +119,18 @@ var special_arrivals_fallen_total: int = 0
 var relic_appear_total: int = 0
 var relic_acquired_total: int = 0
 var relic_lost_total: int = 0
+var bounty_started_total: int = 0
+var bounty_cleared_total: int = 0
+var bounty_expired_total: int = 0
+var bounty_active: bool = false
+var bounty_target_actor_id: int = 0
+var bounty_target_faction: String = ""
+var bounty_target_label: String = ""
+var bounty_source_faction: String = ""
+var bounty_source_allegiance_id: String = ""
+var bounty_source_poi: String = ""
+var bounty_target_position: Vector3 = Vector3.ZERO
+var bounty_remaining: float = 0.0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
@@ -121,6 +142,8 @@ var _special_arrival_check_timer: float = 0.0
 var _special_arrival_cooldown_left: float = SPECIAL_ARRIVAL_START_DELAY
 var _relic_check_timer: float = 0.0
 var _relic_cooldown_left: float = RELIC_START_DELAY
+var _bounty_check_timer: float = 0.0
+var _bounty_cooldown_left: float = BOUNTY_START_DELAY
 
 var event_log: Array[String] = []
 
@@ -130,6 +153,7 @@ func _ready() -> void:
     world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
     _apply_world_event_to_world_manager()
+    world_manager.set_bounty_state(false)
     sandbox_systems.setup(self, world_manager, entities_root)
     sandbox_systems.spawn_initial_population(actors)
     record_event("Sandbox boot complete.")
@@ -160,6 +184,7 @@ func _tick(delta: float) -> void:
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
+    _update_bounty_system(delta)
     _update_special_arrivals(delta)
     _update_relic_system(delta)
     _apply_poi_influences(delta)
@@ -185,7 +210,7 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
     if to_state == "flee":
         flee_events_total += 1
 
-    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally", "raid"]:
+    if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally", "raid", "hunt"]:
         record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
 
@@ -266,6 +291,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
         relic_lost_total += 1
         _relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
         victim.clear_relic()
+    _handle_bounty_target_death(victim, killer)
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -819,6 +845,251 @@ func _relic_title(relic_id: String) -> String:
             return "Relic"
 
 
+func _update_bounty_system(delta: float) -> void:
+    _bounty_cooldown_left = max(0.0, _bounty_cooldown_left - delta)
+    _bounty_check_timer += delta
+
+    if bounty_active:
+        bounty_remaining = max(0.0, bounty_remaining - delta)
+        var target: Actor = _find_actor_by_id(bounty_target_actor_id)
+        if target == null or target.is_dead:
+            _expire_bounty("target_lost")
+            return
+
+        bounty_target_position = target.global_position
+        bounty_target_label = _actor_label(target)
+        _push_bounty_state_to_world()
+        if bounty_remaining <= 0.0:
+            _expire_bounty("timeout")
+        return
+
+    if _bounty_check_timer < BOUNTY_CHECK_INTERVAL:
+        return
+    _bounty_check_timer = 0.0
+    if _bounty_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < BOUNTY_MIN_POPULATION:
+        return
+    if _count_active_bounties() >= BOUNTY_MAX_ACTIVE:
+        return
+    if randf() > BOUNTY_TRIGGER_CHANCE:
+        return
+
+    var source: Dictionary = _pick_bounty_source()
+    if source.is_empty():
+        return
+    var source_faction: String = str(source.get("faction", ""))
+    if source_faction == "":
+        return
+    var source_position: Vector3 = source.get("position", Vector3.ZERO)
+    var target: Actor = _pick_bounty_target(source_faction, source_position)
+    if target == null:
+        return
+
+    _start_bounty(source, target)
+
+
+func _count_active_bounties() -> int:
+    return 1 if bounty_active else 0
+
+
+func _pick_bounty_source() -> Dictionary:
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances()
+    if active_allegiances.is_empty():
+        return {}
+
+    var raid_state: Dictionary = world_manager.get_active_raid_state()
+    var raid_attacker: String = str(raid_state.get("attacker_faction", ""))
+    var raid_sources: Array[Dictionary] = []
+    for allegiance in active_allegiances:
+        if raid_attacker != "" and str(allegiance.get("faction", "")) == raid_attacker:
+            raid_sources.append(allegiance)
+
+    var pool: Array[Dictionary] = raid_sources if not raid_sources.is_empty() else active_allegiances
+    return pool[randi() % pool.size()]
+
+
+func _pick_bounty_target(source_faction: String, source_position: Vector3) -> Actor:
+    var selected: Actor = null
+    var best_priority: int = 0
+    var best_distance: float = INF
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.faction == source_faction:
+            continue
+
+        var priority: int = _bounty_priority(actor)
+        if priority <= 0:
+            continue
+
+        var distance: float = actor.global_position.distance_to(source_position)
+        if priority > best_priority or (priority == best_priority and distance < best_distance):
+            selected = actor
+            best_priority = priority
+            best_distance = distance
+
+    return selected
+
+
+func _bounty_priority(actor: Actor) -> int:
+    if actor == null or actor.is_dead:
+        return 0
+    if actor.has_relic():
+        return 3
+    if actor.is_special_arrival():
+        return 2
+    if actor.is_champion:
+        return 1
+    return 0
+
+
+func _start_bounty(source: Dictionary, target: Actor) -> void:
+    if target == null or target.is_dead:
+        return
+
+    bounty_active = true
+    bounty_target_actor_id = target.actor_id
+    bounty_target_faction = target.faction
+    bounty_source_faction = str(source.get("faction", ""))
+    bounty_source_allegiance_id = str(source.get("allegiance_id", ""))
+    bounty_source_poi = str(source.get("home_poi", ""))
+    bounty_target_position = target.global_position
+    bounty_remaining = BOUNTY_DURATION
+    bounty_started_total += 1
+    _bounty_cooldown_left = BOUNTY_COOLDOWN
+
+    target.set_bounty_marked(true)
+    bounty_target_label = _actor_label(target)
+    _push_bounty_state_to_world()
+
+    record_event(
+        "Bounty START: %s marked by %s (%s, %.0fs)."
+        % [
+            bounty_target_label,
+            _bounty_source_label(),
+            _bounty_target_kind_label(target),
+            bounty_remaining
+        ]
+    )
+
+
+func _expire_bounty(reason: String) -> void:
+    if not bounty_active:
+        return
+    var target: Actor = _find_actor_by_id(bounty_target_actor_id)
+    if target != null:
+        target.set_bounty_marked(false)
+
+    bounty_expired_total += 1
+    record_event(
+        "Bounty EXPIRED: %s (%s)."
+        % [bounty_target_label if bounty_target_label != "" else "unknown", reason]
+    )
+    _clear_bounty_state()
+
+
+func _handle_bounty_target_death(victim: Actor, killer: Actor) -> void:
+    if victim == null or not bounty_active:
+        return
+    if victim.actor_id != bounty_target_actor_id:
+        return
+
+    victim.set_bounty_marked(false)
+    var rewarded_allies: int = _grant_bounty_clear_reward()
+    bounty_cleared_total += 1
+    var killer_label := _actor_label(killer) if killer != null else "unknown"
+    record_event(
+        "Bounty CLEARED: %s by %s for %s (+%.1f XP to %d allies)."
+        % [
+            bounty_target_label if bounty_target_label != "" else _actor_label(victim),
+            killer_label,
+            _bounty_source_label(),
+            BOUNTY_CLEAR_XP,
+            rewarded_allies
+        ]
+    )
+    _clear_bounty_state()
+
+
+func _grant_bounty_clear_reward() -> int:
+    var center: Vector3 = _get_poi_position_by_name(bounty_source_poi)
+    if center == Vector3.ZERO:
+        center = bounty_target_position
+
+    var rewarded: int = 0
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.faction != bounty_source_faction:
+            continue
+        if center != Vector3.ZERO and actor.global_position.distance_to(center) > BOUNTY_CLEAR_XP_RADIUS:
+            continue
+        actor.award_progress_xp(BOUNTY_CLEAR_XP, "bounty_clear", self)
+        rewarded += 1
+    return rewarded
+
+
+func _clear_bounty_state() -> void:
+    bounty_active = false
+    bounty_target_actor_id = 0
+    bounty_target_faction = ""
+    bounty_target_label = ""
+    bounty_source_faction = ""
+    bounty_source_allegiance_id = ""
+    bounty_source_poi = ""
+    bounty_target_position = Vector3.ZERO
+    bounty_remaining = 0.0
+    _push_bounty_state_to_world()
+
+
+func _push_bounty_state_to_world() -> void:
+    world_manager.set_bounty_state(
+        bounty_active,
+        bounty_source_faction,
+        bounty_source_allegiance_id,
+        bounty_source_poi,
+        bounty_target_position,
+        bounty_target_actor_id,
+        bounty_target_label,
+        bounty_target_faction
+    )
+
+
+func _find_actor_by_id(actor_id: int) -> Actor:
+    if actor_id == 0:
+        return null
+    for actor in actors:
+        if actor == null:
+            continue
+        if actor.actor_id == actor_id:
+            return actor
+    return null
+
+
+func _bounty_target_kind_label(actor: Actor) -> String:
+    if actor == null:
+        return "notable"
+    if actor.has_relic():
+        return "relic_carrier"
+    if actor.is_special_arrival():
+        return "special_arrival"
+    if actor.is_champion:
+        return "champion"
+    return "notable"
+
+
+func _bounty_source_label() -> String:
+    if bounty_source_allegiance_id != "":
+        return bounty_source_allegiance_id
+    if bounty_source_poi != "":
+        return bounty_source_poi
+    if bounty_source_faction != "":
+        return bounty_source_faction
+    return "unknown"
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -859,6 +1130,9 @@ func _build_snapshot() -> Dictionary:
     var relic_active_humans: int = 0
     var relic_active_monsters: int = 0
     var relic_active_labels: Array[String] = []
+    var bounty_marked_total: int = 0
+    var bounty_marked_humans: int = 0
+    var bounty_marked_monsters: int = 0
     var allegiance_affiliated_total: int = 0
     var allegiance_affiliated_humans: int = 0
     var allegiance_affiliated_monsters: int = 0
@@ -892,6 +1166,7 @@ func _build_snapshot() -> Dictionary:
         "cast_nova": 0,
         "reposition": 0,
         "raid": 0,
+        "hunt": 0,
         "rally": 0,
         "poi": 0,
         "flee": 0
@@ -922,6 +1197,12 @@ func _build_snapshot() -> Dictionary:
                 relic_active_monsters += 1
             var relic_name := actor.relic_title if actor.relic_title != "" else _relic_title(actor.relic_id)
             relic_active_labels.append("%s->%s" % [relic_name, _actor_label(actor)])
+        if actor.bounty_marked:
+            bounty_marked_total += 1
+            if actor.faction == "human":
+                bounty_marked_humans += 1
+            elif actor.faction == "monster":
+                bounty_marked_monsters += 1
         if actor.allegiance_id != "":
             allegiance_affiliated_total += 1
             allegiance_member_counts[actor.allegiance_id] = int(allegiance_member_counts.get(actor.allegiance_id, 0)) + 1
@@ -1021,6 +1302,17 @@ func _build_snapshot() -> Dictionary:
         "relic_appear_total": relic_appear_total,
         "relic_acquired_total": relic_acquired_total,
         "relic_lost_total": relic_lost_total,
+        "bounty_active": bounty_active,
+        "bounty_remaining": bounty_remaining,
+        "bounty_target_label": bounty_target_label,
+        "bounty_source_faction": bounty_source_faction,
+        "bounty_source_poi": bounty_source_poi,
+        "bounty_marked_total": bounty_marked_total,
+        "bounty_marked_humans": bounty_marked_humans,
+        "bounty_marked_monsters": bounty_marked_monsters,
+        "bounty_started_total": bounty_started_total,
+        "bounty_cleared_total": bounty_cleared_total,
+        "bounty_expired_total": bounty_expired_total,
         "allegiance_active_count": active_allegiances.size(),
         "allegiance_affiliated_total": allegiance_affiliated_total,
         "allegiance_affiliated_humans": allegiance_affiliated_humans,
@@ -1464,5 +1756,6 @@ func _actor_label(actor: Actor) -> String:
     var champion_suffix := actor.champion_tag()
     var special_suffix := actor.special_tag()
     var relic_suffix := actor.relic_tag()
+    var bounty_suffix := actor.bounty_tag()
     var allegiance_suffix := actor.allegiance_tag()
-    return "%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, allegiance_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, allegiance_suffix, actor.actor_id]

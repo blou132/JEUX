@@ -170,6 +170,36 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         "Relic carriers: %s"
         % (" | ".join(relic_active_labels) if not relic_active_labels.is_empty() else "(none)")
     )
+    if bool(snapshot.get("bounty_active", false)):
+        lines.append(
+            "Bounty: ACTIVE target=%s source=%s/%s (%.1fs left) | marked=%d (H:%d M:%d)"
+            % [
+                str(snapshot.get("bounty_target_label", "unknown")),
+                str(snapshot.get("bounty_source_faction", "-")),
+                str(snapshot.get("bounty_source_poi", "-")),
+                float(snapshot.get("bounty_remaining", 0.0)),
+                int(snapshot.get("bounty_marked_total", 0)),
+                int(snapshot.get("bounty_marked_humans", 0)),
+                int(snapshot.get("bounty_marked_monsters", 0))
+            ]
+        )
+    else:
+        lines.append(
+            "Bounty: inactive | marked=%d (H:%d M:%d)"
+            % [
+                int(snapshot.get("bounty_marked_total", 0)),
+                int(snapshot.get("bounty_marked_humans", 0)),
+                int(snapshot.get("bounty_marked_monsters", 0))
+            ]
+        )
+    lines.append(
+        "Bounty events: starts=%d cleared=%d expired=%d"
+        % [
+            int(snapshot.get("bounty_started_total", 0)),
+            int(snapshot.get("bounty_cleared_total", 0)),
+            int(snapshot.get("bounty_expired_total", 0))
+        ]
+    )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"
         % [
@@ -265,11 +295,12 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     )
     lines.append("")
     lines.append(
-        "States: wander=%d poi=%d raid=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
+        "States: wander=%d poi=%d raid=%d hunt=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
         % [
             int(state_counts.get("wander", 0)),
             int(state_counts.get("poi", 0)),
             int(state_counts.get("raid", 0)),
+            int(state_counts.get("hunt", 0)),
             int(state_counts.get("rally", 0)),
             int(state_counts.get("detect", 0)),
             int(state_counts.get("chase", 0)),

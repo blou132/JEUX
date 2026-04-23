@@ -33,6 +33,7 @@ var raid_pressure_global_multiplier: float = 1.0
 var raid_pressure_human_multiplier: float = 1.0
 var raid_pressure_monster_multiplier: float = 1.0
 var world_event_visual_id: String = ""
+var bounty_state: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -57,6 +58,31 @@ func set_raid_pressure_modifiers(
 
 func set_world_event_visual(event_id: String) -> void:
     world_event_visual_id = event_id
+
+
+func set_bounty_state(
+    active: bool,
+    source_faction: String = "",
+    source_allegiance_id: String = "",
+    source_poi: String = "",
+    target_position: Vector3 = Vector3.ZERO,
+    target_actor_id: int = 0,
+    target_label: String = "",
+    target_faction: String = ""
+) -> void:
+    if not active:
+        bounty_state.clear()
+        return
+    bounty_state = {
+        "active": true,
+        "source_faction": source_faction,
+        "source_allegiance_id": source_allegiance_id,
+        "source_poi": source_poi,
+        "target_position": target_position,
+        "target_actor_id": target_actor_id,
+        "target_label": target_label,
+        "target_faction": target_faction
+    }
 
 
 func clamp_to_world(position: Vector3) -> Vector3:
@@ -215,6 +241,41 @@ func get_raid_guidance(
 
 func get_active_raid_state() -> Dictionary:
     return poi_raid_state.duplicate(true)
+
+
+func get_bounty_guidance(
+    actor_position: Vector3,
+    faction: String,
+    allegiance_id: String = "",
+    home_poi: String = ""
+) -> Dictionary:
+    if not bool(bounty_state.get("active", false)):
+        return {}
+    if str(bounty_state.get("source_faction", "")) != faction:
+        return {}
+
+    var target_position: Vector3 = bounty_state.get("target_position", actor_position)
+    var distance: float = actor_position.distance_to(target_position)
+    if distance > poi_guidance_distance * 1.90:
+        return {}
+
+    var weight: float = 0.56
+    var source_allegiance_id: String = str(bounty_state.get("source_allegiance_id", ""))
+    var source_poi: String = str(bounty_state.get("source_poi", ""))
+    if allegiance_id != "" and source_allegiance_id != "" and allegiance_id == source_allegiance_id:
+        weight += 0.14
+    if home_poi != "" and source_poi != "" and home_poi == source_poi:
+        weight += 0.07
+    if bool(poi_raid_state.get("active", false)) and str(poi_raid_state.get("attacker_faction", "")) == faction:
+        weight += 0.06
+
+    var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
+    return {
+        "reason": "bounty_hunt:%s" % str(bounty_state.get("target_label", "marked_target")),
+        "target_position": clamp_to_world(snap_to_nav_grid(target_position + jitter)),
+        "distance": distance,
+        "weight": clampf(weight, 0.26, 0.88)
+    }
 
 
 func get_allegiance_defense_guidance(
@@ -593,6 +654,7 @@ func _build_pois() -> void:
     poi_raid_state.clear()
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
+    bounty_state.clear()
 
     _refresh_poi_markers()
 

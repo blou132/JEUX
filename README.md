@@ -23,6 +23,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
+- lightweight bounty / marked-target layer (rare notable hunt pressure)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -87,6 +88,12 @@ The active direction is a minimal but playable sandbox loop:
   - acquisition is restricted to nearby champion/special-arrival profiles around stable anchors
   - loss behavior is safe and simple: relic is reset on carrier death (no persistent drop chain)
   - observability: dedicated `Relic APPEAR/ACQUIRED/LOST` logs, HUD active split and carrier labels
+- Bounties / marked targets layer (MVP):
+  - rare autonomous marks with bounded cooldown/cap (`max 1 active`) and structure/allegiance anchors
+  - target profiles reuse existing notable enemies with safe priority: relic carrier > special arrival > champion
+  - lightweight integration: emitter-side hunt guidance (`hunt` state) nudges allied convergence toward marked target zone
+  - clear bounded reward: on target fall, nearby emitter allies receive a small XP pulse
+  - observability: dedicated `Bounty START/CLEARED/EXPIRED` logs, HUD active status + source/target + counters, light marker signal on target
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -139,6 +146,7 @@ The debug overlay shows:
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
 - relic carriers (`relic -> carrier` labels)
+- bounty counters (`active`, source, marked target, starts/cleared/expired)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 - POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - POI structure events (`UP`/`DOWN`) when persistent structures are created or destroyed
@@ -147,6 +155,7 @@ The debug overlay shows:
 - world event logs (`START`/`END`) for temporary global perturbations
 - special arrival logs (`START`/`FALLEN`) for rare exceptional units
 - relic logs (`APPEAR`/`ACQUIRED`/`LOST`) for rare artifact stories
+- bounty logs (`START`/`CLEARED`/`EXPIRED`) for marked hunt stories
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -168,6 +177,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_world_events_behavior.py](tests/test_game3d_world_events_behavior.py) (world event contracts: trigger cadence, end/reset, bounded modifiers)
 - [test_game3d_special_arrivals_behavior.py](tests/test_game3d_special_arrivals_behavior.py) (special arrival contracts: trigger conditions, cooldown/cap gates, bounded integration hooks)
 - [test_game3d_relics_behavior.py](tests/test_game3d_relics_behavior.py) (relic contracts: bounded appearance, carrier gating, cooldown/cap, loss reset)
+- [test_game3d_bounties_behavior.py](tests/test_game3d_bounties_behavior.py) (bounty contracts: target selection priority, cooldown/cap gates, bounded clear/expire flow)
 
 Run targeted tests:
 ```bash
@@ -177,6 +187,7 @@ py -m unittest tests.test_game3d_progression_behavior -v
 py -m unittest tests.test_game3d_world_events_behavior -v
 py -m unittest tests.test_game3d_special_arrivals_behavior -v
 py -m unittest tests.test_game3d_relics_behavior -v
+py -m unittest tests.test_game3d_bounties_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -208,6 +219,7 @@ py -m unittest discover -s tests -v
 - Add autonomous world events MVP (single active event, bounded temporary effects, dedicated observability)
 - Add rare special arrivals MVP (`Summoned Hero` / `Calamity Invader`) with bounded spawn conditions, champion seeding, and runtime visibility
 - Add rare relic/artifact MVP (`Arcane Sigil` / `Oath Standard`) with bounded carrier assignment and death-reset behavior
+- Add rare bounty/marked-target MVP with bounded hunt pressure, notable target selection, and lightweight clear reward
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -220,6 +232,7 @@ py -m unittest discover -s tests -v
 - Tune world event cadence/duration/effect strength for high variety without persistent snowball
 - Tune special arrival rarity gates (dominance threshold/cooldown/cap) for memorable spikes without destabilizing baseline simulation
 - Tune relic appearance and effect strengths (cooldown/gates/bonuses) for memorable local stories without runaway scaling
+- Tune bounty rarity/weight/reward values to keep hunts memorable without overriding baseline raid/rally behavior
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

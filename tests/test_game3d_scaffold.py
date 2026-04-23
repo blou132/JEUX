@@ -75,6 +75,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("relic", content)
         self.assertIn("arcane sigil", content)
         self.assertIn("oath standard", content)
+        self.assertIn("bounty", content)
+        self.assertIn("marked target", content)
+        self.assertIn("hunt", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -109,6 +112,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("allegiance_removed", content)
         self.assertIn("set_raid_pressure_modifiers", content)
         self.assertIn("set_world_event_visual", content)
+        self.assertIn("set_bounty_state", content)
+        self.assertIn("get_bounty_guidance", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -129,6 +134,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("World Event:", content)
         self.assertIn("Relics:", content)
         self.assertIn("Relic carriers:", content)
+        self.assertIn("Bounty:", content)
+        self.assertIn("Bounty events:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -147,6 +154,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("rally_regroup", content)
         self.assertIn("rally_pressure", content)
         self.assertIn("raid_pressure", content)
+        self.assertIn('"state": "hunt"', content)
+        self.assertIn("get_bounty_guidance", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
 
@@ -192,6 +201,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("has_relic", content)
         self.assertIn("set_relic", content)
         self.assertIn("clear_relic", content)
+        self.assertIn("bounty_marked", content)
+        self.assertIn("set_bounty_marked", content)
+        self.assertIn("bounty_tag", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -269,6 +281,19 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"relic_active_total"', content)
         self.assertIn('"relic_appear_total"', content)
         self.assertIn("_count_alive_relic_carriers", content)
+
+    def test_game_loop_has_bounty_scheduler_and_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("BOUNTY_COOLDOWN", content)
+        self.assertIn("BOUNTY_MAX_ACTIVE", content)
+        self.assertIn("_update_bounty_system", content)
+        self.assertIn("_pick_bounty_target", content)
+        self.assertIn("Bounty START", content)
+        self.assertIn("Bounty CLEARED", content)
+        self.assertIn("Bounty EXPIRED", content)
+        self.assertIn('"bounty_active"', content)
+        self.assertIn('"bounty_started_total"', content)
+        self.assertIn("_grant_bounty_clear_reward", content)
 
 
 if __name__ == "__main__":

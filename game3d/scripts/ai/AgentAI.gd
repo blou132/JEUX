@@ -52,6 +52,25 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                     rally_bonus
                 )
 
+        var bounty_guidance: Dictionary = world.get_bounty_guidance(
+            actor.global_position,
+            actor.faction,
+            actor.allegiance_id,
+            actor.home_poi
+        )
+        if not bounty_guidance.is_empty():
+            var bounty_weight: float = float(bounty_guidance.get("weight", 0.58))
+            if randf() <= clampf(bounty_weight, 0.24, 0.90):
+                return _with_rally(
+                    {
+                        "state": "hunt",
+                        "target_position": bounty_guidance.get("target_position", actor.global_position),
+                        "reason": str(bounty_guidance.get("reason", "bounty_hunt"))
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
         var raid_guidance: Dictionary = world.get_raid_guidance(
             actor.global_position,
             actor.faction,

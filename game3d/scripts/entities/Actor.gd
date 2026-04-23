@@ -68,6 +68,7 @@ var special_arrival_id: String = ""
 var special_arrival_title: String = ""
 var relic_id: String = ""
 var relic_title: String = ""
+var bounty_marked: bool = false
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -177,6 +178,8 @@ func tick_actor(
             _move_towards(target_position, delta, world, 0.90)
         "raid":
             _move_towards(target_position, delta, world, 0.98)
+        "hunt":
+            _move_towards(target_position, delta, world, 1.00)
         "rally":
             if target_actor != null:
                 _move_towards(target_actor.global_position, delta, world, 0.96)
@@ -283,6 +286,12 @@ func relic_tag() -> String:
             return ""
 
 
+func bounty_tag() -> String:
+    if not bounty_marked:
+        return ""
+    return "[MARKED]"
+
+
 func is_special_arrival() -> bool:
     return special_arrival_id != ""
 
@@ -351,6 +360,15 @@ func clear_relic() -> void:
     relic_id = ""
     relic_title = ""
     rally_relic_bonus_active = false
+    _refresh_control_visual()
+
+
+func set_bounty_marked(enabled: bool) -> void:
+    if bounty_marked == enabled:
+        return
+    bounty_marked = enabled
+    if bounty_marked:
+        _spawn_bounty_signal()
     _refresh_control_visual()
 
 
@@ -665,6 +683,13 @@ func _refresh_control_visual() -> void:
             material.emission = allegiance_glow * 0.16
         else:
             material.emission_enabled = false
+        if bounty_marked:
+            var bounty_glow := _bounty_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(bounty_glow, 0.45)
+            else:
+                material.emission_enabled = true
+                material.emission = bounty_glow * 0.34
 
 
 func _spawn_level_up_signal() -> void:
@@ -765,6 +790,32 @@ func _spawn_relic_signal() -> void:
     tween.finished.connect(ring.queue_free)
 
 
+func _spawn_bounty_signal() -> void:
+    if not bounty_marked:
+        return
+
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.65
+    mesh.bottom_radius = 1.65
+    mesh.height = 0.10
+    ring.mesh = mesh
+    ring.position = Vector3(0.0, 0.28, 0.0)
+    ring.scale = Vector3(0.14, 1.0, 0.14)
+
+    var color := _bounty_glow_color()
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.60
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.70, 0.34)
+    tween.finished.connect(ring.queue_free)
+
+
 func _champion_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.88, 0.34)
@@ -795,6 +846,12 @@ func _allegiance_glow_color() -> Color:
     if faction == "human":
         return Color(0.44, 0.78, 1.0)
     return Color(1.0, 0.56, 0.50)
+
+
+func _bounty_glow_color() -> Color:
+    if faction == "human":
+        return Color(1.0, 0.38, 0.38)
+    return Color(1.0, 0.74, 0.24)
 
 
 func _human_role_color() -> Color:
