@@ -18,6 +18,9 @@ var max_level: int = 3
 var level_xp_thresholds: Array[float] = [0.0, 14.0, 34.0]
 var survival_xp_interval: float = 7.5
 var _survival_xp_timer: float = 0.0
+var kill_count: int = 0
+var is_champion: bool = false
+var champion_reason: String = ""
 
 var speed: float = 4.0
 var vision_range: float = 16.0
@@ -225,12 +228,54 @@ func level_tag() -> String:
     return "[L%d]" % level
 
 
+func champion_tag() -> String:
+    if not is_champion:
+        return ""
+    if faction == "human":
+        return "[HERO]"
+    return "[ELITE]"
+
+
 func award_progress_xp(amount: float, reason: String, game_loop: GameLoop) -> void:
     if is_dead or amount <= 0.0:
         return
 
     progress_xp += amount
     _check_level_up(reason, game_loop)
+
+
+func register_kill() -> void:
+    kill_count += 1
+
+
+func is_ready_for_champion(
+    min_level: int,
+    min_kills: int,
+    min_age_seconds: float,
+    min_progress_xp: float
+) -> bool:
+    if is_dead or is_champion:
+        return false
+    if level < min_level:
+        return false
+    if kill_count < min_kills:
+        return false
+    if age_seconds < min_age_seconds:
+        return false
+    if progress_xp < min_progress_xp:
+        return false
+    return true
+
+
+func promote_to_champion(reason: String) -> void:
+    if is_dead or is_champion:
+        return
+
+    is_champion = true
+    champion_reason = reason
+    _apply_champion_bonus()
+    _spawn_champion_promotion_signal()
+    _refresh_control_visual()
 
 
 func _build_visual() -> void:
@@ -385,6 +430,45 @@ func _apply_level_bonus() -> void:
     energy = clamp(energy, 0.0, max_energy)
 
 
+func _apply_champion_bonus() -> void:
+    var old_max_hp: float = max_hp
+    var old_max_energy: float = max_energy
+
+    max_hp *= 1.08
+    max_energy *= 1.06
+    melee_damage *= 1.07
+    magic_damage *= 1.07
+    speed *= 1.03
+
+    if faction == "human":
+        if human_role == "fighter":
+            melee_damage += 1.4
+        elif human_role == "mage":
+            magic_damage += 1.5
+            control_duration += 0.10
+        elif human_role == "scout":
+            speed += 0.14
+    elif actor_kind == "brute_monster":
+        melee_damage += 1.8
+        max_hp += 4.0
+    elif actor_kind == "ranged_monster":
+        magic_damage += 1.2
+        magic_range += 0.7
+    else:
+        melee_damage += 1.0
+
+    max_hp = min(max_hp, 285.0)
+    max_energy = min(max_energy, 245.0)
+    melee_damage = min(melee_damage, 44.0)
+    magic_damage = min(magic_damage, 40.0)
+    speed = min(speed, 7.6)
+
+    hp += max_hp - old_max_hp
+    energy += max_energy - old_max_energy
+    hp = clamp(hp, 0.0, max_hp)
+    energy = clamp(energy, 0.0, max_energy)
+
+
 func _refresh_control_visual() -> void:
     if _body_visual == null:
         return
@@ -399,7 +483,12 @@ func _refresh_control_visual() -> void:
         material.emission = Color(0.42, 0.90, 1.0) * 0.28
     else:
         material.albedo_color = _base_body_color
-        material.emission_enabled = false
+        if is_champion:
+            var champion_glow := _champion_glow_color()
+            material.emission_enabled = true
+            material.emission = champion_glow * 0.42
+        else:
+            material.emission_enabled = false
 
 
 func _spawn_level_up_signal() -> void:
@@ -423,6 +512,35 @@ func _spawn_level_up_signal() -> void:
     var tween := create_tween()
     tween.tween_property(ring, "scale", Vector3.ONE * 1.4, 0.34)
     tween.finished.connect(ring.queue_free)
+
+
+func _spawn_champion_promotion_signal() -> void:
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.35
+    mesh.bottom_radius = 1.35
+    mesh.height = 0.12
+    ring.mesh = mesh
+    ring.position = Vector3(0.0, 0.14, 0.0)
+    ring.scale = Vector3(0.18, 1.0, 0.18)
+
+    var color := _champion_glow_color()
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.35
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.52, 0.42)
+    tween.finished.connect(ring.queue_free)
+
+
+func _champion_glow_color() -> Color:
+    if faction == "human":
+        return Color(1.0, 0.88, 0.34)
+    return Color(1.0, 0.44, 0.58)
 
 
 func _human_role_color() -> Color:

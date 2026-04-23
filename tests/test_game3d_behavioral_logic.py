@@ -257,6 +257,34 @@ def pick_human_role_contract(roll: float, fighter_ratio: float, mage_ratio: floa
     return "scout"
 
 
+def champion_promotion_contract(
+    *,
+    is_champion: bool,
+    level: int,
+    kills: int,
+    age_seconds: float,
+    progress_xp: float,
+    alive_total: int,
+    champions_alive: int,
+    min_level: int = 3,
+    min_kills: int = 2,
+    min_age_seconds: float = 26.0,
+    min_progress_xp: float = 42.0,
+    max_ratio: float = 0.16,
+    min_population: int = 8,
+) -> bool:
+    if is_champion:
+        return False
+    if level < min_level or kills < min_kills:
+        return False
+    if age_seconds < min_age_seconds or progress_xp < min_progress_xp:
+        return False
+    if alive_total < min_population:
+        return False
+    champion_cap = max(1, int(math.floor(alive_total * max_ratio)))
+    return champions_alive < champion_cap
+
+
 class TestGame3DBehavioralLogic(unittest.TestCase):
     def test_ai_decides_poi_when_no_enemy_and_guidance(self):
         actor = ActorStub()
@@ -411,6 +439,79 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         )
         self.assertTrue(step["active"])
         self.assertEqual(step["influence_kind"], "monster_ruins_influence")
+
+    def test_champion_promotion_requires_notable_actor_profile(self):
+        self.assertFalse(
+            champion_promotion_contract(
+                is_champion=False,
+                level=2,
+                kills=3,
+                age_seconds=60.0,
+                progress_xp=70.0,
+                alive_total=20,
+                champions_alive=1,
+            )
+        )
+        self.assertFalse(
+            champion_promotion_contract(
+                is_champion=False,
+                level=3,
+                kills=1,
+                age_seconds=60.0,
+                progress_xp=70.0,
+                alive_total=20,
+                champions_alive=1,
+            )
+        )
+        self.assertTrue(
+            champion_promotion_contract(
+                is_champion=False,
+                level=3,
+                kills=3,
+                age_seconds=42.0,
+                progress_xp=56.0,
+                alive_total=20,
+                champions_alive=1,
+            )
+        )
+
+    def test_champion_promotion_respects_population_cap(self):
+        # For alive_total=20 and max_ratio=0.16, cap = floor(3.2) => 3.
+        self.assertTrue(
+            champion_promotion_contract(
+                is_champion=False,
+                level=3,
+                kills=4,
+                age_seconds=50.0,
+                progress_xp=80.0,
+                alive_total=20,
+                champions_alive=2,
+            )
+        )
+        self.assertFalse(
+            champion_promotion_contract(
+                is_champion=False,
+                level=3,
+                kills=4,
+                age_seconds=50.0,
+                progress_xp=80.0,
+                alive_total=20,
+                champions_alive=3,
+            )
+        )
+
+    def test_champion_promotion_blocked_when_population_too_low(self):
+        self.assertFalse(
+            champion_promotion_contract(
+                is_champion=False,
+                level=3,
+                kills=3,
+                age_seconds=35.0,
+                progress_xp=50.0,
+                alive_total=6,
+                champions_alive=0,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -6,6 +6,12 @@ const MAX_EVENT_LOG: int = 14
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
+const CHAMPION_MIN_LEVEL: int = 3
+const CHAMPION_MIN_KILLS: int = 2
+const CHAMPION_MIN_AGE_SECONDS: float = 26.0
+const CHAMPION_MIN_PROGRESS_XP: float = 42.0
+const CHAMPION_MAX_RATIO: float = 0.16
+const CHAMPION_MIN_POPULATION: int = 8
 const POI_INFLUENCE_ENERGY_REGEN_PER_SEC: float = 0.70
 const POI_INFLUENCE_XP_INTERVAL: float = 6.0
 const POI_INFLUENCE_XP_GAIN: float = 0.8
@@ -44,10 +50,12 @@ var poi_influence_deactivation_events_total: int = 0
 var poi_influence_regen_ticks_total: int = 0
 var poi_influence_xp_grants_total: int = 0
 var level_ups_total: int = 0
+var champion_promotions_total: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
 var _poi_influence_xp_timers: Dictionary = {}
+var _champion_scan_timer: float = 0.0
 
 var event_log: Array[String] = []
 
@@ -83,6 +91,7 @@ func _tick(delta: float) -> void:
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _apply_poi_influences(delta)
+    _scan_for_champion_promotion(delta)
     _cleanup_dead_actors()
     sandbox_systems.tick_systems(delta, actors, self)
 
@@ -164,13 +173,18 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     if killer != null:
         kills_total += 1
         if not killer.is_dead:
+            killer.register_kill()
             killer.award_progress_xp(XP_ON_KILL, "kill", self)
+            _try_promote_champion(killer, "kill")
         record_event(
             "Death: %s by %s (%s)."
             % [_actor_label(victim), _actor_label(killer), reason]
         )
     else:
         record_event("Death: %s (%s)." % [_actor_label(victim), reason])
+
+    if victim.is_champion:
+        record_event("Champion fallen: %s." % _actor_label(victim))
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -181,6 +195,7 @@ func register_level_up(actor: Actor, old_level: int, new_level: int, reason: Str
         "Level up: %s L%d -> L%d (%s)."
         % [_actor_label(actor), old_level, new_level, reason]
     )
+    _try_promote_champion(actor, "level_up:%s" % reason)
 
 
 func record_event(message: String) -> void:
@@ -217,6 +232,10 @@ func _build_snapshot() -> Dictionary:
         "mage": 0,
         "scout": 0
     }
+    var champion_alive_total: int = 0
+    var human_champions_alive: int = 0
+    var monster_champions_alive: int = 0
+    var champion_kills_total: int = 0
     var hp_total: float = 0.0
     var energy_total: float = 0.0
     var level_total: float = 0.0
@@ -257,12 +276,17 @@ func _build_snapshot() -> Dictionary:
         hp_total += actor.hp
         energy_total += actor.energy
         level_total += float(actor.level)
+        if actor.is_champion:
+            champion_alive_total += 1
+            champion_kills_total += actor.kill_count
 
         var level_key := "L%d" % clampi(actor.level, 1, 3)
         level_counts[level_key] += 1
 
         if actor.faction == "human":
             humans_alive += 1
+            if actor.is_champion:
+                human_champions_alive += 1
             human_level_counts[level_key] += 1
             if human_role_counts.has(actor.human_role):
                 human_role_counts[actor.human_role] += 1
@@ -270,6 +294,8 @@ func _build_snapshot() -> Dictionary:
                 slowed_humans += 1
         elif actor.faction == "monster":
             monsters_alive += 1
+            if actor.is_champion:
+                monster_champions_alive += 1
             monster_level_counts[level_key] += 1
             if actor.actor_kind == "brute_monster":
                 brute_alive += 1
@@ -311,6 +337,10 @@ func _build_snapshot() -> Dictionary:
         "human_level_counts": human_level_counts,
         "monster_level_counts": monster_level_counts,
         "avg_level": avg_level,
+        "champion_alive_total": champion_alive_total,
+        "human_champions_alive": human_champions_alive,
+        "monster_champions_alive": monster_champions_alive,
+        "champion_kills_total": champion_kills_total,
         "avg_hp": avg_hp,
         "avg_energy": avg_energy,
         "spawns_total": spawns_total,
@@ -334,6 +364,7 @@ func _build_snapshot() -> Dictionary:
         "poi_influence_xp_grants_total": poi_influence_xp_grants_total,
         "poi_influence_active_count": poi_influence_active_count,
         "level_ups_total": level_ups_total,
+        "champion_promotions_total": champion_promotions_total,
         "poi_population": poi_population,
         "poi_snapshot": poi_runtime_snapshot,
         "state_counts": state_counts
@@ -442,9 +473,77 @@ func _clear_actor_influence_timers(actor_id: int) -> void:
         _poi_influence_xp_timers.erase(key_text)
 
 
+func _scan_for_champion_promotion(delta: float) -> void:
+    _champion_scan_timer += delta
+    if _champion_scan_timer < 2.0:
+        return
+    _champion_scan_timer = 0.0
+
+    for actor in actors:
+        if actor == null or actor.is_dead or actor.is_champion:
+            continue
+        var was_champion := actor.is_champion
+        _try_promote_champion(actor, "periodic_scan")
+        if not was_champion and actor.is_champion:
+            return
+        if not _can_promote_new_champion():
+            return
+
+
+func _try_promote_champion(actor: Actor, promotion_reason: String) -> void:
+    if actor == null:
+        return
+    if not actor.is_ready_for_champion(
+        CHAMPION_MIN_LEVEL,
+        CHAMPION_MIN_KILLS,
+        CHAMPION_MIN_AGE_SECONDS,
+        CHAMPION_MIN_PROGRESS_XP
+    ):
+        return
+    if not _can_promote_new_champion():
+        return
+
+    actor.promote_to_champion(promotion_reason)
+    champion_promotions_total += 1
+    record_event(
+        "Champion promoted: %s (%s, kills=%d, age=%.1fs)."
+        % [_actor_label(actor), promotion_reason, actor.kill_count, actor.age_seconds]
+    )
+
+
+func _can_promote_new_champion() -> bool:
+    var alive_total: int = _count_alive_actors()
+    if alive_total < CHAMPION_MIN_POPULATION:
+        return false
+    var champion_alive: int = _count_alive_champions("")
+    var champion_cap: int = max(1, int(floor(float(alive_total) * CHAMPION_MAX_RATIO)))
+    return champion_alive < champion_cap
+
+
+func _count_alive_actors() -> int:
+    var total := 0
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        total += 1
+    return total
+
+
+func _count_alive_champions(faction_filter: String) -> int:
+    var total := 0
+    for actor in actors:
+        if actor == null or actor.is_dead or not actor.is_champion:
+            continue
+        if faction_filter != "" and actor.faction != faction_filter:
+            continue
+        total += 1
+    return total
+
+
 func _actor_label(actor: Actor) -> String:
     if actor == null:
         return "unknown"
     var role_suffix := actor.role_tag()
     var level_suffix := actor.level_tag()
-    return "%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, actor.actor_id]
+    var champion_suffix := actor.champion_tag()
+    return "%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, actor.actor_id]

@@ -117,6 +117,13 @@ class TestGame3DProgressionBehavior(unittest.TestCase):
         self.assertIn('"avg_level"', self.loop_content)
         self.assertIn('"level_ups_total"', self.loop_content)
 
+    def test_runtime_snapshot_mentions_champion_fields(self):
+        self.assertIn('"champion_alive_total"', self.loop_content)
+        self.assertIn('"human_champions_alive"', self.loop_content)
+        self.assertIn('"monster_champions_alive"', self.loop_content)
+        self.assertIn('"champion_promotions_total"', self.loop_content)
+        self.assertIn("promote_to_champion", self.actor_content)
+
     def test_progression_xp_constants_are_non_zero_and_bounded(self):
         self.assertGreater(self.xp_on_hit, 0.0)
         self.assertGreater(self.xp_on_cast, 0.0)

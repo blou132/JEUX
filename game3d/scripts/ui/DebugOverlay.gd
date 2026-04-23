@@ -108,6 +108,16 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
+        "Champions: alive=%d (H:%d M:%d) | promotions=%d | champion_kills=%d"
+        % [
+            int(snapshot.get("champion_alive_total", 0)),
+            int(snapshot.get("human_champions_alive", 0)),
+            int(snapshot.get("monster_champions_alive", 0)),
+            int(snapshot.get("champion_promotions_total", 0)),
+            int(snapshot.get("champion_kills_total", 0))
+        ]
+    )
+    lines.append(
         "Flee events: %d | Engagement transitions: %d"
         % [
             int(snapshot.get("flee_events_total", 0)),

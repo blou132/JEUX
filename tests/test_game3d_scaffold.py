@@ -58,6 +58,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("fighter", content)
         self.assertIn("mage", content)
         self.assertIn("scout", content)
+        self.assertIn("champion", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -85,6 +86,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("conteste", content)
         self.assertIn("POI influence", content)
         self.assertIn("influence:off", content)
+        self.assertIn("Champions:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -120,6 +122,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("var max_level: int", content)
         self.assertIn("award_progress_xp", content)
         self.assertIn("_check_level_up", content)
+        self.assertIn("var kill_count: int", content)
+        self.assertIn("var is_champion: bool", content)
+        self.assertIn("champion_tag()", content)
+        self.assertIn("is_ready_for_champion", content)
+        self.assertIn("promote_to_champion", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -138,6 +145,16 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("_apply_poi_influences", content)
         self.assertIn("poi_influence_activation_events_total", content)
         self.assertIn("poi_influence_xp_grants_total", content)
+
+    def test_game_loop_has_champion_metrics_and_promotion_hooks(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("CHAMPION_MIN_LEVEL", content)
+        self.assertIn("CHAMPION_MIN_KILLS", content)
+        self.assertIn("CHAMPION_MAX_RATIO", content)
+        self.assertIn("champion_promotions_total", content)
+        self.assertIn("_try_promote_champion", content)
+        self.assertIn("_scan_for_champion_promotion", content)
+        self.assertIn('"champion_alive_total"', content)
 
 
 if __name__ == "__main__":
