@@ -28,6 +28,15 @@ const SPECIAL_ARRIVAL_MIN_DOMINANCE_SECONDS: float = 15.0
 const SPECIAL_ARRIVAL_MIN_POPULATION: int = 10
 const SPECIAL_ARRIVAL_MAX_ACTIVE: int = 2
 const SPECIAL_ARRIVAL_MAX_ACTIVE_PER_FACTION: int = 1
+const RELIC_START_DELAY: float = 52.0
+const RELIC_COOLDOWN: float = 88.0
+const RELIC_CHECK_INTERVAL: float = 4.0
+const RELIC_TRIGGER_CHANCE: float = 0.30
+const RELIC_MIN_DOMINANCE_SECONDS: float = 16.0
+const RELIC_MIN_POPULATION: int = 10
+const RELIC_MAX_ACTIVE: int = 2
+const RELIC_HOLDER_MAX_DISTANCE: float = 11.0
+const RELIC_TYPES: Array[String] = ["arcane_sigil", "oath_standard"]
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -98,6 +107,9 @@ var special_arrivals_total: int = 0
 var special_arrivals_human_total: int = 0
 var special_arrivals_monster_total: int = 0
 var special_arrivals_fallen_total: int = 0
+var relic_appear_total: int = 0
+var relic_acquired_total: int = 0
+var relic_lost_total: int = 0
 
 var actor_poi_presence: Dictionary = {}
 var poi_runtime_snapshot: Dictionary = {}
@@ -107,6 +119,8 @@ var _champion_scan_timer: float = 0.0
 var _prev_rally_leader_counts: Dictionary = {}
 var _special_arrival_check_timer: float = 0.0
 var _special_arrival_cooldown_left: float = SPECIAL_ARRIVAL_START_DELAY
+var _relic_check_timer: float = 0.0
+var _relic_cooldown_left: float = RELIC_START_DELAY
 
 var event_log: Array[String] = []
 
@@ -147,6 +161,7 @@ func _tick(delta: float) -> void:
     _update_poi_runtime()
     _update_actor_allegiances()
     _update_special_arrivals(delta)
+    _update_relic_system(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _cleanup_dead_actors()
@@ -245,6 +260,12 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     if victim.is_special_arrival():
         special_arrivals_fallen_total += 1
         record_event("Special Arrival FALLEN: %s." % _actor_label(victim))
+    if victim.has_relic():
+        var lost_title := victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
+        record_event("Relic LOST: %s from %s." % [lost_title, _actor_label(victim)])
+        relic_lost_total += 1
+        _relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
+        victim.clear_relic()
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -265,16 +286,28 @@ func record_event(message: String) -> void:
 
 
 func get_magic_modifiers(_caster: Actor) -> Dictionary:
+    var damage_mult: float = float(world_event_modifiers.get("magic_damage_mult", 1.0))
+    var energy_cost_mult: float = float(world_event_modifiers.get("magic_energy_cost_mult", 1.0))
+    if _caster != null and _caster.has_relic():
+        if _caster.relic_id == "arcane_sigil":
+            damage_mult *= 1.10
+            energy_cost_mult *= 0.90
     return {
-        "damage_mult": float(world_event_modifiers.get("magic_damage_mult", 1.0)),
-        "energy_cost_mult": float(world_event_modifiers.get("magic_energy_cost_mult", 1.0))
+        "damage_mult": damage_mult,
+        "energy_cost_mult": energy_cost_mult
     }
 
 
 func get_melee_damage_multiplier(attacker: Actor) -> float:
+    var multiplier: float = 1.0
     if attacker == null or attacker.faction != "monster":
-        return 1.0
-    return float(world_event_modifiers.get("monster_melee_damage_mult", 1.0))
+        if attacker != null and attacker.has_relic() and attacker.relic_id == "oath_standard":
+            multiplier *= 1.08
+        return multiplier
+    multiplier *= float(world_event_modifiers.get("monster_melee_damage_mult", 1.0))
+    if attacker.has_relic() and attacker.relic_id == "oath_standard":
+        multiplier *= 1.08
+    return multiplier
 
 
 func get_speed_multiplier(actor: Actor) -> float:
@@ -284,9 +317,14 @@ func get_speed_multiplier(actor: Actor) -> float:
 
 
 func get_energy_regen_bonus_per_sec(actor: Actor) -> float:
-    if actor == null or actor.faction != "human":
+    if actor == null:
         return 0.0
-    return float(world_event_modifiers.get("human_energy_regen_per_sec", 0.0))
+    var bonus_per_sec: float = 0.0
+    if actor.faction == "human":
+        bonus_per_sec += float(world_event_modifiers.get("human_energy_regen_per_sec", 0.0))
+    if actor.has_relic() and actor.relic_id == "oath_standard":
+        bonus_per_sec += 0.22
+    return bonus_per_sec
 
 
 func _update_world_events(delta: float) -> void:
@@ -569,6 +607,218 @@ func _special_arrival_spawn_position(anchor_position: Vector3, faction: String) 
     return world_manager.clamp_to_world(world_manager.snap_to_nav_grid(base_position + jitter))
 
 
+func _update_relic_system(delta: float) -> void:
+    _relic_cooldown_left = max(0.0, _relic_cooldown_left - delta)
+    _relic_check_timer += delta
+    if _relic_check_timer < RELIC_CHECK_INTERVAL:
+        return
+    _relic_check_timer = 0.0
+
+    if world_event_active_id == "":
+        return
+    if _relic_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < RELIC_MIN_POPULATION:
+        return
+    if _count_alive_relic_carriers("") >= RELIC_MAX_ACTIVE:
+        return
+
+    var candidates: Array[Dictionary] = _collect_relic_candidates()
+    if candidates.is_empty():
+        return
+    if randf() > RELIC_TRIGGER_CHANCE:
+        return
+
+    var selected: Dictionary = candidates[randi() % candidates.size()]
+    _award_relic_to_holder(selected)
+    _relic_cooldown_left = RELIC_COOLDOWN
+
+
+func _collect_relic_candidates() -> Array[Dictionary]:
+    var candidates: Array[Dictionary] = []
+
+    for relic_id in RELIC_TYPES:
+        var next_relic_id: String = str(relic_id)
+        if _is_relic_active(next_relic_id):
+            continue
+
+        if next_relic_id == "arcane_sigil":
+            var arcane_candidate: Dictionary = _build_relic_candidate_for(
+                next_relic_id,
+                "mana_surge",
+                "human_outpost",
+                "human",
+                true,
+                true
+            )
+            if not arcane_candidate.is_empty():
+                candidates.append(arcane_candidate)
+        elif next_relic_id == "oath_standard":
+            var oath_candidate: Dictionary = _build_relic_candidate_for(
+                next_relic_id,
+                "monster_frenzy",
+                "monster_lair",
+                "monster",
+                true,
+                false
+            )
+            if not oath_candidate.is_empty():
+                candidates.append(oath_candidate)
+
+    return candidates
+
+
+func _build_relic_candidate_for(
+    relic_id: String,
+    required_world_event_id: String,
+    required_structure_state: String,
+    faction: String,
+    prefer_special_arrival: bool,
+    require_magic: bool
+) -> Dictionary:
+    if world_event_active_id != required_world_event_id:
+        return {}
+
+    var anchor: Dictionary = _find_relic_anchor(required_structure_state)
+    if anchor.is_empty():
+        return {}
+
+    var holder: Actor = _pick_relic_holder(
+        faction,
+        anchor.get("position", Vector3.ZERO),
+        prefer_special_arrival,
+        require_magic
+    )
+    if holder == null:
+        return {}
+
+    return {
+        "relic_id": relic_id,
+        "relic_title": _relic_title(relic_id),
+        "faction": faction,
+        "poi_name": str(anchor.get("poi_name", "")),
+        "anchor_position": anchor.get("position", Vector3.ZERO),
+        "holder": holder
+    }
+
+
+func _find_relic_anchor(structure_state: String) -> Dictionary:
+    var selected: Dictionary = {}
+    var best_dominance_seconds: float = -1.0
+
+    for poi_name_variant in poi_runtime_snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        var details: Dictionary = poi_runtime_snapshot.get(poi_name, {})
+        if not bool(details.get("structure_active", false)):
+            continue
+        if str(details.get("structure_state", "")) != structure_state:
+            continue
+        var dominance_seconds: float = float(details.get("dominance_seconds", 0.0))
+        if dominance_seconds < RELIC_MIN_DOMINANCE_SECONDS:
+            continue
+        if dominance_seconds <= best_dominance_seconds:
+            continue
+        selected = {
+            "poi_name": poi_name,
+            "position": _get_poi_position_by_name(poi_name),
+            "dominance_seconds": dominance_seconds
+        }
+        best_dominance_seconds = dominance_seconds
+
+    return selected
+
+
+func _pick_relic_holder(
+    faction: String,
+    anchor_position: Vector3,
+    prefer_special_arrival: bool,
+    require_magic: bool
+) -> Actor:
+    var fallback: Actor = null
+    var best_distance: float = RELIC_HOLDER_MAX_DISTANCE
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.faction != faction:
+            continue
+        if not actor.can_receive_relic():
+            continue
+        if require_magic and not actor.magic_enabled:
+            continue
+
+        var distance: float = actor.global_position.distance_to(anchor_position)
+        if distance > RELIC_HOLDER_MAX_DISTANCE:
+            continue
+
+        var eligible_leader: bool = actor.is_champion or actor.is_special_arrival()
+        if not eligible_leader:
+            continue
+
+        if prefer_special_arrival and actor.is_special_arrival():
+            if fallback == null or distance < best_distance:
+                fallback = actor
+                best_distance = distance
+            continue
+
+        if fallback == null or distance < best_distance:
+            fallback = actor
+            best_distance = distance
+
+    return fallback
+
+
+func _award_relic_to_holder(candidate: Dictionary) -> void:
+    var relic_id: String = str(candidate.get("relic_id", ""))
+    var relic_title: String = str(candidate.get("relic_title", _relic_title(relic_id)))
+    var poi_name: String = str(candidate.get("poi_name", "wilds"))
+    var holder: Actor = candidate.get("holder", null)
+    if holder == null or holder.is_dead:
+        return
+    if not holder.can_receive_relic():
+        return
+
+    relic_appear_total += 1
+    record_event(
+        "Relic APPEAR: %s near %s (%s)."
+        % [relic_title, poi_name, _world_event_label(world_event_active_id)]
+    )
+
+    holder.set_relic(relic_id, relic_title)
+    relic_acquired_total += 1
+    record_event("Relic ACQUIRED: %s by %s." % [relic_title, _actor_label(holder)])
+
+
+func _is_relic_active(relic_id: String) -> bool:
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.relic_id == relic_id:
+            return true
+    return false
+
+
+func _count_alive_relic_carriers(faction_filter: String) -> int:
+    var total := 0
+    for actor in actors:
+        if actor == null or actor.is_dead or not actor.has_relic():
+            continue
+        if faction_filter != "" and actor.faction != faction_filter:
+            continue
+        total += 1
+    return total
+
+
+func _relic_title(relic_id: String) -> String:
+    match relic_id:
+        "arcane_sigil":
+            return "Arcane Sigil"
+        "oath_standard":
+            return "Oath Standard"
+        _:
+            return "Relic"
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -605,6 +855,10 @@ func _build_snapshot() -> Dictionary:
     var special_arrivals_active_total: int = 0
     var special_arrivals_active_humans: int = 0
     var special_arrivals_active_monsters: int = 0
+    var relic_active_total: int = 0
+    var relic_active_humans: int = 0
+    var relic_active_monsters: int = 0
+    var relic_active_labels: Array[String] = []
     var allegiance_affiliated_total: int = 0
     var allegiance_affiliated_humans: int = 0
     var allegiance_affiliated_monsters: int = 0
@@ -660,6 +914,14 @@ func _build_snapshot() -> Dictionary:
                 special_arrivals_active_humans += 1
             elif actor.faction == "monster":
                 special_arrivals_active_monsters += 1
+        if actor.has_relic():
+            relic_active_total += 1
+            if actor.faction == "human":
+                relic_active_humans += 1
+            elif actor.faction == "monster":
+                relic_active_monsters += 1
+            var relic_name := actor.relic_title if actor.relic_title != "" else _relic_title(actor.relic_id)
+            relic_active_labels.append("%s->%s" % [relic_name, _actor_label(actor)])
         if actor.allegiance_id != "":
             allegiance_affiliated_total += 1
             allegiance_member_counts[actor.allegiance_id] = int(allegiance_member_counts.get(actor.allegiance_id, 0)) + 1
@@ -723,6 +985,7 @@ func _build_snapshot() -> Dictionary:
             poi_influence_active_count += 1
         if bool(details.get("structure_active", false)):
             poi_structure_active_count += 1
+    relic_active_labels.sort()
 
     return {
         "tick": tick_index,
@@ -751,6 +1014,13 @@ func _build_snapshot() -> Dictionary:
         "special_arrivals_human_total": special_arrivals_human_total,
         "special_arrivals_monster_total": special_arrivals_monster_total,
         "special_arrivals_fallen_total": special_arrivals_fallen_total,
+        "relic_active_total": relic_active_total,
+        "relic_active_humans": relic_active_humans,
+        "relic_active_monsters": relic_active_monsters,
+        "relic_active_labels": relic_active_labels,
+        "relic_appear_total": relic_appear_total,
+        "relic_acquired_total": relic_acquired_total,
+        "relic_lost_total": relic_lost_total,
         "allegiance_active_count": active_allegiances.size(),
         "allegiance_affiliated_total": allegiance_affiliated_total,
         "allegiance_affiliated_humans": allegiance_affiliated_humans,
@@ -851,7 +1121,16 @@ func _update_rally_runtime() -> void:
         actor.rally_leader_id = leader_id
         if leader_id == 0:
             actor.rally_bonus_active = false
+            actor.rally_relic_bonus_active = false
             continue
+
+        var leader_for_bonus: Actor = alive_by_id.get(leader_id, null)
+        actor.rally_relic_bonus_active = (
+            leader_for_bonus != null
+            and not leader_for_bonus.is_dead
+            and leader_for_bonus.has_relic()
+            and leader_for_bonus.relic_id == "oath_standard"
+        )
 
         followers_total += 1
         if actor.faction == "human":
@@ -1096,6 +1375,7 @@ func _clear_actor_rally_tracking(actor_id: int) -> void:
         if actor.rally_leader_id == actor_id:
             actor.rally_leader_id = 0
             actor.rally_bonus_active = false
+            actor.rally_relic_bonus_active = false
 
 
 func _scan_for_champion_promotion(delta: float) -> void:
@@ -1183,5 +1463,6 @@ func _actor_label(actor: Actor) -> String:
     var level_suffix := actor.level_tag()
     var champion_suffix := actor.champion_tag()
     var special_suffix := actor.special_tag()
+    var relic_suffix := actor.relic_tag()
     var allegiance_suffix := actor.allegiance_tag()
-    return "%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, allegiance_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, allegiance_suffix, actor.actor_id]

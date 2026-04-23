@@ -22,6 +22,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight allegiance/proto-faction layer (structure-anchored)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
+- lightweight relics layer (rare carrier-bound artifacts)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -78,6 +79,14 @@ The active direction is a minimal but playable sandbox loop:
   - monster variant: `calamity_invader` (Calamity Invader), tied to `monster_frenzy` + `monster_lair`
   - each arrival uses existing actors with a lightweight special origin tag, bounded bonus package, champion initialization, and optional allegiance anchor
   - observability: dedicated `Special Arrival START/FALLEN` logs, HUD active split (humans/monsters), and total/fallen counters
+- Relics / artifacts layer (MVP):
+  - rare autonomous artifact appearances with bounded cooldown/cap and structure + world-event + dominance gates
+  - carrier model only (no inventory): one relic max per actor, relic active while carrier is alive
+  - `arcane_sigil`: light personal magic boost (damage up, magic cost down)
+  - `oath_standard`: light leadership/survival boost (melee up, extra rally cohesion, small energy sustain)
+  - acquisition is restricted to nearby champion/special-arrival profiles around stable anchors
+  - loss behavior is safe and simple: relic is reset on carrier death (no persistent drop chain)
+  - observability: dedicated `Relic APPEAR/ACQUIRED/LOST` logs, HUD active split and carrier labels
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -128,6 +137,8 @@ The debug overlay shows:
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
+- relic counters (`active`, split H/M, appear/acquired/lost)
+- relic carriers (`relic -> carrier` labels)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 - POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - POI structure events (`UP`/`DOWN`) when persistent structures are created or destroyed
@@ -135,6 +146,7 @@ The debug overlay shows:
 - allegiance events (`UP`/`DOWN` + unit assignment/loss) to track emerging proto-factions
 - world event logs (`START`/`END`) for temporary global perturbations
 - special arrival logs (`START`/`FALLEN`) for rare exceptional units
+- relic logs (`APPEAR`/`ACQUIRED`/`LOST`) for rare artifact stories
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -155,6 +167,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_progression_behavior.py](tests/test_game3d_progression_behavior.py) (progression contracts: thresholds, XP triggers, survival pacing, snapshot fields)
 - [test_game3d_world_events_behavior.py](tests/test_game3d_world_events_behavior.py) (world event contracts: trigger cadence, end/reset, bounded modifiers)
 - [test_game3d_special_arrivals_behavior.py](tests/test_game3d_special_arrivals_behavior.py) (special arrival contracts: trigger conditions, cooldown/cap gates, bounded integration hooks)
+- [test_game3d_relics_behavior.py](tests/test_game3d_relics_behavior.py) (relic contracts: bounded appearance, carrier gating, cooldown/cap, loss reset)
 
 Run targeted tests:
 ```bash
@@ -163,6 +176,7 @@ py -m unittest tests.test_game3d_behavioral_logic -v
 py -m unittest tests.test_game3d_progression_behavior -v
 py -m unittest tests.test_game3d_world_events_behavior -v
 py -m unittest tests.test_game3d_special_arrivals_behavior -v
+py -m unittest tests.test_game3d_relics_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -193,6 +207,7 @@ py -m unittest discover -s tests -v
 - Add lightweight allegiance/proto-faction MVP anchored on structures, with unit affiliation stability and bounded behavior bias
 - Add autonomous world events MVP (single active event, bounded temporary effects, dedicated observability)
 - Add rare special arrivals MVP (`Summoned Hero` / `Calamity Invader`) with bounded spawn conditions, champion seeding, and runtime visibility
+- Add rare relic/artifact MVP (`Arcane Sigil` / `Oath Standard`) with bounded carrier assignment and death-reset behavior
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -204,6 +219,7 @@ py -m unittest discover -s tests -v
 - Tune rally distances/probabilities to avoid over-clumping while keeping readable group behavior
 - Tune world event cadence/duration/effect strength for high variety without persistent snowball
 - Tune special arrival rarity gates (dominance threshold/cooldown/cap) for memorable spikes without destabilizing baseline simulation
+- Tune relic appearance and effect strengths (cooldown/gates/bonuses) for memorable local stories without runaway scaling
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

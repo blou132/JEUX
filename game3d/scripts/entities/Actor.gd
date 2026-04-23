@@ -63,8 +63,11 @@ var allegiance_id: String = ""
 var home_poi: String = ""
 var rally_leader_id: int = 0
 var rally_bonus_active: bool = false
+var rally_relic_bonus_active: bool = false
 var special_arrival_id: String = ""
 var special_arrival_title: String = ""
+var relic_id: String = ""
+var relic_title: String = ""
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -270,8 +273,26 @@ func special_tag() -> String:
             return ""
 
 
+func relic_tag() -> String:
+    match relic_id:
+        "arcane_sigil":
+            return "[ARCANE]"
+        "oath_standard":
+            return "[STANDARD]"
+        _:
+            return ""
+
+
 func is_special_arrival() -> bool:
     return special_arrival_id != ""
+
+
+func has_relic() -> bool:
+    return relic_id != ""
+
+
+func can_receive_relic() -> bool:
+    return relic_id == ""
 
 
 func set_special_arrival(origin_id: String, title: String) -> void:
@@ -316,6 +337,20 @@ func apply_special_arrival_bonus(origin_id: String = "") -> void:
     hp = clamp(hp, 0.0, max_hp)
     energy = clamp(energy, 0.0, max_energy)
     _spawn_special_arrival_signal()
+    _refresh_control_visual()
+
+
+func set_relic(next_relic_id: String, next_relic_title: String) -> void:
+    relic_id = next_relic_id
+    relic_title = next_relic_title
+    _spawn_relic_signal()
+    _refresh_control_visual()
+
+
+func clear_relic() -> void:
+    relic_id = ""
+    relic_title = ""
+    rally_relic_bonus_active = false
     _refresh_control_visual()
 
 
@@ -478,6 +513,7 @@ func _update_rally_context_from_decision(decision: Dictionary) -> void:
     if rally_leader == null or rally_leader == self or rally_leader.is_dead or rally_leader.faction != faction:
         rally_leader_id = 0
         rally_bonus_active = false
+        rally_relic_bonus_active = false
         return
 
     rally_leader_id = rally_leader.actor_id
@@ -485,9 +521,14 @@ func _update_rally_context_from_decision(decision: Dictionary) -> void:
 
 
 func _rally_energy_drain_multiplier() -> float:
-    if rally_bonus_active and not is_champion:
-        return 0.92
-    return 1.0
+    if is_champion:
+        return 1.0
+    var multiplier: float = 1.0
+    if rally_bonus_active:
+        multiplier *= 0.92
+    if rally_relic_bonus_active:
+        multiplier *= 0.93
+    return multiplier
 
 
 func _update_world_event_context(game_loop: GameLoop) -> void:
@@ -600,7 +641,15 @@ func _refresh_control_visual() -> void:
         material.emission = Color(0.42, 0.90, 1.0) * 0.28
     else:
         material.albedo_color = _base_body_color
-        if special_arrival_id != "":
+        if relic_id != "":
+            var relic_glow := _relic_glow_color()
+            if special_arrival_id != "":
+                relic_glow = relic_glow.lerp(_special_glow_color(), 0.22)
+            elif is_champion:
+                relic_glow = relic_glow.lerp(_champion_glow_color(), 0.22)
+            material.emission_enabled = true
+            material.emission = relic_glow * 0.62
+        elif special_arrival_id != "":
             var special_glow := _special_glow_color()
             if is_champion:
                 special_glow = special_glow.lerp(_champion_glow_color(), 0.28)
@@ -690,6 +739,32 @@ func _spawn_special_arrival_signal() -> void:
     tween.finished.connect(ring.queue_free)
 
 
+func _spawn_relic_signal() -> void:
+    if relic_id == "":
+        return
+
+    var ring := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.45
+    mesh.bottom_radius = 1.45
+    mesh.height = 0.10
+    ring.mesh = mesh
+    ring.position = Vector3(0.0, 0.22, 0.0)
+    ring.scale = Vector3(0.12, 1.0, 0.12)
+
+    var color := _relic_glow_color()
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.55
+    ring.material_override = material
+    add_child(ring)
+
+    var tween := create_tween()
+    tween.tween_property(ring, "scale", Vector3.ONE * 1.58, 0.40)
+    tween.finished.connect(ring.queue_free)
+
+
 func _champion_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.88, 0.34)
@@ -704,6 +779,16 @@ func _special_glow_color() -> Color:
             return Color(1.0, 0.36, 0.32)
         _:
             return Color(0.88, 0.88, 0.88)
+
+
+func _relic_glow_color() -> Color:
+    match relic_id:
+        "arcane_sigil":
+            return Color(0.60, 0.70, 1.0)
+        "oath_standard":
+            return Color(1.0, 0.58, 0.32)
+        _:
+            return Color(0.90, 0.90, 0.90)
 
 
 func _allegiance_glow_color() -> Color:

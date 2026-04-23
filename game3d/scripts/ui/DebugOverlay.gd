@@ -36,6 +36,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var level_counts: Dictionary = snapshot.get("level_counts", {})
     var human_level_counts: Dictionary = snapshot.get("human_level_counts", {})
     var monster_level_counts: Dictionary = snapshot.get("monster_level_counts", {})
+    var relic_active_labels: Array = snapshot.get("relic_active_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var lines: Array[String] = []
@@ -153,6 +154,21 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("special_arrivals_monster_total", 0)),
             int(snapshot.get("special_arrivals_fallen_total", 0))
         ]
+    )
+    lines.append(
+        "Relics: active=%d (H:%d M:%d) | appear=%d acquired=%d lost=%d"
+        % [
+            int(snapshot.get("relic_active_total", 0)),
+            int(snapshot.get("relic_active_humans", 0)),
+            int(snapshot.get("relic_active_monsters", 0)),
+            int(snapshot.get("relic_appear_total", 0)),
+            int(snapshot.get("relic_acquired_total", 0)),
+            int(snapshot.get("relic_lost_total", 0))
+        ]
+    )
+    lines.append(
+        "Relic carriers: %s"
+        % (" | ".join(relic_active_labels) if not relic_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"

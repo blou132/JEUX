@@ -72,6 +72,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("special arrival", content)
         self.assertIn("summoned hero", content)
         self.assertIn("calamity invader", content)
+        self.assertIn("relic", content)
+        self.assertIn("arcane sigil", content)
+        self.assertIn("oath standard", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -124,6 +127,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Special arrivals:", content)
         self.assertIn("Rally:", content)
         self.assertIn("World Event:", content)
+        self.assertIn("Relics:", content)
+        self.assertIn("Relic carriers:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -182,6 +187,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("special_tag", content)
         self.assertIn("is_special_arrival", content)
         self.assertIn("apply_special_arrival_bonus", content)
+        self.assertIn("relic_id", content)
+        self.assertIn("relic_tag", content)
+        self.assertIn("has_relic", content)
+        self.assertIn("set_relic", content)
+        self.assertIn("clear_relic", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -246,6 +256,19 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"special_arrivals_active_total"', content)
         self.assertIn('"special_arrivals_total"', content)
         self.assertIn("_count_alive_special_arrivals", content)
+
+    def test_game_loop_has_relic_scheduler_and_metrics(self):
+        content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("RELIC_COOLDOWN", content)
+        self.assertIn("RELIC_TYPES", content)
+        self.assertIn("_update_relic_system", content)
+        self.assertIn("_collect_relic_candidates", content)
+        self.assertIn("Relic APPEAR", content)
+        self.assertIn("Relic ACQUIRED", content)
+        self.assertIn("Relic LOST", content)
+        self.assertIn('"relic_active_total"', content)
+        self.assertIn('"relic_appear_total"', content)
+        self.assertIn("_count_alive_relic_carriers", content)
 
 
 if __name__ == "__main__":
