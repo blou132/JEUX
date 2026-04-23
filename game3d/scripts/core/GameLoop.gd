@@ -58,6 +58,10 @@ var raid_ended_total: int = 0
 var raid_success_total: int = 0
 var raid_interrupted_total: int = 0
 var raid_timeout_total: int = 0
+var allegiance_created_total: int = 0
+var allegiance_removed_total: int = 0
+var allegiance_assignments_total: int = 0
+var allegiance_losses_total: int = 0
 var level_ups_total: int = 0
 var champion_promotions_total: int = 0
 var rally_groups_formed_total: int = 0
@@ -113,6 +117,7 @@ func _tick(delta: float) -> void:
     _update_rally_runtime()
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
+    _update_actor_allegiances()
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _cleanup_dead_actors()
@@ -260,6 +265,10 @@ func _build_snapshot() -> Dictionary:
     var human_champions_alive: int = 0
     var monster_champions_alive: int = 0
     var champion_kills_total: int = 0
+    var allegiance_affiliated_total: int = 0
+    var allegiance_affiliated_humans: int = 0
+    var allegiance_affiliated_monsters: int = 0
+    var allegiance_member_counts: Dictionary = {}
     var hp_total: float = 0.0
     var energy_total: float = 0.0
     var level_total: float = 0.0
@@ -305,12 +314,17 @@ func _build_snapshot() -> Dictionary:
         if actor.is_champion:
             champion_alive_total += 1
             champion_kills_total += actor.kill_count
+        if actor.allegiance_id != "":
+            allegiance_affiliated_total += 1
+            allegiance_member_counts[actor.allegiance_id] = int(allegiance_member_counts.get(actor.allegiance_id, 0)) + 1
 
         var level_key := "L%d" % clampi(actor.level, 1, 3)
         level_counts[level_key] += 1
 
         if actor.faction == "human":
             humans_alive += 1
+            if actor.allegiance_id != "":
+                allegiance_affiliated_humans += 1
             if actor.is_champion:
                 human_champions_alive += 1
             human_level_counts[level_key] += 1
@@ -320,6 +334,8 @@ func _build_snapshot() -> Dictionary:
                 slowed_humans += 1
         elif actor.faction == "monster":
             monsters_alive += 1
+            if actor.allegiance_id != "":
+                allegiance_affiliated_monsters += 1
             if actor.is_champion:
                 monster_champions_alive += 1
             monster_level_counts[level_key] += 1
@@ -341,6 +357,18 @@ func _build_snapshot() -> Dictionary:
     var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
     var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances()
+    var allegiance_structure_labels: Array[String] = []
+    for allegiance in active_allegiances:
+        allegiance_structure_labels.append(
+            "%s[%s,%s]"
+            % [
+                str(allegiance.get("allegiance_id", "")),
+                str(allegiance.get("home_poi", "")),
+                str(allegiance.get("structure_state", ""))
+            ]
+        )
+    allegiance_structure_labels.sort()
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -370,6 +398,13 @@ func _build_snapshot() -> Dictionary:
         "human_champions_alive": human_champions_alive,
         "monster_champions_alive": monster_champions_alive,
         "champion_kills_total": champion_kills_total,
+        "allegiance_active_count": active_allegiances.size(),
+        "allegiance_affiliated_total": allegiance_affiliated_total,
+        "allegiance_affiliated_humans": allegiance_affiliated_humans,
+        "allegiance_affiliated_monsters": allegiance_affiliated_monsters,
+        "allegiance_unaffiliated_total": max(0, alive_total - allegiance_affiliated_total),
+        "allegiance_member_counts": allegiance_member_counts,
+        "allegiance_structure_labels": allegiance_structure_labels,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,
@@ -412,6 +447,10 @@ func _build_snapshot() -> Dictionary:
         "raid_success_total": raid_success_total,
         "raid_interrupted_total": raid_interrupted_total,
         "raid_timeout_total": raid_timeout_total,
+        "allegiance_created_total": allegiance_created_total,
+        "allegiance_removed_total": allegiance_removed_total,
+        "allegiance_assignments_total": allegiance_assignments_total,
+        "allegiance_losses_total": allegiance_losses_total,
         "level_ups_total": level_ups_total,
         "champion_promotions_total": champion_promotions_total,
         "rally_groups_formed_total": rally_groups_formed_total,
@@ -554,6 +593,16 @@ func _update_poi_runtime() -> void:
             poi_structure_lost_total += 1
             var structure_state: String = str(transition.get("structure_state", "structure"))
             record_event("POI structure DOWN: %s lost %s." % [poi_name, structure_state])
+        elif kind == "allegiance_created":
+            allegiance_created_total += 1
+            var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
+            var allegiance_faction: String = str(transition.get("faction", ""))
+            record_event("Allegiance UP: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
+        elif kind == "allegiance_removed":
+            allegiance_removed_total += 1
+            var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
+            var allegiance_faction: String = str(transition.get("faction", ""))
+            record_event("Allegiance DOWN: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
         elif kind == "raid_started":
             raid_started_total += 1
             var attacker_faction: String = str(transition.get("attacker_faction", ""))
@@ -637,6 +686,36 @@ func _apply_poi_influences(delta: float) -> void:
             next_timers[timer_key] = timer_value
 
     _poi_influence_xp_timers = next_timers
+
+
+func _update_actor_allegiances() -> void:
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+
+        var old_id: String = actor.allegiance_id
+        var old_home: String = actor.home_poi
+        var resolved: Dictionary = world_manager.resolve_actor_allegiance(actor)
+        var next_id: String = str(resolved.get("allegiance_id", ""))
+        var next_home: String = str(resolved.get("home_poi", ""))
+        var changed: bool = bool(resolved.get("changed", false))
+        var reason: String = str(resolved.get("reason", "none"))
+        if not changed:
+            continue
+
+        actor.set_allegiance(next_id, next_home)
+
+        if old_id == "" and next_id != "":
+            allegiance_assignments_total += 1
+            record_event("Allegiance assign: %s -> %s (%s)." % [_actor_label(actor), next_id, reason])
+        elif old_id != "" and next_id == "":
+            allegiance_losses_total += 1
+            record_event("Allegiance lost: %s from %s (%s)." % [_actor_label(actor), old_id, reason])
+        elif old_id != next_id:
+            allegiance_assignments_total += 1
+            record_event("Allegiance shift: %s %s -> %s (%s)." % [_actor_label(actor), old_id, next_id, reason])
+        elif old_home != next_home:
+            record_event("Allegiance home update: %s %s -> %s." % [_actor_label(actor), old_home, next_home])
 
 
 func _clear_actor_influence_timers(actor_id: int) -> void:
@@ -733,4 +812,5 @@ func _actor_label(actor: Actor) -> String:
     var role_suffix := actor.role_tag()
     var level_suffix := actor.level_tag()
     var champion_suffix := actor.champion_tag()
-    return "%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, actor.actor_id]
+    var allegiance_suffix := actor.allegiance_tag()
+    return "%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, allegiance_suffix, actor.actor_id]

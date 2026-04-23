@@ -64,6 +64,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("lair", content)
         self.assertIn("structure", content)
         self.assertIn("raid", content)
+        self.assertIn("allegiance", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -92,6 +93,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_raid_guidance", content)
         self.assertIn("raid_started", content)
         self.assertIn("raid_ended", content)
+        self.assertIn("get_active_allegiances", content)
+        self.assertIn("resolve_actor_allegiance", content)
+        self.assertIn("allegiance_created", content)
+        self.assertIn("allegiance_removed", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -104,6 +109,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("POI structures:", content)
         self.assertIn("Raid: active=", content)
         self.assertIn("raid:source", content)
+        self.assertIn("Allegiances:", content)
+        self.assertIn("allegiance:none", content)
         self.assertIn("Champions:", content)
         self.assertIn("Rally:", content)
 
@@ -124,6 +131,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("rally_regroup", content)
         self.assertIn("rally_pressure", content)
         self.assertIn("raid_pressure", content)
+        self.assertIn("get_allegiance_defense_guidance", content)
+        self.assertIn("actor.allegiance_id", content)
 
     def test_human_agent_has_roles(self):
         content = (GAME3D / "scripts" / "entities" / "HumanAgent.gd").read_text(encoding="utf-8")
@@ -154,6 +163,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("rally_leader_id", content)
         self.assertIn("rally_bonus_active", content)
         self.assertIn('"rally":', content)
+        self.assertIn("allegiance_id", content)
+        self.assertIn("home_poi", content)
+        self.assertIn("set_allegiance", content)
+        self.assertIn("allegiance_tag", content)
 
     def test_game_loop_exposes_progression_runtime_metrics(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
@@ -177,6 +190,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("poi_structure_lost_total", content)
         self.assertIn("raid_started_total", content)
         self.assertIn("raid_success_total", content)
+        self.assertIn("allegiance_created_total", content)
+        self.assertIn("allegiance_assignments_total", content)
+        self.assertIn("_update_actor_allegiances", content)
 
     def test_game_loop_has_champion_metrics_and_promotion_hooks(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")

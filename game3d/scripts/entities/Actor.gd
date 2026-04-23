@@ -59,6 +59,8 @@ var state: String = "wander"
 var last_reason: String = "spawned"
 var target_actor: Actor = null
 var target_position: Vector3 = Vector3.ZERO
+var allegiance_id: String = ""
+var home_poi: String = ""
 var rally_leader_id: int = 0
 var rally_bonus_active: bool = false
 
@@ -244,6 +246,19 @@ func champion_tag() -> String:
     if faction == "human":
         return "[HERO]"
     return "[ELITE]"
+
+
+func allegiance_tag() -> String:
+    if allegiance_id == "":
+        return ""
+    var short_id := allegiance_id.replace(":", ".")
+    return "[%s]" % short_id
+
+
+func set_allegiance(next_allegiance_id: String, next_home_poi: String) -> void:
+    allegiance_id = next_allegiance_id
+    home_poi = next_home_poi
+    _refresh_control_visual()
 
 
 func award_progress_xp(amount: float, reason: String, game_loop: GameLoop) -> void:
@@ -514,6 +529,10 @@ func _refresh_control_visual() -> void:
             var champion_glow := _champion_glow_color()
             material.emission_enabled = true
             material.emission = champion_glow * 0.42
+        elif allegiance_id != "":
+            var allegiance_glow := _allegiance_glow_color()
+            material.emission_enabled = true
+            material.emission = allegiance_glow * 0.16
         else:
             material.emission_enabled = false
 
@@ -568,6 +587,12 @@ func _champion_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.88, 0.34)
     return Color(1.0, 0.44, 0.58)
+
+
+func _allegiance_glow_color() -> Color:
+    if faction == "human":
+        return Color(0.44, 0.78, 1.0)
+    return Color(1.0, 0.56, 0.50)
 
 
 func _human_role_color() -> Color:

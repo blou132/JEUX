@@ -34,7 +34,30 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                     rally_bonus
                 )
 
-        var raid_guidance: Dictionary = world.get_raid_guidance(actor.global_position, actor.faction)
+        var defense_guidance: Dictionary = world.get_allegiance_defense_guidance(
+            actor.global_position,
+            actor.faction,
+            actor.home_poi
+        )
+        if not defense_guidance.is_empty():
+            var defense_weight: float = float(defense_guidance.get("weight", 0.62))
+            if randf() <= clampf(defense_weight, 0.22, 0.90):
+                return _with_rally(
+                    {
+                        "state": "poi",
+                        "target_position": defense_guidance.get("target_position", actor.global_position),
+                        "reason": str(defense_guidance.get("reason", "allegiance_defend_home"))
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
+        var raid_guidance: Dictionary = world.get_raid_guidance(
+            actor.global_position,
+            actor.faction,
+            actor.allegiance_id,
+            actor.home_poi
+        )
         if not raid_guidance.is_empty():
             var raid_weight: float = float(raid_guidance.get("weight", 0.65))
             if randf() <= clampf(raid_weight, 0.25, 0.90):
@@ -253,6 +276,8 @@ func _find_nearby_allied_champion(actor: Actor, all_actors: Array, max_distance:
         if other == null or other == actor or other.is_dead:
             continue
         if other.faction != actor.faction or not other.is_champion:
+            continue
+        if actor.allegiance_id != "" and other.allegiance_id != "" and other.allegiance_id != actor.allegiance_id:
             continue
 
         var dist_sq := actor.global_position.distance_squared_to(other.global_position)

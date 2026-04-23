@@ -25,6 +25,7 @@ var poi_structure_state: Dictionary = {}
 var poi_structure_faction: Dictionary = {}
 var poi_structure_started_at: Dictionary = {}
 var poi_structure_unstable_started_at: Dictionary = {}
+var poi_allegiance_id: Dictionary = {}
 var poi_raid_state: Dictionary = {}
 var poi_raid_cooldown_until: float = 0.0
 var poi_last_raid_attacker: String = ""
@@ -151,7 +152,12 @@ func get_poi_population_snapshot(actors: Array) -> Dictionary:
     return snapshot
 
 
-func get_raid_guidance(actor_position: Vector3, faction: String) -> Dictionary:
+func get_raid_guidance(
+    actor_position: Vector3,
+    faction: String,
+    allegiance_id: String = "",
+    home_poi: String = ""
+) -> Dictionary:
     if not bool(poi_raid_state.get("active", false)):
         return {}
     if str(poi_raid_state.get("attacker_faction", "")) != faction:
@@ -168,16 +174,139 @@ func get_raid_guidance(actor_position: Vector3, faction: String) -> Dictionary:
         return {}
 
     var jitter := Vector3(randf_range(-2.3, 2.3), 0.0, randf_range(-2.3, 2.3))
+    var source_poi: String = str(poi_raid_state.get("source_poi", ""))
+    var weight: float = 0.74
+    if allegiance_id != "":
+        if home_poi == source_poi:
+            weight += 0.12
+        elif home_poi != "":
+            weight -= 0.16
+
     return {
-        "reason": "raid_pressure:%s->%s" % [str(poi_raid_state.get("source_poi", "src")), target_name],
+        "reason": "raid_pressure:%s->%s" % [source_poi if source_poi != "" else "src", target_name],
         "target_position": clamp_to_world(snap_to_nav_grid(target_position + jitter)),
         "distance": distance,
-        "weight": 0.74
+        "weight": clampf(weight, 0.28, 0.92)
     }
 
 
 func get_active_raid_state() -> Dictionary:
     return poi_raid_state.duplicate(true)
+
+
+func get_allegiance_defense_guidance(
+    actor_position: Vector3,
+    faction: String,
+    home_poi: String
+) -> Dictionary:
+    if home_poi == "":
+        return {}
+    if not bool(poi_raid_state.get("active", false)):
+        return {}
+    if str(poi_raid_state.get("defender_faction", "")) != faction:
+        return {}
+    if str(poi_raid_state.get("target_poi", "")) != home_poi:
+        return {}
+
+    var home := _get_poi_by_name(home_poi)
+    if home.is_empty():
+        return {}
+    if str(poi_structure_state.get(home_poi, "")) == "":
+        return {}
+
+    var home_pos: Vector3 = home.get("position", actor_position)
+    if actor_position.distance_to(home_pos) > poi_guidance_distance * 1.35:
+        return {}
+
+    var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
+    return {
+        "reason": "allegiance_defend:%s" % home_poi,
+        "target_position": clamp_to_world(snap_to_nav_grid(home_pos + jitter)),
+        "weight": 0.68
+    }
+
+
+func get_active_allegiances() -> Array[Dictionary]:
+    var active: Array[Dictionary] = []
+    for poi in pois:
+        var poi_name: String = str(poi.get("name", ""))
+        if poi_name == "":
+            continue
+        var structure_state: String = str(poi_structure_state.get(poi_name, ""))
+        if structure_state == "":
+            continue
+        var allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
+        if allegiance_id == "":
+            continue
+        active.append({
+            "allegiance_id": allegiance_id,
+            "faction": str(poi_structure_faction.get(poi_name, "")),
+            "home_poi": poi_name,
+            "position": poi.get("position", Vector3.ZERO),
+            "structure_state": structure_state
+        })
+    return active
+
+
+func resolve_actor_allegiance(actor: Actor) -> Dictionary:
+    var active_allegiances: Array[Dictionary] = get_active_allegiances()
+    var current_id: String = actor.allegiance_id
+    var current_home: String = actor.home_poi
+
+    var by_id: Dictionary = {}
+    for allegiance in active_allegiances:
+        by_id[str(allegiance.get("allegiance_id", ""))] = allegiance
+
+    if current_id != "":
+        var current := by_id.get(current_id, {})
+        if current.is_empty() or str(current.get("faction", "")) != actor.faction:
+            return {
+                "allegiance_id": "",
+                "home_poi": "",
+                "changed": true,
+                "reason": "anchor_lost"
+            }
+        var expected_home: String = str(current.get("home_poi", current_home))
+        if current_home != expected_home:
+            return {
+                "allegiance_id": current_id,
+                "home_poi": expected_home,
+                "changed": true,
+                "reason": "home_sync"
+            }
+        return {
+            "allegiance_id": current_id,
+            "home_poi": current_home,
+            "changed": false,
+            "reason": "stable"
+        }
+
+    var selected: Dictionary = {}
+    var best_distance: float = INF
+    var assign_distance: float = poi_guidance_distance * 1.15
+    for allegiance in active_allegiances:
+        if str(allegiance.get("faction", "")) != actor.faction:
+            continue
+        var center: Vector3 = allegiance.get("position", actor.global_position)
+        var distance: float = actor.global_position.distance_to(center)
+        if distance <= assign_distance and distance < best_distance:
+            selected = allegiance
+            best_distance = distance
+
+    if selected.is_empty():
+        return {
+            "allegiance_id": "",
+            "home_poi": "",
+            "changed": false,
+            "reason": "no_anchor"
+        }
+
+    return {
+        "allegiance_id": str(selected.get("allegiance_id", "")),
+        "home_poi": str(selected.get("home_poi", "")),
+        "changed": true,
+        "reason": "assigned_near_anchor"
+    }
 
 
 func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
@@ -226,7 +355,8 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "influence_kind": influence_kind,
             "structure_state": structure_state,
             "structure_active": structure_active,
-            "structure_seconds": structure_seconds
+            "structure_seconds": structure_seconds,
+            "allegiance_id": str(poi_allegiance_id.get(poi_name, ""))
         }
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
@@ -436,6 +566,7 @@ func _build_pois() -> void:
     poi_structure_faction.clear()
     poi_structure_started_at.clear()
     poi_structure_unstable_started_at.clear()
+    poi_allegiance_id.clear()
     poi_raid_state.clear()
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
@@ -748,10 +879,17 @@ func _update_structure_runtime(
     if current_state == "" and eligible:
         current_state = can_structure_kind
         current_faction = dominant_faction
+        var allegiance_id: String = _ensure_allegiance_for_poi(poi_name, current_faction)
         poi_structure_state[poi_name] = current_state
         poi_structure_faction[poi_name] = current_faction
         poi_structure_started_at[poi_name] = time_seconds
         poi_structure_unstable_started_at.erase(poi_name)
+        events.append({
+            "kind": "allegiance_created",
+            "poi": poi_name,
+            "allegiance_id": allegiance_id,
+            "faction": current_faction
+        })
         events.append({
             "kind": "structure_established",
             "poi": poi_name,
@@ -773,6 +911,15 @@ func _update_structure_runtime(
                 poi_structure_unstable_started_at[poi_name] = time_seconds
             var unstable_since: float = float(poi_structure_unstable_started_at.get(poi_name, time_seconds))
             if time_seconds - unstable_since >= poi_structure_loss_time:
+                var previous_allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
+                if previous_allegiance_id != "":
+                    events.append({
+                        "kind": "allegiance_removed",
+                        "poi": poi_name,
+                        "allegiance_id": previous_allegiance_id,
+                        "faction": current_faction
+                    })
+                    poi_allegiance_id.erase(poi_name)
                 events.append({
                     "kind": "structure_lost",
                     "poi": poi_name,
@@ -800,6 +947,15 @@ func _update_structure_runtime(
     }
 
 
+func _ensure_allegiance_for_poi(poi_name: String, faction: String) -> String:
+    var current: String = str(poi_allegiance_id.get(poi_name, ""))
+    if current != "":
+        return current
+    var next_id := "%s:%s" % [faction, poi_name]
+    poi_allegiance_id[poi_name] = next_id
+    return next_id
+
+
 func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:
     var events: Array[Dictionary] = []
     var has_outpost: bool = _find_structure_poi(snapshot, "human_outpost") != ""
@@ -810,7 +966,6 @@ func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictiona
         var source_poi: String = str(poi_raid_state.get("source_poi", ""))
         var target_poi: String = str(poi_raid_state.get("target_poi", ""))
         var attacker_faction: String = str(poi_raid_state.get("attacker_faction", ""))
-        var defender_faction: String = str(poi_raid_state.get("defender_faction", ""))
         var started_at: float = float(poi_raid_state.get("started_at", time_seconds))
 
         var source_details: Dictionary = snapshot.get(source_poi, {})

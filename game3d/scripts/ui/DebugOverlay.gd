@@ -36,6 +36,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var level_counts: Dictionary = snapshot.get("level_counts", {})
     var human_level_counts: Dictionary = snapshot.get("human_level_counts", {})
     var monster_level_counts: Dictionary = snapshot.get("monster_level_counts", {})
+    var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
+    var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var lines: Array[String] = []
 
     lines.append("SANDBOX FANTASY 3D MVP")
@@ -117,6 +119,30 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("champion_kills_total", 0))
         ]
     )
+    lines.append(
+        "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"
+        % [
+            int(snapshot.get("allegiance_active_count", 0)),
+            int(snapshot.get("allegiance_affiliated_total", 0)),
+            int(snapshot.get("allegiance_affiliated_humans", 0)),
+            int(snapshot.get("allegiance_affiliated_monsters", 0)),
+            int(snapshot.get("allegiance_unaffiliated_total", 0))
+        ]
+    )
+    lines.append(
+        "Allegiance events: up=%d down=%d assign=%d lost=%d"
+        % [
+            int(snapshot.get("allegiance_created_total", 0)),
+            int(snapshot.get("allegiance_removed_total", 0)),
+            int(snapshot.get("allegiance_assignments_total", 0)),
+            int(snapshot.get("allegiance_losses_total", 0))
+        ]
+    )
+    lines.append(
+        "Allegiance cores: %s"
+        % (" | ".join(allegiance_structure_labels) if not allegiance_structure_labels.is_empty() else "(none)")
+    )
+    lines.append("Allegiance members: %s" % _format_allegiance_members(allegiance_member_counts))
     lines.append(
         "Rally: leaders=%d (H:%d M:%d) | followers=%d (H:%d M:%d) | bonus_near_leader=%d"
         % [
@@ -238,10 +264,11 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             str(details.get("structure_state", ""))
         )
         var raid_role: String = _raid_role_label(str(details.get("raid_role", "none")))
+        var allegiance: String = _allegiance_label(str(details.get("allegiance_id", "")))
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
         chunks.append(
-            "%s[%s | %s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
+            "%s[%s | %s | %s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
             % [
                 poi_name,
                 status,
@@ -249,6 +276,7 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
                 influence,
                 structure,
                 raid_role,
+                allegiance,
                 dominance_seconds,
                 structure_seconds,
                 int(counts.get("human", 0)),
@@ -304,3 +332,19 @@ func _raid_role_label(raid_role: String) -> String:
     if raid_role == "target":
         return "raid:target"
     return "raid:none"
+
+
+func _allegiance_label(allegiance_id: String) -> String:
+    if allegiance_id == "":
+        return "allegiance:none"
+    return "allegiance:%s" % allegiance_id
+
+
+func _format_allegiance_members(member_counts: Dictionary) -> String:
+    if member_counts.is_empty():
+        return "(none)"
+    var parts: Array[String] = []
+    for allegiance_id in member_counts.keys():
+        parts.append("%s=%d" % [str(allegiance_id), int(member_counts.get(allegiance_id, 0))])
+    parts.sort()
+    return " | ".join(parts)

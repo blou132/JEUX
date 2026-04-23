@@ -34,6 +34,8 @@ class ActorStub:
     is_champion: bool = False
     state: str = "wander"
     target_actor: EnemyStub | None = None
+    allegiance_id: str = ""
+    home_poi: str = ""
     vision_range: float = 20.0
     attack_range: float = 2.0
     magic_range: float = 13.0
@@ -67,10 +69,12 @@ class WorldStub:
         enemy: EnemyStub | None,
         poi_guidance: dict | None = None,
         raid_guidance: dict | None = None,
+        defense_guidance: dict | None = None,
     ):
         self.enemy = enemy
         self.poi_guidance = poi_guidance or {}
         self.raid_guidance = raid_guidance or {}
+        self.defense_guidance = defense_guidance or {}
 
     def find_nearest_enemy(self, _source, _all, _max_distance):
         return self.enemy
@@ -78,8 +82,11 @@ class WorldStub:
     def get_poi_guidance(self, _position, _faction):
         return self.poi_guidance
 
-    def get_raid_guidance(self, _position, _faction):
+    def get_raid_guidance(self, _position, _faction, _allegiance_id="", _home_poi=""):
         return self.raid_guidance
+
+    def get_allegiance_defense_guidance(self, _position, _faction, _home_poi):
+        return self.defense_guidance
 
 
 def decide_action_contract(
@@ -120,7 +127,19 @@ def decide_action_contract(
                     rally_bonus,
                 )
 
-        raid_guidance = world.get_raid_guidance(actor.position, actor.faction)
+        defense_guidance = world.get_allegiance_defense_guidance(actor.position, actor.faction, actor.home_poi)
+        if defense_guidance and random_roll <= max(0.22, min(0.90, float(defense_guidance.get("weight", 0.68)))):
+            return _with_rally_contract(
+                {
+                    "state": "poi",
+                    "target_position": defense_guidance.get("target_position", actor.position),
+                    "reason": str(defense_guidance.get("reason", "allegiance_defend_home")),
+                },
+                rally_leader,
+                rally_bonus,
+            )
+
+        raid_guidance = world.get_raid_guidance(actor.position, actor.faction, actor.allegiance_id, actor.home_poi)
         if raid_guidance and random_roll <= max(0.25, min(0.90, float(raid_guidance.get("weight", 0.74)))):
             return _with_rally_contract(
                 {
@@ -293,6 +312,8 @@ def _find_nearby_allied_champion_contract(actor: ActorStub, all_actors: list[Act
         if other.is_dead or not other.is_champion:
             continue
         if other.faction != actor.faction:
+            continue
+        if actor.allegiance_id and other.allegiance_id and other.allegiance_id != actor.allegiance_id:
             continue
         dist = math.dist(actor.position, other.position)
         if dist <= best_dist:
@@ -533,6 +554,49 @@ def raid_runtime_step_contract(
     }
 
 
+def allegiance_id_from_structure_contract(poi_name: str, faction: str, structure_state: str) -> str:
+    if structure_state == "":
+        return ""
+    return f"{faction}:{poi_name}"
+
+
+def resolve_actor_allegiance_contract(
+    *,
+    current_id: str,
+    current_home: str,
+    actor_faction: str,
+    actor_position: tuple[float, float],
+    active_anchors: list[dict],
+    guidance_distance: float = 28.0,
+) -> dict:
+    by_id = {str(anchor.get("allegiance_id", "")): anchor for anchor in active_anchors}
+    if current_id:
+        current = by_id.get(current_id, {})
+        if not current or str(current.get("faction", "")) != actor_faction:
+            return {"allegiance_id": "", "home_poi": "", "changed": True, "reason": "anchor_lost"}
+        return {"allegiance_id": current_id, "home_poi": current_home, "changed": False, "reason": "stable"}
+
+    assign_distance = guidance_distance * 1.15
+    best = {}
+    best_dist = math.inf
+    for anchor in active_anchors:
+        if str(anchor.get("faction", "")) != actor_faction:
+            continue
+        dist = math.dist(actor_position, tuple(anchor.get("position", actor_position)))
+        if dist <= assign_distance and dist < best_dist:
+            best = anchor
+            best_dist = dist
+
+    if not best:
+        return {"allegiance_id": "", "home_poi": "", "changed": False, "reason": "no_anchor"}
+    return {
+        "allegiance_id": str(best.get("allegiance_id", "")),
+        "home_poi": str(best.get("home_poi", "")),
+        "changed": True,
+        "reason": "assigned_near_anchor",
+    }
+
+
 def clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
@@ -604,6 +668,29 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         self.assertEqual(decision["reason"], "rally_regroup")
         self.assertEqual(decision["rally_leader"].actor_id, 2)
 
+    def test_ai_rally_prefers_same_allegiance_champion_when_available(self):
+        actor = ActorStub(actor_id=1, faction="human", position=(0.0, 0.0), attack_range=2.0, allegiance_id="human:camp")
+        mismatched = ActorStub(
+            actor_id=2,
+            faction="human",
+            position=(4.0, 0.0),
+            is_champion=True,
+            state="wander",
+            allegiance_id="human:camp_alt",
+        )
+        matched = ActorStub(
+            actor_id=3,
+            faction="human",
+            position=(7.0, 0.0),
+            is_champion=True,
+            state="wander",
+            allegiance_id="human:camp",
+        )
+        world = WorldStub(enemy=None, poi_guidance={})
+        decision = decide_action_contract(actor, world, random_roll=0.20, all_actors=[actor, mismatched, matched])
+        self.assertEqual(decision["state"], "rally")
+        self.assertEqual(decision["rally_leader"].actor_id, 3)
+
     def test_ai_decides_rally_pressure_when_leader_is_engaged(self):
         actor = ActorStub(actor_id=10, faction="monster", position=(1.0, 0.0), attack_range=1.8)
         target = EnemyStub(actor_kind="adventurer", faction="human", actor_id=70, position=(9.0, 0.0))
@@ -639,6 +726,17 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         decision = decide_action_contract(actor, world, random_roll=0.40)
         self.assertEqual(decision["state"], "raid")
         self.assertIn("raid_pressure", decision["reason"])
+
+    def test_ai_decides_home_defense_when_allegiance_guidance_exists(self):
+        actor = ActorStub(allegiance_id="human:camp", home_poi="camp")
+        world = WorldStub(
+            enemy=None,
+            poi_guidance={"name": "camp", "target_position": (4.0, -3.0)},
+            defense_guidance={"reason": "allegiance_defend:camp", "target_position": (1.0, 1.0), "weight": 0.72},
+        )
+        decision = decide_action_contract(actor, world, random_roll=0.40)
+        self.assertEqual(decision["state"], "poi")
+        self.assertIn("allegiance_defend", decision["reason"])
 
     def test_ai_decides_cast_nova_in_valid_range(self):
         actor = ActorStub(can_nova=True, can_magic=False, can_control=False, nova_radius=4.0, nova_usage_bias=0.9)
@@ -867,6 +965,60 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         )
         self.assertEqual(step["state"], "")
         self.assertNotIn("structure_established", step["events"])
+
+    def test_allegiance_id_created_from_structure_anchor(self):
+        self.assertEqual(
+            allegiance_id_from_structure_contract("camp", "human", "human_outpost"),
+            "human:camp",
+        )
+        self.assertEqual(
+            allegiance_id_from_structure_contract("ruins", "monster", "monster_lair"),
+            "monster:ruins",
+        )
+        self.assertEqual(allegiance_id_from_structure_contract("camp", "human", ""), "")
+
+    def test_allegiance_assignment_prefers_nearest_matching_anchor(self):
+        anchors = [
+            {"allegiance_id": "human:camp", "faction": "human", "home_poi": "camp", "position": (0.0, 0.0)},
+            {"allegiance_id": "human:camp_alt", "faction": "human", "home_poi": "camp_alt", "position": (14.0, 0.0)},
+            {"allegiance_id": "monster:ruins", "faction": "monster", "home_poi": "ruins", "position": (5.0, 0.0)},
+        ]
+        resolved = resolve_actor_allegiance_contract(
+            current_id="",
+            current_home="",
+            actor_faction="human",
+            actor_position=(3.0, 0.0),
+            active_anchors=anchors,
+        )
+        self.assertTrue(resolved["changed"])
+        self.assertEqual(resolved["allegiance_id"], "human:camp")
+        self.assertEqual(resolved["home_poi"], "camp")
+
+    def test_allegiance_stays_when_anchor_still_active(self):
+        anchors = [
+            {"allegiance_id": "human:camp", "faction": "human", "home_poi": "camp", "position": (0.0, 0.0)},
+        ]
+        resolved = resolve_actor_allegiance_contract(
+            current_id="human:camp",
+            current_home="camp",
+            actor_faction="human",
+            actor_position=(20.0, 0.0),
+            active_anchors=anchors,
+        )
+        self.assertFalse(resolved["changed"])
+        self.assertEqual(resolved["reason"], "stable")
+
+    def test_allegiance_is_lost_when_anchor_disappears(self):
+        resolved = resolve_actor_allegiance_contract(
+            current_id="monster:ruins",
+            current_home="ruins",
+            actor_faction="monster",
+            actor_position=(20.0, 0.0),
+            active_anchors=[],
+        )
+        self.assertTrue(resolved["changed"])
+        self.assertEqual(resolved["allegiance_id"], "")
+        self.assertEqual(resolved["reason"], "anchor_lost")
 
     def test_raid_starts_when_both_structures_active_and_cooldown_done(self):
         step = raid_runtime_step_contract(

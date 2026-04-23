@@ -19,6 +19,7 @@ The active direction is a minimal but playable sandbox loop:
 - POI territorial influence (activation after stable domination)
 - POI persistent structures (camp -> outpost, ruins -> lair)
 - POI raid pressure cycles (outpost <-> lair)
+- lightweight allegiance/proto-faction layer (structure-anchored)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -57,6 +58,12 @@ The active direction is a minimal but playable sandbox loop:
   - raid pressure lightly increases allied convergence toward the enemy structure (`raid` guidance state)
   - raid ends cleanly on success/timeout/interruption (structure loss or control break)
   - observability: `Raid START` / `Raid END` logs, raid status in HUD, and raid source/target POI markers
+- Allegiance / proto-faction layer (MVP):
+  - each active structure anchor can emit a lightweight allegiance id (`human:camp`, `monster:ruins`)
+  - nearby units can be assigned to a matching allegiance and keep it while the anchor remains active
+  - allegiance is lost automatically if the anchor disappears
+  - bounded behavior effect: same-allegiance cohesion for champion rally and home-defense bias under raid pressure
+  - observability: `Allegiance UP/DOWN/assign/lost` logs, allegiance counters in HUD, and allegiance id per POI snapshot
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -98,16 +105,18 @@ The debug overlay shows:
 - rally visibility (`leaders`, `followers`, split humans/monsters, near-leader bonus followers)
 - melee hits, magic hits, casts (bolt/control/nova), kills, deaths, flee events
 - control readability (`control applies`, `slowed alive` total + split H/M)
-- current AI state distribution (`wander`, `poi`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
+- current AI state distribution (`wander`, `poi`, `raid`, `rally`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
 - POI occupancy (`camp`, `ruins`) with dominance duration, influence status, and structure status (`outpost`/`lair`)
 - POI influence counters (`active`, activation/deactivation events, regen ticks, XP ticks)
 - POI structure counters (`active`, created/lost, extra regen ticks from structures)
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
+- allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - recent gameplay events (engagements, hits, deaths, casts, POI arrivals, contestation, domination shifts)
 - POI influence events (`ON`/`OFF`) when control stays stable long enough or is lost
 - POI structure events (`UP`/`DOWN`) when persistent structures are created or destroyed
 - raid events (`START`/`END`) for autonomous pressure cycles between structures
+- allegiance events (`UP`/`DOWN` + unit assignment/loss) to track emerging proto-factions
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -124,7 +133,7 @@ You can still run the old simulator and analytics if needed, but this is now sec
 ## Tests
 Current scaffold checks for the 3D pivot:
 - [test_game3d_scaffold.py](tests/test_game3d_scaffold.py)
-- [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime/influence/structure/raid, spawn mix)
+- [test_game3d_behavioral_logic.py](tests/test_game3d_behavioral_logic.py) (behavior contracts: IA, POI runtime/influence/structure/raid/allegiance, spawn mix)
 - [test_game3d_progression_behavior.py](tests/test_game3d_progression_behavior.py) (progression contracts: thresholds, XP triggers, survival pacing, snapshot fields)
 
 Run targeted tests:
@@ -159,12 +168,14 @@ py -m unittest discover -s tests -v
 - Add champion-led rally/warband MVP (temporary local regrouping + bounded cohesion bonus + runtime counters/logs)
 - Add POI persistent structures MVP (`human_outpost` / `monster_lair`) with bounded local bonus and destroy-on-instability behavior
 - Add autonomous POI raid pressure MVP (temporary source->target raid guidance with cooldown and bounded conflict cycles)
+- Add lightweight allegiance/proto-faction MVP anchored on structures, with unit affiliation stability and bounded behavior bias
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
 - Tune POI influence timing/strength to avoid snowball while keeping territorial readability
 - Tune POI structure thresholds (activation/loss/presence) to keep structures visible but not snowballing
 - Tune raid timing/cooldowns/success conditions for readable pressure cycles without permanent snowball
+- Tune allegiance assignment radius and defense bias to improve group coherence without hard-locking unit behavior
 - Tune champion rarity thresholds (promotion criteria/cap) from live runs
 - Tune rally distances/probabilities to avoid over-clumping while keeping readable group behavior
 
