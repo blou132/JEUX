@@ -6,6 +6,9 @@ class_name WorldManager
 @export var wander_radius: float = 14.0
 @export var poi_guidance_distance: float = 28.0
 @export var poi_influence_activation_time: float = 8.0
+@export var poi_structure_activation_time: float = 20.0
+@export var poi_structure_loss_time: float = 10.0
+@export var poi_structure_min_presence: int = 3
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
@@ -15,6 +18,10 @@ var poi_runtime_status: Dictionary = {}
 var poi_dominant_faction: Dictionary = {}
 var poi_dominance_started_at: Dictionary = {}
 var poi_influence_active: Dictionary = {}
+var poi_structure_state: Dictionary = {}
+var poi_structure_faction: Dictionary = {}
+var poi_structure_started_at: Dictionary = {}
+var poi_structure_unstable_started_at: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -147,6 +154,8 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         var counts: Dictionary = _count_poi_occupancy(poi, actors)
         var human_count: int = int(counts.get("human", 0))
         var monster_count: int = int(counts.get("monster", 0))
+        var human_champions: int = int(counts.get("human_champions", 0))
+        var monster_champions: int = int(counts.get("monster_champions", 0))
         var total_count: int = human_count + monster_count
         var status: String = _compute_poi_status(human_count, monster_count)
         var activity: String = _compute_activity_level(total_count)
@@ -154,6 +163,21 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         var dominance_seconds: float = _update_dominance_duration(poi_name, dominant_faction, time_seconds)
         var influence_kind: String = _compute_influence_kind(str(poi.get("kind", "")), dominant_faction, dominance_seconds)
         var influence_active: bool = influence_kind != ""
+        var dominant_presence: int = human_count if dominant_faction == "human" else monster_count
+        var dominant_champions: int = human_champions if dominant_faction == "human" else monster_champions
+        var structure_runtime: Dictionary = _update_structure_runtime(
+            poi_name,
+            str(poi.get("kind", "")),
+            dominant_faction,
+            dominance_seconds,
+            influence_active,
+            dominant_presence,
+            dominant_champions,
+            time_seconds
+        )
+        var structure_state: String = str(structure_runtime.get("state", ""))
+        var structure_active: bool = bool(structure_runtime.get("active", false))
+        var structure_seconds: float = float(structure_runtime.get("structure_seconds", 0.0))
 
         snapshot[poi_name] = {
             "human": human_count,
@@ -164,10 +188,13 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "dominant_faction": dominant_faction,
             "dominance_seconds": dominance_seconds,
             "influence_active": influence_active,
-            "influence_kind": influence_kind
+            "influence_kind": influence_kind,
+            "structure_state": structure_state,
+            "structure_active": structure_active,
+            "structure_seconds": structure_seconds
         }
 
-        _apply_poi_visual_state(poi_name, status, total_count, time_seconds, influence_active)
+        _apply_poi_visual_state(poi_name, status, total_count, time_seconds, influence_active, structure_state)
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
         if previous_status != "" and previous_status != status:
@@ -209,6 +236,10 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
                     "poi": poi_name
                 })
 
+        var structure_events: Array = structure_runtime.get("events", [])
+        for structure_event in structure_events:
+            events.append(structure_event)
+
         poi_runtime_status[poi_name] = status
         poi_influence_active[poi_name] = influence_active
 
@@ -235,12 +266,16 @@ func get_active_poi_influences() -> Array[Dictionary]:
         if influence_kind == "":
             continue
 
+        var structure_state: String = str(poi_structure_state.get(poi_name, ""))
+        var structure_active: bool = structure_state != ""
         active.append({
             "name": poi_name,
             "position": poi.get("position", Vector3.ZERO),
             "radius": float(poi.get("radius", 7.0)),
             "faction": faction,
-            "influence_kind": influence_kind
+            "influence_kind": influence_kind,
+            "structure_state": structure_state,
+            "structure_active": structure_active
         })
 
     return active
@@ -344,6 +379,10 @@ func _build_pois() -> void:
     poi_dominant_faction.clear()
     poi_dominance_started_at.clear()
     poi_influence_active.clear()
+    poi_structure_state.clear()
+    poi_structure_faction.clear()
+    poi_structure_started_at.clear()
+    poi_structure_unstable_started_at.clear()
 
     _refresh_poi_markers()
 
@@ -433,6 +472,18 @@ func _make_poi_marker(poi: Dictionary) -> Node3D:
     beacon.material_override = _make_material(Color(0.65, 0.65, 0.65))
     poi_node.add_child(beacon)
 
+    var structure_halo := MeshInstance3D.new()
+    var halo_mesh := CylinderMesh.new()
+    halo_mesh.top_radius = 1.05
+    halo_mesh.bottom_radius = 1.05
+    halo_mesh.height = 0.06
+    structure_halo.mesh = halo_mesh
+    structure_halo.name = "StructureHalo"
+    structure_halo.position.y = 2.72
+    structure_halo.material_override = _make_material(Color(0.85, 0.85, 0.85))
+    structure_halo.visible = false
+    poi_node.add_child(structure_halo)
+
     return poi_node
 
 
@@ -462,6 +513,8 @@ func _count_poi_occupancy(poi: Dictionary, actors: Array) -> Dictionary:
     var poi_radius: float = float(poi.get("radius", 7.0))
     var humans: int = 0
     var monsters: int = 0
+    var human_champions: int = 0
+    var monster_champions: int = 0
 
     for actor in actors:
         if actor == null or actor.is_dead:
@@ -471,12 +524,18 @@ func _count_poi_occupancy(poi: Dictionary, actors: Array) -> Dictionary:
 
         if actor.faction == "human":
             humans += 1
+            if actor.is_champion:
+                human_champions += 1
         elif actor.faction == "monster":
             monsters += 1
+            if actor.is_champion:
+                monster_champions += 1
 
     return {
         "human": humans,
-        "monster": monsters
+        "monster": monsters,
+        "human_champions": human_champions,
+        "monster_champions": monster_champions
     }
 
 
@@ -503,7 +562,8 @@ func _apply_poi_visual_state(
     status: String,
     total_count: int,
     time_seconds: float,
-    influence_active: bool
+    influence_active: bool,
+    structure_state: String
 ) -> void:
     var poi_node: Node3D = poi_nodes.get(poi_name, null)
     if poi_node == null:
@@ -512,7 +572,8 @@ func _apply_poi_visual_state(
     var ring := poi_node.get_node_or_null("Ring") as MeshInstance3D
     var pillar := poi_node.get_node_or_null("Pillar") as MeshInstance3D
     var beacon := poi_node.get_node_or_null("Beacon") as MeshInstance3D
-    if ring == null or pillar == null or beacon == null:
+    var structure_halo := poi_node.get_node_or_null("StructureHalo") as MeshInstance3D
+    if ring == null or pillar == null or beacon == null or structure_halo == null:
         return
 
     var base_scale := 1.0 + min(total_count, 10) * 0.045
@@ -530,6 +591,14 @@ func _apply_poi_visual_state(
     _set_mesh_color(ring, status_color, intensity + 0.05)
     _set_mesh_color(beacon, status_color, intensity + 0.10)
     _set_mesh_color(pillar, status_color.darkened(0.18), intensity * 0.62)
+
+    if structure_state != "":
+        structure_halo.visible = true
+        var halo_scale := 1.0 + 0.06 * sin(time_seconds * 3.0)
+        structure_halo.scale = Vector3(halo_scale, 1.0, halo_scale)
+        _set_mesh_color(structure_halo, _structure_color(structure_state), 0.82)
+    else:
+        structure_halo.visible = false
 
 
 func _dominant_faction_from_status(status: String) -> String:
@@ -567,6 +636,105 @@ func _compute_influence_kind(poi_kind: String, dominant_faction: String, dominan
     if poi_kind == "ruins" and dominant_faction == "monster":
         return "monster_ruins_influence"
     return ""
+
+
+func _compute_structure_kind(poi_kind: String, dominant_faction: String) -> String:
+    if poi_kind == "camp" and dominant_faction == "human":
+        return "human_outpost"
+    if poi_kind == "ruins" and dominant_faction == "monster":
+        return "monster_lair"
+    return ""
+
+
+func _update_structure_runtime(
+    poi_name: String,
+    poi_kind: String,
+    dominant_faction: String,
+    dominance_seconds: float,
+    influence_active: bool,
+    dominant_presence: int,
+    dominant_champions: int,
+    time_seconds: float
+) -> Dictionary:
+    var events: Array[Dictionary] = []
+    var current_state: String = str(poi_structure_state.get(poi_name, ""))
+    var current_faction: String = str(poi_structure_faction.get(poi_name, ""))
+    var can_structure_kind: String = _compute_structure_kind(poi_kind, dominant_faction)
+
+    var required_presence: int = poi_structure_min_presence
+    if dominant_champions > 0:
+        required_presence = max(1, poi_structure_min_presence - 1)
+
+    var eligible: bool = (
+        can_structure_kind != ""
+        and influence_active
+        and dominance_seconds >= poi_structure_activation_time
+        and dominant_presence >= required_presence
+    )
+
+    if current_state == "" and eligible:
+        current_state = can_structure_kind
+        current_faction = dominant_faction
+        poi_structure_state[poi_name] = current_state
+        poi_structure_faction[poi_name] = current_faction
+        poi_structure_started_at[poi_name] = time_seconds
+        poi_structure_unstable_started_at.erase(poi_name)
+        events.append({
+            "kind": "structure_established",
+            "poi": poi_name,
+            "structure_state": current_state,
+            "faction": current_faction
+        })
+    elif current_state != "":
+        var stable_for_current_structure: bool = (
+            dominant_faction == current_faction
+            and can_structure_kind == current_state
+            and influence_active
+            and dominant_presence >= max(1, poi_structure_min_presence - 1)
+        )
+
+        if stable_for_current_structure:
+            poi_structure_unstable_started_at.erase(poi_name)
+        else:
+            if not poi_structure_unstable_started_at.has(poi_name):
+                poi_structure_unstable_started_at[poi_name] = time_seconds
+            var unstable_since: float = float(poi_structure_unstable_started_at.get(poi_name, time_seconds))
+            if time_seconds - unstable_since >= poi_structure_loss_time:
+                events.append({
+                    "kind": "structure_lost",
+                    "poi": poi_name,
+                    "structure_state": current_state,
+                    "faction": current_faction
+                })
+                current_state = ""
+                current_faction = ""
+                poi_structure_state[poi_name] = ""
+                poi_structure_faction[poi_name] = ""
+                poi_structure_started_at.erase(poi_name)
+                poi_structure_unstable_started_at.erase(poi_name)
+
+    var structure_seconds: float = 0.0
+    if current_state != "":
+        var started_at: float = float(poi_structure_started_at.get(poi_name, time_seconds))
+        structure_seconds = max(0.0, time_seconds - started_at)
+
+    return {
+        "state": current_state,
+        "active": current_state != "",
+        "faction": current_faction,
+        "structure_seconds": structure_seconds,
+        "events": events
+    }
+
+
+func _structure_color(structure_state: String) -> Color:
+    match structure_state:
+        "human_outpost":
+            return Color(0.52, 0.80, 1.0)
+        "monster_lair":
+            return Color(1.0, 0.52, 0.64)
+        _:
+            return Color(0.8, 0.8, 0.8)
 
 
 func _get_status_color(status: String) -> Color:

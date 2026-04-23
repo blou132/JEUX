@@ -60,6 +60,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("scout", content)
         self.assertIn("champion", content)
         self.assertIn("rally", content)
+        self.assertIn("outpost", content)
+        self.assertIn("lair", content)
+        self.assertIn("structure", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -79,6 +82,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("poi_influence_activation_time", content)
         self.assertIn("get_active_poi_influences", content)
         self.assertIn("influence_activated", content)
+        self.assertIn("poi_structure_activation_time", content)
+        self.assertIn("poi_structure_loss_time", content)
+        self.assertIn("structure_established", content)
+        self.assertIn("structure_lost", content)
+        self.assertIn("StructureHalo", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -87,6 +95,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("conteste", content)
         self.assertIn("POI influence", content)
         self.assertIn("influence:off", content)
+        self.assertIn("structure:off", content)
+        self.assertIn("POI structures:", content)
         self.assertIn("Champions:", content)
         self.assertIn("Rally:", content)
 
@@ -153,6 +163,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("_apply_poi_influences", content)
         self.assertIn("poi_influence_activation_events_total", content)
         self.assertIn("poi_influence_xp_grants_total", content)
+        self.assertIn("POI_STRUCTURE_EXTRA_ENERGY_REGEN_PER_SEC", content)
+        self.assertIn("poi_structure_established_total", content)
+        self.assertIn("poi_structure_lost_total", content)
 
     def test_game_loop_has_champion_metrics_and_promotion_hooks(self):
         content = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")

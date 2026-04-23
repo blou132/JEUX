@@ -380,6 +380,80 @@ def poi_influence_step_contract(
     }
 
 
+def poi_structure_step_contract(
+    *,
+    previous_state: str,
+    previous_faction: str,
+    previous_started_at: float | None,
+    previous_unstable_started_at: float | None,
+    poi_kind: str,
+    dominant_faction: str,
+    influence_active: bool,
+    dominance_seconds: float,
+    dominant_presence: int,
+    dominant_champions: int,
+    now: float,
+    activation_time: float = 20.0,
+    loss_time: float = 10.0,
+    min_presence: int = 3,
+) -> dict:
+    if poi_kind == "camp" and dominant_faction == "human":
+        structure_kind = "human_outpost"
+    elif poi_kind == "ruins" and dominant_faction == "monster":
+        structure_kind = "monster_lair"
+    else:
+        structure_kind = ""
+
+    required_presence = max(1, min_presence - 1) if dominant_champions > 0 else min_presence
+    eligible = (
+        structure_kind != ""
+        and influence_active
+        and dominance_seconds >= activation_time
+        and dominant_presence >= required_presence
+    )
+
+    state = previous_state
+    faction = previous_faction
+    started_at = previous_started_at
+    unstable_started_at = previous_unstable_started_at
+    events: list[str] = []
+
+    if state == "" and eligible:
+        state = structure_kind
+        faction = dominant_faction
+        started_at = now
+        unstable_started_at = None
+        events.append("structure_established")
+    elif state != "":
+        stable = (
+            dominant_faction == faction
+            and structure_kind == state
+            and influence_active
+            and dominant_presence >= max(1, min_presence - 1)
+        )
+        if stable:
+            unstable_started_at = None
+        else:
+            if unstable_started_at is None:
+                unstable_started_at = now
+            if now - unstable_started_at >= loss_time:
+                state = ""
+                faction = ""
+                started_at = None
+                unstable_started_at = None
+                events.append("structure_lost")
+
+    structure_seconds = max(0.0, now - started_at) if state != "" and started_at is not None else 0.0
+    return {
+        "state": state,
+        "faction": faction,
+        "started_at": started_at,
+        "unstable_started_at": unstable_started_at,
+        "structure_seconds": structure_seconds,
+        "events": events,
+    }
+
+
 def clamp01(v: float) -> float:
     return max(0.0, min(1.0, v))
 
@@ -622,6 +696,87 @@ class TestGame3DBehavioralLogic(unittest.TestCase):
         )
         self.assertTrue(step["active"])
         self.assertEqual(step["influence_kind"], "monster_ruins_influence")
+
+    def test_poi_structure_establishes_after_stable_influence(self):
+        step = poi_structure_step_contract(
+            previous_state="",
+            previous_faction="",
+            previous_started_at=None,
+            previous_unstable_started_at=None,
+            poi_kind="camp",
+            dominant_faction="human",
+            influence_active=True,
+            dominance_seconds=23.0,
+            dominant_presence=3,
+            dominant_champions=0,
+            now=42.0,
+            activation_time=20.0,
+            loss_time=10.0,
+            min_presence=3,
+        )
+        self.assertEqual(step["state"], "human_outpost")
+        self.assertEqual(step["faction"], "human")
+        self.assertIn("structure_established", step["events"])
+
+    def test_poi_structure_can_establish_with_champion_and_lower_presence(self):
+        step = poi_structure_step_contract(
+            previous_state="",
+            previous_faction="",
+            previous_started_at=None,
+            previous_unstable_started_at=None,
+            poi_kind="ruins",
+            dominant_faction="monster",
+            influence_active=True,
+            dominance_seconds=21.0,
+            dominant_presence=2,
+            dominant_champions=1,
+            now=30.0,
+            activation_time=20.0,
+            loss_time=10.0,
+            min_presence=3,
+        )
+        self.assertEqual(step["state"], "monster_lair")
+        self.assertIn("structure_established", step["events"])
+
+    def test_poi_structure_lost_after_broken_control_for_long_enough(self):
+        step = poi_structure_step_contract(
+            previous_state="human_outpost",
+            previous_faction="human",
+            previous_started_at=10.0,
+            previous_unstable_started_at=50.0,
+            poi_kind="camp",
+            dominant_faction="",
+            influence_active=False,
+            dominance_seconds=0.0,
+            dominant_presence=0,
+            dominant_champions=0,
+            now=61.0,
+            activation_time=20.0,
+            loss_time=10.0,
+            min_presence=3,
+        )
+        self.assertEqual(step["state"], "")
+        self.assertIn("structure_lost", step["events"])
+
+    def test_poi_structure_not_established_for_wrong_poi_faction_pair(self):
+        step = poi_structure_step_contract(
+            previous_state="",
+            previous_faction="",
+            previous_started_at=None,
+            previous_unstable_started_at=None,
+            poi_kind="camp",
+            dominant_faction="monster",
+            influence_active=True,
+            dominance_seconds=25.0,
+            dominant_presence=5,
+            dominant_champions=1,
+            now=70.0,
+            activation_time=20.0,
+            loss_time=10.0,
+            min_presence=3,
+        )
+        self.assertEqual(step["state"], "")
+        self.assertNotIn("structure_established", step["events"])
 
     def test_champion_promotion_requires_notable_actor_profile(self):
         self.assertFalse(

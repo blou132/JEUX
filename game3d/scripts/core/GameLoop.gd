@@ -13,6 +13,7 @@ const CHAMPION_MIN_PROGRESS_XP: float = 42.0
 const CHAMPION_MAX_RATIO: float = 0.16
 const CHAMPION_MIN_POPULATION: int = 8
 const POI_INFLUENCE_ENERGY_REGEN_PER_SEC: float = 0.70
+const POI_STRUCTURE_EXTRA_ENERGY_REGEN_PER_SEC: float = 0.30
 const POI_INFLUENCE_XP_INTERVAL: float = 6.0
 const POI_INFLUENCE_XP_GAIN: float = 0.8
 
@@ -49,6 +50,9 @@ var poi_influence_activation_events_total: int = 0
 var poi_influence_deactivation_events_total: int = 0
 var poi_influence_regen_ticks_total: int = 0
 var poi_influence_xp_grants_total: int = 0
+var poi_structure_established_total: int = 0
+var poi_structure_lost_total: int = 0
+var poi_structure_regen_bonus_ticks_total: int = 0
 var level_ups_total: int = 0
 var champion_promotions_total: int = 0
 var rally_groups_formed_total: int = 0
@@ -331,10 +335,13 @@ func _build_snapshot() -> Dictionary:
     var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
     var poi_influence_active_count: int = 0
+    var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
         var details: Dictionary = poi_runtime_snapshot.get(poi_name, {})
         if bool(details.get("influence_active", false)):
             poi_influence_active_count += 1
+        if bool(details.get("structure_active", false)):
+            poi_structure_active_count += 1
 
     return {
         "tick": tick_index,
@@ -385,6 +392,10 @@ func _build_snapshot() -> Dictionary:
         "poi_influence_regen_ticks_total": poi_influence_regen_ticks_total,
         "poi_influence_xp_grants_total": poi_influence_xp_grants_total,
         "poi_influence_active_count": poi_influence_active_count,
+        "poi_structure_active_count": poi_structure_active_count,
+        "poi_structure_established_total": poi_structure_established_total,
+        "poi_structure_lost_total": poi_structure_lost_total,
+        "poi_structure_regen_bonus_ticks_total": poi_structure_regen_bonus_ticks_total,
         "level_ups_total": level_ups_total,
         "champion_promotions_total": champion_promotions_total,
         "rally_groups_formed_total": rally_groups_formed_total,
@@ -517,6 +528,15 @@ func _update_poi_runtime() -> void:
         elif kind == "influence_deactivated":
             poi_influence_deactivation_events_total += 1
             record_event("POI influence OFF: %s." % poi_name)
+        elif kind == "structure_established":
+            poi_structure_established_total += 1
+            var structure_state: String = str(transition.get("structure_state", "structure"))
+            var structure_faction: String = str(transition.get("faction", ""))
+            record_event("POI structure UP: %s -> %s (%s)." % [poi_name, structure_state, structure_faction])
+        elif kind == "structure_lost":
+            poi_structure_lost_total += 1
+            var structure_state: String = str(transition.get("structure_state", "structure"))
+            record_event("POI structure DOWN: %s lost %s." % [poi_name, structure_state])
 
     for actor in actors:
         if actor == null or actor.is_dead:
@@ -558,7 +578,13 @@ func _apply_poi_influences(delta: float) -> void:
             if actor.global_position.distance_to(center) > radius:
                 continue
 
-            actor.energy = min(actor.max_energy, actor.energy + POI_INFLUENCE_ENERGY_REGEN_PER_SEC * delta)
+            var regen_per_sec: float = POI_INFLUENCE_ENERGY_REGEN_PER_SEC
+            var structure_active: bool = bool(influence.get("structure_active", false))
+            if structure_active:
+                regen_per_sec += POI_STRUCTURE_EXTRA_ENERGY_REGEN_PER_SEC
+                poi_structure_regen_bonus_ticks_total += 1
+
+            actor.energy = min(actor.max_energy, actor.energy + regen_per_sec * delta)
             poi_influence_regen_ticks_total += 1
 
             var timer_key := "%d:%s" % [actor.actor_id, str(influence.get("name", "poi"))]

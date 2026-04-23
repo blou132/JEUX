@@ -163,6 +163,15 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("poi_influence_xp_grants_total", 0))
         ]
     )
+    lines.append(
+        "POI structures: active=%d up=%d down=%d regen_bonus_ticks=%d"
+        % [
+            int(snapshot.get("poi_structure_active_count", 0)),
+            int(snapshot.get("poi_structure_established_total", 0)),
+            int(snapshot.get("poi_structure_lost_total", 0)),
+            int(snapshot.get("poi_structure_regen_bonus_ticks_total", 0))
+        ]
+    )
     lines.append("")
     lines.append(
         "States: wander=%d poi=%d rally=%d detect=%d chase=%d attack=%d cast=%d control=%d nova=%d reposition=%d flee=%d"
@@ -209,15 +218,22 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             str(details.get("dominant_faction", "")),
             str(details.get("influence_kind", ""))
         )
+        var structure: String = _structure_label(
+            bool(details.get("structure_active", false)),
+            str(details.get("structure_state", ""))
+        )
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
+        var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
         chunks.append(
-            "%s[%s | %s | %s | dom:%ss] H:%d M:%d"
+            "%s[%s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
             % [
                 poi_name,
                 status,
                 activity,
                 influence,
+                structure,
                 dominance_seconds,
+                structure_seconds,
                 int(counts.get("human", 0)),
                 int(counts.get("monster", 0))
             ]
@@ -253,3 +269,13 @@ func _influence_label(active: bool, faction: String, influence_kind: String) -> 
     if not active:
         return "influence:off"
     return "influence:on(%s,%s)" % [faction, influence_kind]
+
+
+func _structure_label(active: bool, structure_state: String) -> String:
+    if not active or structure_state == "":
+        return "structure:off"
+    if structure_state == "human_outpost":
+        return "structure:outpost"
+    if structure_state == "monster_lair":
+        return "structure:lair"
+    return "structure:%s" % structure_state
