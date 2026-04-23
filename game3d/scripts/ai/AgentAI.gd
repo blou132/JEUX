@@ -9,14 +9,19 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
     var rally_pressure_target: Actor = rally_context.get("pressure_target", null)
     var rally_leader_kind: String = str(rally_context.get("leader_kind", "champion"))
     var doctrine_modifiers: Dictionary = world.get_allegiance_doctrine_modifiers(actor.allegiance_id)
+    var project_modifiers: Dictionary = world.get_allegiance_project_modifiers(actor.allegiance_id)
     var rally_regroup_chance: float = float(rally_context.get("regroup_chance", 0.66))
     rally_regroup_chance = clampf(
-        rally_regroup_chance + float(doctrine_modifiers.get("rally_regroup_delta", 0.0)),
+        rally_regroup_chance
+        + float(doctrine_modifiers.get("rally_regroup_delta", 0.0))
+        + float(project_modifiers.get("rally_regroup_delta", 0.0)),
         0.34,
         0.86
     )
     var rally_pressure_chance: float = clampf(
-        0.34 + float(doctrine_modifiers.get("rally_pressure_delta", 0.0)),
+        0.34
+        + float(doctrine_modifiers.get("rally_pressure_delta", 0.0))
+        + float(project_modifiers.get("rally_pressure_delta", 0.0)),
         0.20,
         0.55
     )

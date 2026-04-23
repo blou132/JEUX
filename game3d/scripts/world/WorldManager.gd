@@ -2,6 +2,7 @@ extends Node3D
 class_name WorldManager
 
 const ALLEGIANCE_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
+const ALLEGIANCE_PROJECT_TYPES: Array[String] = ["fortify", "warband_muster", "ritual_focus"]
 
 @export var map_size: float = 96.0
 @export var nav_cell_size: float = 2.0
@@ -19,6 +20,11 @@ const ALLEGIANCE_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
 @export var neutral_gate_cooldown_max: float = 104.0
 @export var neutral_gate_retry_delay: float = 12.0
 @export var neutral_gate_min_dominance_seconds: float = 16.0
+@export var allegiance_project_duration_min: float = 20.0
+@export var allegiance_project_duration_max: float = 34.0
+@export var allegiance_project_cooldown: float = 26.0
+@export var allegiance_project_check_interval: float = 5.0
+@export var allegiance_project_start_chance: float = 0.32
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
@@ -49,6 +55,9 @@ var neutral_gate_closed_total: int = 0
 var neutral_gate_breaches_total: int = 0
 var neutral_gate_breach_pending: bool = false
 var allegiance_doctrine_by_id: Dictionary = {}
+var allegiance_project_runtime_by_id: Dictionary = {}
+var allegiance_project_cooldown_until_by_id: Dictionary = {}
+var allegiance_project_next_attempt_at_by_id: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -308,6 +317,8 @@ func get_raid_guidance(
             weight -= 0.16
         var doctrine_modifiers: Dictionary = get_allegiance_doctrine_modifiers(allegiance_id)
         weight += float(doctrine_modifiers.get("raid_weight_delta", 0.0))
+        var project_modifiers: Dictionary = get_allegiance_project_modifiers(allegiance_id)
+        weight += float(project_modifiers.get("raid_weight_delta", 0.0))
     weight *= raid_pressure_global_multiplier
     if faction == "human":
         weight *= raid_pressure_human_multiplier
@@ -391,6 +402,8 @@ func get_allegiance_defense_guidance(
     if home_allegiance_id != "":
         var doctrine_modifiers: Dictionary = get_allegiance_doctrine_modifiers(home_allegiance_id)
         weight += float(doctrine_modifiers.get("defense_weight_delta", 0.0))
+        var project_modifiers: Dictionary = get_allegiance_project_modifiers(home_allegiance_id)
+        weight += float(project_modifiers.get("defense_weight_delta", 0.0))
     return {
         "reason": "allegiance_defend:%s" % home_poi,
         "target_position": clamp_to_world(snap_to_nav_grid(home_pos + jitter)),
@@ -398,7 +411,7 @@ func get_allegiance_defense_guidance(
     }
 
 
-func get_active_allegiances() -> Array[Dictionary]:
+func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
     var active: Array[Dictionary] = []
     for poi in pois:
         var poi_name: String = str(poi.get("name", ""))
@@ -416,7 +429,9 @@ func get_active_allegiances() -> Array[Dictionary]:
             "home_poi": poi_name,
             "position": poi.get("position", Vector3.ZERO),
             "structure_state": structure_state,
-            "doctrine": get_allegiance_doctrine(allegiance_id)
+            "doctrine": get_allegiance_doctrine(allegiance_id),
+            "project": get_allegiance_project(allegiance_id),
+            "project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds)
         })
     return active
 
@@ -515,6 +530,7 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         var structure_state: String = str(structure_runtime.get("state", ""))
         var structure_active: bool = bool(structure_runtime.get("active", false))
         var structure_seconds: float = float(structure_runtime.get("structure_seconds", 0.0))
+        var allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
 
         snapshot[poi_name] = {
             "human": human_count,
@@ -529,8 +545,10 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "structure_state": structure_state,
             "structure_active": structure_active,
             "structure_seconds": structure_seconds,
-            "allegiance_id": str(poi_allegiance_id.get(poi_name, "")),
-            "allegiance_doctrine": get_allegiance_doctrine(str(poi_allegiance_id.get(poi_name, "")))
+            "allegiance_id": allegiance_id,
+            "allegiance_doctrine": get_allegiance_doctrine(allegiance_id),
+            "allegiance_project": get_allegiance_project(allegiance_id),
+            "allegiance_project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds)
         }
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
@@ -580,6 +598,11 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         poi_runtime_status[poi_name] = status
         poi_influence_active[poi_name] = influence_active
 
+    var project_runtime: Dictionary = _update_allegiance_projects_runtime(snapshot, time_seconds)
+    var project_events: Array = project_runtime.get("events", [])
+    for project_event in project_events:
+        events.append(project_event)
+
     var gate_runtime: Dictionary = _update_neutral_gate_runtime(snapshot, time_seconds)
     var gate_events: Array = gate_runtime.get("events", [])
     for gate_event in gate_events:
@@ -592,6 +615,10 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
 
     for poi_name in snapshot.keys():
         var details: Dictionary = snapshot.get(poi_name, {})
+        var details_allegiance_id: String = str(details.get("allegiance_id", ""))
+        details["allegiance_doctrine"] = get_allegiance_doctrine(details_allegiance_id)
+        details["allegiance_project"] = get_allegiance_project(details_allegiance_id)
+        details["allegiance_project_remaining"] = get_allegiance_project_remaining(details_allegiance_id, time_seconds)
         if str(poi_name) == str(gate_runtime.get("poi", "")):
             details["gate_status"] = str(gate_runtime.get("status", "dormant"))
             details["gate_active"] = bool(gate_runtime.get("active", false))
@@ -729,6 +756,73 @@ func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
             }
 
 
+func get_allegiance_project(allegiance_id: String) -> String:
+    if allegiance_id == "":
+        return ""
+    var runtime: Dictionary = allegiance_project_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return ""
+    var project_id: String = str(runtime.get("project_id", ""))
+    if project_id in ALLEGIANCE_PROJECT_TYPES:
+        return project_id
+    return ""
+
+
+func get_allegiance_project_remaining(allegiance_id: String, time_seconds: float = -1.0) -> float:
+    if allegiance_id == "" or time_seconds < 0.0:
+        return 0.0
+    var runtime: Dictionary = allegiance_project_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return 0.0
+    var end_at: float = float(runtime.get("end_at", time_seconds))
+    return max(0.0, end_at - time_seconds)
+
+
+func get_allegiance_project_modifiers(allegiance_id: String) -> Dictionary:
+    var project_id: String = get_allegiance_project(allegiance_id)
+    match project_id:
+        "fortify":
+            return {
+                "project_id": project_id,
+                "raid_weight_delta": -0.06,
+                "defense_weight_delta": 0.12,
+                "rally_regroup_delta": 0.0,
+                "rally_pressure_delta": 0.0,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+        "warband_muster":
+            return {
+                "project_id": project_id,
+                "raid_weight_delta": 0.09,
+                "defense_weight_delta": 0.0,
+                "rally_regroup_delta": 0.07,
+                "rally_pressure_delta": 0.0,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+        "ritual_focus":
+            return {
+                "project_id": project_id,
+                "raid_weight_delta": 0.0,
+                "defense_weight_delta": 0.0,
+                "rally_regroup_delta": 0.0,
+                "rally_pressure_delta": 0.0,
+                "magic_damage_mult": 1.05,
+                "magic_energy_cost_mult": 0.95
+            }
+        _:
+            return {
+                "project_id": "",
+                "raid_weight_delta": 0.0,
+                "defense_weight_delta": 0.0,
+                "rally_regroup_delta": 0.0,
+                "rally_pressure_delta": 0.0,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+
+
 func get_poi_name_for_position(position: Vector3) -> String:
     for poi in pois:
         var poi_name: String = str(poi.get("name", "poi"))
@@ -848,6 +942,9 @@ func _build_pois() -> void:
     poi_structure_unstable_started_at.clear()
     poi_allegiance_id.clear()
     allegiance_doctrine_by_id.clear()
+    allegiance_project_runtime_by_id.clear()
+    allegiance_project_cooldown_until_by_id.clear()
+    allegiance_project_next_attempt_at_by_id.clear()
     poi_raid_state.clear()
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
@@ -1256,6 +1353,15 @@ func _update_structure_runtime(
             if time_seconds - unstable_since >= poi_structure_loss_time:
                 var previous_allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
                 if previous_allegiance_id != "":
+                    var interrupted_project_id: String = _interrupt_allegiance_project(previous_allegiance_id, time_seconds)
+                    if interrupted_project_id != "":
+                        events.append({
+                            "kind": "allegiance_project_interrupted",
+                            "poi": poi_name,
+                            "allegiance_id": previous_allegiance_id,
+                            "project_id": interrupted_project_id,
+                            "reason": "anchor_lost"
+                        })
                     var doctrine_lost: String = _clear_allegiance_doctrine(previous_allegiance_id)
                     events.append({
                         "kind": "allegiance_removed",
@@ -1339,6 +1445,164 @@ func _clear_allegiance_doctrine(allegiance_id: String) -> String:
     if allegiance_id != "":
         allegiance_doctrine_by_id.erase(allegiance_id)
     return doctrine
+
+
+func _pick_project_for_allegiance(
+    allegiance_id: String,
+    faction: String,
+    home_poi: String,
+    structure_state: String,
+    doctrine: String
+) -> String:
+    if bool(poi_raid_state.get("active", false)):
+        if str(poi_raid_state.get("target_poi", "")) == home_poi:
+            return "fortify"
+        if str(poi_raid_state.get("source_poi", "")) == home_poi:
+            return "warband_muster"
+
+    if doctrine == "arcane" and world_event_visual_id == "mana_surge":
+        return "ritual_focus"
+
+    if doctrine == "steadfast":
+        return "fortify"
+    if doctrine == "warlike":
+        return "warband_muster"
+    if doctrine == "arcane":
+        return "ritual_focus"
+
+    if structure_state == "human_outpost":
+        return "fortify"
+    if structure_state == "monster_lair":
+        return "warband_muster"
+    if faction == "monster":
+        return "warband_muster"
+    if allegiance_id == "":
+        return ""
+    return "fortify"
+
+
+func _interrupt_allegiance_project(allegiance_id: String, time_seconds: float) -> String:
+    var project_id: String = get_allegiance_project(allegiance_id)
+    if allegiance_id != "":
+        allegiance_project_runtime_by_id.erase(allegiance_id)
+        allegiance_project_cooldown_until_by_id[allegiance_id] = time_seconds + allegiance_project_cooldown * 0.60
+        allegiance_project_next_attempt_at_by_id[allegiance_id] = time_seconds + allegiance_project_check_interval
+    return project_id
+
+
+func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:
+    var events: Array[Dictionary] = []
+    var active_allegiances: Dictionary = {}
+
+    for poi_name_variant in snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        var details: Dictionary = snapshot.get(poi_name, {})
+        var allegiance_id: String = str(details.get("allegiance_id", ""))
+        if allegiance_id == "":
+            continue
+        if not bool(details.get("structure_active", false)):
+            continue
+        active_allegiances[allegiance_id] = {
+            "home_poi": poi_name,
+            "faction": str(details.get("dominant_faction", "")),
+            "structure_state": str(details.get("structure_state", "")),
+            "doctrine": get_allegiance_doctrine(allegiance_id)
+        }
+
+    var runtime_ids: Array = allegiance_project_runtime_by_id.keys()
+    for allegiance_variant in runtime_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        if active_allegiances.has(allegiance_id):
+            continue
+        var interrupted_project: String = _interrupt_allegiance_project(allegiance_id, time_seconds)
+        if interrupted_project != "":
+            events.append({
+                "kind": "allegiance_project_interrupted",
+                "poi": "",
+                "allegiance_id": allegiance_id,
+                "project_id": interrupted_project,
+                "reason": "allegiance_lost"
+            })
+
+    var cleanup_attempt_ids: Array = allegiance_project_next_attempt_at_by_id.keys()
+    for allegiance_variant in cleanup_attempt_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        if not active_allegiances.has(allegiance_id):
+            allegiance_project_next_attempt_at_by_id.erase(allegiance_id)
+
+    var cleanup_cooldown_ids: Array = allegiance_project_cooldown_until_by_id.keys()
+    for allegiance_variant in cleanup_cooldown_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        if not active_allegiances.has(allegiance_id):
+            allegiance_project_cooldown_until_by_id.erase(allegiance_id)
+
+    for allegiance_variant in active_allegiances.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        var context: Dictionary = active_allegiances.get(allegiance_id, {})
+        var home_poi: String = str(context.get("home_poi", ""))
+        var runtime: Dictionary = allegiance_project_runtime_by_id.get(allegiance_id, {})
+        if not runtime.is_empty():
+            var project_id: String = str(runtime.get("project_id", ""))
+            var end_at: float = float(runtime.get("end_at", time_seconds))
+            if project_id == "" or not (project_id in ALLEGIANCE_PROJECT_TYPES):
+                allegiance_project_runtime_by_id.erase(allegiance_id)
+                continue
+            if time_seconds >= end_at:
+                allegiance_project_runtime_by_id.erase(allegiance_id)
+                allegiance_project_cooldown_until_by_id[allegiance_id] = time_seconds + allegiance_project_cooldown
+                allegiance_project_next_attempt_at_by_id[allegiance_id] = time_seconds + allegiance_project_check_interval
+                events.append({
+                    "kind": "allegiance_project_ended",
+                    "poi": home_poi,
+                    "allegiance_id": allegiance_id,
+                    "project_id": project_id
+                })
+            continue
+
+        var cooldown_until: float = float(allegiance_project_cooldown_until_by_id.get(allegiance_id, 0.0))
+        if time_seconds < cooldown_until:
+            continue
+
+        var next_attempt_at: float = float(allegiance_project_next_attempt_at_by_id.get(allegiance_id, 0.0))
+        if time_seconds < next_attempt_at:
+            continue
+
+        allegiance_project_next_attempt_at_by_id[allegiance_id] = time_seconds + allegiance_project_check_interval
+        if randf() > clampf(allegiance_project_start_chance, 0.05, 0.80):
+            continue
+
+        var project_id: String = _pick_project_for_allegiance(
+            allegiance_id,
+            str(context.get("faction", "")),
+            home_poi,
+            str(context.get("structure_state", "")),
+            str(context.get("doctrine", ""))
+        )
+        if not (project_id in ALLEGIANCE_PROJECT_TYPES):
+            continue
+
+        var duration: float = randf_range(
+            min(allegiance_project_duration_min, allegiance_project_duration_max),
+            max(allegiance_project_duration_min, allegiance_project_duration_max)
+        )
+        var end_at: float = time_seconds + duration
+        allegiance_project_runtime_by_id[allegiance_id] = {
+            "project_id": project_id,
+            "home_poi": home_poi,
+            "started_at": time_seconds,
+            "end_at": end_at
+        }
+        events.append({
+            "kind": "allegiance_project_started",
+            "poi": home_poi,
+            "allegiance_id": allegiance_id,
+            "project_id": project_id,
+            "duration": duration
+        })
+
+    return {
+        "events": events
+    }
 
 
 func _is_neutral_gate_kind(poi_kind: String) -> bool:

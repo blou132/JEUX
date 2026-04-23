@@ -21,6 +21,7 @@ The active direction is a minimal but playable sandbox loop:
 - POI raid pressure cycles (outpost <-> lair)
 - lightweight allegiance/proto-faction layer (structure-anchored)
 - lightweight allegiance doctrine/ethos layer (bounded behavior bias)
+- lightweight allegiance projects layer (temporary objective pulses)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
@@ -76,6 +77,16 @@ The active direction is a minimal but playable sandbox loop:
   - doctrine disappears automatically with allegiance/anchor loss (no global memory system)
   - bounded effect layer only: small deltas on raid pressure, home defense bias, rally regroup/pressure behavior, and (for `arcane`) light magic efficiency
   - observability: dedicated `Doctrine assigned` logs, doctrine labels per active allegiance, and HUD counters/map per doctrine
+- Allegiance projects / faction projects layer (MVP):
+  - each active allegiance can run at most one temporary project at a time, with a bounded cooldown between projects
+  - project launch is autonomous and context-safe (home role in active raid, doctrine bias, current world event), with no economy/tech tree
+  - compact project set: `fortify`, `warband_muster`, `ritual_focus`
+  - bounded effects only:
+    - `fortify`: small home-defense boost + slight raid pressure reduction
+    - `warband_muster`: small raid pressure boost + slight rally regroup boost
+    - `ritual_focus`: slight magic efficiency boost (damage up, energy cost down)
+  - lifecycle is explicit and safe: `Project START` -> `Project END`, with `Project INTERRUPTED` on anchor/allegiance loss
+  - observability: HUD project counters/map and project label in allegiance/POI labels
 - World events layer (MVP):
   - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
   - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
@@ -167,6 +178,7 @@ The debug overlay shows:
 - neutral gate counters (`status`, `remaining/cooldown`, `opens`, `closes`, `breaches`)
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
+- project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
@@ -183,6 +195,7 @@ The debug overlay shows:
 - bounty logs (`START`/`CLEARED`/`EXPIRED`) for marked hunt stories
 - notability logs (`Renown Rising`/`Notoriety Rising`) for emerging known figures
 - doctrine logs (`Doctrine assigned`) for proto-faction identity emergence
+- project logs (`Project START` / `Project END` / `Project INTERRUPTED`) for temporary faction objectives
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
@@ -209,6 +222,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_renown_behavior.py](tests/test_game3d_renown_behavior.py) (renown/notoriety contracts: bounded gain, threshold tiers, light behavior bias, dissipation)
 - [test_game3d_neutral_gate_behavior.py](tests/test_game3d_neutral_gate_behavior.py) (neutral gate contracts: bounded open/close cycle, single breach pulse, light AI pressure hooks)
 - [test_game3d_doctrines_behavior.py](tests/test_game3d_doctrines_behavior.py) (doctrine contracts: bounded assignment, lightweight behavior deltas, cleanup on allegiance loss)
+- [test_game3d_faction_projects_behavior.py](tests/test_game3d_faction_projects_behavior.py) (faction project contracts: bounded launch, single active project, clean end/interruption, lightweight effect hooks)
 
 Run targeted tests:
 ```bash
@@ -222,6 +236,7 @@ py -m unittest tests.test_game3d_bounties_behavior -v
 py -m unittest tests.test_game3d_renown_behavior -v
 py -m unittest tests.test_game3d_neutral_gate_behavior -v
 py -m unittest tests.test_game3d_doctrines_behavior -v
+py -m unittest tests.test_game3d_faction_projects_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -257,6 +272,7 @@ py -m unittest discover -s tests -v
 - Add lightweight renown/notoriety MVP with bounded per-actor fame/threat, threshold logs, and small AI behavior bias
 - Add neutral `rift_gate` POI MVP with rare autonomous open/close cycle, single breach pulse, and lightweight local pressure
 - Add lightweight allegiance doctrines/ethos MVP with bounded identity bias (`warlike`/`steadfast`/`arcane`) and runtime observability
+- Add lightweight faction projects MVP (`fortify`/`warband_muster`/`ritual_focus`) with one-active-project cap, cooldown, and bounded temporary behavior bias
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -273,6 +289,7 @@ py -m unittest discover -s tests -v
 - Tune renown/notoriety gain/decay thresholds so notable figures stay readable without persistent global snowball
 - Tune neutral gate cadence/open duration and breach strength to keep third-pressure stories visible but bounded
 - Tune doctrine assignment heuristics and small bias deltas so group identity stays readable without overriding baseline simulation
+- Tune faction project cadence/duration/modifier strength so temporary objectives remain visible without overriding baseline raid/rally dynamics
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

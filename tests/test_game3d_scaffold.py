@@ -84,6 +84,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("dungeon/gate", content)
         self.assertIn("doctrine", content)
         self.assertIn("ethos", content)
+        self.assertIn("project", content)
+        self.assertIn("fortify", content)
+        self.assertIn("warband", content)
+        self.assertIn("ritual", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -129,6 +133,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("ALLEGIANCE_DOCTRINES", content)
         self.assertIn("get_allegiance_doctrine", content)
         self.assertIn("get_allegiance_doctrine_modifiers", content)
+        self.assertIn("ALLEGIANCE_PROJECT_TYPES", content)
+        self.assertIn("get_allegiance_project", content)
+        self.assertIn("get_allegiance_project_modifiers", content)
+        self.assertIn("_update_allegiance_projects_runtime", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -159,6 +167,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("gate:open", content)
         self.assertIn("Doctrines:", content)
         self.assertIn("Doctrine map:", content)
+        self.assertIn("Projects:", content)
+        self.assertIn("Project map:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -343,6 +353,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Doctrine assigned", content)
         self.assertIn('"allegiance_doctrine_counts"', content)
         self.assertIn('"doctrine_assigned_total"', content)
+        self.assertIn("Project START", content)
+        self.assertIn("Project END", content)
+        self.assertIn("Project INTERRUPTED", content)
+        self.assertIn('"allegiance_project_counts"', content)
+        self.assertIn('"project_started_total"', content)
 
 
 if __name__ == "__main__":

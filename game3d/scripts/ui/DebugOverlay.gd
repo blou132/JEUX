@@ -43,6 +43,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var allegiance_doctrine_labels: Array = snapshot.get("allegiance_doctrine_labels", [])
     var allegiance_doctrine_counts: Dictionary = snapshot.get("allegiance_doctrine_counts", {})
+    var allegiance_project_labels: Array = snapshot.get("allegiance_project_labels", [])
+    var allegiance_project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
     var lines: Array[String] = []
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
@@ -293,6 +295,22 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % (" | ".join(allegiance_doctrine_labels) if not allegiance_doctrine_labels.is_empty() else "(none)")
     )
     lines.append(
+        "Projects: active=%d fortify=%d warband_muster=%d ritual_focus=%d | start=%d end=%d interrupted=%d"
+        % [
+            int(snapshot.get("allegiance_project_active_count", 0)),
+            int(allegiance_project_counts.get("fortify", 0)),
+            int(allegiance_project_counts.get("warband_muster", 0)),
+            int(allegiance_project_counts.get("ritual_focus", 0)),
+            int(snapshot.get("project_started_total", 0)),
+            int(snapshot.get("project_ended_total", 0)),
+            int(snapshot.get("project_interrupted_total", 0))
+        ]
+    )
+    lines.append(
+        "Project map: %s"
+        % (" | ".join(allegiance_project_labels) if not allegiance_project_labels.is_empty() else "(none)")
+    )
+    lines.append(
         "Allegiance cores: %s"
         % (" | ".join(allegiance_structure_labels) if not allegiance_structure_labels.is_empty() else "(none)")
     )
@@ -427,7 +445,9 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
         )
         var allegiance: String = _allegiance_label(
             str(details.get("allegiance_id", "")),
-            str(details.get("allegiance_doctrine", ""))
+            str(details.get("allegiance_doctrine", "")),
+            str(details.get("allegiance_project", "")),
+            float(details.get("allegiance_project_remaining", 0.0))
         )
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
@@ -507,11 +527,21 @@ func _gate_label(active: bool, gate_status: String, remaining: float, cooldown: 
     return "gate:%s(%.0fs)" % [gate_status, cooldown]
 
 
-func _allegiance_label(allegiance_id: String, doctrine: String = "") -> String:
+func _allegiance_label(
+    allegiance_id: String,
+    doctrine: String = "",
+    project_id: String = "",
+    project_remaining: float = 0.0
+) -> String:
     if allegiance_id == "":
         return "allegiance:none"
+    var tags: Array[String] = []
     if doctrine != "":
-        return "allegiance:%s[%s]" % [allegiance_id, doctrine]
+        tags.append(doctrine)
+    if project_id != "":
+        tags.append("%s@%.0fs" % [project_id, project_remaining])
+    if not tags.is_empty():
+        return "allegiance:%s[%s]" % [allegiance_id, "|".join(tags)]
     return "allegiance:%s" % allegiance_id
 
 

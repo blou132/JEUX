@@ -144,6 +144,9 @@ var neutral_gate_opened_total: int = 0
 var neutral_gate_closed_total: int = 0
 var neutral_gate_breach_total: int = 0
 var doctrine_assigned_total: int = 0
+var project_started_total: int = 0
+var project_ended_total: int = 0
+var project_interrupted_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -348,6 +351,9 @@ func get_magic_modifiers(_caster: Actor) -> Dictionary:
         var doctrine_modifiers: Dictionary = world_manager.get_allegiance_doctrine_modifiers(_caster.allegiance_id)
         damage_mult *= float(doctrine_modifiers.get("magic_damage_mult", 1.0))
         energy_cost_mult *= float(doctrine_modifiers.get("magic_energy_cost_mult", 1.0))
+        var project_modifiers: Dictionary = world_manager.get_allegiance_project_modifiers(_caster.allegiance_id)
+        damage_mult *= float(project_modifiers.get("magic_damage_mult", 1.0))
+        energy_cost_mult *= float(project_modifiers.get("magic_energy_cost_mult", 1.0))
     if _caster != null and _caster.has_relic():
         if _caster.relic_id == "arcane_sigil":
             damage_mult *= 1.10
@@ -1383,7 +1389,7 @@ func _build_snapshot() -> Dictionary:
     var avg_renown: float = renown_total / alive_total if alive_total > 0 else 0.0
     var avg_notoriety: float = notoriety_total / alive_total if alive_total > 0 else 0.0
     var poi_population := world_manager.get_poi_population_snapshot(actors)
-    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances()
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
     var allegiance_structure_labels: Array[String] = []
     var allegiance_doctrine_labels: Array[String] = []
     var allegiance_doctrine_counts := {
@@ -1391,23 +1397,45 @@ func _build_snapshot() -> Dictionary:
         "steadfast": 0,
         "arcane": 0
     }
+    var allegiance_project_labels: Array[String] = []
+    var allegiance_project_counts := {
+        "fortify": 0,
+        "warband_muster": 0,
+        "ritual_focus": 0
+    }
+    var allegiance_project_active_count: int = 0
     for allegiance in active_allegiances:
         var doctrine: String = str(allegiance.get("doctrine", ""))
+        var project_id: String = str(allegiance.get("project", ""))
+        var project_remaining: float = float(allegiance.get("project_remaining", 0.0))
+        var project_label: String = project_id if project_id != "" else "none"
+        if project_id != "":
+            project_label = "%s@%.0fs" % [project_id, project_remaining]
         allegiance_structure_labels.append(
-            "%s[%s,%s,%s]"
+            "%s[%s,%s,%s,%s]"
             % [
                 str(allegiance.get("allegiance_id", "")),
                 str(allegiance.get("home_poi", "")),
                 str(allegiance.get("structure_state", "")),
-                doctrine if doctrine != "" else "none"
+                doctrine if doctrine != "" else "none",
+                project_label
             ]
         )
         if doctrine != "":
             allegiance_doctrine_labels.append("%s=%s" % [str(allegiance.get("allegiance_id", "")), doctrine])
             if allegiance_doctrine_counts.has(doctrine):
                 allegiance_doctrine_counts[doctrine] += 1
+        if project_id != "":
+            allegiance_project_active_count += 1
+            allegiance_project_labels.append(
+                "%s=%s(%.0fs)"
+                % [str(allegiance.get("allegiance_id", "")), project_id, project_remaining]
+            )
+            if allegiance_project_counts.has(project_id):
+                allegiance_project_counts[project_id] += 1
     allegiance_structure_labels.sort()
     allegiance_doctrine_labels.sort()
+    allegiance_project_labels.sort()
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1492,6 +1520,12 @@ func _build_snapshot() -> Dictionary:
         "allegiance_doctrine_labels": allegiance_doctrine_labels,
         "allegiance_doctrine_counts": allegiance_doctrine_counts,
         "doctrine_assigned_total": doctrine_assigned_total,
+        "allegiance_project_active_count": allegiance_project_active_count,
+        "allegiance_project_labels": allegiance_project_labels,
+        "allegiance_project_counts": allegiance_project_counts,
+        "project_started_total": project_started_total,
+        "project_ended_total": project_ended_total,
+        "project_interrupted_total": project_interrupted_total,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,
@@ -1717,6 +1751,24 @@ func _update_poi_runtime() -> void:
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
             var allegiance_faction: String = str(transition.get("faction", ""))
             record_event("Allegiance DOWN: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
+        elif kind == "allegiance_project_started":
+            project_started_total += 1
+            var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
+            var project_id: String = str(transition.get("project_id", "project"))
+            var duration: float = float(transition.get("duration", 0.0))
+            record_event("Project START: %s -> %s at %s (%.0fs)." % [allegiance_id, project_id, poi_name, duration])
+        elif kind == "allegiance_project_ended":
+            project_ended_total += 1
+            var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
+            var project_id: String = str(transition.get("project_id", "project"))
+            record_event("Project END: %s -> %s at %s." % [allegiance_id, project_id, poi_name])
+        elif kind == "allegiance_project_interrupted":
+            project_interrupted_total += 1
+            var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
+            var project_id: String = str(transition.get("project_id", "project"))
+            var reason: String = str(transition.get("reason", "interrupted"))
+            var poi_label: String = poi_name if poi_name != "" else "unknown"
+            record_event("Project INTERRUPTED: %s -> %s at %s (%s)." % [allegiance_id, project_id, poi_label, reason])
         elif kind == "raid_started":
             raid_started_total += 1
             var attacker_faction: String = str(transition.get("attacker_faction", ""))
