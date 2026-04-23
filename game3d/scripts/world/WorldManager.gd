@@ -1,6 +1,8 @@
 extends Node3D
 class_name WorldManager
 
+const ALLEGIANCE_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
+
 @export var map_size: float = 96.0
 @export var nav_cell_size: float = 2.0
 @export var wander_radius: float = 14.0
@@ -46,6 +48,7 @@ var neutral_gate_opened_total: int = 0
 var neutral_gate_closed_total: int = 0
 var neutral_gate_breaches_total: int = 0
 var neutral_gate_breach_pending: bool = false
+var allegiance_doctrine_by_id: Dictionary = {}
 
 
 func setup_world() -> void:
@@ -303,6 +306,8 @@ func get_raid_guidance(
             weight += 0.12
         elif home_poi != "":
             weight -= 0.16
+        var doctrine_modifiers: Dictionary = get_allegiance_doctrine_modifiers(allegiance_id)
+        weight += float(doctrine_modifiers.get("raid_weight_delta", 0.0))
     weight *= raid_pressure_global_multiplier
     if faction == "human":
         weight *= raid_pressure_human_multiplier
@@ -381,10 +386,15 @@ func get_allegiance_defense_guidance(
         return {}
 
     var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
+    var weight: float = 0.68
+    var home_allegiance_id: String = str(poi_allegiance_id.get(home_poi, ""))
+    if home_allegiance_id != "":
+        var doctrine_modifiers: Dictionary = get_allegiance_doctrine_modifiers(home_allegiance_id)
+        weight += float(doctrine_modifiers.get("defense_weight_delta", 0.0))
     return {
         "reason": "allegiance_defend:%s" % home_poi,
         "target_position": clamp_to_world(snap_to_nav_grid(home_pos + jitter)),
-        "weight": 0.68
+        "weight": clampf(weight, 0.24, 0.92)
     }
 
 
@@ -405,7 +415,8 @@ func get_active_allegiances() -> Array[Dictionary]:
             "faction": str(poi_structure_faction.get(poi_name, "")),
             "home_poi": poi_name,
             "position": poi.get("position", Vector3.ZERO),
-            "structure_state": structure_state
+            "structure_state": structure_state,
+            "doctrine": get_allegiance_doctrine(allegiance_id)
         })
     return active
 
@@ -518,7 +529,8 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             "structure_state": structure_state,
             "structure_active": structure_active,
             "structure_seconds": structure_seconds,
-            "allegiance_id": str(poi_allegiance_id.get(poi_name, ""))
+            "allegiance_id": str(poi_allegiance_id.get(poi_name, "")),
+            "allegiance_doctrine": get_allegiance_doctrine(str(poi_allegiance_id.get(poi_name, "")))
         }
 
         var previous_status: String = str(poi_runtime_status.get(poi_name, ""))
@@ -663,6 +675,60 @@ func get_neutral_gate_runtime_state(time_seconds: float = 0.0) -> Dictionary:
     }
 
 
+func get_allegiance_doctrine(allegiance_id: String) -> String:
+    if allegiance_id == "":
+        return ""
+    var doctrine: String = str(allegiance_doctrine_by_id.get(allegiance_id, ""))
+    if doctrine in ALLEGIANCE_DOCTRINES:
+        return doctrine
+    return ""
+
+
+func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
+    var doctrine: String = get_allegiance_doctrine(allegiance_id)
+    match doctrine:
+        "warlike":
+            return {
+                "doctrine": doctrine,
+                "raid_weight_delta": 0.11,
+                "defense_weight_delta": -0.05,
+                "rally_regroup_delta": -0.05,
+                "rally_pressure_delta": 0.08,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+        "steadfast":
+            return {
+                "doctrine": doctrine,
+                "raid_weight_delta": -0.08,
+                "defense_weight_delta": 0.12,
+                "rally_regroup_delta": 0.08,
+                "rally_pressure_delta": -0.04,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+        "arcane":
+            return {
+                "doctrine": doctrine,
+                "raid_weight_delta": 0.02,
+                "defense_weight_delta": 0.04,
+                "rally_regroup_delta": 0.03,
+                "rally_pressure_delta": 0.01,
+                "magic_damage_mult": 1.06,
+                "magic_energy_cost_mult": 0.94
+            }
+        _:
+            return {
+                "doctrine": "",
+                "raid_weight_delta": 0.0,
+                "defense_weight_delta": 0.0,
+                "rally_regroup_delta": 0.0,
+                "rally_pressure_delta": 0.0,
+                "magic_damage_mult": 1.00,
+                "magic_energy_cost_mult": 1.00
+            }
+
+
 func get_poi_name_for_position(position: Vector3) -> String:
     for poi in pois:
         var poi_name: String = str(poi.get("name", "poi"))
@@ -781,6 +847,7 @@ func _build_pois() -> void:
     poi_structure_started_at.clear()
     poi_structure_unstable_started_at.clear()
     poi_allegiance_id.clear()
+    allegiance_doctrine_by_id.clear()
     poi_raid_state.clear()
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
@@ -1149,6 +1216,12 @@ func _update_structure_runtime(
         current_state = can_structure_kind
         current_faction = dominant_faction
         var allegiance_id: String = _ensure_allegiance_for_poi(poi_name, current_faction)
+        var doctrine: String = _assign_doctrine_for_allegiance(
+            allegiance_id,
+            current_faction,
+            current_state,
+            dominant_champions
+        )
         poi_structure_state[poi_name] = current_state
         poi_structure_faction[poi_name] = current_faction
         poi_structure_started_at[poi_name] = time_seconds
@@ -1157,7 +1230,8 @@ func _update_structure_runtime(
             "kind": "allegiance_created",
             "poi": poi_name,
             "allegiance_id": allegiance_id,
-            "faction": current_faction
+            "faction": current_faction,
+            "doctrine": doctrine
         })
         events.append({
             "kind": "structure_established",
@@ -1182,11 +1256,13 @@ func _update_structure_runtime(
             if time_seconds - unstable_since >= poi_structure_loss_time:
                 var previous_allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
                 if previous_allegiance_id != "":
+                    var doctrine_lost: String = _clear_allegiance_doctrine(previous_allegiance_id)
                     events.append({
                         "kind": "allegiance_removed",
                         "poi": poi_name,
                         "allegiance_id": previous_allegiance_id,
-                        "faction": current_faction
+                        "faction": current_faction,
+                        "doctrine": doctrine_lost
                     })
                     poi_allegiance_id.erase(poi_name)
                 events.append({
@@ -1223,6 +1299,46 @@ func _ensure_allegiance_for_poi(poi_name: String, faction: String) -> String:
     var next_id := "%s:%s" % [faction, poi_name]
     poi_allegiance_id[poi_name] = next_id
     return next_id
+
+
+func _pick_doctrine_for_allegiance(
+    faction: String,
+    structure_state: String,
+    dominant_champions: int
+) -> String:
+    if world_event_visual_id == "mana_surge" and dominant_champions > 0:
+        return "arcane"
+    if structure_state == "human_outpost":
+        if world_event_visual_id == "mana_surge":
+            return "arcane"
+        return "steadfast"
+    if structure_state == "monster_lair":
+        return "warlike"
+    if faction == "human":
+        return "steadfast"
+    if faction == "monster":
+        return "warlike"
+    return "steadfast"
+
+
+func _assign_doctrine_for_allegiance(
+    allegiance_id: String,
+    faction: String,
+    structure_state: String,
+    dominant_champions: int
+) -> String:
+    if allegiance_id == "":
+        return ""
+    var doctrine: String = _pick_doctrine_for_allegiance(faction, structure_state, dominant_champions)
+    allegiance_doctrine_by_id[allegiance_id] = doctrine
+    return doctrine
+
+
+func _clear_allegiance_doctrine(allegiance_id: String) -> String:
+    var doctrine: String = get_allegiance_doctrine(allegiance_id)
+    if allegiance_id != "":
+        allegiance_doctrine_by_id.erase(allegiance_id)
+    return doctrine
 
 
 func _is_neutral_gate_kind(poi_kind: String) -> bool:

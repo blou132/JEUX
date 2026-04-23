@@ -8,7 +8,18 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
     var rally_bonus: bool = bool(rally_context.get("bonus_active", false))
     var rally_pressure_target: Actor = rally_context.get("pressure_target", null)
     var rally_leader_kind: String = str(rally_context.get("leader_kind", "champion"))
+    var doctrine_modifiers: Dictionary = world.get_allegiance_doctrine_modifiers(actor.allegiance_id)
     var rally_regroup_chance: float = float(rally_context.get("regroup_chance", 0.66))
+    rally_regroup_chance = clampf(
+        rally_regroup_chance + float(doctrine_modifiers.get("rally_regroup_delta", 0.0)),
+        0.34,
+        0.86
+    )
+    var rally_pressure_chance: float = clampf(
+        0.34 + float(doctrine_modifiers.get("rally_pressure_delta", 0.0)),
+        0.20,
+        0.55
+    )
     var enemy: Actor = world.find_nearest_enemy(actor, all_actors, actor.vision_range)
     if enemy == null:
         if rally_leader != null:
@@ -128,7 +139,7 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 
     if rally_pressure_target != null and rally_pressure_target != enemy:
         var pressure_distance: float = actor.global_position.distance_to(rally_pressure_target.global_position)
-        if pressure_distance <= actor.vision_range * 1.08 and randf() <= 0.34:
+        if pressure_distance <= actor.vision_range * 1.08 and randf() <= rally_pressure_chance:
             enemy = rally_pressure_target
 
     var notoriety_focus_target: Actor = _find_notoriety_focus_enemy(actor, all_actors, actor.vision_range * 1.05)

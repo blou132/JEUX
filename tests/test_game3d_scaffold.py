@@ -82,6 +82,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("notoriety", content)
         self.assertIn("rift gate", content)
         self.assertIn("dungeon/gate", content)
+        self.assertIn("doctrine", content)
+        self.assertIn("ethos", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -124,6 +126,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("set_world_event_visual", content)
         self.assertIn("set_bounty_state", content)
         self.assertIn("get_bounty_guidance", content)
+        self.assertIn("ALLEGIANCE_DOCTRINES", content)
+        self.assertIn("get_allegiance_doctrine", content)
+        self.assertIn("get_allegiance_doctrine_modifiers", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -152,6 +157,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Top notoriety figures:", content)
         self.assertIn("Neutral Gate:", content)
         self.assertIn("gate:open", content)
+        self.assertIn("Doctrines:", content)
+        self.assertIn("Doctrine map:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -333,6 +340,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Dungeon/Gate BREACH", content)
         self.assertIn('"neutral_gate_status"', content)
         self.assertIn('"neutral_gate_opened_total"', content)
+        self.assertIn("Doctrine assigned", content)
+        self.assertIn('"allegiance_doctrine_counts"', content)
+        self.assertIn('"doctrine_assigned_total"', content)
 
 
 if __name__ == "__main__":

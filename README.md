@@ -20,6 +20,7 @@ The active direction is a minimal but playable sandbox loop:
 - POI persistent structures (camp -> outpost, ruins -> lair)
 - POI raid pressure cycles (outpost <-> lair)
 - lightweight allegiance/proto-faction layer (structure-anchored)
+- lightweight allegiance doctrine/ethos layer (bounded behavior bias)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
@@ -69,6 +70,12 @@ The active direction is a minimal but playable sandbox loop:
   - allegiance is lost automatically if the anchor disappears
   - bounded behavior effect: same-allegiance cohesion for champion rally and home-defense bias under raid pressure
   - observability: `Allegiance UP/DOWN/assign/lost` logs, allegiance counters in HUD, and allegiance id per POI snapshot
+- Allegiance doctrines / ethos layer (MVP):
+  - each active allegiance anchor can hold exactly one lightweight doctrine: `warlike`, `steadfast`, or `arcane`
+  - doctrine is assigned at anchor creation using safe local context (structure type + current world-event/champion signal)
+  - doctrine disappears automatically with allegiance/anchor loss (no global memory system)
+  - bounded effect layer only: small deltas on raid pressure, home defense bias, rally regroup/pressure behavior, and (for `arcane`) light magic efficiency
+  - observability: dedicated `Doctrine assigned` logs, doctrine labels per active allegiance, and HUD counters/map per doctrine
 - World events layer (MVP):
   - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
   - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
@@ -159,6 +166,7 @@ The debug overlay shows:
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
 - neutral gate counters (`status`, `remaining/cooldown`, `opens`, `closes`, `breaches`)
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
+- doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
@@ -174,6 +182,7 @@ The debug overlay shows:
 - relic logs (`APPEAR`/`ACQUIRED`/`LOST`) for rare artifact stories
 - bounty logs (`START`/`CLEARED`/`EXPIRED`) for marked hunt stories
 - notability logs (`Renown Rising`/`Notoriety Rising`) for emerging known figures
+- doctrine logs (`Doctrine assigned`) for proto-faction identity emergence
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
@@ -199,6 +208,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_bounties_behavior.py](tests/test_game3d_bounties_behavior.py) (bounty contracts: target selection priority, cooldown/cap gates, bounded clear/expire flow)
 - [test_game3d_renown_behavior.py](tests/test_game3d_renown_behavior.py) (renown/notoriety contracts: bounded gain, threshold tiers, light behavior bias, dissipation)
 - [test_game3d_neutral_gate_behavior.py](tests/test_game3d_neutral_gate_behavior.py) (neutral gate contracts: bounded open/close cycle, single breach pulse, light AI pressure hooks)
+- [test_game3d_doctrines_behavior.py](tests/test_game3d_doctrines_behavior.py) (doctrine contracts: bounded assignment, lightweight behavior deltas, cleanup on allegiance loss)
 
 Run targeted tests:
 ```bash
@@ -211,6 +221,7 @@ py -m unittest tests.test_game3d_relics_behavior -v
 py -m unittest tests.test_game3d_bounties_behavior -v
 py -m unittest tests.test_game3d_renown_behavior -v
 py -m unittest tests.test_game3d_neutral_gate_behavior -v
+py -m unittest tests.test_game3d_doctrines_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -245,6 +256,7 @@ py -m unittest discover -s tests -v
 - Add rare bounty/marked-target MVP with bounded hunt pressure, notable target selection, and lightweight clear reward
 - Add lightweight renown/notoriety MVP with bounded per-actor fame/threat, threshold logs, and small AI behavior bias
 - Add neutral `rift_gate` POI MVP with rare autonomous open/close cycle, single breach pulse, and lightweight local pressure
+- Add lightweight allegiance doctrines/ethos MVP with bounded identity bias (`warlike`/`steadfast`/`arcane`) and runtime observability
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -260,6 +272,7 @@ py -m unittest discover -s tests -v
 - Tune bounty rarity/weight/reward values to keep hunts memorable without overriding baseline raid/rally behavior
 - Tune renown/notoriety gain/decay thresholds so notable figures stay readable without persistent global snowball
 - Tune neutral gate cadence/open duration and breach strength to keep third-pressure stories visible but bounded
+- Tune doctrine assignment heuristics and small bias deltas so group identity stays readable without overriding baseline simulation
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

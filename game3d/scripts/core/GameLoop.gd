@@ -143,6 +143,7 @@ var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
 var neutral_gate_closed_total: int = 0
 var neutral_gate_breach_total: int = 0
+var doctrine_assigned_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -343,6 +344,10 @@ func record_event(message: String) -> void:
 func get_magic_modifiers(_caster: Actor) -> Dictionary:
     var damage_mult: float = float(world_event_modifiers.get("magic_damage_mult", 1.0))
     var energy_cost_mult: float = float(world_event_modifiers.get("magic_energy_cost_mult", 1.0))
+    if _caster != null and _caster.allegiance_id != "":
+        var doctrine_modifiers: Dictionary = world_manager.get_allegiance_doctrine_modifiers(_caster.allegiance_id)
+        damage_mult *= float(doctrine_modifiers.get("magic_damage_mult", 1.0))
+        energy_cost_mult *= float(doctrine_modifiers.get("magic_energy_cost_mult", 1.0))
     if _caster != null and _caster.has_relic():
         if _caster.relic_id == "arcane_sigil":
             damage_mult *= 1.10
@@ -1380,16 +1385,29 @@ func _build_snapshot() -> Dictionary:
     var poi_population := world_manager.get_poi_population_snapshot(actors)
     var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances()
     var allegiance_structure_labels: Array[String] = []
+    var allegiance_doctrine_labels: Array[String] = []
+    var allegiance_doctrine_counts := {
+        "warlike": 0,
+        "steadfast": 0,
+        "arcane": 0
+    }
     for allegiance in active_allegiances:
+        var doctrine: String = str(allegiance.get("doctrine", ""))
         allegiance_structure_labels.append(
-            "%s[%s,%s]"
+            "%s[%s,%s,%s]"
             % [
                 str(allegiance.get("allegiance_id", "")),
                 str(allegiance.get("home_poi", "")),
-                str(allegiance.get("structure_state", ""))
+                str(allegiance.get("structure_state", "")),
+                doctrine if doctrine != "" else "none"
             ]
         )
+        if doctrine != "":
+            allegiance_doctrine_labels.append("%s=%s" % [str(allegiance.get("allegiance_id", "")), doctrine])
+            if allegiance_doctrine_counts.has(doctrine):
+                allegiance_doctrine_counts[doctrine] += 1
     allegiance_structure_labels.sort()
+    allegiance_doctrine_labels.sort()
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1471,6 +1489,9 @@ func _build_snapshot() -> Dictionary:
         "allegiance_unaffiliated_total": max(0, alive_total - allegiance_affiliated_total),
         "allegiance_member_counts": allegiance_member_counts,
         "allegiance_structure_labels": allegiance_structure_labels,
+        "allegiance_doctrine_labels": allegiance_doctrine_labels,
+        "allegiance_doctrine_counts": allegiance_doctrine_counts,
+        "doctrine_assigned_total": doctrine_assigned_total,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,
@@ -1687,6 +1708,10 @@ func _update_poi_runtime() -> void:
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
             var allegiance_faction: String = str(transition.get("faction", ""))
             record_event("Allegiance UP: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
+            var doctrine: String = str(transition.get("doctrine", ""))
+            if doctrine != "":
+                doctrine_assigned_total += 1
+                record_event("Doctrine assigned: %s -> %s." % [allegiance_id, doctrine])
         elif kind == "allegiance_removed":
             allegiance_removed_total += 1
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))

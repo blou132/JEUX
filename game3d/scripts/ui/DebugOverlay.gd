@@ -41,6 +41,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
+    var allegiance_doctrine_labels: Array = snapshot.get("allegiance_doctrine_labels", [])
+    var allegiance_doctrine_counts: Dictionary = snapshot.get("allegiance_doctrine_counts", {})
     var lines: Array[String] = []
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
@@ -278,6 +280,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
+        "Doctrines: warlike=%d steadfast=%d arcane=%d | assigned=%d"
+        % [
+            int(allegiance_doctrine_counts.get("warlike", 0)),
+            int(allegiance_doctrine_counts.get("steadfast", 0)),
+            int(allegiance_doctrine_counts.get("arcane", 0)),
+            int(snapshot.get("doctrine_assigned_total", 0))
+        ]
+    )
+    lines.append(
+        "Doctrine map: %s"
+        % (" | ".join(allegiance_doctrine_labels) if not allegiance_doctrine_labels.is_empty() else "(none)")
+    )
+    lines.append(
         "Allegiance cores: %s"
         % (" | ".join(allegiance_structure_labels) if not allegiance_structure_labels.is_empty() else "(none)")
     )
@@ -410,7 +425,10 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             float(details.get("gate_remaining", 0.0)),
             float(details.get("gate_cooldown", 0.0))
         )
-        var allegiance: String = _allegiance_label(str(details.get("allegiance_id", "")))
+        var allegiance: String = _allegiance_label(
+            str(details.get("allegiance_id", "")),
+            str(details.get("allegiance_doctrine", ""))
+        )
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
         chunks.append(
@@ -489,9 +507,11 @@ func _gate_label(active: bool, gate_status: String, remaining: float, cooldown: 
     return "gate:%s(%.0fs)" % [gate_status, cooldown]
 
 
-func _allegiance_label(allegiance_id: String) -> String:
+func _allegiance_label(allegiance_id: String, doctrine: String = "") -> String:
     if allegiance_id == "":
         return "allegiance:none"
+    if doctrine != "":
+        return "allegiance:%s[%s]" % [allegiance_id, doctrine]
     return "allegiance:%s" % allegiance_id
 
 
