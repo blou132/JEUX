@@ -277,6 +277,8 @@ func special_tag() -> String:
             return "[SUMMONED]"
         "calamity_invader":
             return "[CALAMITY]"
+        "rift_gate_breach":
+            return "[BREACH]"
         _:
             return ""
 
@@ -365,6 +367,12 @@ func apply_special_arrival_bonus(origin_id: String = "") -> void:
             speed *= 1.05
             vision_range += 0.9
             flee_health_ratio *= 0.82
+        "rift_gate_breach":
+            max_hp *= 1.05
+            melee_damage *= 1.04
+            magic_damage *= 1.05
+            speed *= 1.03
+            vision_range += 0.5
 
     max_hp = min(max_hp, 330.0)
     max_energy = min(max_energy, 265.0)
@@ -919,6 +927,8 @@ func _special_glow_color() -> Color:
             return Color(0.52, 0.82, 1.0)
         "calamity_invader":
             return Color(1.0, 0.36, 0.32)
+        "rift_gate_breach":
+            return Color(0.82, 0.46, 1.0)
         _:
             return Color(0.88, 0.88, 0.88)
 

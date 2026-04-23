@@ -12,6 +12,11 @@ class_name WorldManager
 @export var poi_raid_duration: float = 18.0
 @export var poi_raid_cooldown: float = 16.0
 @export var poi_raid_success_hold: float = 5.0
+@export var neutral_gate_open_duration: float = 18.0
+@export var neutral_gate_cooldown_min: float = 62.0
+@export var neutral_gate_cooldown_max: float = 104.0
+@export var neutral_gate_retry_delay: float = 12.0
+@export var neutral_gate_min_dominance_seconds: float = 16.0
 
 var human_spawn_points: Array[Vector3] = []
 var monster_spawn_points: Array[Vector3] = []
@@ -34,6 +39,13 @@ var raid_pressure_human_multiplier: float = 1.0
 var raid_pressure_monster_multiplier: float = 1.0
 var world_event_visual_id: String = ""
 var bounty_state: Dictionary = {}
+var neutral_gate_status: String = "dormant"
+var neutral_gate_open_until: float = 0.0
+var neutral_gate_cooldown_until: float = 0.0
+var neutral_gate_opened_total: int = 0
+var neutral_gate_closed_total: int = 0
+var neutral_gate_breaches_total: int = 0
+var neutral_gate_breach_pending: bool = false
 
 
 func setup_world() -> void:
@@ -143,12 +155,14 @@ func get_poi_guidance(actor_position: Vector3, faction: String) -> Dictionary:
 
     var selected: Dictionary = {}
     for poi in pois:
+        if _is_neutral_gate_poi(poi):
+            continue
         if str(poi.get("faction_hint", "")) == faction:
             selected = poi
             break
 
     if selected.is_empty():
-        selected = _get_nearest_poi(actor_position)
+        selected = _get_nearest_poi(actor_position, true)
 
     if selected.is_empty():
         return {}
@@ -164,6 +178,70 @@ func get_poi_guidance(actor_position: Vector3, faction: String) -> Dictionary:
         "name": str(selected.get("name", "poi")),
         "target_position": target_position,
         "distance": distance
+    }
+
+
+func get_neutral_gate_guidance(actor: Actor) -> Dictionary:
+    if actor == null or actor.is_dead:
+        return {}
+    if neutral_gate_status != "open":
+        return {}
+
+    var gate_name: String = _find_neutral_gate_poi_name()
+    if gate_name == "":
+        return {}
+    var gate_poi: Dictionary = _get_poi_by_name(gate_name)
+    if gate_poi.is_empty():
+        return {}
+
+    var gate_position: Vector3 = gate_poi.get("position", actor.global_position)
+    var gate_radius: float = float(gate_poi.get("radius", 7.0))
+    var distance: float = actor.global_position.distance_to(gate_position)
+    if distance > poi_guidance_distance * 1.55:
+        return {}
+
+    var is_cautious: bool = (
+        not actor.is_champion
+        and not actor.has_relic()
+        and not actor.is_special_arrival()
+        and actor.notoriety < 44.0
+        and (
+            actor.hp <= actor.max_hp * 0.88
+            or actor.energy <= actor.max_energy * 0.62
+        )
+    )
+
+    if is_cautious and distance <= gate_radius * 1.35:
+        var away_vector := actor.global_position - gate_position
+        away_vector.y = 0.0
+        if away_vector.length() < 0.1:
+            away_vector = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
+        var avoid_target := actor.global_position + away_vector.normalized() * (gate_radius + 3.4)
+        return {
+            "kind": "avoid",
+            "reason": "neutral_gate_avoid",
+            "target_position": clamp_to_world(snap_to_nav_grid(avoid_target)),
+            "distance": distance,
+            "weight": 0.58
+        }
+
+    var pull_weight: float = 0.34
+    if actor.is_champion or actor.has_relic() or actor.is_special_arrival() or actor.notoriety >= 48.0:
+        pull_weight += 0.18
+    if distance <= gate_radius * 1.20:
+        pull_weight += 0.07
+    if world_event_visual_id == "monster_frenzy" and actor.faction == "human":
+        pull_weight += 0.06
+    elif world_event_visual_id == "sanctuary_calm" and actor.faction == "monster":
+        pull_weight += 0.06
+
+    var jitter := Vector3(randf_range(-2.2, 2.2), 0.0, randf_range(-2.2, 2.2))
+    return {
+        "kind": "investigate",
+        "reason": "neutral_gate_pull",
+        "target_position": clamp_to_world(snap_to_nav_grid(gate_position + jitter)),
+        "distance": distance,
+        "weight": clampf(pull_weight, 0.24, 0.72)
     }
 
 
@@ -490,6 +568,11 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
         poi_runtime_status[poi_name] = status
         poi_influence_active[poi_name] = influence_active
 
+    var gate_runtime: Dictionary = _update_neutral_gate_runtime(snapshot, time_seconds)
+    var gate_events: Array = gate_runtime.get("events", [])
+    for gate_event in gate_events:
+        events.append(gate_event)
+
     var raid_runtime: Dictionary = _update_raid_runtime(snapshot, time_seconds)
     var raid_events: Array = raid_runtime.get("events", [])
     for raid_event in raid_events:
@@ -497,6 +580,14 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
 
     for poi_name in snapshot.keys():
         var details: Dictionary = snapshot.get(poi_name, {})
+        if str(poi_name) == str(gate_runtime.get("poi", "")):
+            details["gate_status"] = str(gate_runtime.get("status", "dormant"))
+            details["gate_active"] = bool(gate_runtime.get("active", false))
+            details["gate_remaining"] = float(gate_runtime.get("remaining", 0.0))
+            details["gate_cooldown"] = float(gate_runtime.get("cooldown", 0.0))
+            details["gate_open_count"] = int(gate_runtime.get("opened_total", 0))
+            details["gate_close_count"] = int(gate_runtime.get("closed_total", 0))
+            details["gate_breach_count"] = int(gate_runtime.get("breaches_total", 0))
         details["raid_role"] = _get_raid_role_for_poi(str(poi_name))
         snapshot[poi_name] = details
         _apply_poi_visual_state(
@@ -506,7 +597,9 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
             time_seconds,
             bool(details.get("influence_active", false)),
             str(details.get("structure_state", "")),
-            str(details.get("raid_role", "none"))
+            str(details.get("raid_role", "none")),
+            str(details.get("gate_status", "dormant")),
+            bool(details.get("gate_active", false))
         )
 
     return {
@@ -548,6 +641,28 @@ func get_active_poi_influences() -> Array[Dictionary]:
     return active
 
 
+func get_neutral_gate_runtime_state(time_seconds: float = 0.0) -> Dictionary:
+    var gate_name: String = _find_neutral_gate_poi_name()
+    var remaining: float = 0.0
+    var cooldown: float = 0.0
+    if neutral_gate_status == "open":
+        remaining = max(0.0, neutral_gate_open_until - time_seconds)
+    else:
+        cooldown = max(0.0, neutral_gate_cooldown_until - time_seconds)
+    return {
+        "poi": gate_name,
+        "status": neutral_gate_status,
+        "active": neutral_gate_status == "open",
+        "remaining": remaining,
+        "cooldown": cooldown,
+        "open_until": neutral_gate_open_until,
+        "cooldown_until": neutral_gate_cooldown_until,
+        "opened_total": neutral_gate_opened_total,
+        "closed_total": neutral_gate_closed_total,
+        "breaches_total": neutral_gate_breaches_total
+    }
+
+
 func get_poi_name_for_position(position: Vector3) -> String:
     for poi in pois:
         var poi_name: String = str(poi.get("name", "poi"))
@@ -562,6 +677,7 @@ func trigger_poi_entry_effect(poi_name: String, faction: String) -> void:
     var poi_node: Node3D = poi_nodes.get(poi_name, null)
     if poi_node == null:
         return
+    var poi_kind: String = str(_get_poi_by_name(poi_name).get("kind", ""))
 
     var ring := poi_node.get_node_or_null("Ring") as MeshInstance3D
     if ring != null:
@@ -573,14 +689,20 @@ func trigger_poi_entry_effect(poi_name: String, faction: String) -> void:
     var flash := MeshInstance3D.new()
     flash.name = "EntryFlash"
     var mesh := CylinderMesh.new()
-    mesh.top_radius = 1.3
-    mesh.bottom_radius = 1.3
+    if poi_kind == "rift_gate":
+        mesh.top_radius = 1.6
+        mesh.bottom_radius = 1.6
+    else:
+        mesh.top_radius = 1.3
+        mesh.bottom_radius = 1.3
     mesh.height = 0.08
     flash.mesh = mesh
     flash.position = Vector3(0.0, 0.06, 0.0)
     flash.scale = Vector3(0.35, 1.0, 0.35)
 
     var color := Color(0.45, 0.75, 1.0) if faction == "human" else Color(1.0, 0.52, 0.46)
+    if poi_kind == "rift_gate":
+        color = Color(0.82, 0.46, 1.0)
     var material := _make_material(color)
     material.emission = color * 1.05
     flash.material_override = material
@@ -641,6 +763,14 @@ func _build_pois() -> void:
         "radius": 8.0,
         "color": Color(0.95, 0.60, 0.35)
     })
+    pois.append({
+        "name": "rift_gate",
+        "kind": "rift_gate",
+        "faction_hint": "",
+        "position": Vector3(0.0, 0.0, 0.0),
+        "radius": 7.2,
+        "color": Color(0.76, 0.40, 0.96)
+    })
 
     poi_runtime_status.clear()
     poi_dominant_faction.clear()
@@ -655,6 +785,16 @@ func _build_pois() -> void:
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
     bounty_state.clear()
+    neutral_gate_status = "dormant"
+    neutral_gate_open_until = 0.0
+    neutral_gate_cooldown_until = randf_range(
+        neutral_gate_cooldown_min * 0.55,
+        neutral_gate_cooldown_max * 0.72
+    )
+    neutral_gate_opened_total = 0
+    neutral_gate_closed_total = 0
+    neutral_gate_breaches_total = 0
+    neutral_gate_breach_pending = false
 
     _refresh_poi_markers()
 
@@ -714,10 +854,11 @@ func _make_poi_marker(poi: Dictionary) -> Node3D:
     poi_node.position = poi.get("position", Vector3.ZERO)
 
     var color: Color = poi.get("color", Color(0.9, 0.9, 0.9))
+    var poi_kind: String = str(poi.get("kind", ""))
     var ring := MeshInstance3D.new()
     var ring_mesh := CylinderMesh.new()
-    ring_mesh.top_radius = 2.2
-    ring_mesh.bottom_radius = 2.2
+    ring_mesh.top_radius = 2.6 if poi_kind == "rift_gate" else 2.2
+    ring_mesh.bottom_radius = ring_mesh.top_radius
     ring_mesh.height = 0.1
     ring.mesh = ring_mesh
     ring.name = "Ring"
@@ -727,20 +868,27 @@ func _make_poi_marker(poi: Dictionary) -> Node3D:
 
     var pillar := MeshInstance3D.new()
     var pillar_mesh := BoxMesh.new()
-    pillar_mesh.size = Vector3(0.8, 2.0, 0.8)
+    if poi_kind == "rift_gate":
+        pillar_mesh.size = Vector3(1.0, 2.6, 1.0)
+    else:
+        pillar_mesh.size = Vector3(0.8, 2.0, 0.8)
     pillar.mesh = pillar_mesh
     pillar.name = "Pillar"
-    pillar.position.y = 1.0
+    pillar.position.y = 1.3 if poi_kind == "rift_gate" else 1.0
     pillar.material_override = _make_material(color)
     poi_node.add_child(pillar)
 
     var beacon := MeshInstance3D.new()
     var beacon_mesh := SphereMesh.new()
-    beacon_mesh.radius = 0.32
-    beacon_mesh.height = 0.64
+    if poi_kind == "rift_gate":
+        beacon_mesh.radius = 0.42
+        beacon_mesh.height = 0.84
+    else:
+        beacon_mesh.radius = 0.32
+        beacon_mesh.height = 0.64
     beacon.mesh = beacon_mesh
     beacon.name = "Beacon"
-    beacon.position.y = 2.2
+    beacon.position.y = 3.0 if poi_kind == "rift_gate" else 2.2
     beacon.material_override = _make_material(Color(0.65, 0.65, 0.65))
     poi_node.add_child(beacon)
 
@@ -756,6 +904,19 @@ func _make_poi_marker(poi: Dictionary) -> Node3D:
     structure_halo.visible = false
     poi_node.add_child(structure_halo)
 
+    if poi_kind == "rift_gate":
+        var gate_halo := MeshInstance3D.new()
+        var gate_halo_mesh := CylinderMesh.new()
+        gate_halo_mesh.top_radius = 1.45
+        gate_halo_mesh.bottom_radius = 1.45
+        gate_halo_mesh.height = 0.07
+        gate_halo.mesh = gate_halo_mesh
+        gate_halo.name = "GateHalo"
+        gate_halo.position.y = 3.42
+        gate_halo.material_override = _make_material(Color(0.82, 0.48, 1.0))
+        gate_halo.visible = false
+        poi_node.add_child(gate_halo)
+
     return poi_node
 
 
@@ -768,10 +929,12 @@ func _make_material(color: Color) -> StandardMaterial3D:
     return material
 
 
-func _get_nearest_poi(position: Vector3) -> Dictionary:
+func _get_nearest_poi(position: Vector3, skip_neutral_gate: bool = false) -> Dictionary:
     var selected: Dictionary = {}
     var closest_sq: float = INF
     for poi in pois:
+        if skip_neutral_gate and _is_neutral_gate_poi(poi):
+            continue
         var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
         var d_sq: float = position.distance_squared_to(poi_pos)
         if d_sq < closest_sq:
@@ -843,7 +1006,9 @@ func _apply_poi_visual_state(
     time_seconds: float,
     influence_active: bool,
     structure_state: String,
-    raid_role: String
+    raid_role: String,
+    gate_status: String,
+    gate_active: bool
 ) -> void:
     var poi_node: Node3D = poi_nodes.get(poi_name, null)
     if poi_node == null:
@@ -853,6 +1018,7 @@ func _apply_poi_visual_state(
     var pillar := poi_node.get_node_or_null("Pillar") as MeshInstance3D
     var beacon := poi_node.get_node_or_null("Beacon") as MeshInstance3D
     var structure_halo := poi_node.get_node_or_null("StructureHalo") as MeshInstance3D
+    var gate_halo := poi_node.get_node_or_null("GateHalo") as MeshInstance3D
     if ring == null or pillar == null or beacon == null or structure_halo == null:
         return
 
@@ -881,6 +1047,22 @@ func _apply_poi_visual_state(
         structure_halo.visible = false
 
     _apply_world_event_visual_bias(ring, beacon, status_color, intensity, time_seconds)
+
+    if gate_halo != null:
+        if gate_active:
+            gate_halo.visible = true
+            var gate_halo_scale := 1.0 + 0.10 * sin(time_seconds * 8.4)
+            gate_halo.scale = Vector3(gate_halo_scale, 1.0, gate_halo_scale)
+            _set_mesh_color(gate_halo, Color(0.84, 0.46, 1.0), 1.05)
+            var gate_mix := 0.44 + 0.10 * sin(time_seconds * 7.8)
+            _set_mesh_color(ring, status_color.lerp(Color(0.84, 0.42, 1.0), gate_mix), intensity + 0.34)
+            _set_mesh_color(beacon, Color(0.86, 0.56, 1.0), intensity + 0.42)
+            var gate_pulse := 1.0 + 0.14 * sin(time_seconds * 8.0)
+            ring.scale *= Vector3(gate_pulse, 1.0, gate_pulse)
+        else:
+            gate_halo.visible = false
+            if gate_status == "dormant":
+                _set_mesh_color(beacon, status_color.darkened(0.10), max(0.16, intensity * 0.72))
 
     if raid_role == "source":
         var source_pulse := 1.0 + 0.10 * sin(time_seconds * 5.0)
@@ -1041,6 +1223,127 @@ func _ensure_allegiance_for_poi(poi_name: String, faction: String) -> String:
     var next_id := "%s:%s" % [faction, poi_name]
     poi_allegiance_id[poi_name] = next_id
     return next_id
+
+
+func _is_neutral_gate_kind(poi_kind: String) -> bool:
+    return poi_kind == "rift_gate"
+
+
+func _is_neutral_gate_poi(poi: Dictionary) -> bool:
+    return _is_neutral_gate_kind(str(poi.get("kind", "")))
+
+
+func _find_neutral_gate_poi_name() -> String:
+    for poi in pois:
+        if _is_neutral_gate_poi(poi):
+            return str(poi.get("name", ""))
+    return ""
+
+
+func _can_open_neutral_gate(snapshot: Dictionary, gate_name: String) -> bool:
+    if world_event_visual_id == "":
+        return false
+
+    var stable_anchor_found: bool = false
+    for poi_name_variant in snapshot.keys():
+        var poi_name: String = str(poi_name_variant)
+        if poi_name == gate_name:
+            continue
+        var details: Dictionary = snapshot.get(poi_name, {})
+        if not bool(details.get("structure_active", false)):
+            continue
+        var dominance_seconds: float = float(details.get("dominance_seconds", 0.0))
+        if dominance_seconds < neutral_gate_min_dominance_seconds:
+            continue
+        stable_anchor_found = true
+        break
+
+    return stable_anchor_found
+
+
+func _update_neutral_gate_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:
+    var gate_name: String = _find_neutral_gate_poi_name()
+    var events: Array[Dictionary] = []
+
+    if gate_name == "":
+        neutral_gate_status = "dormant"
+        neutral_gate_open_until = 0.0
+        neutral_gate_cooldown_until = 0.0
+        neutral_gate_breach_pending = false
+        return {
+            "poi": "",
+            "status": neutral_gate_status,
+            "active": false,
+            "remaining": 0.0,
+            "cooldown": 0.0,
+            "opened_total": neutral_gate_opened_total,
+            "closed_total": neutral_gate_closed_total,
+            "breaches_total": neutral_gate_breaches_total,
+            "events": events
+        }
+
+    if neutral_gate_status == "open":
+        if time_seconds >= neutral_gate_open_until:
+            neutral_gate_status = "dormant"
+            neutral_gate_open_until = 0.0
+            neutral_gate_breach_pending = false
+            neutral_gate_closed_total += 1
+            neutral_gate_cooldown_until = time_seconds + randf_range(neutral_gate_cooldown_min, neutral_gate_cooldown_max)
+            events.append({
+                "kind": "neutral_gate_closed",
+                "poi": gate_name,
+                "cooldown_seconds": max(0.0, neutral_gate_cooldown_until - time_seconds)
+            })
+    else:
+        if neutral_gate_cooldown_until <= 0.0:
+            neutral_gate_cooldown_until = time_seconds + randf_range(
+                neutral_gate_cooldown_min * 0.55,
+                neutral_gate_cooldown_max * 0.72
+            )
+        elif time_seconds >= neutral_gate_cooldown_until:
+            if _can_open_neutral_gate(snapshot, gate_name):
+                neutral_gate_status = "open"
+                neutral_gate_open_until = time_seconds + neutral_gate_open_duration
+                neutral_gate_opened_total += 1
+                neutral_gate_breach_pending = true
+                events.append({
+                    "kind": "neutral_gate_opened",
+                    "poi": gate_name,
+                    "open_seconds": neutral_gate_open_duration,
+                    "world_event": world_event_visual_id
+                })
+            else:
+                neutral_gate_cooldown_until = time_seconds + neutral_gate_retry_delay
+
+    if neutral_gate_status == "open" and neutral_gate_breach_pending:
+        neutral_gate_breach_pending = false
+        neutral_gate_breaches_total += 1
+        var gate_position: Vector3 = _get_poi_by_name(gate_name).get("position", Vector3.ZERO)
+        events.append({
+            "kind": "neutral_gate_breach",
+            "poi": gate_name,
+            "position": gate_position,
+            "world_event": world_event_visual_id
+        })
+
+    var remaining: float = 0.0
+    var cooldown: float = 0.0
+    if neutral_gate_status == "open":
+        remaining = max(0.0, neutral_gate_open_until - time_seconds)
+    else:
+        cooldown = max(0.0, neutral_gate_cooldown_until - time_seconds)
+
+    return {
+        "poi": gate_name,
+        "status": neutral_gate_status,
+        "active": neutral_gate_status == "open",
+        "remaining": remaining,
+        "cooldown": cooldown,
+        "opened_total": neutral_gate_opened_total,
+        "closed_total": neutral_gate_closed_total,
+        "breaches_total": neutral_gate_breaches_total,
+        "events": events
+    }
 
 
 func _update_raid_runtime(snapshot: Dictionary, time_seconds: float) -> Dictionary:

@@ -47,6 +47,7 @@ const BOUNTY_DURATION: float = 24.0
 const BOUNTY_CLEAR_XP: float = 1.6
 const BOUNTY_CLEAR_XP_RADIUS: float = 20.0
 const BOUNTY_NOTORIETY_PRIORITY_MIN: float = 36.0
+const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -139,6 +140,9 @@ var bounty_cleared_total: int = 0
 var bounty_expired_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
+var neutral_gate_opened_total: int = 0
+var neutral_gate_closed_total: int = 0
+var neutral_gate_breach_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -883,6 +887,35 @@ func _relic_title(relic_id: String) -> String:
             return "Relic"
 
 
+func _spawn_neutral_gate_breach(transition: Dictionary) -> Actor:
+    var poi_name: String = str(transition.get("poi", "rift_gate"))
+    var gate_position: Vector3 = transition.get("position", _get_poi_position_by_name(poi_name))
+    if gate_position == Vector3.ZERO:
+        gate_position = _get_poi_position_by_name("rift_gate")
+
+    var breach := RangedMonster.new()
+    var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
+    breach.global_position = world_manager.clamp_to_world(world_manager.snap_to_nav_grid(gate_position + jitter))
+    breach.set_special_arrival("rift_gate_breach", "Rift Breacher")
+    breach.apply_special_arrival_bonus("rift_gate_breach")
+
+    entities_root.add_child(breach)
+    actors.append(breach)
+    register_spawn(breach)
+    _apply_notability_gain(
+        breach,
+        RENOWN_GAIN_ON_SPECIAL_ARRIVAL * 0.48,
+        NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL * 0.62,
+        "gate_breach"
+    )
+
+    if not bounty_active:
+        _bounty_cooldown_left = min(_bounty_cooldown_left, NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP)
+        _bounty_check_timer = max(_bounty_check_timer, BOUNTY_CHECK_INTERVAL)
+
+    return breach
+
+
 func _update_bounty_system(delta: float) -> void:
     _bounty_cooldown_left = max(0.0, _bounty_cooldown_left - delta)
     _bounty_check_timer += delta
@@ -1368,6 +1401,11 @@ func _build_snapshot() -> Dictionary:
     relic_active_labels.sort()
     var top_renown_labels: Array[String] = _top_notability_labels(renown_entries, 4)
     var top_notoriety_labels: Array[String] = _top_notability_labels(notoriety_entries, 4)
+    var neutral_gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    var neutral_gate_status: String = str(neutral_gate_runtime.get("status", "dormant"))
+    var neutral_gate_poi: String = str(neutral_gate_runtime.get("poi", ""))
+    var neutral_gate_remaining: float = float(neutral_gate_runtime.get("remaining", 0.0))
+    var neutral_gate_cooldown: float = float(neutral_gate_runtime.get("cooldown", 0.0))
 
     return {
         "tick": tick_index,
@@ -1481,6 +1519,14 @@ func _build_snapshot() -> Dictionary:
         "world_event_next_in": world_event_next_in,
         "world_event_started_total": world_event_started_total,
         "world_event_ended_total": world_event_ended_total,
+        "neutral_gate_poi": neutral_gate_poi,
+        "neutral_gate_status": neutral_gate_status,
+        "neutral_gate_active": neutral_gate_status == "open",
+        "neutral_gate_remaining": neutral_gate_remaining,
+        "neutral_gate_cooldown": neutral_gate_cooldown,
+        "neutral_gate_opened_total": neutral_gate_opened_total,
+        "neutral_gate_closed_total": neutral_gate_closed_total,
+        "neutral_gate_breach_total": neutral_gate_breach_total,
         "allegiance_created_total": allegiance_created_total,
         "allegiance_removed_total": allegiance_removed_total,
         "allegiance_assignments_total": allegiance_assignments_total,
@@ -1665,6 +1711,23 @@ func _update_poi_runtime() -> void:
             elif outcome == "timeout":
                 raid_timeout_total += 1
             record_event("Raid END: %s (%s %s -> %s)." % [outcome, attacker_faction, source_poi, target_poi])
+        elif kind == "neutral_gate_opened":
+            neutral_gate_opened_total += 1
+            var open_seconds: float = float(transition.get("open_seconds", 0.0))
+            var event_id: String = str(transition.get("world_event", ""))
+            record_event(
+                "Dungeon/Gate OPEN: %s (%.0fs, %s)."
+                % [poi_name, open_seconds, _world_event_label(event_id)]
+            )
+        elif kind == "neutral_gate_closed":
+            neutral_gate_closed_total += 1
+            var cooldown_seconds: float = float(transition.get("cooldown_seconds", 0.0))
+            record_event("Dungeon/Gate CLOSED: %s (next in ~%.0fs)." % [poi_name, cooldown_seconds])
+        elif kind == "neutral_gate_breach":
+            neutral_gate_breach_total += 1
+            var breach_actor: Actor = _spawn_neutral_gate_breach(transition)
+            var breach_label := _actor_label(breach_actor) if breach_actor != null else "none"
+            record_event("Dungeon/Gate BREACH: %s -> %s." % [poi_name, breach_label])
 
     for actor in actors:
         if actor == null or actor.is_dead:

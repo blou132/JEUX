@@ -80,6 +80,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("hunt", content)
         self.assertIn("renown", content)
         self.assertIn("notoriety", content)
+        self.assertIn("rift gate", content)
+        self.assertIn("dungeon/gate", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -92,7 +94,13 @@ class TestGame3DScaffold(unittest.TestCase):
         content = (GAME3D / "scripts" / "world" / "WorldManager.gd").read_text(encoding="utf-8")
         self.assertIn('"name": "camp"', content)
         self.assertIn('"name": "ruins"', content)
+        self.assertIn('"name": "rift_gate"', content)
         self.assertIn("get_poi_guidance", content)
+        self.assertIn("get_neutral_gate_guidance", content)
+        self.assertIn("neutral_gate_open_duration", content)
+        self.assertIn("neutral_gate_opened", content)
+        self.assertIn("neutral_gate_closed", content)
+        self.assertIn("neutral_gate_breach", content)
         self.assertIn("update_poi_runtime", content)
         self.assertIn("trigger_poi_entry_effect", content)
         self.assertIn("domination_changed", content)
@@ -142,6 +150,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Notoriety:", content)
         self.assertIn("Top renown figures:", content)
         self.assertIn("Top notoriety figures:", content)
+        self.assertIn("Neutral Gate:", content)
+        self.assertIn("gate:open", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -318,6 +328,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn('"avg_notoriety"', content)
         self.assertIn('"top_renown_labels"', content)
         self.assertIn('"top_notoriety_labels"', content)
+        self.assertIn("Dungeon/Gate OPEN", content)
+        self.assertIn("Dungeon/Gate CLOSED", content)
+        self.assertIn("Dungeon/Gate BREACH", content)
+        self.assertIn('"neutral_gate_status"', content)
+        self.assertIn('"neutral_gate_opened_total"', content)
 
 
 if __name__ == "__main__":

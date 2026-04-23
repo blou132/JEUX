@@ -46,6 +46,11 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
     var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
     var world_event_next_in: float = float(snapshot.get("world_event_next_in", 0.0))
+    var neutral_gate_poi: String = str(snapshot.get("neutral_gate_poi", "rift_gate"))
+    var neutral_gate_status: String = str(snapshot.get("neutral_gate_status", "dormant"))
+    var neutral_gate_active: bool = bool(snapshot.get("neutral_gate_active", false))
+    var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
+    var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
@@ -66,6 +71,29 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
                 world_event_next_in,
                 int(snapshot.get("world_event_started_total", 0)),
                 int(snapshot.get("world_event_ended_total", 0))
+            ]
+        )
+    if neutral_gate_active:
+        lines.append(
+            "Neutral Gate: OPEN at %s (%.1fs left) | opens=%d closes=%d breaches=%d"
+            % [
+                neutral_gate_poi if neutral_gate_poi != "" else "rift_gate",
+                neutral_gate_remaining,
+                int(snapshot.get("neutral_gate_opened_total", 0)),
+                int(snapshot.get("neutral_gate_closed_total", 0)),
+                int(snapshot.get("neutral_gate_breach_total", 0))
+            ]
+        )
+    else:
+        lines.append(
+            "Neutral Gate: %s at %s (cooldown %.1fs) | opens=%d closes=%d breaches=%d"
+            % [
+                neutral_gate_status if neutral_gate_status != "" else "dormant",
+                neutral_gate_poi if neutral_gate_poi != "" else "rift_gate",
+                neutral_gate_cooldown,
+                int(snapshot.get("neutral_gate_opened_total", 0)),
+                int(snapshot.get("neutral_gate_closed_total", 0)),
+                int(snapshot.get("neutral_gate_breach_total", 0))
             ]
         )
     lines.append("")
@@ -376,11 +404,17 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             str(details.get("structure_state", ""))
         )
         var raid_role: String = _raid_role_label(str(details.get("raid_role", "none")))
+        var gate: String = _gate_label(
+            bool(details.get("gate_active", false)),
+            str(details.get("gate_status", "")),
+            float(details.get("gate_remaining", 0.0)),
+            float(details.get("gate_cooldown", 0.0))
+        )
         var allegiance: String = _allegiance_label(str(details.get("allegiance_id", "")))
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
         chunks.append(
-            "%s[%s | %s | %s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
+            "%s[%s | %s | %s | %s | %s | %s | %s | dom:%ss | struct:%ss] H:%d M:%d"
             % [
                 poi_name,
                 status,
@@ -388,6 +422,7 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
                 influence,
                 structure,
                 raid_role,
+                gate,
                 allegiance,
                 dominance_seconds,
                 structure_seconds,
@@ -444,6 +479,14 @@ func _raid_role_label(raid_role: String) -> String:
     if raid_role == "target":
         return "raid:target"
     return "raid:none"
+
+
+func _gate_label(active: bool, gate_status: String, remaining: float, cooldown: float) -> String:
+    if active:
+        return "gate:open(%.0fs)" % remaining
+    if gate_status == "":
+        return "gate:none"
+    return "gate:%s(%.0fs)" % [gate_status, cooldown]
 
 
 func _allegiance_label(allegiance_id: String) -> String:

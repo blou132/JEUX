@@ -15,7 +15,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight autonomous progression (levels 1->3)
 - emergent champion layer (rare `hero/elite` promotions)
 - lightweight champion-led rally groups (`rally/warband` MVP)
-- simple points of interest (POI): camp + ruins
+- simple points of interest (POI): camp + ruins + neutral rift gate
 - POI territorial influence (activation after stable domination)
 - POI persistent structures (camp -> outpost, ruins -> lair)
 - POI raid pressure cycles (outpost <-> lair)
@@ -101,6 +101,13 @@ The active direction is a minimal but playable sandbox loop:
   - light passive dissipation reduces long-term snowball while preserving notable spikes
   - AI integration stays lightweight: nearby allies can rally around non-champion renowned figures; weak units may avoid very notorious enemies; high-notoriety enemies are slightly easier bounty targets
   - observability: dedicated `Renown Rising` / `Notoriety Rising` threshold logs, HUD split counters, and top notable figures lists
+- Neutral dungeon/gate layer (MVP):
+  - a unique neutral POI `rift_gate` can cycle between `dormant` and `open` runtime states with bounded duration/cooldown
+  - autonomous trigger stays rare and safe: active world event + stable anchored domination + gate cooldown/retry guards
+  - bounded local pressure: nearby cautious units can avoid an open gate while stronger/notable units can investigate it
+  - bounded breach effect: each open cycle can spawn one lightweight `rift_gate_breach` special invader near the gate
+  - light integration: breach events can slightly accelerate bounty checks and feed renown/notoriety stories without heavy snowball
+  - observability: dedicated `Dungeon/Gate OPEN` / `Dungeon/Gate CLOSED` / `Dungeon/Gate BREACH` logs, HUD gate status/timer/counters, and distinct gate pulse visual
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -146,10 +153,11 @@ The debug overlay shows:
 - control readability (`control applies`, `slowed alive` total + split H/M)
 - current AI state distribution (`wander`, `poi`, `raid`, `rally`, `detect`, `chase`, `attack`, `cast`, `cast_control`, `cast_nova`, `reposition`, `flee`)
 - POI status readability (`calme`, `conteste`, `domine_humains`, `domine_monstres`) + activity level
-- POI occupancy (`camp`, `ruins`) with dominance duration, influence status, and structure status (`outpost`/`lair`)
+- POI occupancy (`camp`, `ruins`, `rift_gate`) with dominance duration, influence status, structure status (`outpost`/`lair`), and gate state
 - POI influence counters (`active`, activation/deactivation events, regen ticks, XP ticks)
 - POI structure counters (`active`, created/lost, extra regen ticks from structures)
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
+- neutral gate counters (`status`, `remaining/cooldown`, `opens`, `closes`, `breaches`)
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
@@ -166,6 +174,7 @@ The debug overlay shows:
 - relic logs (`APPEAR`/`ACQUIRED`/`LOST`) for rare artifact stories
 - bounty logs (`START`/`CLEARED`/`EXPIRED`) for marked hunt stories
 - notability logs (`Renown Rising`/`Notoriety Rising`) for emerging known figures
+- neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -189,6 +198,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_relics_behavior.py](tests/test_game3d_relics_behavior.py) (relic contracts: bounded appearance, carrier gating, cooldown/cap, loss reset)
 - [test_game3d_bounties_behavior.py](tests/test_game3d_bounties_behavior.py) (bounty contracts: target selection priority, cooldown/cap gates, bounded clear/expire flow)
 - [test_game3d_renown_behavior.py](tests/test_game3d_renown_behavior.py) (renown/notoriety contracts: bounded gain, threshold tiers, light behavior bias, dissipation)
+- [test_game3d_neutral_gate_behavior.py](tests/test_game3d_neutral_gate_behavior.py) (neutral gate contracts: bounded open/close cycle, single breach pulse, light AI pressure hooks)
 
 Run targeted tests:
 ```bash
@@ -200,6 +210,7 @@ py -m unittest tests.test_game3d_special_arrivals_behavior -v
 py -m unittest tests.test_game3d_relics_behavior -v
 py -m unittest tests.test_game3d_bounties_behavior -v
 py -m unittest tests.test_game3d_renown_behavior -v
+py -m unittest tests.test_game3d_neutral_gate_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -233,6 +244,7 @@ py -m unittest discover -s tests -v
 - Add rare relic/artifact MVP (`Arcane Sigil` / `Oath Standard`) with bounded carrier assignment and death-reset behavior
 - Add rare bounty/marked-target MVP with bounded hunt pressure, notable target selection, and lightweight clear reward
 - Add lightweight renown/notoriety MVP with bounded per-actor fame/threat, threshold logs, and small AI behavior bias
+- Add neutral `rift_gate` POI MVP with rare autonomous open/close cycle, single breach pulse, and lightweight local pressure
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -247,6 +259,7 @@ py -m unittest discover -s tests -v
 - Tune relic appearance and effect strengths (cooldown/gates/bonuses) for memorable local stories without runaway scaling
 - Tune bounty rarity/weight/reward values to keep hunts memorable without overriding baseline raid/rally behavior
 - Tune renown/notoriety gain/decay thresholds so notable figures stay readable without persistent global snowball
+- Tune neutral gate cadence/open duration and breach strength to keep third-pressure stories visible but bounded
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets
