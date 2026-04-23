@@ -23,6 +23,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight allegiance doctrine/ethos layer (bounded behavior bias)
 - lightweight allegiance projects layer (temporary objective pulses)
 - lightweight allegiance vendetta/grudge layer (bounded conflict memory)
+- lightweight succession/legacy layer (bounded continuity after notable falls)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
@@ -95,6 +96,13 @@ The active direction is a minimal but playable sandbox loop:
   - bounded behavior bias only: small raid-priority increase versus vendetta target allegiance and slight bounty pressure bias toward that target allegiance
   - integration stays light and readable with doctrine/projects by additive small deltas (no diplomacy matrix)
   - observability: vendetta counters + source/target map in HUD, plus vendetta tags in allegiance labels
+- Succession / legacy layer (MVP):
+  - only notable fallen figures can trigger legacy continuity (champion, special arrival, relic carrier, or very high renown/notoriety)
+  - trigger is rare and bounded (cooldown + chance + small active successor cap)
+  - lightweight successor flow: a nearby allied successor can be chosen, receiving a small renown/notoriety transfer
+  - if the fallen figure carried a relic and successor is eligible, relic inheritance can happen directly (`Relic INHERITED`)
+  - vendetta integration stays light: a notable legacy fall can seed a vendetta impulse against the killer allegiance when context exists
+  - observability: `Legacy Triggered` / `Successor Chosen` / `Legacy Faded` logs, HUD counters, and short active successor list
 - World events layer (MVP):
   - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
   - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
@@ -188,6 +196,7 @@ The debug overlay shows:
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
 - vendetta counters (`active`, `start/end/resolved/expired`) + active vendetta map (`source->target`)
+- legacy counters (`triggered`, `successors`, `relic_inherited`, `faded`) + active successor list
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
@@ -206,6 +215,7 @@ The debug overlay shows:
 - doctrine logs (`Doctrine assigned`) for proto-faction identity emergence
 - project logs (`Project START` / `Project END` / `Project INTERRUPTED`) for temporary faction objectives
 - vendetta logs (`Vendetta START` / `Vendetta END` / `Vendetta RESOLVED` / `Vendetta EXPIRED`) for conflict memory
+- legacy logs (`Legacy Triggered` / `Successor Chosen` / `Legacy Faded`) for post-fall continuity
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
@@ -234,6 +244,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_doctrines_behavior.py](tests/test_game3d_doctrines_behavior.py) (doctrine contracts: bounded assignment, lightweight behavior deltas, cleanup on allegiance loss)
 - [test_game3d_faction_projects_behavior.py](tests/test_game3d_faction_projects_behavior.py) (faction project contracts: bounded launch, single active project, clean end/interruption, lightweight effect hooks)
 - [test_game3d_vendetta_behavior.py](tests/test_game3d_vendetta_behavior.py) (vendetta contracts: bounded creation, one active vendetta per allegiance, clean resolved/expired lifecycle, lightweight raid+bounty bias)
+- [test_game3d_legacy_behavior.py](tests/test_game3d_legacy_behavior.py) (legacy contracts: notable trigger gating, bounded successor choice, lightweight transfer/inheritance effects)
 
 Run targeted tests:
 ```bash
@@ -249,6 +260,7 @@ py -m unittest tests.test_game3d_neutral_gate_behavior -v
 py -m unittest tests.test_game3d_doctrines_behavior -v
 py -m unittest tests.test_game3d_faction_projects_behavior -v
 py -m unittest tests.test_game3d_vendetta_behavior -v
+py -m unittest tests.test_game3d_legacy_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -286,6 +298,7 @@ py -m unittest discover -s tests -v
 - Add lightweight allegiance doctrines/ethos MVP with bounded identity bias (`warlike`/`steadfast`/`arcane`) and runtime observability
 - Add lightweight faction projects MVP (`fortify`/`warband_muster`/`ritual_focus`) with one-active-project cap, cooldown, and bounded temporary behavior bias
 - Add lightweight vendetta/grudge MVP with one-active-target cap, bounded duration/cooldown, and small raid+bounty bias
+- Add lightweight succession/legacy MVP with rare notable-fall triggers, bounded successor inheritance, and runtime continuity observability
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -304,6 +317,7 @@ py -m unittest discover -s tests -v
 - Tune doctrine assignment heuristics and small bias deltas so group identity stays readable without overriding baseline simulation
 - Tune faction project cadence/duration/modifier strength so temporary objectives remain visible without overriding baseline raid/rally dynamics
 - Tune vendetta trigger rates/duration/bias so conflict memory stays readable without creating permanent hostility loops
+- Tune legacy trigger rarity/successor duration/transfer values so continuity stories stay readable without creating new snowball loops
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

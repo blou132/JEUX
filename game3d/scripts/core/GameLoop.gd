@@ -62,6 +62,15 @@ const NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL: float = 10.0
 const NOTORIETY_GAIN_ON_RELIC: float = 4.0
 const NOTORIETY_GAIN_ON_BOUNTY_MARK: float = 11.0
 const NOTORIETY_GAIN_ON_BOUNTY_CLEAR_KILL: float = 2.2
+const LEGACY_TRIGGER_CHANCE: float = 0.56
+const LEGACY_COOLDOWN: float = 14.0
+const LEGACY_SUCCESSOR_RADIUS: float = 11.5
+const LEGACY_SUCCESSOR_DURATION: float = 24.0
+const LEGACY_MAX_ACTIVE_SUCCESSORS: int = 4
+const LEGACY_RENOWN_TRIGGER: float = 52.0
+const LEGACY_NOTORIETY_TRIGGER: float = 58.0
+const LEGACY_RENOWN_TRANSFER_RATIO: float = 0.12
+const LEGACY_NOTORIETY_TRANSFER_RATIO: float = 0.10
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -151,6 +160,10 @@ var vendetta_started_total: int = 0
 var vendetta_ended_total: int = 0
 var vendetta_resolved_total: int = 0
 var vendetta_expired_total: int = 0
+var legacy_triggered_total: int = 0
+var legacy_successor_chosen_total: int = 0
+var legacy_relic_inherited_total: int = 0
+var legacy_faded_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -176,6 +189,8 @@ var _bounty_check_timer: float = 0.0
 var _bounty_cooldown_left: float = BOUNTY_START_DELAY
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
+var _legacy_cooldown_left: float = 0.0
+var _legacy_successor_runtime_by_actor: Dictionary = {}
 
 var event_log: Array[String] = []
 
@@ -221,6 +236,7 @@ func _tick(delta: float) -> void:
     _update_relic_system(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
+    _update_legacy_runtime(delta)
     _cleanup_dead_actors()
     sandbox_systems.tick_systems(delta, actors, self)
 
@@ -318,11 +334,14 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     if victim.is_special_arrival():
         special_arrivals_fallen_total += 1
         record_event("Special Arrival FALLEN: %s." % _actor_label(victim))
+    var legacy_result: Dictionary = _try_trigger_legacy(victim, killer, reason)
+    var relic_inherited: bool = bool(legacy_result.get("relic_inherited", false))
     if victim.has_relic():
-        var lost_title := victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
-        record_event("Relic LOST: %s from %s." % [lost_title, _actor_label(victim)])
-        relic_lost_total += 1
-        _relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
+        if not relic_inherited:
+            var lost_title := victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
+            record_event("Relic LOST: %s from %s." % [lost_title, _actor_label(victim)])
+            relic_lost_total += 1
+            _relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
         victim.clear_relic()
     _handle_bounty_target_death(victim, killer)
 
@@ -1429,6 +1448,8 @@ func _build_snapshot() -> Dictionary:
     var allegiance_project_active_count: int = 0
     var allegiance_vendetta_labels: Array[String] = []
     var allegiance_vendetta_active_count: int = 0
+    var legacy_successor_labels: Array[String] = []
+    var legacy_successor_active_count: int = 0
     for allegiance in active_allegiances:
         var doctrine: String = str(allegiance.get("doctrine", ""))
         var project_id: String = str(allegiance.get("project", ""))
@@ -1474,6 +1495,16 @@ func _build_snapshot() -> Dictionary:
     allegiance_doctrine_labels.sort()
     allegiance_project_labels.sort()
     allegiance_vendetta_labels.sort()
+    for actor_id_variant in _legacy_successor_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _legacy_successor_runtime_by_actor.get(actor_id, {})
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var source_label: String = str(runtime.get("source_label", "legacy"))
+        var successor: Actor = _find_actor_by_id(actor_id)
+        var successor_label: String = _actor_label(successor) if successor != null else ("actor#%d" % actor_id)
+        legacy_successor_labels.append("%s<=%s(%.0fs)" % [successor_label, source_label, remaining])
+    legacy_successor_labels.sort()
+    legacy_successor_active_count = legacy_successor_labels.size()
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1571,6 +1602,13 @@ func _build_snapshot() -> Dictionary:
         "vendetta_ended_total": vendetta_ended_total,
         "vendetta_resolved_total": vendetta_resolved_total,
         "vendetta_expired_total": vendetta_expired_total,
+        "legacy_triggered_total": legacy_triggered_total,
+        "legacy_successor_chosen_total": legacy_successor_chosen_total,
+        "legacy_relic_inherited_total": legacy_relic_inherited_total,
+        "legacy_faded_total": legacy_faded_total,
+        "legacy_cooldown_left": _legacy_cooldown_left,
+        "legacy_successor_active_count": legacy_successor_active_count,
+        "legacy_successor_labels": legacy_successor_labels,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,
@@ -1901,6 +1939,177 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         record_event("Vendetta END: %s -> %s (expired)." % [source_allegiance_id, target_allegiance_id])
 
 
+func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictionary:
+    if victim == null:
+        return {}
+    if not _is_legacy_candidate(victim):
+        return {}
+    if _legacy_cooldown_left > 0.0:
+        return {}
+
+    var guaranteed: bool = victim.is_champion or victim.is_special_arrival() or victim.has_relic()
+    if not guaranteed and randf() > LEGACY_TRIGGER_CHANCE:
+        return {}
+
+    legacy_triggered_total += 1
+    _legacy_cooldown_left = LEGACY_COOLDOWN
+    record_event("Legacy Triggered: %s (%s)." % [_actor_label(victim), reason])
+
+    var successor: Actor = null
+    if _legacy_successor_runtime_by_actor.size() < LEGACY_MAX_ACTIVE_SUCCESSORS:
+        successor = _pick_legacy_successor(victim)
+    if successor == null:
+        _try_legacy_vendetta_impulse(victim, killer)
+        return {
+            "triggered": true,
+            "relic_inherited": false
+        }
+
+    var source_label: String = _actor_label(victim)
+    var duration: float = LEGACY_SUCCESSOR_DURATION + randf_range(-4.0, 4.0)
+    var successor_ends_at: float = elapsed_time + max(12.0, duration)
+    _legacy_successor_runtime_by_actor[successor.actor_id] = {
+        "source_label": source_label,
+        "source_actor_id": victim.actor_id,
+        "ends_at": successor_ends_at
+    }
+    legacy_successor_chosen_total += 1
+    record_event(
+        "Successor Chosen: %s <= %s (%.0fs)."
+        % [_actor_label(successor), source_label, max(0.0, successor_ends_at - elapsed_time)]
+    )
+
+    var renown_transfer: float = clampf(victim.renown * LEGACY_RENOWN_TRANSFER_RATIO, 1.0, 6.0)
+    var notoriety_transfer: float = clampf(victim.notoriety * LEGACY_NOTORIETY_TRANSFER_RATIO, 0.6, 5.0)
+    if victim.is_champion:
+        renown_transfer += 0.8
+    if victim.is_special_arrival():
+        renown_transfer += 1.1
+        notoriety_transfer += 0.6
+    _apply_notability_gain(successor, renown_transfer, notoriety_transfer, "legacy_successor")
+
+    var relic_inherited: bool = false
+    if victim.has_relic() and successor.can_receive_relic():
+        var inherited_id: String = victim.relic_id
+        var inherited_title: String = victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
+        successor.set_relic(inherited_id, inherited_title)
+        _apply_notability_gain(
+            successor,
+            RENOWN_GAIN_ON_RELIC * 0.45,
+            NOTORIETY_GAIN_ON_RELIC * 0.32,
+            "legacy_relic_inherit"
+        )
+        relic_acquired_total += 1
+        legacy_relic_inherited_total += 1
+        relic_inherited = true
+        record_event("Relic INHERITED: %s by %s." % [inherited_title, _actor_label(successor)])
+
+    _try_legacy_vendetta_impulse(victim, killer)
+    return {
+        "triggered": true,
+        "successor_actor_id": successor.actor_id,
+        "relic_inherited": relic_inherited
+    }
+
+
+func _try_legacy_vendetta_impulse(victim: Actor, killer: Actor) -> void:
+    if victim == null or killer == null or killer.is_dead:
+        return
+    if victim.allegiance_id == "" or killer.allegiance_id == "":
+        return
+    if victim.allegiance_id == killer.allegiance_id:
+        return
+
+    var transition: Dictionary = world_manager.register_vendetta_incident(
+        victim.allegiance_id,
+        killer.allegiance_id,
+        "legacy_fall",
+        elapsed_time
+    )
+    if not transition.is_empty():
+        _handle_vendetta_transition(transition)
+
+
+func _is_legacy_candidate(victim: Actor) -> bool:
+    if victim == null:
+        return false
+    if victim.is_champion or victim.is_special_arrival() or victim.has_relic():
+        return true
+    if victim.renown >= LEGACY_RENOWN_TRIGGER:
+        return true
+    if victim.notoriety >= LEGACY_NOTORIETY_TRIGGER:
+        return true
+    return false
+
+
+func _pick_legacy_successor(victim: Actor) -> Actor:
+    if victim == null:
+        return null
+    var same_faction: Array[Actor] = []
+    var same_allegiance: Array[Actor] = []
+    var max_distance: float = LEGACY_SUCCESSOR_RADIUS
+
+    for actor in actors:
+        if actor == null or actor == victim or actor.is_dead:
+            continue
+        if actor.faction != victim.faction:
+            continue
+        var distance: float = actor.global_position.distance_to(victim.global_position)
+        if distance > max_distance:
+            continue
+        same_faction.append(actor)
+        if victim.allegiance_id != "" and actor.allegiance_id == victim.allegiance_id:
+            same_allegiance.append(actor)
+
+    var pool: Array[Actor] = same_allegiance if not same_allegiance.is_empty() else same_faction
+    if pool.is_empty():
+        return null
+
+    var selected: Actor = null
+    var best_score: float = -INF
+    for candidate in pool:
+        var distance: float = candidate.global_position.distance_to(victim.global_position)
+        var score: float = 0.0
+        score += (LEGACY_SUCCESSOR_RADIUS - distance) * 0.8
+        score += candidate.renown * 0.08
+        score += candidate.notoriety * 0.05
+        if candidate.can_lead_rally():
+            score += 2.5
+        if candidate.is_champion:
+            score += 1.8
+        if candidate.is_special_arrival():
+            score += 1.4
+        if candidate.has_relic():
+            score += 0.8
+        if score > best_score:
+            best_score = score
+            selected = candidate
+    return selected
+
+
+func _update_legacy_runtime(delta: float) -> void:
+    _legacy_cooldown_left = max(0.0, _legacy_cooldown_left - delta)
+    if _legacy_successor_runtime_by_actor.is_empty():
+        return
+
+    var to_remove: Array[int] = []
+    for actor_id_variant in _legacy_successor_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _legacy_successor_runtime_by_actor.get(actor_id, {})
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead or elapsed_time >= ends_at:
+            to_remove.append(actor_id)
+
+    for actor_id in to_remove:
+        var runtime: Dictionary = _legacy_successor_runtime_by_actor.get(actor_id, {})
+        var actor: Actor = _find_actor_by_id(actor_id)
+        var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+        record_event("Legacy Faded: %s." % label)
+        legacy_faded_total += 1
+        _legacy_successor_runtime_by_actor.erase(actor_id)
+
+
 func _apply_poi_influences(delta: float) -> void:
     var influences: Array[Dictionary] = world_manager.get_active_poi_influences()
     if influences.is_empty():
@@ -2152,4 +2361,5 @@ func _actor_label(actor: Actor) -> String:
     var renown_suffix := actor.renown_tag()
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
-    return "%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, actor.actor_id]
+    var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
+    return "%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]

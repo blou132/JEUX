@@ -90,6 +90,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("ritual", content)
         self.assertIn("vendetta", content)
         self.assertIn("grudge", content)
+        self.assertIn("legacy", content)
+        self.assertIn("succession", content)
+        self.assertIn("successor", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -179,6 +182,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Project map:", content)
         self.assertIn("Vendettas:", content)
         self.assertIn("Vendetta map:", content)
+        self.assertIn("Legacy:", content)
+        self.assertIn("Legacy successors:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -374,6 +379,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Vendetta EXPIRED", content)
         self.assertIn('"allegiance_vendetta_labels"', content)
         self.assertIn('"vendetta_started_total"', content)
+        self.assertIn("Legacy Triggered", content)
+        self.assertIn("Successor Chosen", content)
+        self.assertIn("Legacy Faded", content)
+        self.assertIn('"legacy_successor_labels"', content)
+        self.assertIn('"legacy_triggered_total"', content)
 
 
 if __name__ == "__main__":
