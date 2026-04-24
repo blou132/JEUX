@@ -48,6 +48,17 @@ const BOUNTY_CLEAR_XP: float = 1.6
 const BOUNTY_CLEAR_XP_RADIUS: float = 20.0
 const BOUNTY_NOTORIETY_PRIORITY_MIN: float = 36.0
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
+const GATE_RESPONSE_MIN_POPULATION: int = 10
+const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
+const GATE_RESPONSE_COOLDOWN: float = 34.0
+const GATE_RESPONSE_DURATION_MIN: float = 11.0
+const GATE_RESPONSE_DURATION_MAX: float = 17.0
+const GATE_RESPONSE_PULL_BOOST: float = 1.22
+const GATE_RESPONSE_SEAL_START_REDUCE: float = 2.2
+const GATE_RESPONSE_EXPLOIT_START_EXTEND: float = 1.4
+const GATE_RESPONSE_SEAL_BASE_CHANCE: float = 0.42
+const GATE_RESPONSE_EXPLOIT_BASE_CHANCE: float = 0.40
+const GATE_RESPONSE_NOTABLE_RADIUS: float = 12.0
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -161,6 +172,10 @@ var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
 var neutral_gate_closed_total: int = 0
 var neutral_gate_breach_total: int = 0
+var gate_response_started_total: int = 0
+var gate_response_ended_total: int = 0
+var gate_response_success_total: int = 0
+var gate_response_interrupted_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -202,6 +217,10 @@ var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
 var _legacy_successor_runtime_by_actor: Dictionary = {}
+var _gate_response_check_timer: float = 0.0
+var _gate_response_cooldown_by_faction: Dictionary = {}
+var _gate_response_runtime_by_faction: Dictionary = {}
+var _gate_response_signals_root: Node3D = null
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
 var _memorial_scar_sites_root: Node3D = null
@@ -213,6 +232,7 @@ func _ready() -> void:
     randomize()
     world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
+    _setup_gate_response_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -246,6 +266,7 @@ func _tick(delta: float) -> void:
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
+    _update_gate_responses(delta)
     _update_bounty_system(delta)
     _update_special_arrivals(delta)
     _update_relic_system(delta)
@@ -378,6 +399,300 @@ func register_level_up(actor: Actor, old_level: int, new_level: int, reason: Str
         % [_actor_label(actor), old_level, new_level, reason]
     )
     _try_promote_champion(actor, "level_up:%s" % reason)
+
+
+func _setup_gate_response_state() -> void:
+    _gate_response_cooldown_by_faction = {
+        "human": 0.0,
+        "monster": 0.0
+    }
+    _gate_response_runtime_by_faction.clear()
+
+    if _gate_response_signals_root != null and is_instance_valid(_gate_response_signals_root):
+        _gate_response_signals_root.queue_free()
+    _gate_response_signals_root = Node3D.new()
+    _gate_response_signals_root.name = "GateResponseSignals"
+    world_manager.add_child(_gate_response_signals_root)
+    world_manager.set_neutral_gate_response_pull_modifiers(1.0, 1.0)
+
+
+func _update_gate_response_cooldowns(delta: float) -> void:
+    var factions: Array[String] = ["human", "monster"]
+    for faction in factions:
+        var left: float = float(_gate_response_cooldown_by_faction.get(faction, 0.0))
+        _gate_response_cooldown_by_faction[faction] = max(0.0, left - delta)
+
+
+func _update_gate_responses(delta: float) -> void:
+    _update_gate_response_cooldowns(delta)
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    var gate_open: bool = bool(gate_runtime.get("active", false))
+    var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+    var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+
+    _update_active_gate_responses(gate_open)
+    _sync_gate_response_pull_modifiers()
+
+    if not gate_open:
+        _gate_response_check_timer = 0.0
+        return
+    if _count_alive_actors() < GATE_RESPONSE_MIN_POPULATION:
+        return
+
+    _gate_response_check_timer += delta
+    if _gate_response_check_timer < GATE_RESPONSE_CHECK_INTERVAL:
+        return
+    _gate_response_check_timer = 0.0
+
+    _try_start_gate_response("human", gate_name, gate_position)
+    _try_start_gate_response("monster", gate_name, gate_position)
+    _sync_gate_response_pull_modifiers()
+
+
+func _update_active_gate_responses(gate_open: bool) -> void:
+    if _gate_response_runtime_by_faction.is_empty():
+        return
+
+    var factions: Array = _gate_response_runtime_by_faction.keys()
+    for faction_variant in factions:
+        var faction: String = str(faction_variant)
+        var runtime: Dictionary = _gate_response_runtime_by_faction.get(faction, {})
+        if runtime.is_empty():
+            continue
+
+        if not gate_open:
+            _end_gate_response(faction, "interrupted", "gate_closed")
+            continue
+
+        var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+        if allegiance_id == "" or not _is_gate_response_anchor_active(allegiance_id):
+            _end_gate_response(faction, "interrupted", "anchor_lost")
+            continue
+
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if elapsed_time >= ends_at:
+            _end_gate_response(faction, "success", "duration_complete")
+
+
+func _try_start_gate_response(faction: String, gate_name: String, gate_position: Vector3) -> void:
+    if _gate_response_runtime_by_faction.has(faction):
+        return
+    if float(_gate_response_cooldown_by_faction.get(faction, 0.0)) > 0.0:
+        return
+
+    var candidate: Dictionary = _pick_gate_response_candidate(faction, gate_position)
+    if candidate.is_empty():
+        return
+
+    var start_chance: float = _gate_response_start_chance(faction, candidate)
+    if randf() > start_chance:
+        return
+
+    var response_id: String = "gate_seal" if faction == "human" else "gate_exploit"
+    var duration: float = randf_range(
+        min(GATE_RESPONSE_DURATION_MIN, GATE_RESPONSE_DURATION_MAX),
+        max(GATE_RESPONSE_DURATION_MIN, GATE_RESPONSE_DURATION_MAX)
+    )
+    var allegiance_id: String = str(candidate.get("allegiance_id", ""))
+    var project_id: String = str(candidate.get("project_id", ""))
+    var doctrine: String = str(candidate.get("doctrine", ""))
+    var notable_count: int = int(candidate.get("notable_count", 0))
+    var gate_delta: float = 0.0
+    var bonus_breach: bool = false
+
+    if response_id == "gate_seal":
+        gate_delta = world_manager.apply_neutral_gate_open_duration_delta(-GATE_RESPONSE_SEAL_START_REDUCE, elapsed_time)
+    else:
+        gate_delta = world_manager.apply_neutral_gate_open_duration_delta(GATE_RESPONSE_EXPLOIT_START_EXTEND, elapsed_time)
+        bonus_breach = world_manager.request_neutral_gate_bonus_breach(elapsed_time)
+
+    _gate_response_runtime_by_faction[faction] = {
+        "response_id": response_id,
+        "faction": faction,
+        "allegiance_id": allegiance_id,
+        "project_id": project_id,
+        "doctrine": doctrine,
+        "notable_count": notable_count,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration,
+        "gate_name": gate_name,
+        "gate_delta": gate_delta,
+        "bonus_breach": bonus_breach
+    }
+
+    gate_response_started_total += 1
+    _gate_response_check_timer = 0.0
+    _spawn_gate_response_signal(faction, gate_position, response_id)
+
+    var allegiance_label := allegiance_id if allegiance_id != "" else faction
+    var gate_label := gate_name if gate_name != "" else "rift_gate"
+    var effect_label: String = ""
+    if response_id == "gate_seal":
+        effect_label = "gate_shift=%.1fs" % gate_delta
+    else:
+        effect_label = "gate_shift=%.1fs breach_bonus=%s" % [gate_delta, "yes" if bonus_breach else "no"]
+    record_event(
+        "Gate Response START: %s by %s at %s (%s, %.0fs, notables=%d)."
+        % [response_id, allegiance_label, gate_label, effect_label, duration, notable_count]
+    )
+
+
+func _pick_gate_response_candidate(faction: String, gate_position: Vector3) -> Dictionary:
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    if active_allegiances.is_empty():
+        return {}
+
+    var notable_count: int = _count_notables_near_gate(faction, gate_position, GATE_RESPONSE_NOTABLE_RADIUS)
+    var selected: Dictionary = {}
+    var best_score: float = -INF
+    var max_anchor_distance: float = world_manager.poi_guidance_distance * 2.40
+
+    for allegiance in active_allegiances:
+        if str(allegiance.get("faction", "")) != faction:
+            continue
+
+        var doctrine: String = str(allegiance.get("doctrine", ""))
+        if faction == "human" and doctrine != "arcane":
+            continue
+        if faction == "monster" and doctrine != "warlike":
+            continue
+
+        var anchor_position: Vector3 = allegiance.get("position", gate_position)
+        var anchor_distance: float = anchor_position.distance_to(gate_position)
+        if anchor_distance > max_anchor_distance:
+            continue
+
+        var project_id: String = str(allegiance.get("project", ""))
+        var score: float = max(0.0, max_anchor_distance - anchor_distance) * 0.06
+        score += float(notable_count) * 0.82
+        if faction == "human":
+            if project_id == "ritual_focus":
+                score += 1.20
+            elif project_id == "fortify":
+                score += 0.64
+        else:
+            if project_id == "warband_muster":
+                score += 1.10
+            elif project_id == "ritual_focus":
+                score += 0.52
+
+        if score > best_score:
+            best_score = score
+            selected = {
+                "allegiance_id": str(allegiance.get("allegiance_id", "")),
+                "doctrine": doctrine,
+                "project_id": project_id,
+                "notable_count": notable_count
+            }
+
+    return selected
+
+
+func _gate_response_start_chance(faction: String, candidate: Dictionary) -> float:
+    var chance: float = GATE_RESPONSE_SEAL_BASE_CHANCE if faction == "human" else GATE_RESPONSE_EXPLOIT_BASE_CHANCE
+    var project_id: String = str(candidate.get("project_id", ""))
+    var notable_count: int = int(candidate.get("notable_count", 0))
+
+    if faction == "human":
+        if project_id == "ritual_focus":
+            chance += 0.12
+        elif project_id == "fortify":
+            chance += 0.06
+        if world_event_active_id == "mana_surge" or world_event_active_id == "sanctuary_calm":
+            chance += 0.08
+    else:
+        if project_id == "warband_muster":
+            chance += 0.10
+        elif project_id == "ritual_focus":
+            chance += 0.05
+        if world_event_active_id == "monster_frenzy":
+            chance += 0.08
+
+    if notable_count > 0:
+        chance += 0.06
+    return clampf(chance, 0.20, 0.80)
+
+
+func _count_notables_near_gate(faction: String, center: Vector3, radius: float) -> int:
+    var total: int = 0
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.faction != faction:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+        if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+            total += 1
+            continue
+        if actor.renown >= 40.0 or actor.notoriety >= 52.0:
+            total += 1
+    return total
+
+
+func _is_gate_response_anchor_active(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    for allegiance in active_allegiances:
+        if str(allegiance.get("allegiance_id", "")) == allegiance_id:
+            return true
+    return false
+
+
+func _end_gate_response(faction: String, outcome: String, reason: String) -> void:
+    var runtime: Dictionary = _gate_response_runtime_by_faction.get(faction, {})
+    if runtime.is_empty():
+        return
+
+    var response_id: String = str(runtime.get("response_id", "gate_response"))
+    var allegiance_id: String = str(runtime.get("allegiance_id", faction))
+    var label: String = allegiance_id if allegiance_id != "" else faction
+
+    if outcome == "success":
+        gate_response_success_total += 1
+        record_event("Gate Response SUCCESS: %s by %s." % [response_id, label])
+    elif outcome == "interrupted":
+        gate_response_interrupted_total += 1
+        record_event("Gate Response INTERRUPTED: %s by %s (%s)." % [response_id, label, reason])
+
+    gate_response_ended_total += 1
+    record_event("Gate Response END: %s by %s (%s)." % [response_id, label, reason])
+    _gate_response_runtime_by_faction.erase(faction)
+    _gate_response_cooldown_by_faction[faction] = GATE_RESPONSE_COOLDOWN
+
+
+func _sync_gate_response_pull_modifiers() -> void:
+    var human_mult: float = GATE_RESPONSE_PULL_BOOST if _gate_response_runtime_by_faction.has("human") else 1.0
+    var monster_mult: float = GATE_RESPONSE_PULL_BOOST if _gate_response_runtime_by_faction.has("monster") else 1.0
+    world_manager.set_neutral_gate_response_pull_modifiers(human_mult, monster_mult)
+
+
+func _spawn_gate_response_signal(faction: String, position: Vector3, response_id: String) -> void:
+    if _gate_response_signals_root == null or not is_instance_valid(_gate_response_signals_root):
+        return
+
+    var signal_node := MeshInstance3D.new()
+    signal_node.name = "GateResponseSignal_%s_%d" % [response_id, tick_index]
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 2.10
+    mesh.bottom_radius = 2.10
+    mesh.height = 0.08
+    signal_node.mesh = mesh
+    signal_node.position = position + Vector3(0.0, 0.14, 0.0)
+    signal_node.scale = Vector3.ONE * 0.22
+
+    var color := Color(0.58, 0.86, 1.0) if faction == "human" else Color(1.0, 0.52, 0.34)
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.emission_enabled = true
+    material.emission = color * 1.18
+    signal_node.material_override = material
+    _gate_response_signals_root.add_child(signal_node)
+
+    var tween := create_tween()
+    tween.tween_property(signal_node, "scale", Vector3.ONE * 1.52, 0.42)
+    tween.finished.connect(signal_node.queue_free)
 
 
 func _setup_memorial_scar_sites_root() -> void:
@@ -1758,6 +2073,12 @@ func _build_snapshot() -> Dictionary:
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
     var memorial_scar_labels: Array[String] = []
+    var gate_response_human_id: String = ""
+    var gate_response_human_label: String = "none"
+    var gate_response_human_remaining: float = 0.0
+    var gate_response_monster_id: String = ""
+    var gate_response_monster_label: String = "none"
+    var gate_response_monster_remaining: float = 0.0
     for allegiance in active_allegiances:
         var doctrine: String = str(allegiance.get("doctrine", ""))
         var project_id: String = str(allegiance.get("project", ""))
@@ -1826,6 +2147,16 @@ func _build_snapshot() -> Dictionary:
         memorial_scar_labels.append("%s:%s(%.0fs)" % [_memorial_scar_type_short(site_type), source_short, remaining])
     memorial_scar_labels.sort()
     memorial_scar_active_total = memorial_site_active_count + scar_site_active_count
+    var human_response: Dictionary = _gate_response_runtime_by_faction.get("human", {})
+    if not human_response.is_empty():
+        gate_response_human_id = str(human_response.get("response_id", "gate_seal"))
+        gate_response_human_remaining = max(0.0, float(human_response.get("ends_at", elapsed_time)) - elapsed_time)
+        gate_response_human_label = "%s@%.0fs" % [gate_response_human_id, gate_response_human_remaining]
+    var monster_response: Dictionary = _gate_response_runtime_by_faction.get("monster", {})
+    if not monster_response.is_empty():
+        gate_response_monster_id = str(monster_response.get("response_id", "gate_exploit"))
+        gate_response_monster_remaining = max(0.0, float(monster_response.get("ends_at", elapsed_time)) - elapsed_time)
+        gate_response_monster_label = "%s@%.0fs" % [gate_response_monster_id, gate_response_monster_remaining]
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1992,6 +2323,18 @@ func _build_snapshot() -> Dictionary:
         "neutral_gate_opened_total": neutral_gate_opened_total,
         "neutral_gate_closed_total": neutral_gate_closed_total,
         "neutral_gate_breach_total": neutral_gate_breach_total,
+        "gate_response_human_active": gate_response_human_id != "",
+        "gate_response_human_id": gate_response_human_id,
+        "gate_response_human_label": gate_response_human_label,
+        "gate_response_human_remaining": gate_response_human_remaining,
+        "gate_response_monster_active": gate_response_monster_id != "",
+        "gate_response_monster_id": gate_response_monster_id,
+        "gate_response_monster_label": gate_response_monster_label,
+        "gate_response_monster_remaining": gate_response_monster_remaining,
+        "gate_response_started_total": gate_response_started_total,
+        "gate_response_ended_total": gate_response_ended_total,
+        "gate_response_success_total": gate_response_success_total,
+        "gate_response_interrupted_total": gate_response_interrupted_total,
         "allegiance_created_total": allegiance_created_total,
         "allegiance_removed_total": allegiance_removed_total,
         "allegiance_assignments_total": allegiance_assignments_total,

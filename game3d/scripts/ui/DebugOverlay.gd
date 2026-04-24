@@ -58,6 +58,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var neutral_gate_active: bool = bool(snapshot.get("neutral_gate_active", false))
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
+    var gate_response_human_label: String = str(snapshot.get("gate_response_human_label", "none"))
+    var gate_response_monster_label: String = str(snapshot.get("gate_response_monster_label", "none"))
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
@@ -103,6 +105,17 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
                 int(snapshot.get("neutral_gate_breach_total", 0))
             ]
         )
+    lines.append(
+        "Gate Responses: H=%s M=%s | starts=%d ends=%d success=%d interrupted=%d"
+        % [
+            gate_response_human_label,
+            gate_response_monster_label,
+            int(snapshot.get("gate_response_started_total", 0)),
+            int(snapshot.get("gate_response_ended_total", 0)),
+            int(snapshot.get("gate_response_success_total", 0)),
+            int(snapshot.get("gate_response_interrupted_total", 0))
+        ]
+    )
     lines.append("")
 
     lines.append(

@@ -57,6 +57,9 @@ var neutral_gate_opened_total: int = 0
 var neutral_gate_closed_total: int = 0
 var neutral_gate_breaches_total: int = 0
 var neutral_gate_breach_pending: bool = false
+var neutral_gate_bonus_breach_used: bool = false
+var neutral_gate_response_pull_human_mult: float = 1.0
+var neutral_gate_response_pull_monster_mult: float = 1.0
 var allegiance_doctrine_by_id: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
@@ -87,6 +90,39 @@ func set_raid_pressure_modifiers(
 
 func set_world_event_visual(event_id: String) -> void:
     world_event_visual_id = event_id
+
+
+func set_neutral_gate_response_pull_modifiers(
+    human_multiplier: float = 1.0,
+    monster_multiplier: float = 1.0
+) -> void:
+    neutral_gate_response_pull_human_mult = clampf(human_multiplier, 0.80, 1.35)
+    neutral_gate_response_pull_monster_mult = clampf(monster_multiplier, 0.80, 1.35)
+
+
+func apply_neutral_gate_open_duration_delta(delta_seconds: float, time_seconds: float) -> float:
+    if neutral_gate_status != "open":
+        return 0.0
+
+    var before_remaining: float = max(0.0, neutral_gate_open_until - time_seconds)
+    var next_open_until: float = neutral_gate_open_until + delta_seconds
+    var max_open_until: float = time_seconds + neutral_gate_open_duration * 1.55
+    var min_open_until: float = time_seconds + 0.70
+    neutral_gate_open_until = clampf(next_open_until, min_open_until, max_open_until)
+    var after_remaining: float = max(0.0, neutral_gate_open_until - time_seconds)
+    return after_remaining - before_remaining
+
+
+func request_neutral_gate_bonus_breach(_time_seconds: float) -> bool:
+    if neutral_gate_status != "open":
+        return false
+    if neutral_gate_breach_pending:
+        return false
+    if neutral_gate_bonus_breach_used:
+        return false
+    neutral_gate_breach_pending = true
+    neutral_gate_bonus_breach_used = true
+    return true
 
 
 func set_bounty_state(
@@ -253,6 +289,10 @@ func get_neutral_gate_guidance(actor: Actor) -> Dictionary:
         pull_weight += 0.06
     elif world_event_visual_id == "sanctuary_calm" and actor.faction == "monster":
         pull_weight += 0.06
+    if actor.faction == "human":
+        pull_weight *= neutral_gate_response_pull_human_mult
+    elif actor.faction == "monster":
+        pull_weight *= neutral_gate_response_pull_monster_mult
 
     var jitter := Vector3(randf_range(-2.2, 2.2), 0.0, randf_range(-2.2, 2.2))
     return {
@@ -1055,6 +1095,9 @@ func _build_pois() -> void:
     neutral_gate_closed_total = 0
     neutral_gate_breaches_total = 0
     neutral_gate_breach_pending = false
+    neutral_gate_bonus_breach_used = false
+    neutral_gate_response_pull_human_mult = 1.0
+    neutral_gate_response_pull_monster_mult = 1.0
 
     _refresh_poi_markers()
 
@@ -1867,6 +1910,7 @@ func _update_neutral_gate_runtime(snapshot: Dictionary, time_seconds: float) -> 
         neutral_gate_open_until = 0.0
         neutral_gate_cooldown_until = 0.0
         neutral_gate_breach_pending = false
+        neutral_gate_bonus_breach_used = false
         return {
             "poi": "",
             "status": neutral_gate_status,
@@ -1884,6 +1928,7 @@ func _update_neutral_gate_runtime(snapshot: Dictionary, time_seconds: float) -> 
             neutral_gate_status = "dormant"
             neutral_gate_open_until = 0.0
             neutral_gate_breach_pending = false
+            neutral_gate_bonus_breach_used = false
             neutral_gate_closed_total += 1
             neutral_gate_cooldown_until = time_seconds + randf_range(neutral_gate_cooldown_min, neutral_gate_cooldown_max)
             events.append({
@@ -1903,6 +1948,7 @@ func _update_neutral_gate_runtime(snapshot: Dictionary, time_seconds: float) -> 
                 neutral_gate_open_until = time_seconds + neutral_gate_open_duration
                 neutral_gate_opened_total += 1
                 neutral_gate_breach_pending = true
+                neutral_gate_bonus_breach_used = false
                 events.append({
                     "kind": "neutral_gate_opened",
                     "poi": gate_name,

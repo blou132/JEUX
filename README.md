@@ -30,6 +30,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight relics layer (rare carrier-bound artifacts)
 - lightweight bounty / marked-target layer (rare notable hunt pressure)
 - lightweight renown/notoriety layer (known figures with bounded social pressure)
+- lightweight rift gate responses layer (bounded allegiance reactions around open gate)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -152,6 +153,17 @@ The active direction is a minimal but playable sandbox loop:
   - bounded breach effect: each open cycle can spawn one lightweight `rift_gate_breach` special invader near the gate
   - light integration: breach events can slightly accelerate bounty checks and feed renown/notoriety stories without heavy snowball
   - observability: dedicated `Dungeon/Gate OPEN` / `Dungeon/Gate CLOSED` / `Dungeon/Gate BREACH` logs, HUD gate status/timer/counters, and distinct gate pulse visual
+- Rift gate responses layer (MVP):
+  - two bounded allegiance responses can react to an open gate:
+    - `gate_seal` (human, defensive arcane response)
+    - `gate_exploit` (monster, hostile opportunistic response)
+  - hard gates for clarity/safety: gate must be open, active allegiance anchor required, one active response max per faction, per-faction cooldown
+  - lightweight criteria reuse existing runtime context (allegiance doctrine/project, anchor proximity to gate, nearby notable presence)
+  - lightweight effects only:
+    - `gate_seal`: shortens current gate open remaining time a little
+    - `gate_exploit`: slightly extends open remaining time and can request at most one bonus breach per open cycle
+  - lightweight IA integration through existing `get_neutral_gate_guidance` path: active response gives a small temporary pull boost to concerned faction near gate
+  - clean lifecycle: `START` -> `SUCCESS`/`INTERRUPTED` -> `END`; interruption on gate close or anchor loss
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -202,6 +214,7 @@ The debug overlay shows:
 - POI structure counters (`active`, created/lost, extra regen ticks from structures)
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
 - neutral gate counters (`status`, `remaining/cooldown`, `opens`, `closes`, `breaches`)
+- gate response counters (`human active`, `monster active`, `starts`, `ends`, `success`, `interrupted`)
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
@@ -229,6 +242,7 @@ The debug overlay shows:
 - legacy logs (`Legacy Triggered` / `Successor Chosen` / `Legacy Faded`) for post-fall continuity
 - memorial/scar logs (`Memorial/Scar BORN` / `Memorial/Scar FADED`) for post-fall local traces
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
+- gate response logs (`Gate Response START` / `SUCCESS` / `INTERRUPTED` / `END`) for bounded faction reaction around gate
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -258,6 +272,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_vendetta_behavior.py](tests/test_game3d_vendetta_behavior.py) (vendetta contracts: bounded creation, one active vendetta per allegiance, clean resolved/expired lifecycle, lightweight raid+bounty bias)
 - [test_game3d_legacy_behavior.py](tests/test_game3d_legacy_behavior.py) (legacy contracts: notable trigger gating, bounded successor choice, lightweight transfer/inheritance effects)
 - [test_game3d_memorials_behavior.py](tests/test_game3d_memorials_behavior.py) (memorial/scar contracts: notable trigger gating, bounded spawn/fade/cap lifecycle, lightweight local renown/notoriety effects)
+- [test_game3d_gate_responses_behavior.py](tests/test_game3d_gate_responses_behavior.py) (rift response contracts: gate-open gating, bounded start/end lifecycle, lightweight gate duration/breach effects)
 
 Run targeted tests:
 ```bash
@@ -275,6 +290,7 @@ py -m unittest tests.test_game3d_faction_projects_behavior -v
 py -m unittest tests.test_game3d_vendetta_behavior -v
 py -m unittest tests.test_game3d_legacy_behavior -v
 py -m unittest tests.test_game3d_memorials_behavior -v
+py -m unittest tests.test_game3d_gate_responses_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -314,6 +330,7 @@ py -m unittest discover -s tests -v
 - Add lightweight vendetta/grudge MVP with one-active-target cap, bounded duration/cooldown, and small raid+bounty bias
 - Add lightweight succession/legacy MVP with rare notable-fall triggers, bounded successor inheritance, and runtime continuity observability
 - Add lightweight memorial/scar MVP with notable-fall local traces, bounded duration/cap, and small local renown/notoriety pulses
+- Add lightweight `rift_gate` response MVP (`gate_seal` / `gate_exploit`) with one-active-per-faction cap, cooldown, and bounded gate/breach effects
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -334,6 +351,7 @@ py -m unittest discover -s tests -v
 - Tune vendetta trigger rates/duration/bias so conflict memory stays readable without creating permanent hostility loops
 - Tune legacy trigger rarity/successor duration/transfer values so continuity stories stay readable without creating new snowball loops
 - Tune memorial/scar duration/cap/pulse values so post-fall traces stay visible and local without introducing snowball
+- Tune gate response trigger chance/cooldown/duration and gate duration deltas so reactions stay visible without destabilizing gate cadence
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets
