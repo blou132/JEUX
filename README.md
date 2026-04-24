@@ -31,6 +31,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight bounty / marked-target layer (rare notable hunt pressure)
 - lightweight renown/notoriety layer (known figures with bounded social pressure)
 - lightweight rift gate responses layer (bounded allegiance reactions around open gate)
+- lightweight allegiance crisis layer (bounded temporary instability after major shocks)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -164,6 +165,16 @@ The active direction is a minimal but playable sandbox loop:
     - `gate_exploit`: slightly extends open remaining time and can request at most one bonus breach per open cycle
   - lightweight IA integration through existing `get_neutral_gate_guidance` path: active response gives a small temporary pull boost to concerned faction near gate
   - clean lifecycle: `START` -> `SUCCESS`/`INTERRUPTED` -> `END`; interruption on gate close or anchor loss
+- Allegiance crisis layer (MVP):
+  - one bounded temporary `crisis` state max per allegiance, with per-allegiance cooldown and short duration
+  - trigger signals reuse existing shocks: notable allegiance figure fall, heavy vendetta starts, central bounty pressure, and impactful project interruptions
+  - lightweight effects only:
+    - rally cohesion dip: rally bonus around the crisis allegiance is reduced intermittently
+    - raid pressure dip: allegiance raid guidance weight is slightly reduced while crisis is active
+  - clean exits:
+    - `EXPIRED` on timeout or anchor loss
+    - `RESOLVED` if a successor stabilizes the allegiance (or via favorable event pulse)
+  - observability: dedicated `Crisis START/END/RESOLVED/EXPIRED` logs and HUD crisis counters/map
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -215,6 +226,7 @@ The debug overlay shows:
 - raid counters (`active`, starts/ends, success/interrupted/timeout)
 - neutral gate counters (`status`, `remaining/cooldown`, `opens`, `closes`, `breaches`)
 - gate response counters (`human active`, `monster active`, `starts`, `ends`, `success`, `interrupted`)
+- allegiance crisis counters (`active`, `start/end/resolved/expired`) + crisis map per allegiance
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
@@ -243,6 +255,7 @@ The debug overlay shows:
 - memorial/scar logs (`Memorial/Scar BORN` / `Memorial/Scar FADED`) for post-fall local traces
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - gate response logs (`Gate Response START` / `SUCCESS` / `INTERRUPTED` / `END`) for bounded faction reaction around gate
+- crisis logs (`Crisis START` / `Crisis RESOLVED` / `Crisis EXPIRED` / `Crisis END`) for temporary proto-faction instability
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -273,6 +286,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_legacy_behavior.py](tests/test_game3d_legacy_behavior.py) (legacy contracts: notable trigger gating, bounded successor choice, lightweight transfer/inheritance effects)
 - [test_game3d_memorials_behavior.py](tests/test_game3d_memorials_behavior.py) (memorial/scar contracts: notable trigger gating, bounded spawn/fade/cap lifecycle, lightweight local renown/notoriety effects)
 - [test_game3d_gate_responses_behavior.py](tests/test_game3d_gate_responses_behavior.py) (rift response contracts: gate-open gating, bounded start/end lifecycle, lightweight gate duration/breach effects)
+- [test_game3d_allegiance_crisis_behavior.py](tests/test_game3d_allegiance_crisis_behavior.py) (allegiance crisis contracts: bounded triggers, one-active-per-allegiance, clean resolve/expire lifecycle, lightweight rally/raid bias)
 
 Run targeted tests:
 ```bash
@@ -291,6 +305,7 @@ py -m unittest tests.test_game3d_vendetta_behavior -v
 py -m unittest tests.test_game3d_legacy_behavior -v
 py -m unittest tests.test_game3d_memorials_behavior -v
 py -m unittest tests.test_game3d_gate_responses_behavior -v
+py -m unittest tests.test_game3d_allegiance_crisis_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -331,6 +346,7 @@ py -m unittest discover -s tests -v
 - Add lightweight succession/legacy MVP with rare notable-fall triggers, bounded successor inheritance, and runtime continuity observability
 - Add lightweight memorial/scar MVP with notable-fall local traces, bounded duration/cap, and small local renown/notoriety pulses
 - Add lightweight `rift_gate` response MVP (`gate_seal` / `gate_exploit`) with one-active-per-faction cap, cooldown, and bounded gate/breach effects
+- Add lightweight allegiance crisis MVP with one-active-per-allegiance cap, cooldown, bounded rally/raid penalties, and clean resolve/expire lifecycle
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -352,6 +368,7 @@ py -m unittest discover -s tests -v
 - Tune legacy trigger rarity/successor duration/transfer values so continuity stories stay readable without creating new snowball loops
 - Tune memorial/scar duration/cap/pulse values so post-fall traces stay visible and local without introducing snowball
 - Tune gate response trigger chance/cooldown/duration and gate duration deltas so reactions stay visible without destabilizing gate cadence
+- Tune crisis trigger chance/cooldown/duration and rally/raid penalty strength so instability stays readable without suppressing normal faction loops
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

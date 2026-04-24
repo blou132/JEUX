@@ -59,6 +59,14 @@ const GATE_RESPONSE_EXPLOIT_START_EXTEND: float = 1.4
 const GATE_RESPONSE_SEAL_BASE_CHANCE: float = 0.42
 const GATE_RESPONSE_EXPLOIT_BASE_CHANCE: float = 0.40
 const GATE_RESPONSE_NOTABLE_RADIUS: float = 12.0
+const ALLEGIANCE_CRISIS_DURATION_MIN: float = 18.0
+const ALLEGIANCE_CRISIS_DURATION_MAX: float = 30.0
+const ALLEGIANCE_CRISIS_COOLDOWN: float = 46.0
+const ALLEGIANCE_CRISIS_RAID_WEIGHT_MULT: float = 0.86
+const ALLEGIANCE_CRISIS_RALLY_BONUS_SUPPRESS_CHANCE: float = 0.56
+const ALLEGIANCE_CRISIS_START_CHANCE_BASE: float = 0.34
+const ALLEGIANCE_CRISIS_RENOWN_TRIGGER: float = 54.0
+const ALLEGIANCE_CRISIS_NOTORIETY_TRIGGER: float = 60.0
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -176,6 +184,10 @@ var gate_response_started_total: int = 0
 var gate_response_ended_total: int = 0
 var gate_response_success_total: int = 0
 var gate_response_interrupted_total: int = 0
+var crisis_started_total: int = 0
+var crisis_ended_total: int = 0
+var crisis_resolved_total: int = 0
+var crisis_expired_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -221,6 +233,8 @@ var _gate_response_check_timer: float = 0.0
 var _gate_response_cooldown_by_faction: Dictionary = {}
 var _gate_response_runtime_by_faction: Dictionary = {}
 var _gate_response_signals_root: Node3D = null
+var _allegiance_crisis_runtime_by_id: Dictionary = {}
+var _allegiance_crisis_cooldown_until_by_id: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
 var _memorial_scar_sites_root: Node3D = null
@@ -233,6 +247,7 @@ func _ready() -> void:
     world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
     _setup_gate_response_state()
+    _setup_allegiance_crisis_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -266,6 +281,7 @@ func _tick(delta: float) -> void:
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
+    _update_allegiance_crisis_runtime(delta)
     _update_gate_responses(delta)
     _update_bounty_system(delta)
     _update_special_arrivals(delta)
@@ -383,6 +399,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
         victim.clear_relic()
     _handle_bounty_target_death(victim, killer)
     _try_spawn_memorial_scar_site(victim, killer, reason, legacy_result, had_relic)
+    _try_start_crisis_from_notable_fall(victim, reason, legacy_result, had_relic)
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -631,13 +648,7 @@ func _count_notables_near_gate(faction: String, center: Vector3, radius: float) 
 
 
 func _is_gate_response_anchor_active(allegiance_id: String) -> bool:
-    if allegiance_id == "":
-        return false
-    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
-    for allegiance in active_allegiances:
-        if str(allegiance.get("allegiance_id", "")) == allegiance_id:
-            return true
-    return false
+    return _is_allegiance_anchor_active(allegiance_id)
 
 
 func _end_gate_response(faction: String, outcome: String, reason: String) -> void:
@@ -693,6 +704,325 @@ func _spawn_gate_response_signal(faction: String, position: Vector3, response_id
     var tween := create_tween()
     tween.tween_property(signal_node, "scale", Vector3.ONE * 1.52, 0.42)
     tween.finished.connect(signal_node.queue_free)
+
+
+func _setup_allegiance_crisis_state() -> void:
+    _allegiance_crisis_runtime_by_id.clear()
+    _allegiance_crisis_cooldown_until_by_id.clear()
+    _sync_allegiance_crisis_modifiers()
+
+
+func _sync_allegiance_crisis_modifiers() -> void:
+    var raid_modifiers: Dictionary = {}
+    for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        if allegiance_id == "":
+            continue
+        raid_modifiers[allegiance_id] = ALLEGIANCE_CRISIS_RAID_WEIGHT_MULT
+    world_manager.set_allegiance_crisis_raid_modifiers(raid_modifiers)
+
+
+func _is_allegiance_anchor_active(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    for allegiance in active_allegiances:
+        if str(allegiance.get("allegiance_id", "")) == allegiance_id:
+            return true
+    return false
+
+
+func _try_start_allegiance_crisis(
+    allegiance_id: String,
+    reason: String,
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0,
+    source_label: String = ""
+) -> bool:
+    if allegiance_id == "":
+        return false
+    if _allegiance_crisis_runtime_by_id.has(allegiance_id):
+        return false
+    if not _is_allegiance_anchor_active(allegiance_id):
+        return false
+
+    var cooldown_until: float = float(_allegiance_crisis_cooldown_until_by_id.get(allegiance_id, 0.0))
+    if elapsed_time < cooldown_until:
+        return false
+
+    var faction: String = ""
+    var doctrine: String = ""
+    var home_poi: String = ""
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    for allegiance in active_allegiances:
+        if str(allegiance.get("allegiance_id", "")) != allegiance_id:
+            continue
+        faction = str(allegiance.get("faction", ""))
+        doctrine = str(allegiance.get("doctrine", ""))
+        home_poi = str(allegiance.get("home_poi", ""))
+        break
+    if faction == "":
+        return false
+
+    var start_chance: float = ALLEGIANCE_CRISIS_START_CHANCE_BASE + chance_bonus
+    if doctrine == "steadfast":
+        start_chance -= 0.08
+    elif doctrine == "warlike":
+        start_chance += 0.05
+    elif doctrine == "arcane":
+        start_chance += 0.03
+    start_chance = clampf(start_chance, 0.14, 0.82)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(ALLEGIANCE_CRISIS_DURATION_MIN, ALLEGIANCE_CRISIS_DURATION_MAX),
+        max(ALLEGIANCE_CRISIS_DURATION_MIN, ALLEGIANCE_CRISIS_DURATION_MAX)
+    ) + duration_bonus
+    if doctrine == "steadfast":
+        duration -= 1.8
+    elif doctrine == "arcane":
+        duration += 1.0
+    duration = clampf(duration, 12.0, 42.0)
+
+    _allegiance_crisis_runtime_by_id[allegiance_id] = {
+        "state": "crisis",
+        "allegiance_id": allegiance_id,
+        "faction": faction,
+        "doctrine": doctrine,
+        "home_poi": home_poi,
+        "reason": reason,
+        "source_label": source_label,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration
+    }
+    crisis_started_total += 1
+    _sync_allegiance_crisis_modifiers()
+    var source_text: String = source_label if source_label != "" else allegiance_id
+    record_event(
+        "Crisis START: %s (%s, %.0fs, source=%s)."
+        % [allegiance_id, reason, duration, source_text]
+    )
+    return true
+
+
+func _is_crisis_notable_actor(actor: Actor, had_relic: bool = false) -> bool:
+    if actor == null:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or had_relic:
+        return true
+    if actor.renown >= ALLEGIANCE_CRISIS_RENOWN_TRIGGER:
+        return true
+    if actor.notoriety >= ALLEGIANCE_CRISIS_NOTORIETY_TRIGGER:
+        return true
+    return false
+
+
+func _try_start_crisis_from_notable_fall(
+    victim: Actor,
+    reason: String,
+    legacy_result: Dictionary,
+    had_relic: bool
+) -> void:
+    if victim == null:
+        return
+    if victim.allegiance_id == "":
+        return
+    if not _is_crisis_notable_actor(victim, had_relic):
+        return
+
+    var chance_bonus: float = 0.06
+    var duration_bonus: float = 0.0
+    if victim.is_champion:
+        chance_bonus += 0.16
+        duration_bonus += 3.8
+    if victim.is_special_arrival():
+        chance_bonus += 0.12
+        duration_bonus += 2.4
+    if had_relic:
+        chance_bonus += 0.10
+        duration_bonus += 1.2
+    if victim.renown >= ALLEGIANCE_CRISIS_RENOWN_TRIGGER:
+        chance_bonus += 0.08
+    if victim.notoriety >= ALLEGIANCE_CRISIS_NOTORIETY_TRIGGER:
+        chance_bonus += 0.08
+    if bool(legacy_result.get("triggered", false)):
+        chance_bonus -= 0.10
+
+    _try_start_allegiance_crisis(
+        victim.allegiance_id,
+        "leader_fall:%s" % reason,
+        chance_bonus,
+        duration_bonus,
+        _actor_label(victim)
+    )
+
+
+func _try_start_crisis_from_project_interrupt(allegiance_id: String, project_id: String, reason: String) -> void:
+    if allegiance_id == "":
+        return
+    var chance_bonus: float = 0.04
+    var duration_bonus: float = 0.8
+    if project_id == "ritual_focus":
+        chance_bonus += 0.08
+    elif project_id == "fortify":
+        chance_bonus += 0.05
+    if reason == "anchor_lost":
+        chance_bonus += 0.10
+        duration_bonus += 1.8
+    _try_start_allegiance_crisis(
+        allegiance_id,
+        "project_interrupt:%s" % project_id,
+        chance_bonus,
+        duration_bonus,
+        reason
+    )
+
+
+func _try_start_crisis_from_vendetta(source_allegiance_id: String, target_allegiance_id: String, reason: String) -> void:
+    if source_allegiance_id == "":
+        return
+    var chance_bonus: float = 0.03
+    var duration_bonus: float = 0.0
+    if reason == "legacy_fall" or reason == "bounty_kill":
+        chance_bonus += 0.12
+        duration_bonus += 1.8
+    _try_start_allegiance_crisis(
+        source_allegiance_id,
+        "vendetta:%s" % reason,
+        chance_bonus,
+        duration_bonus,
+        target_allegiance_id
+    )
+
+
+func _try_start_crisis_from_bounty_pressure(target: Actor) -> void:
+    if target == null or target.allegiance_id == "":
+        return
+    if not _is_crisis_notable_actor(target, target.has_relic()):
+        return
+
+    var chance_bonus: float = 0.02
+    if target.is_champion:
+        chance_bonus += 0.10
+    if target.is_special_arrival():
+        chance_bonus += 0.08
+    if target.has_relic():
+        chance_bonus += 0.06
+    if target.renown >= ALLEGIANCE_CRISIS_RENOWN_TRIGGER:
+        chance_bonus += 0.06
+    if target.notoriety >= ALLEGIANCE_CRISIS_NOTORIETY_TRIGGER:
+        chance_bonus += 0.06
+    _try_start_allegiance_crisis(
+        target.allegiance_id,
+        "central_bounty",
+        chance_bonus,
+        0.0,
+        _actor_label(target)
+    )
+
+
+func _try_resolve_allegiance_crisis(allegiance_id: String, reason: String) -> bool:
+    if allegiance_id == "":
+        return false
+    if not _allegiance_crisis_runtime_by_id.has(allegiance_id):
+        return false
+    _end_allegiance_crisis(allegiance_id, "resolved", reason)
+    return true
+
+
+func _has_active_legacy_successor_for_allegiance(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    for actor_id_variant in _legacy_successor_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id == allegiance_id:
+            return true
+    return false
+
+
+func _update_allegiance_crisis_runtime(_delta: float) -> void:
+    var cooldown_ids: Array = _allegiance_crisis_cooldown_until_by_id.keys()
+    for allegiance_variant in cooldown_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        var cooldown_until: float = float(_allegiance_crisis_cooldown_until_by_id.get(allegiance_id, 0.0))
+        if elapsed_time >= cooldown_until:
+            _allegiance_crisis_cooldown_until_by_id.erase(allegiance_id)
+
+    if _allegiance_crisis_runtime_by_id.is_empty():
+        _sync_allegiance_crisis_modifiers()
+        return
+
+    var to_resolve: Array[Dictionary] = []
+    var to_expire: Array[Dictionary] = []
+    for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
+        if runtime.is_empty():
+            continue
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if not _is_allegiance_anchor_active(allegiance_id):
+            to_expire.append({"allegiance_id": allegiance_id, "reason": "anchor_lost"})
+            continue
+        if elapsed_time >= ends_at:
+            to_expire.append({"allegiance_id": allegiance_id, "reason": "duration_complete"})
+            continue
+        if _has_active_legacy_successor_for_allegiance(allegiance_id):
+            to_resolve.append({"allegiance_id": allegiance_id, "reason": "successor_stabilized"})
+            continue
+
+        var faction: String = str(runtime.get("faction", ""))
+        if faction == "human" and world_event_active_id == "sanctuary_calm" and randf() <= 0.018:
+            to_resolve.append({"allegiance_id": allegiance_id, "reason": "world_event_calm"})
+            continue
+        if faction == "monster" and world_event_active_id == "monster_frenzy" and randf() <= 0.018:
+            to_resolve.append({"allegiance_id": allegiance_id, "reason": "world_event_frenzy"})
+
+    for entry in to_resolve:
+        var allegiance_id: String = str(entry.get("allegiance_id", ""))
+        var reason: String = str(entry.get("reason", "resolved"))
+        if allegiance_id == "" or not _allegiance_crisis_runtime_by_id.has(allegiance_id):
+            continue
+        _end_allegiance_crisis(allegiance_id, "resolved", reason)
+
+    for entry in to_expire:
+        var allegiance_id: String = str(entry.get("allegiance_id", ""))
+        var reason: String = str(entry.get("reason", "expired"))
+        if allegiance_id == "" or not _allegiance_crisis_runtime_by_id.has(allegiance_id):
+            continue
+        _end_allegiance_crisis(allegiance_id, "expired", reason)
+
+    _sync_allegiance_crisis_modifiers()
+
+
+func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: String) -> void:
+    var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return
+
+    if outcome == "resolved":
+        crisis_resolved_total += 1
+        record_event("Crisis RESOLVED: %s (%s)." % [allegiance_id, reason])
+    else:
+        crisis_expired_total += 1
+        record_event("Crisis EXPIRED: %s (%s)." % [allegiance_id, reason])
+
+    crisis_ended_total += 1
+    record_event("Crisis END: %s (%s)." % [allegiance_id, reason])
+    _allegiance_crisis_runtime_by_id.erase(allegiance_id)
+    _allegiance_crisis_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_CRISIS_COOLDOWN
+    _sync_allegiance_crisis_modifiers()
+
+
+func _is_actor_in_allegiance_crisis(actor: Actor) -> bool:
+    if actor == null:
+        return false
+    if actor.allegiance_id == "":
+        return false
+    return _allegiance_crisis_runtime_by_id.has(actor.allegiance_id)
 
 
 func _setup_memorial_scar_sites_root() -> void:
@@ -1706,6 +2036,7 @@ func _start_bounty(source: Dictionary, target: Actor) -> void:
         NOTORIETY_GAIN_ON_BOUNTY_MARK,
         "bounty_marked"
     )
+    _try_start_crisis_from_bounty_pressure(target)
     bounty_target_label = _actor_label(target)
     _push_bounty_state_to_world()
 
@@ -2069,6 +2400,8 @@ func _build_snapshot() -> Dictionary:
     var allegiance_vendetta_active_count: int = 0
     var legacy_successor_labels: Array[String] = []
     var legacy_successor_active_count: int = 0
+    var allegiance_crisis_active_count: int = 0
+    var allegiance_crisis_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -2134,6 +2467,16 @@ func _build_snapshot() -> Dictionary:
         legacy_successor_labels.append("%s<=%s(%.0fs)" % [successor_label, source_label, remaining])
     legacy_successor_labels.sort()
     legacy_successor_active_count = legacy_successor_labels.size()
+    for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
+        if runtime.is_empty():
+            continue
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var reason: String = str(runtime.get("reason", "crisis"))
+        allegiance_crisis_labels.append("%s:%s@%.0fs" % [allegiance_id, reason, remaining])
+    allegiance_crisis_labels.sort()
+    allegiance_crisis_active_count = allegiance_crisis_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -2254,6 +2597,12 @@ func _build_snapshot() -> Dictionary:
         "vendetta_ended_total": vendetta_ended_total,
         "vendetta_resolved_total": vendetta_resolved_total,
         "vendetta_expired_total": vendetta_expired_total,
+        "allegiance_crisis_active_count": allegiance_crisis_active_count,
+        "allegiance_crisis_labels": allegiance_crisis_labels,
+        "crisis_started_total": crisis_started_total,
+        "crisis_ended_total": crisis_ended_total,
+        "crisis_resolved_total": crisis_resolved_total,
+        "crisis_expired_total": crisis_expired_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -2390,6 +2739,11 @@ func _update_rally_runtime() -> void:
             and leader_for_bonus.has_relic()
             and leader_for_bonus.relic_id == "oath_standard"
         )
+        var crisis_penalty_active: bool = _is_actor_in_allegiance_crisis(actor)
+        if not crisis_penalty_active and leader_for_bonus != null:
+            crisis_penalty_active = _is_actor_in_allegiance_crisis(leader_for_bonus)
+        if crisis_penalty_active and actor.rally_bonus_active and randf() <= ALLEGIANCE_CRISIS_RALLY_BONUS_SUPPRESS_CHANCE:
+            actor.rally_bonus_active = false
 
         followers_total += 1
         if actor.faction == "human":
@@ -2510,6 +2864,7 @@ func _update_poi_runtime() -> void:
             var project_id: String = str(transition.get("project_id", "project"))
             var duration: float = float(transition.get("duration", 0.0))
             record_event("Project START: %s -> %s at %s (%.0fs)." % [allegiance_id, project_id, poi_name, duration])
+            _try_resolve_allegiance_crisis(allegiance_id, "project_restarted:%s" % project_id)
         elif kind == "allegiance_project_ended":
             project_ended_total += 1
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
@@ -2522,6 +2877,7 @@ func _update_poi_runtime() -> void:
             var reason: String = str(transition.get("reason", "interrupted"))
             var poi_label: String = poi_name if poi_name != "" else "unknown"
             record_event("Project INTERRUPTED: %s -> %s at %s (%s)." % [allegiance_id, project_id, poi_label, reason])
+            _try_start_crisis_from_project_interrupt(allegiance_id, project_id, reason)
         elif kind == "vendetta_started" or kind == "vendetta_resolved" or kind == "vendetta_expired":
             _handle_vendetta_transition(transition)
         elif kind == "raid_started":
@@ -2593,6 +2949,7 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
             "Vendetta START: %s -> %s (%s, %.0fs)."
             % [source_allegiance_id, target_allegiance_id, reason, duration]
         )
+        _try_start_crisis_from_vendetta(source_allegiance_id, target_allegiance_id, reason)
         return
 
     if kind == "vendetta_resolved":

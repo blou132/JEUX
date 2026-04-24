@@ -60,6 +60,7 @@ var neutral_gate_breach_pending: bool = false
 var neutral_gate_bonus_breach_used: bool = false
 var neutral_gate_response_pull_human_mult: float = 1.0
 var neutral_gate_response_pull_monster_mult: float = 1.0
+var allegiance_crisis_raid_mult_by_id: Dictionary = {}
 var allegiance_doctrine_by_id: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
@@ -90,6 +91,22 @@ func set_raid_pressure_modifiers(
 
 func set_world_event_visual(event_id: String) -> void:
     world_event_visual_id = event_id
+
+
+func set_allegiance_crisis_raid_modifiers(modifiers_by_allegiance: Dictionary = {}) -> void:
+    allegiance_crisis_raid_mult_by_id.clear()
+    for allegiance_variant in modifiers_by_allegiance.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        if allegiance_id == "":
+            continue
+        var raid_mult: float = float(modifiers_by_allegiance.get(allegiance_variant, 1.0))
+        allegiance_crisis_raid_mult_by_id[allegiance_id] = clampf(raid_mult, 0.65, 1.0)
+
+
+func get_allegiance_crisis_raid_multiplier(allegiance_id: String) -> float:
+    if allegiance_id == "":
+        return 1.0
+    return clampf(float(allegiance_crisis_raid_mult_by_id.get(allegiance_id, 1.0)), 0.65, 1.0)
 
 
 func set_neutral_gate_response_pull_modifiers(
@@ -369,6 +386,7 @@ func get_raid_guidance(
         weight += float(project_modifiers.get("raid_weight_delta", 0.0))
         var vendetta_modifiers: Dictionary = get_allegiance_vendetta_modifiers(allegiance_id, target_allegiance_id)
         weight += float(vendetta_modifiers.get("raid_weight_delta", 0.0))
+        weight *= get_allegiance_crisis_raid_multiplier(allegiance_id)
     weight *= raid_pressure_global_multiplier
     if faction == "human":
         weight *= raid_pressure_human_multiplier
@@ -1098,6 +1116,7 @@ func _build_pois() -> void:
     neutral_gate_bonus_breach_used = false
     neutral_gate_response_pull_human_mult = 1.0
     neutral_gate_response_pull_monster_mult = 1.0
+    allegiance_crisis_raid_mult_by_id.clear()
 
     _refresh_poi_markers()
 
