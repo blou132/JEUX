@@ -71,6 +71,15 @@ const LEGACY_RENOWN_TRIGGER: float = 52.0
 const LEGACY_NOTORIETY_TRIGGER: float = 58.0
 const LEGACY_RENOWN_TRANSFER_RATIO: float = 0.12
 const LEGACY_NOTORIETY_TRANSFER_RATIO: float = 0.10
+const MEMORIAL_SCAR_MAX_ACTIVE: int = 4
+const MEMORIAL_SCAR_DURATION_MIN: float = 24.0
+const MEMORIAL_SCAR_DURATION_MAX: float = 38.0
+const MEMORIAL_SCAR_RADIUS: float = 8.0
+const MEMORIAL_SCAR_PULSE_INTERVAL: float = 3.0
+const MEMORIAL_SITE_RENOWN_PULSE: float = 0.18
+const SCAR_SITE_NOTORIETY_PULSE: float = 0.22
+const MEMORIAL_SCAR_RENOWN_TRIGGER: float = 56.0
+const MEMORIAL_SCAR_NOTORIETY_TRIGGER: float = 62.0
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -164,6 +173,8 @@ var legacy_triggered_total: int = 0
 var legacy_successor_chosen_total: int = 0
 var legacy_relic_inherited_total: int = 0
 var legacy_faded_total: int = 0
+var memorial_scar_born_total: int = 0
+var memorial_scar_faded_total: int = 0
 var bounty_active: bool = false
 var bounty_target_actor_id: int = 0
 var bounty_target_faction: String = ""
@@ -191,6 +202,9 @@ var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
 var _legacy_successor_runtime_by_actor: Dictionary = {}
+var _memorial_scar_runtime: Dictionary = {}
+var _memorial_scar_next_id: int = 1
+var _memorial_scar_sites_root: Node3D = null
 
 var event_log: Array[String] = []
 
@@ -199,6 +213,7 @@ func _ready() -> void:
     randomize()
     world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
+    _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
     sandbox_systems.setup(self, world_manager, entities_root)
@@ -237,6 +252,7 @@ func _tick(delta: float) -> void:
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _update_legacy_runtime(delta)
+    _update_memorial_scar_runtime(delta)
     _cleanup_dead_actors()
     sandbox_systems.tick_systems(delta, actors, self)
 
@@ -336,6 +352,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
         record_event("Special Arrival FALLEN: %s." % _actor_label(victim))
     var legacy_result: Dictionary = _try_trigger_legacy(victim, killer, reason)
     var relic_inherited: bool = bool(legacy_result.get("relic_inherited", false))
+    var had_relic: bool = victim.has_relic()
     if victim.has_relic():
         if not relic_inherited:
             var lost_title := victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
@@ -344,6 +361,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
             _relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
         victim.clear_relic()
     _handle_bounty_target_death(victim, killer)
+    _try_spawn_memorial_scar_site(victim, killer, reason, legacy_result, had_relic)
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -360,6 +378,292 @@ func register_level_up(actor: Actor, old_level: int, new_level: int, reason: Str
         % [_actor_label(actor), old_level, new_level, reason]
     )
     _try_promote_champion(actor, "level_up:%s" % reason)
+
+
+func _setup_memorial_scar_sites_root() -> void:
+    if _memorial_scar_sites_root != null and is_instance_valid(_memorial_scar_sites_root):
+        _memorial_scar_sites_root.queue_free()
+
+    _memorial_scar_sites_root = Node3D.new()
+    _memorial_scar_sites_root.name = "MemorialScarSites"
+    world_manager.add_child(_memorial_scar_sites_root)
+    _memorial_scar_runtime.clear()
+    _memorial_scar_next_id = 1
+
+
+func _memorial_scar_trigger_kind(victim: Actor, legacy_result: Dictionary, had_relic: bool) -> String:
+    if victim == null:
+        return ""
+    if bool(legacy_result.get("triggered", false)):
+        return "legacy_trigger"
+    if victim.is_champion:
+        return "champion"
+    if victim.is_special_arrival():
+        return "special_arrival"
+    if had_relic:
+        return "relic_carrier"
+    if victim.renown >= MEMORIAL_SCAR_RENOWN_TRIGGER:
+        return "high_renown"
+    if victim.notoriety >= MEMORIAL_SCAR_NOTORIETY_TRIGGER:
+        return "high_notoriety"
+    return ""
+
+
+func _memorial_scar_site_type_for(victim: Actor) -> String:
+    if victim == null:
+        return ""
+    if victim.faction == "human":
+        return "memorial_site"
+    if victim.special_arrival_id == "calamity_invader" or victim.special_arrival_id == "rift_gate_breach":
+        return "scar_site"
+    if victim.faction == "monster":
+        return "scar_site"
+    return "scar_site"
+
+
+func _try_spawn_memorial_scar_site(
+    victim: Actor,
+    _killer: Actor,
+    _reason: String,
+    legacy_result: Dictionary,
+    had_relic: bool
+) -> void:
+    if victim == null:
+        return
+    var trigger_kind: String = _memorial_scar_trigger_kind(victim, legacy_result, had_relic)
+    if trigger_kind == "":
+        return
+
+    var site_type: String = _memorial_scar_site_type_for(victim)
+    if site_type == "":
+        return
+    if _memorial_scar_sites_root == null or not is_instance_valid(_memorial_scar_sites_root):
+        _setup_memorial_scar_sites_root()
+
+    _trim_memorial_scar_capacity()
+    if _memorial_scar_runtime.size() >= MEMORIAL_SCAR_MAX_ACTIVE:
+        return
+
+    var site_id: int = _memorial_scar_next_id
+    _memorial_scar_next_id += 1
+
+    var position: Vector3 = world_manager.clamp_to_world(world_manager.snap_to_nav_grid(victim.global_position))
+    var duration: float = randf_range(
+        min(MEMORIAL_SCAR_DURATION_MIN, MEMORIAL_SCAR_DURATION_MAX),
+        max(MEMORIAL_SCAR_DURATION_MIN, MEMORIAL_SCAR_DURATION_MAX)
+    )
+    var ends_at: float = elapsed_time + duration
+    var source_label: String = _actor_label(victim)
+    var source_short := "%s#%d" % [victim.actor_kind, victim.actor_id]
+    var visual_node: Node3D = _spawn_memorial_scar_visual(site_type, position, site_id)
+
+    _memorial_scar_runtime[site_id] = {
+        "id": site_id,
+        "type": site_type,
+        "faction": victim.faction,
+        "position": position,
+        "radius": MEMORIAL_SCAR_RADIUS,
+        "source_label": source_label,
+        "source_short": source_short,
+        "trigger_kind": trigger_kind,
+        "created_at": elapsed_time,
+        "duration": duration,
+        "ends_at": ends_at,
+        "next_pulse_at": elapsed_time + MEMORIAL_SCAR_PULSE_INTERVAL,
+        "label": "%s:%s" % [_memorial_scar_type_short(site_type), source_short],
+        "visual_node": visual_node
+    }
+    memorial_scar_born_total += 1
+    record_event(
+        "Memorial/Scar BORN: %s at %s from %s (%s, %.0fs)."
+        % [site_type, _position_label_2d(position), source_label, trigger_kind, duration]
+    )
+
+
+func _trim_memorial_scar_capacity() -> void:
+    while _memorial_scar_runtime.size() >= MEMORIAL_SCAR_MAX_ACTIVE:
+        var oldest_id: int = 0
+        var oldest_end: float = INF
+        for site_id_variant in _memorial_scar_runtime.keys():
+            var site_id: int = int(site_id_variant)
+            var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+            var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+            if ends_at < oldest_end:
+                oldest_end = ends_at
+                oldest_id = site_id
+        if oldest_id == 0:
+            return
+        _fade_memorial_scar_site(oldest_id, "cap")
+
+
+func _spawn_memorial_scar_visual(site_type: String, position: Vector3, site_id: int) -> Node3D:
+    if _memorial_scar_sites_root == null:
+        return null
+
+    var colors: Dictionary = _memorial_scar_colors(site_type)
+    var base_color: Color = colors.get("base", Color(0.82, 0.82, 0.82))
+    var accent_color: Color = colors.get("accent", Color(0.95, 0.95, 0.95))
+
+    var site_node := Node3D.new()
+    site_node.name = "Site_%d" % site_id
+    site_node.position = position
+
+    var ring := MeshInstance3D.new()
+    ring.name = "Ring"
+    var ring_mesh := CylinderMesh.new()
+    ring_mesh.top_radius = 1.85 if site_type == "memorial_site" else 2.05
+    ring_mesh.bottom_radius = ring_mesh.top_radius
+    ring_mesh.height = 0.08
+    ring.mesh = ring_mesh
+    ring.position = Vector3(0.0, 0.05, 0.0)
+    ring.material_override = _make_memorial_scar_material(base_color, 0.74)
+    site_node.add_child(ring)
+
+    var pillar := MeshInstance3D.new()
+    pillar.name = "Pillar"
+    var pillar_mesh := BoxMesh.new()
+    pillar_mesh.size = Vector3(0.24, 1.1, 0.24)
+    pillar.mesh = pillar_mesh
+    pillar.position = Vector3(0.0, 0.60, 0.0)
+    pillar.material_override = _make_memorial_scar_material(base_color.darkened(0.16), 0.52)
+    site_node.add_child(pillar)
+
+    var beacon := MeshInstance3D.new()
+    beacon.name = "Beacon"
+    var beacon_mesh := SphereMesh.new()
+    beacon_mesh.radius = 0.24
+    beacon_mesh.height = 0.48
+    beacon.mesh = beacon_mesh
+    beacon.position = Vector3(0.0, 1.2, 0.0)
+    beacon.material_override = _make_memorial_scar_material(accent_color, 1.08)
+    site_node.add_child(beacon)
+
+    _memorial_scar_sites_root.add_child(site_node)
+    site_node.scale = Vector3.ONE * 0.24
+    var tween := create_tween()
+    tween.tween_property(site_node, "scale", Vector3.ONE, 0.34)
+    return site_node
+
+
+func _make_memorial_scar_material(color: Color, emission_strength: float) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = 0.68
+    material.emission_enabled = true
+    material.emission = color * emission_strength
+    return material
+
+
+func _update_memorial_scar_runtime(_delta: float) -> void:
+    if _memorial_scar_runtime.is_empty():
+        return
+
+    var faded_ids: Array[int] = []
+    for site_id_variant in _memorial_scar_runtime.keys():
+        var site_id: int = int(site_id_variant)
+        var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        var duration: float = max(0.01, float(runtime.get("duration", MEMORIAL_SCAR_DURATION_MIN)))
+        var remaining: float = max(0.0, ends_at - elapsed_time)
+        var elapsed_ratio: float = clampf(1.0 - (remaining / duration), 0.0, 1.0)
+
+        var site_node := runtime.get("visual_node", null) as Node3D
+        if site_node != null and is_instance_valid(site_node):
+            _animate_memorial_scar_visual(site_node, str(runtime.get("type", "")), elapsed_ratio)
+
+        if elapsed_time >= ends_at:
+            faded_ids.append(site_id)
+            continue
+
+        var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+        if elapsed_time < next_pulse_at:
+            continue
+        runtime["next_pulse_at"] = elapsed_time + MEMORIAL_SCAR_PULSE_INTERVAL
+        _memorial_scar_runtime[site_id] = runtime
+        _apply_memorial_scar_pulse(runtime)
+
+    for site_id in faded_ids:
+        _fade_memorial_scar_site(site_id, "duration")
+
+
+func _apply_memorial_scar_pulse(runtime: Dictionary) -> void:
+    var site_type: String = str(runtime.get("type", ""))
+    var center: Vector3 = runtime.get("position", Vector3.ZERO)
+    var radius: float = float(runtime.get("radius", MEMORIAL_SCAR_RADIUS))
+    var site_faction: String = str(runtime.get("faction", ""))
+    if site_type == "" or radius <= 0.0:
+        return
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+
+        if site_type == "memorial_site":
+            if actor.faction != site_faction:
+                continue
+            _apply_notability_gain(actor, MEMORIAL_SITE_RENOWN_PULSE, 0.0, "memorial_site")
+        elif site_type == "scar_site":
+            if actor.faction == site_faction:
+                continue
+            _apply_notability_gain(actor, 0.0, SCAR_SITE_NOTORIETY_PULSE, "scar_site")
+
+
+func _fade_memorial_scar_site(site_id: int, reason: String) -> void:
+    var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+    if runtime.is_empty():
+        return
+
+    var label: String = str(runtime.get("label", "site"))
+    record_event("Memorial/Scar FADED: %s (%s)." % [label, reason])
+    memorial_scar_faded_total += 1
+
+    var site_node := runtime.get("visual_node", null) as Node3D
+    if site_node != null and is_instance_valid(site_node):
+        site_node.queue_free()
+    _memorial_scar_runtime.erase(site_id)
+
+
+func _animate_memorial_scar_visual(site_node: Node3D, site_type: String, elapsed_ratio: float) -> void:
+    var ring := site_node.get_node_or_null("Ring") as MeshInstance3D
+    var beacon := site_node.get_node_or_null("Beacon") as MeshInstance3D
+    var pulse_speed: float = 4.2 if site_type == "memorial_site" else 6.2
+    var instance_seed: float = float(site_node.get_instance_id() % 17)
+
+    if ring != null:
+        var pulse: float = 1.0 + 0.08 * sin((elapsed_time * pulse_speed) + instance_seed)
+        var fade_scale: float = lerpf(1.0, 0.72, elapsed_ratio)
+        ring.scale = Vector3.ONE * pulse * fade_scale
+
+    if beacon != null:
+        var float_speed: float = 2.9 if site_type == "memorial_site" else 4.0
+        beacon.position.y = 1.2 + 0.08 * sin((elapsed_time * float_speed) + instance_seed * 0.6)
+        var material := beacon.material_override as StandardMaterial3D
+        if material != null:
+            var colors: Dictionary = _memorial_scar_colors(site_type)
+            var accent: Color = colors.get("accent", Color(0.9, 0.9, 0.9))
+            material.emission = accent * lerpf(1.08, 0.42, elapsed_ratio)
+
+
+func _memorial_scar_colors(site_type: String) -> Dictionary:
+    if site_type == "memorial_site":
+        return {
+            "base": Color(0.56, 0.82, 1.0),
+            "accent": Color(1.0, 0.88, 0.40)
+        }
+    return {
+        "base": Color(1.0, 0.44, 0.38),
+        "accent": Color(0.82, 0.42, 1.0)
+    }
+
+
+func _memorial_scar_type_short(site_type: String) -> String:
+    return "M" if site_type == "memorial_site" else "S"
+
+
+func _position_label_2d(position: Vector3) -> String:
+    return "(%.1f, %.1f)" % [position.x, position.z]
 
 
 func record_event(message: String) -> void:
@@ -1450,6 +1754,10 @@ func _build_snapshot() -> Dictionary:
     var allegiance_vendetta_active_count: int = 0
     var legacy_successor_labels: Array[String] = []
     var legacy_successor_active_count: int = 0
+    var memorial_scar_active_total: int = 0
+    var memorial_site_active_count: int = 0
+    var scar_site_active_count: int = 0
+    var memorial_scar_labels: Array[String] = []
     for allegiance in active_allegiances:
         var doctrine: String = str(allegiance.get("doctrine", ""))
         var project_id: String = str(allegiance.get("project", ""))
@@ -1505,6 +1813,19 @@ func _build_snapshot() -> Dictionary:
         legacy_successor_labels.append("%s<=%s(%.0fs)" % [successor_label, source_label, remaining])
     legacy_successor_labels.sort()
     legacy_successor_active_count = legacy_successor_labels.size()
+    for site_id_variant in _memorial_scar_runtime.keys():
+        var site_id: int = int(site_id_variant)
+        var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+        var site_type: String = str(runtime.get("type", ""))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var source_short: String = str(runtime.get("source_short", "fallen"))
+        if site_type == "memorial_site":
+            memorial_site_active_count += 1
+        elif site_type == "scar_site":
+            scar_site_active_count += 1
+        memorial_scar_labels.append("%s:%s(%.0fs)" % [_memorial_scar_type_short(site_type), source_short, remaining])
+    memorial_scar_labels.sort()
+    memorial_scar_active_total = memorial_site_active_count + scar_site_active_count
     var poi_influence_active_count: int = 0
     var poi_structure_active_count: int = 0
     for poi_name in poi_runtime_snapshot.keys():
@@ -1609,6 +1930,12 @@ func _build_snapshot() -> Dictionary:
         "legacy_cooldown_left": _legacy_cooldown_left,
         "legacy_successor_active_count": legacy_successor_active_count,
         "legacy_successor_labels": legacy_successor_labels,
+        "memorial_scar_active_total": memorial_scar_active_total,
+        "memorial_site_active_count": memorial_site_active_count,
+        "scar_site_active_count": scar_site_active_count,
+        "memorial_scar_born_total": memorial_scar_born_total,
+        "memorial_scar_faded_total": memorial_scar_faded_total,
+        "memorial_scar_labels": memorial_scar_labels,
         "rally_leaders_active": rally_leaders_active,
         "rally_followers_active": rally_followers_active,
         "rally_human_leaders_active": rally_human_leaders_active,

@@ -24,6 +24,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight allegiance projects layer (temporary objective pulses)
 - lightweight allegiance vendetta/grudge layer (bounded conflict memory)
 - lightweight succession/legacy layer (bounded continuity after notable falls)
+- lightweight memorial/scar layer (short-lived local post-fall traces)
 - lightweight global world events layer (single active temporary perturbation)
 - lightweight special arrivals layer (rare summoned champions)
 - lightweight relics layer (rare carrier-bound artifacts)
@@ -103,6 +104,15 @@ The active direction is a minimal but playable sandbox loop:
   - if the fallen figure carried a relic and successor is eligible, relic inheritance can happen directly (`Relic INHERITED`)
   - vendetta integration stays light: a notable legacy fall can seed a vendetta impulse against the killer allegiance when context exists
   - observability: `Legacy Triggered` / `Successor Chosen` / `Legacy Faded` logs, HUD counters, and short active successor list
+- Memorial/scar layer (MVP):
+  - only notable falls can spawn a local short-lived site (`memorial_site` or `scar_site`) at death location
+  - trigger reuses existing notable markers (champion, special arrival, relic carrier, high renown/notoriety, legacy-triggered falls)
+  - bounded runtime: finite duration + small global active cap + clean fade-out (`Memorial/Scar BORN` / `Memorial/Scar FADED`)
+  - bounded local effects only:
+    - `memorial_site`: tiny local renown pulse for nearby allied units
+    - `scar_site`: tiny local notoriety pulse for nearby opposing units
+  - light integration: renown/notoriety pulses can indirectly feed local rally, legacy continuity readability, and bounty pressure
+  - observability: dedicated HUD counters + short active site labels (`M:` / `S:`)
 - World events layer (MVP):
   - one temporary world event at a time, autonomous trigger with bounded cooldown/duration
   - `mana_surge` (Mana Surge): light global magic boost (magic damage up, magic energy cost down)
@@ -197,6 +207,7 @@ The debug overlay shows:
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
 - vendetta counters (`active`, `start/end/resolved/expired`) + active vendetta map (`source->target`)
 - legacy counters (`triggered`, `successors`, `relic_inherited`, `faded`) + active successor list
+- memorial/scar counters (`active`, `memorial`, `scar`, `born`, `faded`) + active site list
 - world event counters (`active`, remaining/next timer, starts/ends)
 - special arrival counters (`active`, split H/M, total arrivals, fallen)
 - relic counters (`active`, split H/M, appear/acquired/lost)
@@ -216,6 +227,7 @@ The debug overlay shows:
 - project logs (`Project START` / `Project END` / `Project INTERRUPTED`) for temporary faction objectives
 - vendetta logs (`Vendetta START` / `Vendetta END` / `Vendetta RESOLVED` / `Vendetta EXPIRED`) for conflict memory
 - legacy logs (`Legacy Triggered` / `Successor Chosen` / `Legacy Faded`) for post-fall continuity
+- memorial/scar logs (`Memorial/Scar BORN` / `Memorial/Scar FADED`) for post-fall local traces
 - neutral gate logs (`OPEN`/`CLOSED`/`BREACH`) for third-pressure spikes
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
@@ -245,6 +257,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_faction_projects_behavior.py](tests/test_game3d_faction_projects_behavior.py) (faction project contracts: bounded launch, single active project, clean end/interruption, lightweight effect hooks)
 - [test_game3d_vendetta_behavior.py](tests/test_game3d_vendetta_behavior.py) (vendetta contracts: bounded creation, one active vendetta per allegiance, clean resolved/expired lifecycle, lightweight raid+bounty bias)
 - [test_game3d_legacy_behavior.py](tests/test_game3d_legacy_behavior.py) (legacy contracts: notable trigger gating, bounded successor choice, lightweight transfer/inheritance effects)
+- [test_game3d_memorials_behavior.py](tests/test_game3d_memorials_behavior.py) (memorial/scar contracts: notable trigger gating, bounded spawn/fade/cap lifecycle, lightweight local renown/notoriety effects)
 
 Run targeted tests:
 ```bash
@@ -261,6 +274,7 @@ py -m unittest tests.test_game3d_doctrines_behavior -v
 py -m unittest tests.test_game3d_faction_projects_behavior -v
 py -m unittest tests.test_game3d_vendetta_behavior -v
 py -m unittest tests.test_game3d_legacy_behavior -v
+py -m unittest tests.test_game3d_memorials_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -299,6 +313,7 @@ py -m unittest discover -s tests -v
 - Add lightweight faction projects MVP (`fortify`/`warband_muster`/`ritual_focus`) with one-active-project cap, cooldown, and bounded temporary behavior bias
 - Add lightweight vendetta/grudge MVP with one-active-target cap, bounded duration/cooldown, and small raid+bounty bias
 - Add lightweight succession/legacy MVP with rare notable-fall triggers, bounded successor inheritance, and runtime continuity observability
+- Add lightweight memorial/scar MVP with notable-fall local traces, bounded duration/cap, and small local renown/notoriety pulses
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -318,6 +333,7 @@ py -m unittest discover -s tests -v
 - Tune faction project cadence/duration/modifier strength so temporary objectives remain visible without overriding baseline raid/rally dynamics
 - Tune vendetta trigger rates/duration/bias so conflict memory stays readable without creating permanent hostility loops
 - Tune legacy trigger rarity/successor duration/transfer values so continuity stories stay readable without creating new snowball loops
+- Tune memorial/scar duration/cap/pulse values so post-fall traces stay visible and local without introducing snowball
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

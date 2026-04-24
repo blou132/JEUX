@@ -47,6 +47,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
     var allegiance_vendetta_labels: Array = snapshot.get("allegiance_vendetta_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
+    var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
@@ -221,6 +222,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Legacy successors: %s"
         % (" | ".join(legacy_successor_labels) if not legacy_successor_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Memorial/Scar: active=%d memorial=%d scar=%d | born=%d faded=%d"
+        % [
+            int(snapshot.get("memorial_scar_active_total", 0)),
+            int(snapshot.get("memorial_site_active_count", 0)),
+            int(snapshot.get("scar_site_active_count", 0)),
+            int(snapshot.get("memorial_scar_born_total", 0)),
+            int(snapshot.get("memorial_scar_faded_total", 0))
+        ]
+    )
+    lines.append(
+        "Memorial/Scar sites: %s"
+        % (" | ".join(memorial_scar_labels) if not memorial_scar_labels.is_empty() else "(none)")
     )
     lines.append(
         "Special arrivals: active=%d (H:%d M:%d) | total=%d (H:%d M:%d) | fallen=%d"

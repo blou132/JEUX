@@ -93,6 +93,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("legacy", content)
         self.assertIn("succession", content)
         self.assertIn("successor", content)
+        self.assertIn("memorial", content)
+        self.assertIn("scar", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -184,6 +186,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Vendetta map:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
+        self.assertIn("Memorial/Scar:", content)
+        self.assertIn("Memorial/Scar sites:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -384,6 +388,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Legacy Faded", content)
         self.assertIn('"legacy_successor_labels"', content)
         self.assertIn('"legacy_triggered_total"', content)
+        self.assertIn("Memorial/Scar BORN", content)
+        self.assertIn("Memorial/Scar FADED", content)
+        self.assertIn('"memorial_scar_active_total"', content)
 
 
 if __name__ == "__main__":
