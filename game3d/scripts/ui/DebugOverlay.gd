@@ -47,6 +47,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
     var allegiance_vendetta_labels: Array = snapshot.get("allegiance_vendetta_labels", [])
     var allegiance_crisis_labels: Array = snapshot.get("allegiance_crisis_labels", [])
+    var allegiance_recovery_labels: Array = snapshot.get("allegiance_recovery_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -383,6 +384,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Crisis map: %s"
         % (" | ".join(allegiance_crisis_labels) if not allegiance_crisis_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Recovery: active=%d | start=%d end=%d interrupted=%d"
+        % [
+            int(snapshot.get("allegiance_recovery_active_count", 0)),
+            int(snapshot.get("recovery_started_total", 0)),
+            int(snapshot.get("recovery_ended_total", 0)),
+            int(snapshot.get("recovery_interrupted_total", 0))
+        ]
+    )
+    lines.append(
+        "Recovery map: %s"
+        % (" | ".join(allegiance_recovery_labels) if not allegiance_recovery_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiance cores: %s"

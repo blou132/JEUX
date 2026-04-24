@@ -67,6 +67,13 @@ const ALLEGIANCE_CRISIS_RALLY_BONUS_SUPPRESS_CHANCE: float = 0.56
 const ALLEGIANCE_CRISIS_START_CHANCE_BASE: float = 0.34
 const ALLEGIANCE_CRISIS_RENOWN_TRIGGER: float = 54.0
 const ALLEGIANCE_CRISIS_NOTORIETY_TRIGGER: float = 60.0
+const ALLEGIANCE_RECOVERY_DURATION_MIN: float = 12.0
+const ALLEGIANCE_RECOVERY_DURATION_MAX: float = 19.0
+const ALLEGIANCE_RECOVERY_COOLDOWN: float = 34.0
+const ALLEGIANCE_RECOVERY_START_CHANCE_BASE: float = 0.38
+const ALLEGIANCE_RECOVERY_DEFENSE_WEIGHT_DELTA: float = 0.09
+const ALLEGIANCE_RECOVERY_RALLY_BONUS_BOOST_CHANCE: float = 0.36
+const ALLEGIANCE_RECOVERY_STRUCTURE_RESTABILIZE_WINDOW: float = 28.0
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -188,6 +195,9 @@ var crisis_started_total: int = 0
 var crisis_ended_total: int = 0
 var crisis_resolved_total: int = 0
 var crisis_expired_total: int = 0
+var recovery_started_total: int = 0
+var recovery_ended_total: int = 0
+var recovery_interrupted_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -235,6 +245,9 @@ var _gate_response_runtime_by_faction: Dictionary = {}
 var _gate_response_signals_root: Node3D = null
 var _allegiance_crisis_runtime_by_id: Dictionary = {}
 var _allegiance_crisis_cooldown_until_by_id: Dictionary = {}
+var _allegiance_recovery_runtime_by_id: Dictionary = {}
+var _allegiance_recovery_cooldown_until_by_id: Dictionary = {}
+var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
 var _memorial_scar_sites_root: Node3D = null
@@ -248,6 +261,7 @@ func _ready() -> void:
     world_manager.setup_world()
     _setup_gate_response_state()
     _setup_allegiance_crisis_state()
+    _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -282,6 +296,7 @@ func _tick(delta: float) -> void:
     _update_poi_runtime()
     _update_actor_allegiances()
     _update_allegiance_crisis_runtime(delta)
+    _update_allegiance_recovery_runtime(delta)
     _update_gate_responses(delta)
     _update_bounty_system(delta)
     _update_special_arrivals(delta)
@@ -743,6 +758,8 @@ func _try_start_allegiance_crisis(
         return false
     if _allegiance_crisis_runtime_by_id.has(allegiance_id):
         return false
+    if _allegiance_recovery_runtime_by_id.has(allegiance_id):
+        _end_allegiance_recovery(allegiance_id, "crisis_restart", true)
     if not _is_allegiance_anchor_active(allegiance_id):
         return false
 
@@ -1003,6 +1020,7 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
     if runtime.is_empty():
         return
 
+    var should_seed_recovery: bool = outcome == "resolved"
     if outcome == "resolved":
         crisis_resolved_total += 1
         record_event("Crisis RESOLVED: %s (%s)." % [allegiance_id, reason])
@@ -1015,6 +1033,8 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
     _allegiance_crisis_runtime_by_id.erase(allegiance_id)
     _allegiance_crisis_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_CRISIS_COOLDOWN
     _sync_allegiance_crisis_modifiers()
+    if should_seed_recovery:
+        _try_start_allegiance_recovery(allegiance_id, "crisis_resolved", 0.24, 1.8, reason)
 
 
 func _is_actor_in_allegiance_crisis(actor: Actor) -> bool:
@@ -1023,6 +1043,168 @@ func _is_actor_in_allegiance_crisis(actor: Actor) -> bool:
     if actor.allegiance_id == "":
         return false
     return _allegiance_crisis_runtime_by_id.has(actor.allegiance_id)
+
+
+func _setup_allegiance_recovery_state() -> void:
+    _allegiance_recovery_runtime_by_id.clear()
+    _allegiance_recovery_cooldown_until_by_id.clear()
+    _recent_structure_loss_until_by_poi.clear()
+    _sync_allegiance_recovery_modifiers()
+
+
+func _sync_allegiance_recovery_modifiers() -> void:
+    var defense_modifiers: Dictionary = {}
+    for allegiance_variant in _allegiance_recovery_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        if allegiance_id == "":
+            continue
+        defense_modifiers[allegiance_id] = ALLEGIANCE_RECOVERY_DEFENSE_WEIGHT_DELTA
+    world_manager.set_allegiance_recovery_defense_modifiers(defense_modifiers)
+
+
+func _try_start_allegiance_recovery(
+    allegiance_id: String,
+    reason: String,
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0,
+    source_label: String = ""
+) -> bool:
+    if allegiance_id == "":
+        return false
+    if _allegiance_recovery_runtime_by_id.has(allegiance_id):
+        return false
+    if _allegiance_crisis_runtime_by_id.has(allegiance_id):
+        return false
+    if not _is_allegiance_anchor_active(allegiance_id):
+        return false
+
+    var cooldown_until: float = float(_allegiance_recovery_cooldown_until_by_id.get(allegiance_id, 0.0))
+    if elapsed_time < cooldown_until:
+        return false
+
+    var faction: String = ""
+    var doctrine: String = ""
+    var home_poi: String = ""
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    for allegiance in active_allegiances:
+        if str(allegiance.get("allegiance_id", "")) != allegiance_id:
+            continue
+        faction = str(allegiance.get("faction", ""))
+        doctrine = str(allegiance.get("doctrine", ""))
+        home_poi = str(allegiance.get("home_poi", ""))
+        break
+    if faction == "":
+        return false
+
+    var start_chance: float = ALLEGIANCE_RECOVERY_START_CHANCE_BASE + chance_bonus
+    if doctrine == "steadfast":
+        start_chance += 0.06
+    elif doctrine == "warlike":
+        start_chance -= 0.03
+    elif doctrine == "arcane":
+        start_chance += 0.02
+    start_chance = clampf(start_chance, 0.16, 0.86)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(ALLEGIANCE_RECOVERY_DURATION_MIN, ALLEGIANCE_RECOVERY_DURATION_MAX),
+        max(ALLEGIANCE_RECOVERY_DURATION_MIN, ALLEGIANCE_RECOVERY_DURATION_MAX)
+    ) + duration_bonus
+    if doctrine == "steadfast":
+        duration += 1.2
+    elif doctrine == "warlike":
+        duration -= 0.8
+    duration = clampf(duration, 8.0, 32.0)
+
+    _allegiance_recovery_runtime_by_id[allegiance_id] = {
+        "state": "recovery",
+        "allegiance_id": allegiance_id,
+        "faction": faction,
+        "doctrine": doctrine,
+        "home_poi": home_poi,
+        "reason": reason,
+        "source_label": source_label,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration
+    }
+    recovery_started_total += 1
+    _sync_allegiance_recovery_modifiers()
+    var source_text: String = source_label if source_label != "" else allegiance_id
+    record_event(
+        "Recovery START: %s (%s, %.0fs, source=%s)."
+        % [allegiance_id, reason, duration, source_text]
+    )
+    return true
+
+
+func _update_allegiance_recovery_runtime(_delta: float) -> void:
+    var cooldown_ids: Array = _allegiance_recovery_cooldown_until_by_id.keys()
+    for allegiance_variant in cooldown_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        var cooldown_until: float = float(_allegiance_recovery_cooldown_until_by_id.get(allegiance_id, 0.0))
+        if elapsed_time >= cooldown_until:
+            _allegiance_recovery_cooldown_until_by_id.erase(allegiance_id)
+
+    var poi_ids: Array = _recent_structure_loss_until_by_poi.keys()
+    for poi_variant in poi_ids:
+        var poi_name: String = str(poi_variant)
+        var until_time: float = float(_recent_structure_loss_until_by_poi.get(poi_name, 0.0))
+        if elapsed_time >= until_time:
+            _recent_structure_loss_until_by_poi.erase(poi_name)
+
+    if _allegiance_recovery_runtime_by_id.is_empty():
+        _sync_allegiance_recovery_modifiers()
+        return
+
+    var to_end: Array[Dictionary] = []
+    for allegiance_variant in _allegiance_recovery_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        var runtime: Dictionary = _allegiance_recovery_runtime_by_id.get(allegiance_id, {})
+        if runtime.is_empty():
+            continue
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if not _is_allegiance_anchor_active(allegiance_id):
+            to_end.append({"allegiance_id": allegiance_id, "reason": "anchor_lost", "interrupted": true})
+            continue
+        if _allegiance_crisis_runtime_by_id.has(allegiance_id):
+            to_end.append({"allegiance_id": allegiance_id, "reason": "crisis_restart", "interrupted": true})
+            continue
+        if elapsed_time >= ends_at:
+            to_end.append({"allegiance_id": allegiance_id, "reason": "duration_complete", "interrupted": false})
+
+    for entry in to_end:
+        var allegiance_id: String = str(entry.get("allegiance_id", ""))
+        var reason: String = str(entry.get("reason", "ended"))
+        var interrupted: bool = bool(entry.get("interrupted", false))
+        if allegiance_id == "" or not _allegiance_recovery_runtime_by_id.has(allegiance_id):
+            continue
+        _end_allegiance_recovery(allegiance_id, reason, interrupted)
+
+    _sync_allegiance_recovery_modifiers()
+
+
+func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted: bool = false) -> void:
+    var runtime: Dictionary = _allegiance_recovery_runtime_by_id.get(allegiance_id, {})
+    if runtime.is_empty():
+        return
+
+    if interrupted:
+        recovery_interrupted_total += 1
+        record_event("Recovery INTERRUPTED: %s (%s)." % [allegiance_id, reason])
+    recovery_ended_total += 1
+    record_event("Recovery END: %s (%s)." % [allegiance_id, reason])
+    _allegiance_recovery_runtime_by_id.erase(allegiance_id)
+    _allegiance_recovery_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_RECOVERY_COOLDOWN
+    _sync_allegiance_recovery_modifiers()
+
+
+func _is_actor_in_allegiance_recovery(actor: Actor) -> bool:
+    if actor == null:
+        return false
+    if actor.allegiance_id == "":
+        return false
+    return _allegiance_recovery_runtime_by_id.has(actor.allegiance_id)
 
 
 func _setup_memorial_scar_sites_root() -> void:
@@ -2402,6 +2584,8 @@ func _build_snapshot() -> Dictionary:
     var legacy_successor_active_count: int = 0
     var allegiance_crisis_active_count: int = 0
     var allegiance_crisis_labels: Array[String] = []
+    var allegiance_recovery_active_count: int = 0
+    var allegiance_recovery_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -2477,6 +2661,16 @@ func _build_snapshot() -> Dictionary:
         allegiance_crisis_labels.append("%s:%s@%.0fs" % [allegiance_id, reason, remaining])
     allegiance_crisis_labels.sort()
     allegiance_crisis_active_count = allegiance_crisis_labels.size()
+    for allegiance_variant in _allegiance_recovery_runtime_by_id.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        var runtime: Dictionary = _allegiance_recovery_runtime_by_id.get(allegiance_id, {})
+        if runtime.is_empty():
+            continue
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var reason: String = str(runtime.get("reason", "recovery"))
+        allegiance_recovery_labels.append("%s:%s@%.0fs" % [allegiance_id, reason, remaining])
+    allegiance_recovery_labels.sort()
+    allegiance_recovery_active_count = allegiance_recovery_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -2603,6 +2797,11 @@ func _build_snapshot() -> Dictionary:
         "crisis_ended_total": crisis_ended_total,
         "crisis_resolved_total": crisis_resolved_total,
         "crisis_expired_total": crisis_expired_total,
+        "allegiance_recovery_active_count": allegiance_recovery_active_count,
+        "allegiance_recovery_labels": allegiance_recovery_labels,
+        "recovery_started_total": recovery_started_total,
+        "recovery_ended_total": recovery_ended_total,
+        "recovery_interrupted_total": recovery_interrupted_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -2744,6 +2943,11 @@ func _update_rally_runtime() -> void:
             crisis_penalty_active = _is_actor_in_allegiance_crisis(leader_for_bonus)
         if crisis_penalty_active and actor.rally_bonus_active and randf() <= ALLEGIANCE_CRISIS_RALLY_BONUS_SUPPRESS_CHANCE:
             actor.rally_bonus_active = false
+        var recovery_pulse_active: bool = _is_actor_in_allegiance_recovery(actor)
+        if not recovery_pulse_active and leader_for_bonus != null:
+            recovery_pulse_active = _is_actor_in_allegiance_recovery(leader_for_bonus)
+        if recovery_pulse_active and not actor.rally_bonus_active and randf() <= ALLEGIANCE_RECOVERY_RALLY_BONUS_BOOST_CHANCE:
+            actor.rally_bonus_active = true
 
         followers_total += 1
         if actor.faction == "human":
@@ -2844,6 +3048,8 @@ func _update_poi_runtime() -> void:
             poi_structure_lost_total += 1
             var structure_state: String = str(transition.get("structure_state", "structure"))
             record_event("POI structure DOWN: %s lost %s." % [poi_name, structure_state])
+            if poi_name != "":
+                _recent_structure_loss_until_by_poi[poi_name] = elapsed_time + ALLEGIANCE_RECOVERY_STRUCTURE_RESTABILIZE_WINDOW
         elif kind == "allegiance_created":
             allegiance_created_total += 1
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
@@ -2853,6 +3059,10 @@ func _update_poi_runtime() -> void:
             if doctrine != "":
                 doctrine_assigned_total += 1
                 record_event("Doctrine assigned: %s -> %s." % [allegiance_id, doctrine])
+            var recent_loss_until: float = float(_recent_structure_loss_until_by_poi.get(poi_name, 0.0))
+            if recent_loss_until > elapsed_time:
+                _try_start_allegiance_recovery(allegiance_id, "anchor_restabilized", 0.20, 1.4, poi_name)
+                _recent_structure_loss_until_by_poi.erase(poi_name)
         elif kind == "allegiance_removed":
             allegiance_removed_total += 1
             var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
@@ -2892,6 +3102,7 @@ func _update_poi_runtime() -> void:
             var attacker_faction: String = str(transition.get("attacker_faction", ""))
             var source_poi: String = str(transition.get("source_poi", ""))
             var target_poi: String = str(transition.get("target_poi", ""))
+            var defender_allegiance_id: String = str(transition.get("defender_allegiance_id", ""))
             if outcome == "success":
                 raid_success_total += 1
             elif outcome == "interrupted":
@@ -2899,6 +3110,14 @@ func _update_poi_runtime() -> void:
             elif outcome == "timeout":
                 raid_timeout_total += 1
             record_event("Raid END: %s (%s %s -> %s)." % [outcome, attacker_faction, source_poi, target_poi])
+            if defender_allegiance_id != "" and (outcome == "interrupted" or outcome == "timeout"):
+                _try_start_allegiance_recovery(
+                    defender_allegiance_id,
+                    "raid_end:%s" % outcome,
+                    0.12,
+                    0.8,
+                    target_poi
+                )
         elif kind == "neutral_gate_opened":
             neutral_gate_opened_total += 1
             var open_seconds: float = float(transition.get("open_seconds", 0.0))
@@ -2957,6 +3176,7 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         vendetta_ended_total += 1
         record_event("Vendetta RESOLVED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
         record_event("Vendetta END: %s -> %s (resolved)." % [source_allegiance_id, target_allegiance_id])
+        _try_start_allegiance_recovery(source_allegiance_id, "vendetta_resolved", 0.16, 0.9, target_allegiance_id)
         return
 
     if kind == "vendetta_expired":
@@ -2964,6 +3184,7 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         vendetta_ended_total += 1
         record_event("Vendetta EXPIRED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
         record_event("Vendetta END: %s -> %s (expired)." % [source_allegiance_id, target_allegiance_id])
+        _try_start_allegiance_recovery(source_allegiance_id, "vendetta_expired", 0.08, 0.4, target_allegiance_id)
 
 
 func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictionary:
@@ -3005,6 +3226,7 @@ func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictio
         "Successor Chosen: %s <= %s (%.0fs)."
         % [_actor_label(successor), source_label, max(0.0, successor_ends_at - elapsed_time)]
     )
+    _try_start_allegiance_recovery(successor.allegiance_id, "legacy_successor", 0.22, 1.2, source_label)
 
     var renown_transfer: float = clampf(victim.renown * LEGACY_RENOWN_TRANSFER_RATIO, 1.0, 6.0)
     var notoriety_transfer: float = clampf(victim.notoriety * LEGACY_NOTORIETY_TRANSFER_RATIO, 0.6, 5.0)
