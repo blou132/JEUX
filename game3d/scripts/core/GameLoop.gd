@@ -87,6 +87,26 @@ const SANCTIFIED_ZONE_ENERGY_PULSE: float = 0.24
 const SANCTIFIED_ZONE_RENOWN_PULSE: float = 0.06
 const CORRUPTED_ZONE_ENERGY_DRAIN_PULSE: float = 0.22
 const CORRUPTED_ZONE_NOTORIETY_PULSE: float = 0.08
+const RIVALRY_START_DELAY: float = 122.0
+const RIVALRY_CHECK_INTERVAL: float = 3.6
+const RIVALRY_TRIGGER_CHANCE: float = 0.18
+const RIVALRY_GLOBAL_COOLDOWN: float = 24.0
+const RIVALRY_ACTOR_COOLDOWN: float = 54.0
+const RIVALRY_DURATION_MIN: float = 20.0
+const RIVALRY_DURATION_MAX: float = 34.0
+const RIVALRY_MAX_ACTIVE: int = 2
+const RIVALRY_MIN_POPULATION: int = 12
+const RIVALRY_ENGAGEMENT_WINDOW: float = 30.0
+const RIVALRY_MIN_ENGAGEMENT_SCORE: float = 2.45
+const RIVALRY_BASE_FOCUS_WEIGHT: float = 0.50
+const RIVALRY_DUEL_FOCUS_WEIGHT: float = 0.70
+const RIVALRY_DUEL_RANGE: float = 5.2
+const RIVALRY_DUEL_HOLD: float = 1.0
+const RIVALRY_DUEL_START_CHANCE: float = 0.44
+const RIVALRY_DUEL_DURATION_MIN: float = 5.5
+const RIVALRY_DUEL_DURATION_MAX: float = 8.4
+const RIVALRY_DUEL_RENOWN_PULSE: float = 0.12
+const RIVALRY_DUEL_NOTORIETY_PULSE: float = 0.14
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -231,6 +251,11 @@ var convergence_ended_total: int = 0
 var convergence_interrupted_total: int = 0
 var marked_zone_started_total: int = 0
 var marked_zone_faded_total: int = 0
+var rivalry_started_total: int = 0
+var rivalry_ended_total: int = 0
+var rivalry_resolved_total: int = 0
+var rivalry_expired_total: int = 0
+var duel_started_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -298,6 +323,13 @@ var _marked_zone_global_cooldown_left: float = MARKED_ZONE_START_DELAY
 var _marked_zone_runtime_by_id: Dictionary = {}
 var _marked_zone_next_id: int = 1
 var _marked_zone_signals_root: Node3D = null
+var _rivalry_check_timer: float = 0.0
+var _rivalry_global_cooldown_left: float = RIVALRY_START_DELAY
+var _rivalry_runtime_by_id: Dictionary = {}
+var _rivalry_next_id: int = 1
+var _rivalry_id_by_actor: Dictionary = {}
+var _rivalry_cooldown_until_by_actor: Dictionary = {}
+var _rivalry_engagement_by_pair: Dictionary = {}
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -325,6 +357,7 @@ func _ready() -> void:
     _setup_gate_response_state()
     _setup_convergence_state()
     _setup_marked_zone_state()
+    _setup_rivalry_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
@@ -369,6 +402,7 @@ func _tick(delta: float) -> void:
     _update_destiny_pulls(delta)
     _update_convergence_events(delta)
     _update_marked_zones(delta)
+    _update_rivalries(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _update_legacy_runtime(delta)
@@ -411,6 +445,7 @@ func register_attack(kind: String, attacker: Actor, target: Actor, damage: float
 
     if attacker != null and not attacker.is_dead:
         attacker.award_progress_xp(XP_ON_HIT, "%s_hit" % kind, self)
+    _record_rivalry_engagement(attacker, target, kind)
 
 
 func register_cast(caster: Actor, target: Actor = null, spell_kind: String = "bolt") -> void:
@@ -470,6 +505,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     if victim.is_special_arrival():
         special_arrivals_fallen_total += 1
         record_event("Special Arrival FALLEN: %s." % _actor_label(victim))
+    _handle_rivalry_death(victim, killer)
     var legacy_result: Dictionary = _try_trigger_legacy(victim, killer, reason)
     var relic_inherited: bool = bool(legacy_result.get("relic_inherited", false))
     var had_relic: bool = victim.has_relic()
@@ -3611,6 +3647,445 @@ func _destiny_type_short(destiny_type: String) -> String:
             return "destiny"
 
 
+func _setup_rivalry_state() -> void:
+    _rivalry_check_timer = 0.0
+    _rivalry_global_cooldown_left = RIVALRY_START_DELAY
+    _rivalry_runtime_by_id.clear()
+    _rivalry_next_id = 1
+    _rivalry_id_by_actor.clear()
+    _rivalry_cooldown_until_by_actor.clear()
+    _rivalry_engagement_by_pair.clear()
+
+
+func _update_rivalries(delta: float) -> void:
+    _rivalry_global_cooldown_left = max(0.0, _rivalry_global_cooldown_left - delta)
+    _rivalry_check_timer += delta
+    _prune_rivalry_engagements()
+
+    if not _rivalry_runtime_by_id.is_empty():
+        var rivalry_ids: Array = _rivalry_runtime_by_id.keys()
+        for rivalry_id_variant in rivalry_ids:
+            var rivalry_id: int = int(rivalry_id_variant)
+            var runtime: Dictionary = _rivalry_runtime_by_id.get(rivalry_id, {})
+            if runtime.is_empty():
+                continue
+            _update_active_rivalry(rivalry_id, runtime, delta)
+
+    if _rivalry_check_timer < RIVALRY_CHECK_INTERVAL:
+        return
+    _rivalry_check_timer = 0.0
+
+    if _rivalry_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < RIVALRY_MIN_POPULATION:
+        return
+    if _rivalry_runtime_by_id.size() >= RIVALRY_MAX_ACTIVE:
+        return
+    if randf() > RIVALRY_TRIGGER_CHANCE:
+        return
+    _attempt_start_rivalry()
+
+
+func _prune_rivalry_engagements() -> void:
+    if _rivalry_engagement_by_pair.is_empty():
+        return
+    var stale_keys: Array[String] = []
+    for pair_key_variant in _rivalry_engagement_by_pair.keys():
+        var pair_key: String = str(pair_key_variant)
+        var entry: Dictionary = _rivalry_engagement_by_pair.get(pair_key, {})
+        var last_at: float = float(entry.get("last_at", -INF))
+        if elapsed_time - last_at > RIVALRY_ENGAGEMENT_WINDOW:
+            stale_keys.append(pair_key)
+    for pair_key in stale_keys:
+        _rivalry_engagement_by_pair.erase(pair_key)
+
+
+func _attempt_start_rivalry() -> void:
+    var candidate: Dictionary = _pick_rivalry_candidate()
+    if candidate.is_empty():
+        return
+    _start_rivalry(candidate)
+
+
+func _pick_rivalry_candidate() -> Dictionary:
+    var selected: Dictionary = {}
+    var best_score: float = -INF
+    var stale_keys: Array[String] = []
+
+    for pair_key_variant in _rivalry_engagement_by_pair.keys():
+        var pair_key: String = str(pair_key_variant)
+        var entry: Dictionary = _rivalry_engagement_by_pair.get(pair_key, {})
+        if entry.is_empty():
+            stale_keys.append(pair_key)
+            continue
+        if elapsed_time - float(entry.get("last_at", -INF)) > RIVALRY_ENGAGEMENT_WINDOW:
+            stale_keys.append(pair_key)
+            continue
+
+        var ids: PackedInt32Array = _rivalry_pair_ids(pair_key)
+        if ids.size() != 2:
+            stale_keys.append(pair_key)
+            continue
+        var actor_a: Actor = _find_actor_by_id(ids[0])
+        var actor_b: Actor = _find_actor_by_id(ids[1])
+        if actor_a == null or actor_b == null or actor_a.is_dead or actor_b.is_dead:
+            stale_keys.append(pair_key)
+            continue
+        if actor_a.faction == actor_b.faction:
+            continue
+        if _rivalry_id_by_actor.has(actor_a.actor_id) or _rivalry_id_by_actor.has(actor_b.actor_id):
+            continue
+        if not _is_rivalry_actor_ready(actor_a) or not _is_rivalry_actor_ready(actor_b):
+            continue
+        if not _is_rivalry_notable_actor(actor_a) or not _is_rivalry_notable_actor(actor_b):
+            continue
+
+        var base_score: float = float(entry.get("score", 0.0))
+        if base_score < RIVALRY_MIN_ENGAGEMENT_SCORE:
+            continue
+
+        var scored: Dictionary = _score_rivalry_candidate(actor_a, actor_b, base_score)
+        var score: float = float(scored.get("score", base_score))
+        if score <= best_score:
+            continue
+
+        best_score = score
+        selected = {
+            "pair_key": pair_key,
+            "actor_a_id": actor_a.actor_id,
+            "actor_b_id": actor_b.actor_id,
+            "score": score,
+            "context": str(scored.get("context", "engagement"))
+        }
+
+    for pair_key in stale_keys:
+        _rivalry_engagement_by_pair.erase(pair_key)
+    return selected
+
+
+func _score_rivalry_candidate(actor_a: Actor, actor_b: Actor, base_score: float) -> Dictionary:
+    var score: float = base_score
+    var context_parts: Array[String] = ["engagement"]
+    if bounty_active and (actor_a.actor_id == bounty_target_actor_id or actor_b.actor_id == bounty_target_actor_id):
+        score += 0.92
+        context_parts.append("bounty")
+    if _is_rivalry_vendetta_pair(actor_a, actor_b):
+        score += 0.88
+        context_parts.append("vendetta")
+    if actor_a.destiny_active or actor_b.destiny_active:
+        score += 0.22
+        context_parts.append("destiny")
+    if _legacy_successor_runtime_by_actor.has(actor_a.actor_id) or _legacy_successor_runtime_by_actor.has(actor_b.actor_id):
+        score += 0.18
+        context_parts.append("legacy")
+
+    var center: Vector3 = (actor_a.global_position + actor_b.global_position) * 0.5
+    if _is_position_near_active_convergence(center, CONVERGENCE_RADIUS * 1.60):
+        score += 0.28
+        context_parts.append("convergence")
+
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    if bool(gate_runtime.get("active", false)):
+        var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        if gate_position.distance_to(center) <= CONVERGENCE_RADIUS * 2.10:
+            score += 0.24
+            context_parts.append("gate")
+
+    return {
+        "score": score,
+        "context": "+".join(context_parts)
+    }
+
+
+func _is_rivalry_actor_ready(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if _rivalry_id_by_actor.has(actor.actor_id):
+        return false
+    var cooldown_until: float = float(_rivalry_cooldown_until_by_actor.get(actor.actor_id, 0.0))
+    return elapsed_time >= cooldown_until
+
+
+func _is_rivalry_notable_actor(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+        return true
+    if actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER:
+        return true
+    if actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+        return true
+    return false
+
+
+func _is_rivalry_vendetta_pair(actor_a: Actor, actor_b: Actor) -> bool:
+    if actor_a == null or actor_b == null:
+        return false
+    if actor_a.allegiance_id == "" or actor_b.allegiance_id == "":
+        return false
+    var a_target: String = world_manager.get_allegiance_vendetta_target(actor_a.allegiance_id)
+    var b_target: String = world_manager.get_allegiance_vendetta_target(actor_b.allegiance_id)
+    if a_target != "" and a_target == actor_b.allegiance_id:
+        return true
+    if b_target != "" and b_target == actor_a.allegiance_id:
+        return true
+    return false
+
+
+func _start_rivalry(candidate: Dictionary) -> void:
+    if candidate.is_empty():
+        return
+    var actor_a: Actor = _find_actor_by_id(int(candidate.get("actor_a_id", 0)))
+    var actor_b: Actor = _find_actor_by_id(int(candidate.get("actor_b_id", 0)))
+    if actor_a == null or actor_b == null or actor_a.is_dead or actor_b.is_dead:
+        return
+    if actor_a.faction == actor_b.faction:
+        return
+    if _rivalry_id_by_actor.has(actor_a.actor_id) or _rivalry_id_by_actor.has(actor_b.actor_id):
+        return
+
+    var rivalry_id: int = _rivalry_next_id
+    _rivalry_next_id += 1
+    var duration: float = randf_range(
+        min(RIVALRY_DURATION_MIN, RIVALRY_DURATION_MAX),
+        max(RIVALRY_DURATION_MIN, RIVALRY_DURATION_MAX)
+    )
+    var label: String = "%s<->%s" % [_actor_label(actor_a), _actor_label(actor_b)]
+    var runtime := {
+        "id": rivalry_id,
+        "actor_a_id": actor_a.actor_id,
+        "actor_b_id": actor_b.actor_id,
+        "label": label,
+        "context": str(candidate.get("context", "engagement")),
+        "score": float(candidate.get("score", 0.0)),
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration,
+        "duel_active": false,
+        "duel_hold": 0.0,
+        "duel_ends_at": 0.0
+    }
+    _rivalry_runtime_by_id[rivalry_id] = runtime
+    _rivalry_id_by_actor[actor_a.actor_id] = rivalry_id
+    _rivalry_id_by_actor[actor_b.actor_id] = rivalry_id
+    actor_a.set_rivalry_state(true, actor_b.actor_id, _actor_label(actor_b), RIVALRY_BASE_FOCUS_WEIGHT, false)
+    actor_b.set_rivalry_state(true, actor_a.actor_id, _actor_label(actor_a), RIVALRY_BASE_FOCUS_WEIGHT, false)
+
+    var pair_key: String = str(candidate.get("pair_key", ""))
+    if pair_key != "" and _rivalry_engagement_by_pair.has(pair_key):
+        var damped: Dictionary = _rivalry_engagement_by_pair.get(pair_key, {}).duplicate()
+        damped["score"] = max(0.0, float(damped.get("score", 0.0)) * 0.48)
+        damped["last_at"] = elapsed_time
+        _rivalry_engagement_by_pair[pair_key] = damped
+
+    rivalry_started_total += 1
+    _rivalry_global_cooldown_left = RIVALRY_GLOBAL_COOLDOWN
+    record_event(
+        "Rivalry START: %s (%s, %.0fs)."
+        % [label, str(runtime.get("context", "engagement")), duration]
+    )
+
+
+func _update_active_rivalry(rivalry_id: int, runtime: Dictionary, delta: float) -> void:
+    var actor_a_id: int = int(runtime.get("actor_a_id", 0))
+    var actor_b_id: int = int(runtime.get("actor_b_id", 0))
+    var actor_a: Actor = _find_actor_by_id(actor_a_id)
+    var actor_b: Actor = _find_actor_by_id(actor_b_id)
+    if actor_a == null or actor_b == null or actor_a.is_dead or actor_b.is_dead:
+        _end_rivalry(rivalry_id, "ended", "actor_unavailable")
+        return
+    if actor_a.faction == actor_b.faction:
+        _end_rivalry(rivalry_id, "ended", "hostility_lost")
+        return
+
+    var distance: float = actor_a.global_position.distance_to(actor_b.global_position)
+    var duel_active: bool = bool(runtime.get("duel_active", false))
+    if duel_active:
+        var duel_ends_at: float = float(runtime.get("duel_ends_at", elapsed_time))
+        if elapsed_time >= duel_ends_at or distance > RIVALRY_DUEL_RANGE * 1.90:
+            _end_rivalry_duel(rivalry_id, runtime, "distance_or_timeout")
+            runtime = _rivalry_runtime_by_id.get(rivalry_id, {})
+            if runtime.is_empty():
+                return
+    else:
+        var duel_hold: float = float(runtime.get("duel_hold", 0.0))
+        if distance <= RIVALRY_DUEL_RANGE:
+            duel_hold += delta
+        else:
+            duel_hold = max(0.0, duel_hold - delta * 0.45)
+        runtime["duel_hold"] = duel_hold
+        _rivalry_runtime_by_id[rivalry_id] = runtime
+
+        if duel_hold >= RIVALRY_DUEL_HOLD:
+            _try_start_rivalry_duel(rivalry_id, runtime, actor_a, actor_b)
+            runtime = _rivalry_runtime_by_id.get(rivalry_id, {})
+            if runtime.is_empty():
+                return
+
+    var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+    if elapsed_time >= ends_at:
+        _end_rivalry(rivalry_id, "expired", "timeout")
+
+
+func _try_start_rivalry_duel(rivalry_id: int, runtime: Dictionary, actor_a: Actor, actor_b: Actor) -> void:
+    if actor_a == null or actor_b == null:
+        return
+    if randf() > RIVALRY_DUEL_START_CHANCE:
+        runtime["duel_hold"] = 0.0
+        _rivalry_runtime_by_id[rivalry_id] = runtime
+        return
+
+    var duel_duration: float = randf_range(
+        min(RIVALRY_DUEL_DURATION_MIN, RIVALRY_DUEL_DURATION_MAX),
+        max(RIVALRY_DUEL_DURATION_MIN, RIVALRY_DUEL_DURATION_MAX)
+    )
+    runtime["duel_active"] = true
+    runtime["duel_hold"] = 0.0
+    runtime["duel_ends_at"] = elapsed_time + duel_duration
+    _rivalry_runtime_by_id[rivalry_id] = runtime
+
+    actor_a.set_rivalry_state(true, actor_b.actor_id, _actor_label(actor_b), RIVALRY_DUEL_FOCUS_WEIGHT, true)
+    actor_b.set_rivalry_state(true, actor_a.actor_id, _actor_label(actor_a), RIVALRY_DUEL_FOCUS_WEIGHT, true)
+    _apply_notability_gain(actor_a, RIVALRY_DUEL_RENOWN_PULSE, RIVALRY_DUEL_NOTORIETY_PULSE, "duel_start")
+    _apply_notability_gain(actor_b, RIVALRY_DUEL_RENOWN_PULSE, RIVALRY_DUEL_NOTORIETY_PULSE, "duel_start")
+    duel_started_total += 1
+    record_event(
+        "Duel START: %s (%.0fs)."
+        % [str(runtime.get("label", "rivals")), duel_duration]
+    )
+
+
+func _end_rivalry_duel(rivalry_id: int, runtime: Dictionary, _reason: String) -> void:
+    if runtime.is_empty():
+        return
+    var actor_a: Actor = _find_actor_by_id(int(runtime.get("actor_a_id", 0)))
+    var actor_b: Actor = _find_actor_by_id(int(runtime.get("actor_b_id", 0)))
+    runtime["duel_active"] = false
+    runtime["duel_hold"] = 0.0
+    runtime["duel_ends_at"] = 0.0
+    _rivalry_runtime_by_id[rivalry_id] = runtime
+    if actor_a != null and not actor_a.is_dead:
+        actor_a.set_rivalry_state(true, int(runtime.get("actor_b_id", 0)), _actor_label(actor_b), RIVALRY_BASE_FOCUS_WEIGHT, false)
+    if actor_b != null and not actor_b.is_dead:
+        actor_b.set_rivalry_state(true, int(runtime.get("actor_a_id", 0)), _actor_label(actor_a), RIVALRY_BASE_FOCUS_WEIGHT, false)
+
+
+func _end_rivalry(rivalry_id: int, outcome: String, reason: String) -> void:
+    var runtime: Dictionary = _rivalry_runtime_by_id.get(rivalry_id, {})
+    if runtime.is_empty():
+        return
+
+    var actor_a_id: int = int(runtime.get("actor_a_id", 0))
+    var actor_b_id: int = int(runtime.get("actor_b_id", 0))
+    var actor_a: Actor = _find_actor_by_id(actor_a_id)
+    var actor_b: Actor = _find_actor_by_id(actor_b_id)
+    var label: String = str(runtime.get("label", "rivals"))
+
+    if outcome == "resolved":
+        rivalry_resolved_total += 1
+        record_event("Rivalry RESOLVED: %s (%s)." % [label, reason])
+    elif outcome == "expired":
+        rivalry_expired_total += 1
+        record_event("Rivalry EXPIRED: %s (%s)." % [label, reason])
+
+    rivalry_ended_total += 1
+    record_event("Rivalry END: %s (%s)." % [label, reason])
+
+    if actor_a != null:
+        actor_a.set_rivalry_state(false)
+        _rivalry_cooldown_until_by_actor[actor_a_id] = elapsed_time + RIVALRY_ACTOR_COOLDOWN
+    if actor_b != null:
+        actor_b.set_rivalry_state(false)
+        _rivalry_cooldown_until_by_actor[actor_b_id] = elapsed_time + RIVALRY_ACTOR_COOLDOWN
+
+    _rivalry_id_by_actor.erase(actor_a_id)
+    _rivalry_id_by_actor.erase(actor_b_id)
+    _rivalry_runtime_by_id.erase(rivalry_id)
+
+
+func _record_rivalry_engagement(attacker: Actor, target: Actor, kind: String) -> void:
+    if attacker == null or target == null:
+        return
+    if attacker.is_dead or target.is_dead:
+        return
+    if attacker.faction == target.faction:
+        return
+
+    var pair_key: String = _rivalry_pair_key(attacker.actor_id, target.actor_id)
+    var runtime: Dictionary = _rivalry_engagement_by_pair.get(pair_key, {
+        "score": 0.0,
+        "last_at": elapsed_time,
+        "a_id": min(attacker.actor_id, target.actor_id),
+        "b_id": max(attacker.actor_id, target.actor_id)
+    })
+
+    var score: float = float(runtime.get("score", 0.0))
+    if kind == "magic":
+        score += 1.12
+    else:
+        score += 1.00
+    if attacker.is_special_arrival() or target.is_special_arrival():
+        score += 0.12
+    if attacker.has_relic() or target.has_relic():
+        score += 0.10
+    if attacker.bounty_marked or target.bounty_marked:
+        score += 0.14
+    if attacker.destiny_active or target.destiny_active:
+        score += 0.08
+
+    runtime["score"] = min(score, RIVALRY_MIN_ENGAGEMENT_SCORE * 4.2)
+    runtime["last_at"] = elapsed_time
+    _rivalry_engagement_by_pair[pair_key] = runtime
+
+
+func _rivalry_pair_key(actor_a_id: int, actor_b_id: int) -> String:
+    var first_id: int = min(actor_a_id, actor_b_id)
+    var second_id: int = max(actor_a_id, actor_b_id)
+    return "%d:%d" % [first_id, second_id]
+
+
+func _rivalry_pair_ids(pair_key: String) -> PackedInt32Array:
+    var parts: PackedStringArray = pair_key.split(":")
+    if parts.size() != 2:
+        return PackedInt32Array()
+    var first_id: int = int(parts[0])
+    var second_id: int = int(parts[1])
+    return PackedInt32Array([first_id, second_id])
+
+
+func _clear_actor_rivalry_tracking(actor_id: int) -> void:
+    var rivalry_id: int = int(_rivalry_id_by_actor.get(actor_id, 0))
+    if rivalry_id != 0 and _rivalry_runtime_by_id.has(rivalry_id):
+        _end_rivalry(rivalry_id, "ended", "actor_removed")
+    _rivalry_id_by_actor.erase(actor_id)
+    _rivalry_cooldown_until_by_actor.erase(actor_id)
+    var to_remove: Array[String] = []
+    for pair_key_variant in _rivalry_engagement_by_pair.keys():
+        var pair_key: String = str(pair_key_variant)
+        if pair_key.begins_with("%d:" % actor_id) or pair_key.ends_with(":%d" % actor_id):
+            to_remove.append(pair_key)
+    for pair_key in to_remove:
+        _rivalry_engagement_by_pair.erase(pair_key)
+
+
+func _handle_rivalry_death(victim: Actor, killer: Actor) -> void:
+    if victim == null:
+        return
+    var rivalry_id: int = int(_rivalry_id_by_actor.get(victim.actor_id, 0))
+    if rivalry_id == 0:
+        return
+    var runtime: Dictionary = _rivalry_runtime_by_id.get(rivalry_id, {})
+    if runtime.is_empty():
+        return
+    var actor_a_id: int = int(runtime.get("actor_a_id", 0))
+    var actor_b_id: int = int(runtime.get("actor_b_id", 0))
+    var rival_id: int = actor_b_id if victim.actor_id == actor_a_id else actor_a_id
+    if killer != null and killer.actor_id == rival_id:
+        _end_rivalry(rivalry_id, "resolved", "rival_fall")
+        return
+    _end_rivalry(rivalry_id, "ended", "actor_fallen")
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -3623,6 +4098,7 @@ func _cleanup_dead_actors() -> void:
             _clear_actor_influence_timers(actor.actor_id)
             _clear_actor_rally_tracking(actor.actor_id)
             _clear_actor_destiny_tracking(actor.actor_id)
+            _clear_actor_rivalry_tracking(actor.actor_id)
             _clear_actor_notability_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
@@ -3661,6 +4137,9 @@ func _build_snapshot() -> Dictionary:
     var marked_zone_active_total: int = 0
     var marked_zone_sanctified_active_total: int = 0
     var marked_zone_corrupted_active_total: int = 0
+    var rivalry_active_labels: Array[String] = []
+    var rivalry_active_total: int = 0
+    var duel_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -3945,6 +4424,21 @@ func _build_snapshot() -> Dictionary:
             marked_zone_corrupted_active_total += 1
     marked_zone_active_labels.sort()
     marked_zone_active_total = marked_zone_active_labels.size()
+    for rivalry_id_variant in _rivalry_runtime_by_id.keys():
+        var rivalry_id: int = int(rivalry_id_variant)
+        var runtime: Dictionary = _rivalry_runtime_by_id.get(rivalry_id, {})
+        if runtime.is_empty():
+            continue
+        var label: String = str(runtime.get("label", "rivals"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var duel_active: bool = bool(runtime.get("duel_active", false))
+        if duel_active:
+            duel_active_total += 1
+            rivalry_active_labels.append("%s[DUEL](%.0fs)" % [label, remaining])
+        else:
+            rivalry_active_labels.append("%s(%.0fs)" % [label, remaining])
+    rivalry_active_labels.sort()
+    rivalry_active_total = rivalry_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -4066,6 +4560,14 @@ func _build_snapshot() -> Dictionary:
         "marked_zone_active_labels": marked_zone_active_labels,
         "marked_zone_started_total": marked_zone_started_total,
         "marked_zone_faded_total": marked_zone_faded_total,
+        "rivalry_active_total": rivalry_active_total,
+        "rivalry_active_labels": rivalry_active_labels,
+        "duel_active_total": duel_active_total,
+        "rivalry_started_total": rivalry_started_total,
+        "rivalry_ended_total": rivalry_ended_total,
+        "rivalry_resolved_total": rivalry_resolved_total,
+        "rivalry_expired_total": rivalry_expired_total,
+        "duel_started_total": duel_started_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,
@@ -4925,8 +5427,9 @@ func _actor_label(actor: Actor) -> String:
     var relic_suffix := actor.relic_tag()
     var bounty_suffix := actor.bounty_tag()
     var destiny_suffix := actor.destiny_tag()
+    var rivalry_suffix := actor.rivalry_tag()
     var renown_suffix := actor.renown_tag()
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]

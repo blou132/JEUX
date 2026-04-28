@@ -40,6 +40,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var destiny_active_labels: Array = snapshot.get("destiny_active_labels", [])
     var convergence_active_labels: Array = snapshot.get("convergence_active_labels", [])
     var marked_zone_active_labels: Array = snapshot.get("marked_zone_active_labels", [])
+    var rivalry_active_labels: Array = snapshot.get("rivalry_active_labels", [])
     var top_renown_labels: Array = snapshot.get("top_renown_labels", [])
     var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
@@ -352,6 +353,21 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Marked zone labels: %s"
         % (" | ".join(marked_zone_active_labels) if not marked_zone_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Rivalries: active=%d duel=%d | start=%d end=%d resolved=%d expired=%d"
+        % [
+            int(snapshot.get("rivalry_active_total", 0)),
+            int(snapshot.get("duel_active_total", 0)),
+            int(snapshot.get("rivalry_started_total", 0)),
+            int(snapshot.get("rivalry_ended_total", 0)),
+            int(snapshot.get("rivalry_resolved_total", 0)),
+            int(snapshot.get("rivalry_expired_total", 0))
+        ]
+    )
+    lines.append(
+        "Rival pairs: %s"
+        % (" | ".join(rivalry_active_labels) if not rivalry_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"

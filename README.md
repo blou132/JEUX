@@ -36,6 +36,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight destiny pulls layer (rare temporary heroic aspirations toward local world stakes)
 - lightweight crossroads/convergence events layer (rare short local signal overlap moments)
 - lightweight sanctified/corrupted zone layer (rare temporary local world traces)
+- lightweight rivalry/duel layer (rare bounded notable oppositions)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -211,6 +212,13 @@ The active direction is a minimal but playable sandbox loop:
     - sanctified: tiny human energy sustain + tiny local renown pulse
     - corrupted: tiny human energy drain + tiny local monster notoriety pulse
   - observability: `Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED` logs, HUD counters, and distinct local ring/beacon signal
+- Rivalry/duel layer (MVP):
+  - rare temporary rivalries can form between notable opposing figures after repeated engagements
+  - candidate profiles stay bounded to existing notable signals (champion/special arrival/relic carrier/high renown or notoriety)
+  - one active rivalry max per actor, tiny active cap, short duration, per-actor cooldown, and global cooldown
+  - optional short duel window can emerge only when rivals stay close long enough, with tiny temporary focus boost and tiny notability pulse
+  - bounded gameplay effect only: slight targeting/focus bias while rivals are nearby, no heavy social graph or scripted narrative
+  - clean lifecycle: `Rivalry START` -> optional `Duel START` -> `Rivalry RESOLVED`/`Rivalry EXPIRED` -> `Rivalry END`
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -267,6 +275,7 @@ The debug overlay shows:
 - destiny pull counters (`active`, `start/end/fulfilled/interrupted`) + active pull labels
 - convergence counters (`active`, `start/end/interrupted`) + active zone labels
 - sanctified/corrupted marked zone counters (`active`, type split, `start/fade`) + active labels
+- rivalry/duel counters (`active`, `duel`, `start/end/resolved/expired`) + active rival pair labels
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
@@ -300,6 +309,7 @@ The debug overlay shows:
 - destiny logs (`Destiny START` / `Destiny FULFILLED` / `Destiny INTERRUPTED` / `Destiny END`) for bounded heroic convergence moments
 - convergence logs (`Convergence START` / `Convergence INTERRUPTED` / `Convergence END`) for short local crossroads moments
 - marked zone logs (`Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED`) for temporary local world traces
+- rivalry logs (`Rivalry START` / `Duel START` / `Rivalry RESOLVED` / `Rivalry EXPIRED` / `Rivalry END`) for bounded notable opposition beats
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -335,6 +345,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_destiny_behavior.py](tests/test_game3d_destiny_behavior.py) (destiny contracts: notable trigger gating, one-active-per-actor uniqueness, clean fulfilled/interrupted/timeout lifecycle, light guidance bias)
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (convergence contracts: bounded trigger rarity, no-start on insufficient local signals, clean end/interruption lifecycle, light local effects)
 - [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (marked-zone contracts: bounded trigger/classification/cap, clean fade lifecycle, and lightweight local effects)
+- [test_game3d_rivalry_behavior.py](tests/test_game3d_rivalry_behavior.py) (rivalry/duel contracts: bounded trigger/uniqueness, clean resolved/expired end flow, and lightweight focus bias)
 
 Run targeted tests:
 ```bash
@@ -358,6 +369,7 @@ py -m unittest tests.test_game3d_recovery_behavior -v
 py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
 py -m unittest tests.test_game3d_marked_zones_behavior -v
+py -m unittest tests.test_game3d_rivalry_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -403,6 +415,7 @@ py -m unittest discover -s tests -v
 - Add lightweight destiny pull MVP (`rift_call` / `relic_call` / `vendetta_call`) with one-active-per-actor cap, short duration/cooldown, clean fulfilled/interrupted lifecycle, and bounded guidance bias
 - Add lightweight crossroads/convergence events MVP (rare local overlap near open `rift_gate`) with one-active cap, short duration/cooldown, clean interrupted/end lifecycle, and bounded local pull/notability pulses
 - Add lightweight sanctified/corrupted zone MVP with tiny active cap, short fade lifecycle, and bounded local sustain/pressure pulses
+- Add lightweight rivalry/duel MVP with one-rivalry-per-actor cap, optional short duel windows, bounded focus bias, and clean resolved/expired runtime lifecycle
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -429,6 +442,7 @@ py -m unittest discover -s tests -v
 - Tune destiny trigger rarity/duration/cooldown and pull weights so heroic convergence stays readable without overriding baseline raid/rally/gate behavior
 - Tune convergence trigger rarity/cooldown/duration and local pulse/pull weights so crossroads moments stay visible without overriding baseline destiny/raid/gate flows
 - Tune marked-zone trigger rarity/duration/cooldown and local pulse values so traces stay readable without creating persistent regional snowball
+- Tune rivalry trigger rarity/cooldown/duration, duel start window, and focus/notability pulse weights so notable opposition remains readable without overriding baseline combat loops
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

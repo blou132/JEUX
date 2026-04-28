@@ -79,6 +79,11 @@ var destiny_target_actor_id: int = 0
 var destiny_target_position: Vector3 = Vector3.ZERO
 var destiny_target_label: String = ""
 var destiny_guidance_weight: float = 0.0
+var rivalry_active: bool = false
+var rival_actor_id: int = 0
+var rivalry_label: String = ""
+var rivalry_focus_weight: float = 0.0
+var rivalry_duel_active: bool = false
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -319,6 +324,14 @@ func destiny_tag() -> String:
             return "[FATED]"
 
 
+func rivalry_tag() -> String:
+    if not rivalry_active:
+        return ""
+    if rivalry_duel_active:
+        return "[DUEL]"
+    return "[RIVAL]"
+
+
 func renown_tag() -> String:
     if renown >= 70.0:
         return "[RENOWN++]"
@@ -469,6 +482,40 @@ func get_destiny_guidance() -> Dictionary:
         "target_actor_id": destiny_target_actor_id,
         "target_label": destiny_target_label,
         "weight": destiny_guidance_weight
+    }
+
+
+func set_rivalry_state(
+    active: bool,
+    next_rival_actor_id: int = 0,
+    next_label: String = "",
+    focus_weight: float = 0.0,
+    duel_active: bool = false
+) -> void:
+    rivalry_active = active
+    if not rivalry_active:
+        rival_actor_id = 0
+        rivalry_label = ""
+        rivalry_focus_weight = 0.0
+        rivalry_duel_active = false
+        _refresh_control_visual()
+        return
+
+    rival_actor_id = max(0, next_rival_actor_id)
+    rivalry_label = next_label
+    rivalry_focus_weight = clampf(focus_weight if focus_weight > 0.0 else 0.52, 0.22, 0.90)
+    rivalry_duel_active = duel_active
+    _refresh_control_visual()
+
+
+func get_rivalry_guidance() -> Dictionary:
+    if not rivalry_active or rival_actor_id == 0:
+        return {}
+    return {
+        "target_actor_id": rival_actor_id,
+        "weight": rivalry_focus_weight,
+        "duel_active": rivalry_duel_active,
+        "label": rivalry_label
     }
 
 
@@ -839,6 +886,14 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = destiny_glow * 0.26
+        if rivalry_active:
+            var rivalry_glow := _rivalry_glow_color()
+            var rivalry_mix: float = 0.34 if rivalry_duel_active else 0.17
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(rivalry_glow, rivalry_mix)
+            else:
+                material.emission_enabled = true
+                material.emission = rivalry_glow * 0.28
         var renown_signal := _notability_signal_strength(renown)
         if renown_signal > 0.0:
             var renown_glow := _renown_glow_color()
@@ -1031,6 +1086,14 @@ func _destiny_glow_color() -> Color:
             return Color(1.0, 0.56, 0.34)
         _:
             return Color(0.88, 0.88, 1.0)
+
+
+func _rivalry_glow_color() -> Color:
+    if rivalry_duel_active:
+        return Color(1.0, 0.74, 0.30)
+    if faction == "human":
+        return Color(0.86, 0.72, 1.0)
+    return Color(1.0, 0.54, 0.44)
 
 
 func _renown_glow_color() -> Color:

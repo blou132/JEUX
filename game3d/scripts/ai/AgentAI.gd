@@ -172,6 +172,19 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
             rally_bonus
         )
 
+    var rivalry_guidance: Dictionary = actor.get_rivalry_guidance()
+    if not rivalry_guidance.is_empty():
+        var rival_target: Actor = _find_actor_by_id_in_list(
+            int(rivalry_guidance.get("target_actor_id", 0)),
+            all_actors
+        )
+        if rival_target != null and not rival_target.is_dead and actor.is_enemy(rival_target):
+            var rival_distance: float = actor.global_position.distance_to(rival_target.global_position)
+            if rival_distance <= actor.vision_range * 1.12:
+                var rival_weight: float = float(rivalry_guidance.get("weight", 0.48))
+                if randf() <= clampf(rival_weight, 0.24, 0.88):
+                    enemy = rival_target
+
     if rally_pressure_target != null and rally_pressure_target != enemy:
         var pressure_distance: float = actor.global_position.distance_to(rally_pressure_target.global_position)
         if pressure_distance <= actor.vision_range * 1.08 and randf() <= rally_pressure_chance:
@@ -460,3 +473,14 @@ func _should_avoid_notorious_enemy(actor: Actor, enemy: Actor, distance: float) 
 
 func _is_engagement_state(state: String) -> bool:
     return state in ["detect", "chase", "attack", "cast", "cast_control", "cast_nova", "reposition"]
+
+
+func _find_actor_by_id_in_list(actor_id: int, all_actors: Array) -> Actor:
+    if actor_id == 0:
+        return null
+    for other in all_actors:
+        if other == null:
+            continue
+        if other.actor_id == actor_id:
+            return other
+    return null
