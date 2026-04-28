@@ -123,6 +123,24 @@ const BOND_RALLY_TRIGGER_MIN_FOLLOWERS: int = 3
 const BOND_RALLY_TRIGGER_CHANCE: float = 0.26
 const BOND_LEGACY_TRIGGER_CHANCE: float = 0.34
 const BOND_RECOVERY_TRIGGER_CHANCE: float = 0.24
+const SPLINTER_START_DELAY: float = 170.0
+const SPLINTER_CHECK_INTERVAL: float = 3.8
+const SPLINTER_TRIGGER_CHANCE: float = 0.16
+const SPLINTER_GLOBAL_COOLDOWN: float = 38.0
+const SPLINTER_ALLEGIANCE_COOLDOWN: float = 78.0
+const SPLINTER_DURATION_MIN: float = 16.0
+const SPLINTER_DURATION_MAX: float = 28.0
+const SPLINTER_MAX_ACTIVE: int = 2
+const SPLINTER_MIN_POPULATION: int = 12
+const SPLINTER_MIN_MEMBERS: int = 2
+const SPLINTER_MAX_MEMBERS: int = 5
+const SPLINTER_MEMBER_RADIUS: float = 9.2
+const SPLINTER_SIGNAL_WINDOW: float = 28.0
+const SPLINTER_RALLY_SUPPRESS_CHANCE_PER_SEC: float = 0.14
+const SPLINTER_LEADER_DRIFT_CHANCE_PER_SEC: float = 0.09
+const SPLINTER_PRESSURE_PULSE_INTERVAL: float = 2.8
+const SPLINTER_RIVALRY_ENGAGEMENT_BOOST: float = 0.12
+const SPLINTER_CONTEXT_HOLD_MIN: float = 7.0
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -275,6 +293,10 @@ var duel_started_total: int = 0
 var bond_started_total: int = 0
 var bond_ended_total: int = 0
 var bond_broken_total: int = 0
+var splinter_started_total: int = 0
+var splinter_ended_total: int = 0
+var splinter_resolved_total: int = 0
+var splinter_faded_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -354,6 +376,16 @@ var _bond_runtime_by_id: Dictionary = {}
 var _bond_next_id: int = 1
 var _bond_id_by_patron: Dictionary = {}
 var _bond_cooldown_until_by_actor: Dictionary = {}
+var _splinter_check_timer: float = 0.0
+var _splinter_global_cooldown_left: float = SPLINTER_START_DELAY
+var _splinter_runtime_by_id: Dictionary = {}
+var _splinter_next_id: int = 1
+var _splinter_id_by_allegiance: Dictionary = {}
+var _splinter_cooldown_until_by_allegiance: Dictionary = {}
+var _splinter_recent_crisis_until_by_allegiance: Dictionary = {}
+var _splinter_recent_bond_break_until_by_allegiance: Dictionary = {}
+var _splinter_recent_recovery_interrupt_until_by_allegiance: Dictionary = {}
+var _splinter_recent_vendetta_until_by_allegiance: Dictionary = {}
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -383,6 +415,7 @@ func _ready() -> void:
     _setup_marked_zone_state()
     _setup_rivalry_state()
     _setup_bond_state()
+    _setup_splinter_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
@@ -416,6 +449,7 @@ func _tick(delta: float) -> void:
 
     _update_rally_runtime()
     _update_bonds(delta)
+    _update_splinters(delta)
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
@@ -1854,6 +1888,8 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
     record_event("Crisis END: %s (%s)." % [allegiance_id, reason])
     _allegiance_crisis_runtime_by_id.erase(allegiance_id)
     _allegiance_crisis_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_CRISIS_COOLDOWN
+    var crisis_signal_window: float = SPLINTER_SIGNAL_WINDOW * (1.10 if outcome == "expired" else 0.88)
+    _mark_splinter_signal(_splinter_recent_crisis_until_by_allegiance, allegiance_id, crisis_signal_window)
     _sync_allegiance_crisis_modifiers()
     if should_seed_recovery:
         _try_start_allegiance_recovery(allegiance_id, "crisis_resolved", 0.24, 1.8, reason)
@@ -2015,6 +2051,7 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
     if interrupted:
         recovery_interrupted_total += 1
         record_event("Recovery INTERRUPTED: %s (%s)." % [allegiance_id, reason])
+        _mark_splinter_signal(_splinter_recent_recovery_interrupt_until_by_allegiance, allegiance_id, SPLINTER_SIGNAL_WINDOW * 1.10)
     recovery_ended_total += 1
     record_event("Recovery END: %s (%s)." % [allegiance_id, reason])
     _allegiance_recovery_runtime_by_id.erase(allegiance_id)
@@ -4312,6 +4349,8 @@ func _break_bond(bond_id: int, reason: String) -> void:
         return
     bond_broken_total += 1
     record_event("Bond BROKEN: %s (%s)." % [str(runtime.get("label", "bond")), reason])
+    var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+    _mark_splinter_signal(_splinter_recent_bond_break_until_by_allegiance, allegiance_id, SPLINTER_SIGNAL_WINDOW * 1.05)
     _end_bond(bond_id, reason)
 
 
@@ -4382,6 +4421,460 @@ func _try_start_bond_from_rally(leader: Actor, follower_count: int) -> void:
     _try_start_bond(leader, allegiance_id, source_reason, BOND_RALLY_TRIGGER_CHANCE, allegiance_id)
 
 
+func _setup_splinter_state() -> void:
+    _splinter_check_timer = 0.0
+    _splinter_global_cooldown_left = SPLINTER_START_DELAY
+    _splinter_runtime_by_id.clear()
+    _splinter_next_id = 1
+    _splinter_id_by_allegiance.clear()
+    _splinter_cooldown_until_by_allegiance.clear()
+    _splinter_recent_crisis_until_by_allegiance.clear()
+    _splinter_recent_bond_break_until_by_allegiance.clear()
+    _splinter_recent_recovery_interrupt_until_by_allegiance.clear()
+    _splinter_recent_vendetta_until_by_allegiance.clear()
+
+
+func _mark_splinter_signal(signal_map: Dictionary, allegiance_id: String, window: float = SPLINTER_SIGNAL_WINDOW) -> void:
+    if allegiance_id == "":
+        return
+    var until_time: float = elapsed_time + max(4.0, window)
+    var existing: float = float(signal_map.get(allegiance_id, 0.0))
+    signal_map[allegiance_id] = max(existing, until_time)
+
+
+func _prune_splinter_signal_map(signal_map: Dictionary) -> void:
+    var keys: Array = signal_map.keys()
+    for allegiance_variant in keys:
+        var allegiance_id: String = str(allegiance_variant)
+        var until_time: float = float(signal_map.get(allegiance_id, 0.0))
+        if elapsed_time >= until_time:
+            signal_map.erase(allegiance_id)
+
+
+func _has_active_splinter_for_allegiance(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    var splinter_id: int = int(_splinter_id_by_allegiance.get(allegiance_id, 0))
+    if splinter_id == 0:
+        return false
+    if not _splinter_runtime_by_id.has(splinter_id):
+        _splinter_id_by_allegiance.erase(allegiance_id)
+        return false
+    return true
+
+
+func _splinter_signal_profile(allegiance_id: String) -> Dictionary:
+    var crisis_active: bool = _allegiance_crisis_runtime_by_id.has(allegiance_id)
+    var recent_crisis: bool = elapsed_time < float(_splinter_recent_crisis_until_by_allegiance.get(allegiance_id, 0.0))
+    var recent_bond_break: bool = elapsed_time < float(_splinter_recent_bond_break_until_by_allegiance.get(allegiance_id, 0.0))
+    var recent_recovery_interrupt: bool = elapsed_time < float(_splinter_recent_recovery_interrupt_until_by_allegiance.get(allegiance_id, 0.0))
+    var vendetta_active: bool = world_manager.get_allegiance_vendetta_target(allegiance_id) != ""
+    var recent_vendetta: bool = elapsed_time < float(_splinter_recent_vendetta_until_by_allegiance.get(allegiance_id, 0.0))
+    var eligible: bool = (
+        crisis_active
+        or recent_crisis
+        or recent_bond_break
+        or (vendetta_active and recent_recovery_interrupt)
+        or (recent_vendetta and recent_crisis)
+    )
+    var score: float = 0.0
+    var reasons: Array[String] = []
+    if crisis_active:
+        score += 1.20
+        reasons.append("crisis")
+    if recent_crisis:
+        score += 0.72
+        reasons.append("recent_crisis")
+    if recent_bond_break:
+        score += 0.86
+        reasons.append("bond_broken")
+    if recent_recovery_interrupt:
+        score += 0.82
+        reasons.append("recovery_missed")
+    if vendetta_active:
+        score += 0.34
+        reasons.append("vendetta")
+    if recent_vendetta:
+        score += 0.18
+    if vendetta_active and recent_recovery_interrupt:
+        score += 0.26
+    return {
+        "eligible": eligible,
+        "score": score,
+        "chance": clampf(SPLINTER_TRIGGER_CHANCE + max(0.0, score - 1.0) * 0.06, 0.08, 0.62),
+        "context": "+".join(reasons) if not reasons.is_empty() else "fracture",
+        "pressure_active": crisis_active or recent_crisis or recent_bond_break or (vendetta_active and recent_recovery_interrupt)
+    }
+
+
+func _pick_splinter_cluster(allegiance_id: String) -> Dictionary:
+    var leader: Actor = null
+    var leader_score: float = -INF
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            continue
+        var score: float = actor.renown * 0.045 + actor.notoriety * 0.035
+        score += float(_prev_rally_leader_counts.get(actor.actor_id, 0)) * 0.30
+        if actor.is_champion:
+            score += 1.8
+        if actor.is_special_arrival():
+            score += 1.2
+        if actor.has_relic():
+            score += 1.0
+        if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+            score += 1.1
+        if score > leader_score:
+            leader_score = score
+            leader = actor
+    if leader == null:
+        return {}
+
+    var center: Vector3 = leader.global_position
+    var nearby: Array = []
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            continue
+        var distance: float = actor.global_position.distance_to(center)
+        if distance > SPLINTER_MEMBER_RADIUS:
+            continue
+        nearby.append({
+            "actor_id": actor.actor_id,
+            "distance": distance
+        })
+    nearby.sort_custom(func(a, b):
+        return float(a.get("distance", INF)) < float(b.get("distance", INF))
+    )
+
+    var member_ids: Array = []
+    for entry_variant in nearby:
+        var entry: Dictionary = entry_variant
+        member_ids.append(int(entry.get("actor_id", 0)))
+        if member_ids.size() >= SPLINTER_MAX_MEMBERS:
+            break
+    if not member_ids.has(leader.actor_id):
+        member_ids.insert(0, leader.actor_id)
+    if member_ids.size() > SPLINTER_MAX_MEMBERS:
+        member_ids.resize(SPLINTER_MAX_MEMBERS)
+    if member_ids.size() < SPLINTER_MIN_MEMBERS:
+        return {}
+
+    var label: String = "%s:%s" % [allegiance_id, _actor_label(leader)]
+    return {
+        "allegiance_id": allegiance_id,
+        "faction": leader.faction,
+        "center": center,
+        "leader_actor_id": leader.actor_id,
+        "leader_label": _actor_label(leader),
+        "member_actor_ids": member_ids,
+        "label": label
+    }
+
+
+func _build_splinter_candidate() -> Dictionary:
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    var best_candidate: Dictionary = {}
+    var best_score: float = -INF
+
+    for allegiance in active_allegiances:
+        var allegiance_id: String = str(allegiance.get("allegiance_id", ""))
+        if allegiance_id == "":
+            continue
+        if _has_active_splinter_for_allegiance(allegiance_id):
+            continue
+        var cooldown_until: float = float(_splinter_cooldown_until_by_allegiance.get(allegiance_id, 0.0))
+        if elapsed_time < cooldown_until:
+            continue
+        if not _is_allegiance_anchor_active(allegiance_id):
+            continue
+
+        var signal_profile: Dictionary = _splinter_signal_profile(allegiance_id)
+        if not bool(signal_profile.get("eligible", false)):
+            continue
+
+        var cluster: Dictionary = _pick_splinter_cluster(allegiance_id)
+        if cluster.is_empty():
+            continue
+        var signal_score: float = float(signal_profile.get("score", 0.0))
+        if signal_score <= best_score:
+            continue
+        best_score = signal_score
+        best_candidate = cluster.duplicate(true)
+        best_candidate["signal_score"] = signal_score
+        best_candidate["start_chance"] = float(signal_profile.get("chance", SPLINTER_TRIGGER_CHANCE))
+        best_candidate["context"] = str(signal_profile.get("context", "fracture"))
+
+    return best_candidate
+
+
+func _start_splinter(candidate: Dictionary) -> void:
+    if candidate.is_empty():
+        return
+    var allegiance_id: String = str(candidate.get("allegiance_id", ""))
+    if allegiance_id == "":
+        return
+    if _has_active_splinter_for_allegiance(allegiance_id):
+        return
+
+    var member_ids: Array = candidate.get("member_actor_ids", [])
+    if member_ids.size() < SPLINTER_MIN_MEMBERS:
+        return
+    var sanitized_members: Array = []
+    for actor_id_variant in member_ids:
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            continue
+        sanitized_members.append(actor_id)
+    if sanitized_members.size() < SPLINTER_MIN_MEMBERS:
+        return
+
+    var duration: float = randf_range(
+        min(SPLINTER_DURATION_MIN, SPLINTER_DURATION_MAX),
+        max(SPLINTER_DURATION_MIN, SPLINTER_DURATION_MAX)
+    )
+    var splinter_id: int = _splinter_next_id
+    _splinter_next_id += 1
+
+    var runtime := {
+        "id": splinter_id,
+        "allegiance_id": allegiance_id,
+        "faction": str(candidate.get("faction", "")),
+        "label": str(candidate.get("label", allegiance_id)),
+        "context": str(candidate.get("context", "fracture")),
+        "center": candidate.get("center", Vector3.ZERO),
+        "radius": SPLINTER_MEMBER_RADIUS,
+        "leader_actor_id": int(candidate.get("leader_actor_id", 0)),
+        "member_actor_ids": sanitized_members,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration,
+        "next_pressure_pulse_at": elapsed_time + SPLINTER_PRESSURE_PULSE_INTERVAL
+    }
+    _splinter_runtime_by_id[splinter_id] = runtime
+    _splinter_id_by_allegiance[allegiance_id] = splinter_id
+    _splinter_cooldown_until_by_allegiance[allegiance_id] = elapsed_time + SPLINTER_ALLEGIANCE_COOLDOWN
+    _splinter_global_cooldown_left = SPLINTER_GLOBAL_COOLDOWN
+
+    var member_tag: String = allegiance_id
+    for actor_id_variant in sanitized_members:
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor != null:
+            actor.set_splinter_state(true, member_tag)
+
+    splinter_started_total += 1
+    record_event(
+        "Splinter START: %s (%s, %.0fs)."
+        % [str(runtime.get("label", allegiance_id)), str(runtime.get("context", "fracture")), duration]
+    )
+
+
+func _apply_splinter_effects(runtime: Dictionary, delta: float) -> Dictionary:
+    var member_ids: Array = runtime.get("member_actor_ids", [])
+    if member_ids.is_empty():
+        return runtime
+
+    var member_lookup: Dictionary = {}
+    for actor_id_variant in member_ids:
+        member_lookup[int(actor_id_variant)] = true
+
+    for actor_id_variant in member_ids:
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead:
+            continue
+        if actor.rally_bonus_active:
+            var suppress_chance: float = clampf(SPLINTER_RALLY_SUPPRESS_CHANCE_PER_SEC * delta, 0.0, 0.42)
+            if randf() <= suppress_chance:
+                actor.rally_bonus_active = false
+        if actor.rally_leader_id != 0 and not member_lookup.has(actor.rally_leader_id):
+            var drift_chance: float = clampf(SPLINTER_LEADER_DRIFT_CHANCE_PER_SEC * delta, 0.0, 0.34)
+            if randf() <= drift_chance:
+                actor.rally_leader_id = 0
+                actor.rally_bonus_active = false
+                actor.rally_relic_bonus_active = false
+
+    var next_pressure_pulse_at: float = float(runtime.get("next_pressure_pulse_at", elapsed_time))
+    if elapsed_time < next_pressure_pulse_at:
+        return runtime
+
+    var radius: float = float(runtime.get("radius", SPLINTER_MEMBER_RADIUS))
+    var source_member: Actor = null
+    var source_enemy: Actor = null
+    var best_distance: float = INF
+    for actor_id_variant in member_ids:
+        var actor_id: int = int(actor_id_variant)
+        var member: Actor = _find_actor_by_id(actor_id)
+        if member == null or member.is_dead:
+            continue
+        var enemy: Actor = world_manager.find_nearest_enemy(member, actors, radius * 1.45)
+        if enemy == null or enemy.is_dead:
+            continue
+        var distance: float = member.global_position.distance_to(enemy.global_position)
+        if distance > radius * 1.45:
+            continue
+        if distance < best_distance:
+            best_distance = distance
+            source_member = member
+            source_enemy = enemy
+
+    if source_member != null and source_enemy != null:
+        var pair_key: String = _rivalry_pair_key(source_member.actor_id, source_enemy.actor_id)
+        var entry: Dictionary = _rivalry_engagement_by_pair.get(pair_key, {
+            "score": 0.0,
+            "last_at": elapsed_time
+        })
+        var score: float = float(entry.get("score", 0.0)) + SPLINTER_RIVALRY_ENGAGEMENT_BOOST
+        entry["score"] = min(score, RIVALRY_MIN_ENGAGEMENT_SCORE * 4.2)
+        entry["last_at"] = elapsed_time
+        _rivalry_engagement_by_pair[pair_key] = entry
+
+    runtime["next_pressure_pulse_at"] = elapsed_time + SPLINTER_PRESSURE_PULSE_INTERVAL
+    return runtime
+
+
+func _end_splinter(splinter_id: int, outcome: String, reason: String) -> void:
+    var runtime: Dictionary = _splinter_runtime_by_id.get(splinter_id, {})
+    if runtime.is_empty():
+        return
+    var label: String = str(runtime.get("label", "splinter"))
+    var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+    var member_ids: Array = runtime.get("member_actor_ids", [])
+    for actor_id_variant in member_ids:
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor != null:
+            actor.set_splinter_state(false)
+
+    if outcome == "resolved":
+        splinter_resolved_total += 1
+        record_event("Splinter RESOLVED: %s (%s)." % [label, reason])
+    else:
+        splinter_faded_total += 1
+        record_event("Splinter FADED: %s (%s)." % [label, reason])
+    splinter_ended_total += 1
+    record_event("Splinter END: %s (%s)." % [label, reason])
+
+    _splinter_runtime_by_id.erase(splinter_id)
+    if allegiance_id != "":
+        _splinter_id_by_allegiance.erase(allegiance_id)
+
+
+func _update_active_splinter(splinter_id: int, runtime: Dictionary, delta: float) -> void:
+    var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+    if allegiance_id == "" or not _is_allegiance_anchor_active(allegiance_id):
+        _end_splinter(splinter_id, "faded", "anchor_lost")
+        return
+
+    var member_ids: Array = runtime.get("member_actor_ids", [])
+    var alive_members: Array = []
+    var center_sum: Vector3 = Vector3.ZERO
+    var center_count: int = 0
+    for actor_id_variant in member_ids:
+        var actor_id: int = int(actor_id_variant)
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            actor.set_splinter_state(false)
+            continue
+        alive_members.append(actor.actor_id)
+        center_sum += actor.global_position
+        center_count += 1
+
+    if alive_members.size() < SPLINTER_MIN_MEMBERS:
+        _end_splinter(splinter_id, "faded", "members_lost")
+        return
+
+    runtime["member_actor_ids"] = alive_members
+    if center_count > 0:
+        runtime["center"] = center_sum / float(center_count)
+
+    var started_at: float = float(runtime.get("started_at", elapsed_time))
+    if elapsed_time - started_at >= SPLINTER_CONTEXT_HOLD_MIN:
+        var signal_profile: Dictionary = _splinter_signal_profile(allegiance_id)
+        if not bool(signal_profile.get("eligible", false)):
+            _end_splinter(splinter_id, "resolved", "pressure_cleared")
+            return
+
+    var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+    if elapsed_time >= ends_at:
+        var end_profile: Dictionary = _splinter_signal_profile(allegiance_id)
+        var pressure_active: bool = bool(end_profile.get("pressure_active", false))
+        _end_splinter(splinter_id, "faded" if pressure_active else "resolved", "duration")
+        return
+
+    runtime = _apply_splinter_effects(runtime, delta)
+    _splinter_runtime_by_id[splinter_id] = runtime
+
+
+func _update_splinters(delta: float) -> void:
+    _splinter_global_cooldown_left = max(0.0, _splinter_global_cooldown_left - delta)
+    _splinter_check_timer += delta
+
+    _prune_splinter_signal_map(_splinter_recent_crisis_until_by_allegiance)
+    _prune_splinter_signal_map(_splinter_recent_bond_break_until_by_allegiance)
+    _prune_splinter_signal_map(_splinter_recent_recovery_interrupt_until_by_allegiance)
+    _prune_splinter_signal_map(_splinter_recent_vendetta_until_by_allegiance)
+    _prune_splinter_signal_map(_splinter_cooldown_until_by_allegiance)
+
+    if not _splinter_runtime_by_id.is_empty():
+        var splinter_ids: Array = _splinter_runtime_by_id.keys()
+        for splinter_id_variant in splinter_ids:
+            var splinter_id: int = int(splinter_id_variant)
+            var runtime: Dictionary = _splinter_runtime_by_id.get(splinter_id, {})
+            if runtime.is_empty():
+                continue
+            _update_active_splinter(splinter_id, runtime, delta)
+
+    if _splinter_check_timer < SPLINTER_CHECK_INTERVAL:
+        return
+    _splinter_check_timer = 0.0
+    if _splinter_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < SPLINTER_MIN_POPULATION:
+        return
+    if _splinter_runtime_by_id.size() >= SPLINTER_MAX_ACTIVE:
+        return
+
+    var candidate: Dictionary = _build_splinter_candidate()
+    if candidate.is_empty():
+        return
+    var start_chance: float = clampf(float(candidate.get("start_chance", SPLINTER_TRIGGER_CHANCE)), 0.08, 0.62)
+    if randf() > start_chance:
+        return
+    _start_splinter(candidate)
+
+
+func _clear_actor_splinter_tracking(actor_id: int) -> void:
+    var actor: Actor = _find_actor_by_id(actor_id)
+    if actor != null:
+        actor.set_splinter_state(false)
+
+    var to_fade: Array[int] = []
+    for splinter_id_variant in _splinter_runtime_by_id.keys():
+        var splinter_id: int = int(splinter_id_variant)
+        var runtime: Dictionary = _splinter_runtime_by_id.get(splinter_id, {})
+        if runtime.is_empty():
+            continue
+        var member_ids: Array = runtime.get("member_actor_ids", [])
+        if not member_ids.has(actor_id):
+            continue
+        member_ids.erase(actor_id)
+        runtime["member_actor_ids"] = member_ids
+        _splinter_runtime_by_id[splinter_id] = runtime
+        if member_ids.size() < SPLINTER_MIN_MEMBERS:
+            to_fade.append(splinter_id)
+    for splinter_id in to_fade:
+        if _splinter_runtime_by_id.has(splinter_id):
+            _end_splinter(splinter_id, "faded", "member_removed")
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -4396,6 +4889,7 @@ func _cleanup_dead_actors() -> void:
             _clear_actor_destiny_tracking(actor.actor_id)
             _clear_actor_rivalry_tracking(actor.actor_id)
             _clear_actor_bond_tracking(actor.actor_id)
+            _clear_actor_splinter_tracking(actor.actor_id)
             _clear_actor_notability_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
@@ -4439,6 +4933,8 @@ func _build_snapshot() -> Dictionary:
     var duel_active_total: int = 0
     var bond_active_labels: Array[String] = []
     var bond_active_total: int = 0
+    var splinter_active_labels: Array[String] = []
+    var splinter_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -4748,6 +5244,18 @@ func _build_snapshot() -> Dictionary:
         bond_active_labels.append("%s(%.0fs)" % [bond_label, remaining])
     bond_active_labels.sort()
     bond_active_total = bond_active_labels.size()
+    for splinter_id_variant in _splinter_runtime_by_id.keys():
+        var splinter_id: int = int(splinter_id_variant)
+        var runtime: Dictionary = _splinter_runtime_by_id.get(splinter_id, {})
+        if runtime.is_empty():
+            continue
+        var splinter_label: String = str(runtime.get("label", "splinter"))
+        var members: Array = runtime.get("member_actor_ids", [])
+        var member_count: int = members.size()
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        splinter_active_labels.append("%s[m%d](%.0fs)" % [splinter_label, member_count, remaining])
+    splinter_active_labels.sort()
+    splinter_active_total = splinter_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -4882,6 +5390,12 @@ func _build_snapshot() -> Dictionary:
         "bond_started_total": bond_started_total,
         "bond_ended_total": bond_ended_total,
         "bond_broken_total": bond_broken_total,
+        "splinter_active_total": splinter_active_total,
+        "splinter_active_labels": splinter_active_labels,
+        "splinter_started_total": splinter_started_total,
+        "splinter_ended_total": splinter_ended_total,
+        "splinter_resolved_total": splinter_resolved_total,
+        "splinter_faded_total": splinter_faded_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,
@@ -5297,6 +5811,8 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
             "Vendetta START: %s -> %s (%s, %.0fs)."
             % [source_allegiance_id, target_allegiance_id, reason, duration]
         )
+        _mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, source_allegiance_id, SPLINTER_SIGNAL_WINDOW)
+        _mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, target_allegiance_id, SPLINTER_SIGNAL_WINDOW * 0.82)
         _try_start_crisis_from_vendetta(source_allegiance_id, target_allegiance_id, reason)
         return
 
@@ -5746,8 +6262,9 @@ func _actor_label(actor: Actor) -> String:
     var destiny_suffix := actor.destiny_tag()
     var rivalry_suffix := actor.rivalry_tag()
     var bond_suffix := actor.bond_tag()
+    var splinter_suffix := actor.splinter_tag()
     var renown_suffix := actor.renown_tag()
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, bond_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, bond_suffix, splinter_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]

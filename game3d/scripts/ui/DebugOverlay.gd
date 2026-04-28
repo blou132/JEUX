@@ -42,6 +42,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var marked_zone_active_labels: Array = snapshot.get("marked_zone_active_labels", [])
     var rivalry_active_labels: Array = snapshot.get("rivalry_active_labels", [])
     var bond_active_labels: Array = snapshot.get("bond_active_labels", [])
+    var splinter_active_labels: Array = snapshot.get("splinter_active_labels", [])
     var top_renown_labels: Array = snapshot.get("top_renown_labels", [])
     var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
@@ -382,6 +383,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Bond links: %s"
         % (" | ".join(bond_active_labels) if not bond_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Splinters: active=%d | start=%d end=%d resolved=%d faded=%d"
+        % [
+            int(snapshot.get("splinter_active_total", 0)),
+            int(snapshot.get("splinter_started_total", 0)),
+            int(snapshot.get("splinter_ended_total", 0)),
+            int(snapshot.get("splinter_resolved_total", 0)),
+            int(snapshot.get("splinter_faded_total", 0))
+        ]
+    )
+    lines.append(
+        "Splinter groups: %s"
+        % (" | ".join(splinter_active_labels) if not splinter_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"

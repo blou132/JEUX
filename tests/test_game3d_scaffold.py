@@ -108,6 +108,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("duel", content)
         self.assertIn("bond", content)
         self.assertIn("patron", content)
+        self.assertIn("splinter", content)
+        self.assertIn("breakaway", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -220,6 +222,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Rival pairs:", content)
         self.assertIn("Bonds:", content)
         self.assertIn("Bond links:", content)
+        self.assertIn("Splinters:", content)
+        self.assertIn("Splinter groups:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -308,6 +312,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("bond_patron_active", content)
         self.assertIn("set_bond_state", content)
         self.assertIn("bond_tag", content)
+        self.assertIn("splinter_active", content)
+        self.assertIn("set_splinter_state", content)
+        self.assertIn("splinter_tag", content)
         self.assertIn("var renown: float", content)
         self.assertIn("var notoriety: float", content)
         self.assertIn("add_renown", content)
