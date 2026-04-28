@@ -138,6 +138,20 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                     rally_bonus
                 )
 
+        var convergence_guidance: Dictionary = world.get_convergence_guidance(actor)
+        if not convergence_guidance.is_empty():
+            var convergence_weight: float = float(convergence_guidance.get("weight", 0.42))
+            if randf() <= clampf(convergence_weight, 0.18, 0.82):
+                return _with_rally(
+                    {
+                        "state": "poi",
+                        "target_position": convergence_guidance.get("target_position", actor.global_position),
+                        "reason": str(convergence_guidance.get("reason", "convergence_pull"))
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
         var poi_guidance: Dictionary = world.get_poi_guidance(actor.global_position, actor.faction)
         if not poi_guidance.is_empty() and randf() <= 0.58:
             return _with_rally(

@@ -61,6 +61,18 @@ const DESTINY_TARGET_MAX_DISTANCE: float = 36.0
 const DESTINY_FULFILL_RADIUS: float = 4.2
 const DESTINY_FULFILL_HOLD: float = 1.3
 const DESTINY_NEAR_ENERGY_BONUS_PER_SEC: float = 0.18
+const CONVERGENCE_START_DELAY: float = 92.0
+const CONVERGENCE_CHECK_INTERVAL: float = 3.2
+const CONVERGENCE_TRIGGER_CHANCE: float = 0.20
+const CONVERGENCE_GLOBAL_COOLDOWN: float = 58.0
+const CONVERGENCE_DURATION_MIN: float = 9.0
+const CONVERGENCE_DURATION_MAX: float = 15.0
+const CONVERGENCE_MAX_ACTIVE: int = 1
+const CONVERGENCE_MIN_POPULATION: int = 12
+const CONVERGENCE_RADIUS: float = 8.4
+const CONVERGENCE_PULSE_INTERVAL: float = 2.8
+const CONVERGENCE_RENOWN_PULSE: float = 0.07
+const CONVERGENCE_NOTORIETY_PULSE: float = 0.09
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -200,6 +212,9 @@ var destiny_started_total: int = 0
 var destiny_ended_total: int = 0
 var destiny_fulfilled_total: int = 0
 var destiny_interrupted_total: int = 0
+var convergence_started_total: int = 0
+var convergence_ended_total: int = 0
+var convergence_interrupted_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -257,6 +272,11 @@ var _destiny_check_timer: float = 0.0
 var _destiny_global_cooldown_left: float = DESTINY_START_DELAY
 var _destiny_runtime_by_actor: Dictionary = {}
 var _destiny_cooldown_until_by_actor: Dictionary = {}
+var _convergence_check_timer: float = 0.0
+var _convergence_global_cooldown_left: float = CONVERGENCE_START_DELAY
+var _convergence_runtime_by_id: Dictionary = {}
+var _convergence_next_id: int = 1
+var _convergence_signals_root: Node3D = null
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -282,6 +302,7 @@ func _ready() -> void:
     world_event_modifiers = _default_world_event_modifiers()
     world_manager.setup_world()
     _setup_gate_response_state()
+    _setup_convergence_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
@@ -324,6 +345,7 @@ func _tick(delta: float) -> void:
     _update_special_arrivals(delta)
     _update_relic_system(delta)
     _update_destiny_pulls(delta)
+    _update_convergence_events(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _update_legacy_runtime(delta)
@@ -742,6 +764,335 @@ func _spawn_gate_response_signal(faction: String, position: Vector3, response_id
     var tween := create_tween()
     tween.tween_property(signal_node, "scale", Vector3.ONE * 1.52, 0.42)
     tween.finished.connect(signal_node.queue_free)
+
+
+func _setup_convergence_state() -> void:
+    if _convergence_signals_root != null and is_instance_valid(_convergence_signals_root):
+        _convergence_signals_root.queue_free()
+    _convergence_signals_root = Node3D.new()
+    _convergence_signals_root.name = "ConvergenceSignals"
+    world_manager.add_child(_convergence_signals_root)
+
+    _convergence_runtime_by_id.clear()
+    _convergence_next_id = 1
+    _convergence_check_timer = 0.0
+    _convergence_global_cooldown_left = CONVERGENCE_START_DELAY
+    world_manager.set_convergence_state(false)
+
+
+func _update_convergence_events(delta: float) -> void:
+    _convergence_global_cooldown_left = max(0.0, _convergence_global_cooldown_left - delta)
+    _convergence_check_timer += delta
+
+    if not _convergence_runtime_by_id.is_empty():
+        var event_ids: Array = _convergence_runtime_by_id.keys()
+        for event_id_variant in event_ids:
+            var event_id: int = int(event_id_variant)
+            var runtime: Dictionary = _convergence_runtime_by_id.get(event_id, {})
+            if runtime.is_empty():
+                continue
+
+            var gate_name: String = str(runtime.get("gate_name", "rift_gate"))
+            var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+            if not bool(gate_runtime.get("active", false)) or str(gate_runtime.get("poi", "")) != gate_name:
+                _end_convergence_event(event_id, true, "gate_closed")
+                continue
+
+            var center: Vector3 = runtime.get("center", Vector3.ZERO)
+            var radius: float = float(runtime.get("radius", CONVERGENCE_RADIUS))
+            var signal_counts: Dictionary = _collect_convergence_signal_counts(center, radius)
+            if not bool(signal_counts.get("signals_ok", false)):
+                _end_convergence_event(event_id, true, "signals_lost")
+                continue
+
+            runtime["destiny_count"] = int(signal_counts.get("destiny_count", 0))
+            runtime["relic_count"] = int(signal_counts.get("relic_count", 0))
+            runtime["notable_count"] = int(signal_counts.get("notable_count", 0))
+            runtime["bounty_near"] = bool(signal_counts.get("bounty_near", false))
+
+            var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+            if elapsed_time >= next_pulse_at:
+                _apply_convergence_pulse(runtime)
+                runtime["next_pulse_at"] = elapsed_time + CONVERGENCE_PULSE_INTERVAL
+
+            var started_at: float = float(runtime.get("started_at", elapsed_time))
+            var duration: float = max(0.01, float(runtime.get("duration", CONVERGENCE_DURATION_MIN)))
+            var elapsed_ratio: float = clampf((elapsed_time - started_at) / duration, 0.0, 1.0)
+            _animate_convergence_signal(runtime.get("visual_node", null) as Node3D, elapsed_ratio)
+
+            _convergence_runtime_by_id[event_id] = runtime
+            var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+            if elapsed_time >= ends_at:
+                _end_convergence_event(event_id, false, "duration")
+
+    _sync_convergence_state_to_world()
+
+    if _convergence_check_timer < CONVERGENCE_CHECK_INTERVAL:
+        return
+    _convergence_check_timer = 0.0
+    if _convergence_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < CONVERGENCE_MIN_POPULATION:
+        return
+    if _convergence_runtime_by_id.size() >= CONVERGENCE_MAX_ACTIVE:
+        return
+    if randf() > CONVERGENCE_TRIGGER_CHANCE:
+        return
+
+    var candidate: Dictionary = _build_convergence_candidate()
+    if candidate.is_empty():
+        return
+    _start_convergence_event(candidate)
+    _sync_convergence_state_to_world()
+
+
+func _build_convergence_candidate() -> Dictionary:
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    if not bool(gate_runtime.get("active", false)):
+        return {}
+
+    var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+    if gate_name == "" or not _has_poi_named(gate_name):
+        return {}
+    var center: Vector3 = _get_poi_position_by_name(gate_name)
+
+    var radius: float = CONVERGENCE_RADIUS
+    var signal_counts: Dictionary = _collect_convergence_signal_counts(center, radius)
+    if not bool(signal_counts.get("signals_ok", false)):
+        return {}
+
+    var destiny_count: int = int(signal_counts.get("destiny_count", 0))
+    var relic_count: int = int(signal_counts.get("relic_count", 0))
+    var notable_count: int = int(signal_counts.get("notable_count", 0))
+    var bounty_near: bool = bool(signal_counts.get("bounty_near", false))
+    var vendetta_active: bool = bool(signal_counts.get("vendetta_active", false))
+    var score: float = float(
+        destiny_count * 1.00
+        + relic_count * 1.15
+        + notable_count * 0.74
+        + (0.42 if bounty_near else 0.0)
+        + (0.32 if vendetta_active else 0.0)
+    )
+    if score < 2.0:
+        return {}
+
+    return {
+        "label": gate_name if gate_name != "" else "rift_gate",
+        "gate_name": gate_name,
+        "center": center,
+        "radius": radius,
+        "score": score,
+        "destiny_count": destiny_count,
+        "relic_count": relic_count,
+        "notable_count": notable_count,
+        "bounty_near": bounty_near,
+        "vendetta_active": vendetta_active
+    }
+
+
+func _collect_convergence_signal_counts(center: Vector3, radius: float) -> Dictionary:
+    var destiny_count: int = 0
+    var relic_count: int = 0
+    var notable_count: int = 0
+    var bounty_near: bool = false
+    var scan_radius: float = radius * 1.35
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > scan_radius:
+            continue
+
+        if actor.destiny_active:
+            destiny_count += 1
+        if actor.has_relic():
+            relic_count += 1
+        var is_successor: bool = _legacy_successor_runtime_by_actor.has(actor.actor_id)
+        if actor.is_champion or actor.is_special_arrival() or is_successor:
+            notable_count += 1
+        if actor.bounty_marked:
+            bounty_near = true
+
+    var vendetta_active: bool = not world_manager.get_active_vendettas(elapsed_time).is_empty()
+    var signals_ok: bool = destiny_count >= 1 and (relic_count >= 1 or notable_count >= 1)
+    return {
+        "signals_ok": signals_ok,
+        "destiny_count": destiny_count,
+        "relic_count": relic_count,
+        "notable_count": notable_count,
+        "bounty_near": bounty_near,
+        "vendetta_active": vendetta_active
+    }
+
+
+func _start_convergence_event(candidate: Dictionary) -> void:
+    if candidate.is_empty():
+        return
+    var event_id: int = _convergence_next_id
+    _convergence_next_id += 1
+
+    var duration: float = randf_range(
+        min(CONVERGENCE_DURATION_MIN, CONVERGENCE_DURATION_MAX),
+        max(CONVERGENCE_DURATION_MIN, CONVERGENCE_DURATION_MAX)
+    )
+    var center: Vector3 = candidate.get("center", Vector3.ZERO)
+    var radius: float = float(candidate.get("radius", CONVERGENCE_RADIUS))
+    var label: String = str(candidate.get("label", "crossroads"))
+    var gate_name: String = str(candidate.get("gate_name", "rift_gate"))
+    var signal_node: Node3D = _spawn_convergence_signal(center, event_id)
+
+    _convergence_runtime_by_id[event_id] = {
+        "id": event_id,
+        "label": label,
+        "gate_name": gate_name,
+        "center": center,
+        "radius": radius,
+        "score": float(candidate.get("score", 2.0)),
+        "destiny_count": int(candidate.get("destiny_count", 0)),
+        "relic_count": int(candidate.get("relic_count", 0)),
+        "notable_count": int(candidate.get("notable_count", 0)),
+        "bounty_near": bool(candidate.get("bounty_near", false)),
+        "vendetta_active": bool(candidate.get("vendetta_active", false)),
+        "started_at": elapsed_time,
+        "duration": duration,
+        "ends_at": elapsed_time + duration,
+        "next_pulse_at": elapsed_time + CONVERGENCE_PULSE_INTERVAL,
+        "visual_node": signal_node
+    }
+    convergence_started_total += 1
+    _convergence_global_cooldown_left = CONVERGENCE_GLOBAL_COOLDOWN
+    _apply_convergence_pulse(_convergence_runtime_by_id[event_id])
+    record_event(
+        "Convergence START: %s at %s (destiny=%d relic=%d notable=%d, %.0fs)."
+        % [
+            label,
+            _position_label_2d(center),
+            int(candidate.get("destiny_count", 0)),
+            int(candidate.get("relic_count", 0)),
+            int(candidate.get("notable_count", 0)),
+            duration
+        ]
+    )
+
+
+func _spawn_convergence_signal(position: Vector3, event_id: int) -> Node3D:
+    if _convergence_signals_root == null or not is_instance_valid(_convergence_signals_root):
+        return null
+
+    var node := Node3D.new()
+    node.name = "Convergence_%d" % event_id
+    node.position = position
+
+    var ring := MeshInstance3D.new()
+    ring.name = "Ring"
+    var ring_mesh := CylinderMesh.new()
+    ring_mesh.top_radius = 2.35
+    ring_mesh.bottom_radius = 2.35
+    ring_mesh.height = 0.09
+    ring.mesh = ring_mesh
+    ring.position = Vector3(0.0, 0.12, 0.0)
+    var ring_mat := StandardMaterial3D.new()
+    ring_mat.albedo_color = Color(0.82, 0.72, 0.34)
+    ring_mat.emission_enabled = true
+    ring_mat.emission = Color(0.82, 0.72, 0.34) * 1.08
+    ring_mat.roughness = 0.68
+    ring.material_override = ring_mat
+    node.add_child(ring)
+
+    var beacon := MeshInstance3D.new()
+    beacon.name = "Beacon"
+    var beacon_mesh := SphereMesh.new()
+    beacon_mesh.radius = 0.26
+    beacon_mesh.height = 0.52
+    beacon.mesh = beacon_mesh
+    beacon.position = Vector3(0.0, 1.25, 0.0)
+    var beacon_mat := StandardMaterial3D.new()
+    beacon_mat.albedo_color = Color(0.76, 0.52, 1.0)
+    beacon_mat.emission_enabled = true
+    beacon_mat.emission = Color(0.76, 0.52, 1.0) * 1.20
+    beacon_mat.roughness = 0.66
+    beacon.material_override = beacon_mat
+    node.add_child(beacon)
+
+    node.scale = Vector3.ONE * 0.20
+    _convergence_signals_root.add_child(node)
+    var tween := create_tween()
+    tween.tween_property(node, "scale", Vector3.ONE, 0.34)
+    return node
+
+
+func _animate_convergence_signal(signal_node: Node3D, elapsed_ratio: float) -> void:
+    if signal_node == null or not is_instance_valid(signal_node):
+        return
+    var ring := signal_node.get_node_or_null("Ring") as MeshInstance3D
+    var beacon := signal_node.get_node_or_null("Beacon") as MeshInstance3D
+    var seed: float = float(signal_node.get_instance_id() % 29)
+
+    if ring != null:
+        var pulse := 1.0 + 0.09 * sin(elapsed_time * 4.6 + seed)
+        var fade := lerpf(1.0, 0.74, elapsed_ratio)
+        ring.scale = Vector3.ONE * pulse * fade
+    if beacon != null:
+        beacon.position.y = 1.25 + 0.10 * sin(elapsed_time * 3.2 + seed * 0.45)
+        var beacon_mat := beacon.material_override as StandardMaterial3D
+        if beacon_mat != null:
+            beacon_mat.emission = Color(0.76, 0.52, 1.0) * lerpf(1.20, 0.46, elapsed_ratio)
+
+
+func _apply_convergence_pulse(runtime: Dictionary) -> void:
+    var center: Vector3 = runtime.get("center", Vector3.ZERO)
+    var radius: float = float(runtime.get("radius", CONVERGENCE_RADIUS))
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+        _apply_notability_gain(actor, CONVERGENCE_RENOWN_PULSE, CONVERGENCE_NOTORIETY_PULSE, "convergence")
+
+
+func _end_convergence_event(event_id: int, interrupted: bool, reason: String) -> void:
+    var runtime: Dictionary = _convergence_runtime_by_id.get(event_id, {})
+    if runtime.is_empty():
+        return
+
+    var label: String = str(runtime.get("label", "crossroads"))
+    if interrupted:
+        convergence_interrupted_total += 1
+        record_event("Convergence INTERRUPTED: %s (%s)." % [label, reason])
+
+    convergence_ended_total += 1
+    record_event("Convergence END: %s (%s)." % [label, reason])
+
+    var signal_node := runtime.get("visual_node", null) as Node3D
+    if signal_node != null and is_instance_valid(signal_node):
+        signal_node.queue_free()
+    _convergence_runtime_by_id.erase(event_id)
+    _sync_convergence_state_to_world()
+
+
+func _sync_convergence_state_to_world() -> void:
+    if _convergence_runtime_by_id.is_empty():
+        world_manager.set_convergence_state(false)
+        return
+    var selected: Dictionary = {}
+    var closest_end: float = INF
+    for runtime_variant in _convergence_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if ends_at < closest_end:
+            closest_end = ends_at
+            selected = runtime
+    if selected.is_empty():
+        world_manager.set_convergence_state(false)
+        return
+    var pull_weight: float = 0.34 + min(0.18, float(selected.get("score", 2.0)) * 0.05)
+    world_manager.set_convergence_state(
+        true,
+        selected.get("center", Vector3.ZERO),
+        float(selected.get("radius", CONVERGENCE_RADIUS)),
+        str(selected.get("label", "crossroads")),
+        pull_weight
+    )
 
 
 func _setup_allegiance_crisis_state() -> void:
@@ -1777,6 +2128,15 @@ func _get_poi_position_by_name(poi_name: String) -> Vector3:
             continue
         return poi.get("position", Vector3.ZERO)
     return Vector3.ZERO
+
+
+func _has_poi_named(poi_name: String) -> bool:
+    if poi_name == "":
+        return false
+    for poi in world_manager.pois:
+        if str(poi.get("name", "")) == poi_name:
+            return true
+    return false
 
 
 func _spawn_special_arrival(candidate: Dictionary) -> void:
@@ -2909,6 +3269,8 @@ func _build_snapshot() -> Dictionary:
     var relic_active_labels: Array[String] = []
     var destiny_active_labels: Array[String] = []
     var destiny_active_total: int = 0
+    var convergence_active_labels: Array[String] = []
+    var convergence_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -3162,6 +3524,21 @@ func _build_snapshot() -> Dictionary:
         destiny_active_labels.append("%s:%s->%s(%.0fs)" % [type_short, actor_label, target_label, remaining])
     destiny_active_labels.sort()
     destiny_active_total = destiny_active_labels.size()
+    for event_id_variant in _convergence_runtime_by_id.keys():
+        var event_id: int = int(event_id_variant)
+        var runtime: Dictionary = _convergence_runtime_by_id.get(event_id, {})
+        if runtime.is_empty():
+            continue
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var label: String = str(runtime.get("label", "crossroads"))
+        var destiny_count: int = int(runtime.get("destiny_count", 0))
+        var relic_count: int = int(runtime.get("relic_count", 0))
+        var notable_count: int = int(runtime.get("notable_count", 0))
+        convergence_active_labels.append(
+            "%s[d%d r%d n%d](%.0fs)" % [label, destiny_count, relic_count, notable_count, remaining]
+        )
+    convergence_active_labels.sort()
+    convergence_active_total = convergence_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -3272,6 +3649,11 @@ func _build_snapshot() -> Dictionary:
         "destiny_ended_total": destiny_ended_total,
         "destiny_fulfilled_total": destiny_fulfilled_total,
         "destiny_interrupted_total": destiny_interrupted_total,
+        "convergence_active_total": convergence_active_total,
+        "convergence_active_labels": convergence_active_labels,
+        "convergence_started_total": convergence_started_total,
+        "convergence_ended_total": convergence_ended_total,
+        "convergence_interrupted_total": convergence_interrupted_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,

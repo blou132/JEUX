@@ -50,6 +50,7 @@ var raid_pressure_human_multiplier: float = 1.0
 var raid_pressure_monster_multiplier: float = 1.0
 var world_event_visual_id: String = ""
 var bounty_state: Dictionary = {}
+var convergence_state: Dictionary = {}
 var neutral_gate_status: String = "dormant"
 var neutral_gate_open_until: float = 0.0
 var neutral_gate_cooldown_until: float = 0.0
@@ -183,6 +184,25 @@ func set_bounty_state(
         "target_label": target_label,
         "target_faction": target_faction,
         "target_allegiance_id": target_allegiance_id
+    }
+
+
+func set_convergence_state(
+    active: bool,
+    center_position: Vector3 = Vector3.ZERO,
+    radius: float = 0.0,
+    label: String = "",
+    pull_weight: float = 0.0
+) -> void:
+    if not active:
+        convergence_state.clear()
+        return
+    convergence_state = {
+        "active": true,
+        "center_position": center_position,
+        "radius": max(0.0, radius),
+        "label": label,
+        "pull_weight": clampf(pull_weight, 0.20, 0.74)
     }
 
 
@@ -458,6 +478,33 @@ func get_bounty_guidance(
         "target_position": clamp_to_world(snap_to_nav_grid(target_position + jitter)),
         "distance": distance,
         "weight": clampf(weight, 0.26, 0.88)
+    }
+
+
+func get_convergence_guidance(actor: Actor) -> Dictionary:
+    if actor == null or actor.is_dead:
+        return {}
+    if not bool(convergence_state.get("active", false)):
+        return {}
+
+    var center: Vector3 = convergence_state.get("center_position", actor.global_position)
+    var distance: float = actor.global_position.distance_to(center)
+    if distance > poi_guidance_distance * 1.85:
+        return {}
+
+    var pull_weight: float = float(convergence_state.get("pull_weight", 0.40))
+    var radius: float = max(0.0, float(convergence_state.get("radius", 0.0)))
+    if radius > 0.0 and distance <= radius * 1.18:
+        pull_weight += 0.07
+    if actor.is_champion or actor.has_relic() or actor.is_special_arrival():
+        pull_weight += 0.05
+
+    var jitter := Vector3(randf_range(-1.6, 1.6), 0.0, randf_range(-1.6, 1.6))
+    return {
+        "reason": "convergence_pull:%s" % str(convergence_state.get("label", "crossroads")),
+        "target_position": clamp_to_world(snap_to_nav_grid(center + jitter)),
+        "distance": distance,
+        "weight": clampf(pull_weight, 0.20, 0.78)
     }
 
 
@@ -1121,6 +1168,7 @@ func _build_pois() -> void:
     poi_raid_cooldown_until = 0.0
     poi_last_raid_attacker = ""
     bounty_state.clear()
+    convergence_state.clear()
     neutral_gate_status = "dormant"
     neutral_gate_open_until = 0.0
     neutral_gate_cooldown_until = randf_range(

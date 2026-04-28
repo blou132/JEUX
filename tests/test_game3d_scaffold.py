@@ -101,6 +101,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("memorial", content)
         self.assertIn("scar", content)
         self.assertIn("destiny", content)
+        self.assertIn("convergence", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -143,6 +144,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("set_world_event_visual", content)
         self.assertIn("set_bounty_state", content)
         self.assertIn("get_bounty_guidance", content)
+        self.assertIn("set_convergence_state", content)
+        self.assertIn("get_convergence_guidance", content)
         self.assertIn("ALLEGIANCE_DOCTRINES", content)
         self.assertIn("get_allegiance_doctrine", content)
         self.assertIn("get_allegiance_doctrine_modifiers", content)
@@ -203,6 +206,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Memorial/Scar sites:", content)
         self.assertIn("Destiny:", content)
         self.assertIn("Destiny pulls:", content)
+        self.assertIn("Convergence:", content)
+        self.assertIn("Convergence zones:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -226,6 +231,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_bounty_guidance", content)
         self.assertIn("get_destiny_guidance", content)
         self.assertIn("destiny:", content)
+        self.assertIn("get_convergence_guidance", content)
+        self.assertIn("convergence_pull", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
         self.assertIn("notoriety_avoid", content)
@@ -382,6 +389,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Destiny FULFILLED", content)
         self.assertIn("Destiny INTERRUPTED", content)
         self.assertIn('"destiny_active_total"', content)
+        self.assertIn("CONVERGENCE_TRIGGER_CHANCE", content)
+        self.assertIn("_update_convergence_events", content)
+        self.assertIn("Convergence START", content)
+        self.assertIn("Convergence END", content)
+        self.assertIn("Convergence INTERRUPTED", content)
+        self.assertIn('"convergence_active_total"', content)
         self.assertIn('"bounty_active"', content)
         self.assertIn('"bounty_started_total"', content)
         self.assertIn("_grant_bounty_clear_reward", content)

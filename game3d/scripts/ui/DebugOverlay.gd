@@ -38,6 +38,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var monster_level_counts: Dictionary = snapshot.get("monster_level_counts", {})
     var relic_active_labels: Array = snapshot.get("relic_active_labels", [])
     var destiny_active_labels: Array = snapshot.get("destiny_active_labels", [])
+    var convergence_active_labels: Array = snapshot.get("convergence_active_labels", [])
     var top_renown_labels: Array = snapshot.get("top_renown_labels", [])
     var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
@@ -323,6 +324,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Destiny pulls: %s"
         % (" | ".join(destiny_active_labels) if not destiny_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Convergence: active=%d | start=%d end=%d interrupted=%d"
+        % [
+            int(snapshot.get("convergence_active_total", 0)),
+            int(snapshot.get("convergence_started_total", 0)),
+            int(snapshot.get("convergence_ended_total", 0)),
+            int(snapshot.get("convergence_interrupted_total", 0))
+        ]
+    )
+    lines.append(
+        "Convergence zones: %s"
+        % (" | ".join(convergence_active_labels) if not convergence_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"
