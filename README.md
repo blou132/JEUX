@@ -37,6 +37,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight crossroads/convergence events layer (rare short local signal overlap moments)
 - lightweight sanctified/corrupted zone layer (rare temporary local world traces)
 - lightweight rivalry/duel layer (rare bounded notable oppositions)
+- lightweight patronage/bond layer (rare temporary local attachment poles)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -219,6 +220,13 @@ The active direction is a minimal but playable sandbox loop:
   - optional short duel window can emerge only when rivals stay close long enough, with tiny temporary focus boost and tiny notability pulse
   - bounded gameplay effect only: slight targeting/focus bias while rivals are nearby, no heavy social graph or scripted narrative
   - clean lifecycle: `Rivalry START` -> optional `Duel START` -> `Rivalry RESOLVED`/`Rivalry EXPIRED` -> `Rivalry END`
+- Patronage/bond layer (MVP):
+  - rare temporary bonds can attach one notable figure to one local allegiance/group anchor
+  - notable profiles reuse existing safe signals (champion/special arrival/relic carrier/active successor/very high renown)
+  - bounded scope: one active bond max per notable patron, tiny global cap, per-actor cooldown, and per-allegiance cap
+  - safe autonomous triggers reuse existing outcomes: successor chosen, recovery end, and frequent rally around a notable leader
+  - lightweight local effects only: small rally cohesion bump for nearby followers around patron + tiny shared renown pulse
+  - clean lifecycle: `Bond START` -> `Bond END`, with `Bond BROKEN` if patron falls or local context collapses
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -276,6 +284,7 @@ The debug overlay shows:
 - convergence counters (`active`, `start/end/interrupted`) + active zone labels
 - sanctified/corrupted marked zone counters (`active`, type split, `start/fade`) + active labels
 - rivalry/duel counters (`active`, `duel`, `start/end/resolved/expired`) + active rival pair labels
+- patronage/bond counters (`active`, `start/end/broken`) + active patron->group links
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
@@ -310,6 +319,7 @@ The debug overlay shows:
 - convergence logs (`Convergence START` / `Convergence INTERRUPTED` / `Convergence END`) for short local crossroads moments
 - marked zone logs (`Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED`) for temporary local world traces
 - rivalry logs (`Rivalry START` / `Duel START` / `Rivalry RESOLVED` / `Rivalry EXPIRED` / `Rivalry END`) for bounded notable opposition beats
+- bond logs (`Bond START` / `Bond BROKEN` / `Bond END`) for bounded local patronage arcs
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -346,6 +356,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (convergence contracts: bounded trigger rarity, no-start on insufficient local signals, clean end/interruption lifecycle, light local effects)
 - [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (marked-zone contracts: bounded trigger/classification/cap, clean fade lifecycle, and lightweight local effects)
 - [test_game3d_rivalry_behavior.py](tests/test_game3d_rivalry_behavior.py) (rivalry/duel contracts: bounded trigger/uniqueness, clean resolved/expired end flow, and lightweight focus bias)
+- [test_game3d_bonds_behavior.py](tests/test_game3d_bonds_behavior.py) (patronage/bond contracts: bounded trigger/uniqueness/cap, clean end/broken lifecycle, and lightweight local cohesion+renown effects)
 
 Run targeted tests:
 ```bash
@@ -370,6 +381,7 @@ py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
 py -m unittest tests.test_game3d_marked_zones_behavior -v
 py -m unittest tests.test_game3d_rivalry_behavior -v
+py -m unittest tests.test_game3d_bonds_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -416,6 +428,7 @@ py -m unittest discover -s tests -v
 - Add lightweight crossroads/convergence events MVP (rare local overlap near open `rift_gate`) with one-active cap, short duration/cooldown, clean interrupted/end lifecycle, and bounded local pull/notability pulses
 - Add lightweight sanctified/corrupted zone MVP with tiny active cap, short fade lifecycle, and bounded local sustain/pressure pulses
 - Add lightweight rivalry/duel MVP with one-rivalry-per-actor cap, optional short duel windows, bounded focus bias, and clean resolved/expired runtime lifecycle
+- Add lightweight patronage/bond MVP with one-active-bond-per-patron cap, per-allegiance cap, bounded local cohesion/renown pulse, and clean broken/end lifecycle
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -443,6 +456,7 @@ py -m unittest discover -s tests -v
 - Tune convergence trigger rarity/cooldown/duration and local pulse/pull weights so crossroads moments stay visible without overriding baseline destiny/raid/gate flows
 - Tune marked-zone trigger rarity/duration/cooldown and local pulse values so traces stay readable without creating persistent regional snowball
 - Tune rivalry trigger rarity/cooldown/duration, duel start window, and focus/notability pulse weights so notable opposition remains readable without overriding baseline combat loops
+- Tune patronage/bond trigger rarity/cooldown/duration and small cohesion/renown pulse values so local attachment remains readable without overriding baseline rally/allegiance loops
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

@@ -106,6 +106,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("corrupted", content)
         self.assertIn("rivalry", content)
         self.assertIn("duel", content)
+        self.assertIn("bond", content)
+        self.assertIn("patron", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -216,6 +218,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Marked zone labels:", content)
         self.assertIn("Rivalries:", content)
         self.assertIn("Rival pairs:", content)
+        self.assertIn("Bonds:", content)
+        self.assertIn("Bond links:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -301,6 +305,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("set_rivalry_state", content)
         self.assertIn("get_rivalry_guidance", content)
         self.assertIn("rivalry_tag", content)
+        self.assertIn("bond_patron_active", content)
+        self.assertIn("set_bond_state", content)
+        self.assertIn("bond_tag", content)
         self.assertIn("var renown: float", content)
         self.assertIn("var notoriety: float", content)
         self.assertIn("add_renown", content)
@@ -422,6 +429,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Rivalry RESOLVED", content)
         self.assertIn("Rivalry END", content)
         self.assertIn('"rivalry_active_total"', content)
+        self.assertIn("BOND_START_DELAY", content)
+        self.assertIn("_update_bonds", content)
+        self.assertIn("Bond START", content)
+        self.assertIn("Bond END", content)
+        self.assertIn("Bond BROKEN", content)
+        self.assertIn('"bond_active_total"', content)
         self.assertIn('"bounty_active"', content)
         self.assertIn('"bounty_started_total"', content)
         self.assertIn("_grant_bounty_clear_reward", content)

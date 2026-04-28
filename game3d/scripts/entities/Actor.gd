@@ -84,6 +84,8 @@ var rival_actor_id: int = 0
 var rivalry_label: String = ""
 var rivalry_focus_weight: float = 0.0
 var rivalry_duel_active: bool = false
+var bond_patron_active: bool = false
+var bond_label: String = ""
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -332,6 +334,12 @@ func rivalry_tag() -> String:
     return "[RIVAL]"
 
 
+func bond_tag() -> String:
+    if not bond_patron_active:
+        return ""
+    return "[PATRON]"
+
+
 func renown_tag() -> String:
     if renown >= 70.0:
         return "[RENOWN++]"
@@ -517,6 +525,16 @@ func get_rivalry_guidance() -> Dictionary:
         "duel_active": rivalry_duel_active,
         "label": rivalry_label
     }
+
+
+func set_bond_state(active: bool, next_label: String = "") -> void:
+    bond_patron_active = active
+    if not bond_patron_active:
+        bond_label = ""
+        _refresh_control_visual()
+        return
+    bond_label = next_label
+    _refresh_control_visual()
 
 
 func set_allegiance(next_allegiance_id: String, next_home_poi: String) -> void:
@@ -894,6 +912,13 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = rivalry_glow * 0.28
+        if bond_patron_active:
+            var bond_glow := _bond_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(bond_glow, 0.14)
+            else:
+                material.emission_enabled = true
+                material.emission = bond_glow * 0.18
         var renown_signal := _notability_signal_strength(renown)
         if renown_signal > 0.0:
             var renown_glow := _renown_glow_color()
@@ -1094,6 +1119,12 @@ func _rivalry_glow_color() -> Color:
     if faction == "human":
         return Color(0.86, 0.72, 1.0)
     return Color(1.0, 0.54, 0.44)
+
+
+func _bond_glow_color() -> Color:
+    if faction == "human":
+        return Color(0.72, 1.0, 0.78)
+    return Color(0.78, 1.0, 0.66)
 
 
 func _renown_glow_color() -> Color:

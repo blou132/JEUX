@@ -107,6 +107,22 @@ const RIVALRY_DUEL_DURATION_MIN: float = 5.5
 const RIVALRY_DUEL_DURATION_MAX: float = 8.4
 const RIVALRY_DUEL_RENOWN_PULSE: float = 0.12
 const RIVALRY_DUEL_NOTORIETY_PULSE: float = 0.14
+const BOND_START_DELAY: float = 146.0
+const BOND_GLOBAL_COOLDOWN: float = 32.0
+const BOND_ACTOR_COOLDOWN: float = 62.0
+const BOND_DURATION_MIN: float = 18.0
+const BOND_DURATION_MAX: float = 30.0
+const BOND_MAX_ACTIVE: int = 3
+const BOND_MAX_PER_ALLEGIANCE: int = 1
+const BOND_MIN_POPULATION: int = 10
+const BOND_RADIUS: float = 7.8
+const BOND_PULSE_INTERVAL: float = 3.2
+const BOND_SHARED_RENOWN_PULSE: float = 0.05
+const BOND_RALLY_BONUS_CHANCE_PER_SEC: float = 0.18
+const BOND_RALLY_TRIGGER_MIN_FOLLOWERS: int = 3
+const BOND_RALLY_TRIGGER_CHANCE: float = 0.26
+const BOND_LEGACY_TRIGGER_CHANCE: float = 0.34
+const BOND_RECOVERY_TRIGGER_CHANCE: float = 0.24
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -256,6 +272,9 @@ var rivalry_ended_total: int = 0
 var rivalry_resolved_total: int = 0
 var rivalry_expired_total: int = 0
 var duel_started_total: int = 0
+var bond_started_total: int = 0
+var bond_ended_total: int = 0
+var bond_broken_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -330,6 +349,11 @@ var _rivalry_next_id: int = 1
 var _rivalry_id_by_actor: Dictionary = {}
 var _rivalry_cooldown_until_by_actor: Dictionary = {}
 var _rivalry_engagement_by_pair: Dictionary = {}
+var _bond_global_cooldown_left: float = BOND_START_DELAY
+var _bond_runtime_by_id: Dictionary = {}
+var _bond_next_id: int = 1
+var _bond_id_by_patron: Dictionary = {}
+var _bond_cooldown_until_by_actor: Dictionary = {}
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -358,6 +382,7 @@ func _ready() -> void:
     _setup_convergence_state()
     _setup_marked_zone_state()
     _setup_rivalry_state()
+    _setup_bond_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
@@ -390,6 +415,7 @@ func _tick(delta: float) -> void:
         actor.tick_actor(delta, world_manager, actors, ai, combat_system, magic_system, self)
 
     _update_rally_runtime()
+    _update_bonds(delta)
     magic_system.tick_projectiles(delta, actors, self)
     _update_poi_runtime()
     _update_actor_allegiances()
@@ -1985,6 +2011,7 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
     if runtime.is_empty():
         return
 
+    var should_seed_bond: bool = not interrupted
     if interrupted:
         recovery_interrupted_total += 1
         record_event("Recovery INTERRUPTED: %s (%s)." % [allegiance_id, reason])
@@ -1993,6 +2020,8 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
     _allegiance_recovery_runtime_by_id.erase(allegiance_id)
     _allegiance_recovery_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_RECOVERY_COOLDOWN
     _sync_allegiance_recovery_modifiers()
+    if should_seed_bond:
+        _try_start_bond_from_recovery(allegiance_id, reason)
 
 
 func _is_actor_in_allegiance_recovery(actor: Actor) -> bool:
@@ -4086,6 +4115,273 @@ func _handle_rivalry_death(victim: Actor, killer: Actor) -> void:
     _end_rivalry(rivalry_id, "ended", "actor_fallen")
 
 
+func _setup_bond_state() -> void:
+    _bond_global_cooldown_left = BOND_START_DELAY
+    _bond_runtime_by_id.clear()
+    _bond_next_id = 1
+    _bond_id_by_patron.clear()
+    _bond_cooldown_until_by_actor.clear()
+
+
+func _update_bonds(delta: float) -> void:
+    _bond_global_cooldown_left = max(0.0, _bond_global_cooldown_left - delta)
+    if _bond_runtime_by_id.is_empty():
+        return
+
+    var bond_ids: Array = _bond_runtime_by_id.keys()
+    for bond_id_variant in bond_ids:
+        var bond_id: int = int(bond_id_variant)
+        var runtime: Dictionary = _bond_runtime_by_id.get(bond_id, {})
+        if runtime.is_empty():
+            continue
+        _update_active_bond(bond_id, runtime, delta)
+
+
+func _update_active_bond(bond_id: int, runtime: Dictionary, delta: float) -> void:
+    var patron_id: int = int(runtime.get("patron_actor_id", 0))
+    var patron: Actor = _find_actor_by_id(patron_id)
+    if patron == null or patron.is_dead:
+        _break_bond(bond_id, "patron_fallen")
+        return
+
+    var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+    if allegiance_id != "":
+        if patron.allegiance_id != allegiance_id:
+            _break_bond(bond_id, "allegiance_shift")
+            return
+        if not _is_allegiance_anchor_active(allegiance_id):
+            _break_bond(bond_id, "anchor_lost")
+            return
+
+    var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+    if elapsed_time >= ends_at:
+        _end_bond(bond_id, "duration")
+        return
+
+    _apply_bond_effects(runtime, patron, delta)
+
+
+func _apply_bond_effects(runtime: Dictionary, patron: Actor, delta: float) -> void:
+    if patron == null or patron.is_dead:
+        return
+    var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+    var radius: float = float(runtime.get("radius", BOND_RADIUS))
+    var nearby_allies: Array[Actor] = []
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.faction != patron.faction:
+            continue
+        if allegiance_id != "" and actor.allegiance_id != allegiance_id:
+            continue
+        if actor.global_position.distance_to(patron.global_position) > radius:
+            continue
+        nearby_allies.append(actor)
+
+        if actor == patron:
+            continue
+        if actor.rally_leader_id != patron.actor_id:
+            continue
+        if actor.rally_bonus_active:
+            continue
+        var bonus_chance: float = clampf(BOND_RALLY_BONUS_CHANCE_PER_SEC * delta, 0.0, 0.44)
+        if randf() <= bonus_chance:
+            actor.rally_bonus_active = true
+
+    var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+    if elapsed_time < next_pulse_at:
+        return
+
+    _apply_notability_gain(patron, BOND_SHARED_RENOWN_PULSE, 0.0, "bond_patron")
+    var shared_slots: int = 2
+    for actor in nearby_allies:
+        if actor == patron:
+            continue
+        if actor.rally_leader_id != patron.actor_id:
+            continue
+        _apply_notability_gain(actor, BOND_SHARED_RENOWN_PULSE * 0.72, 0.0, "bond_shared")
+        shared_slots -= 1
+        if shared_slots <= 0:
+            break
+
+    runtime["next_pulse_at"] = elapsed_time + BOND_PULSE_INTERVAL
+    _bond_runtime_by_id[int(runtime.get("id", 0))] = runtime
+
+
+func _is_bond_candidate(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+        return true
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        return true
+    return actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER
+
+
+func _count_active_bonds_for_allegiance(allegiance_id: String) -> int:
+    if allegiance_id == "":
+        return 0
+    var total: int = 0
+    for runtime_variant in _bond_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        if str(runtime.get("allegiance_id", "")) == allegiance_id:
+            total += 1
+    return total
+
+
+func _try_start_bond(
+    patron: Actor,
+    allegiance_id: String,
+    reason: String,
+    trigger_chance: float,
+    target_label: String = ""
+) -> bool:
+    if patron == null or patron.is_dead:
+        return false
+    if _count_alive_actors() < BOND_MIN_POPULATION:
+        return false
+    if _bond_runtime_by_id.size() >= BOND_MAX_ACTIVE:
+        return false
+    if _bond_global_cooldown_left > 0.0:
+        return false
+    if not _is_bond_candidate(patron):
+        return false
+    if _bond_id_by_patron.has(patron.actor_id):
+        return false
+    var actor_cooldown_until: float = float(_bond_cooldown_until_by_actor.get(patron.actor_id, 0.0))
+    if elapsed_time < actor_cooldown_until:
+        return false
+    if allegiance_id != "" and _count_active_bonds_for_allegiance(allegiance_id) >= BOND_MAX_PER_ALLEGIANCE:
+        return false
+    if randf() > clampf(trigger_chance, 0.06, 0.80):
+        return false
+
+    var bond_id: int = _bond_next_id
+    _bond_next_id += 1
+    var duration: float = randf_range(
+        min(BOND_DURATION_MIN, BOND_DURATION_MAX),
+        max(BOND_DURATION_MIN, BOND_DURATION_MAX)
+    )
+    var group_label: String = target_label if target_label != "" else (
+        allegiance_id if allegiance_id != "" else patron.faction
+    )
+    var label: String = "%s->%s" % [_actor_label(patron), group_label]
+    _bond_runtime_by_id[bond_id] = {
+        "id": bond_id,
+        "patron_actor_id": patron.actor_id,
+        "patron_label": _actor_label(patron),
+        "allegiance_id": allegiance_id,
+        "group_label": group_label,
+        "label": label,
+        "reason": reason,
+        "radius": BOND_RADIUS,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration,
+        "next_pulse_at": elapsed_time + BOND_PULSE_INTERVAL
+    }
+    _bond_id_by_patron[patron.actor_id] = bond_id
+    _bond_cooldown_until_by_actor[patron.actor_id] = elapsed_time + BOND_ACTOR_COOLDOWN
+    patron.set_bond_state(true, label)
+    bond_started_total += 1
+    _bond_global_cooldown_left = BOND_GLOBAL_COOLDOWN
+    record_event(
+        "Bond START: %s (%s, %.0fs)."
+        % [label, reason, duration]
+    )
+    return true
+
+
+func _end_bond(bond_id: int, reason: String) -> void:
+    var runtime: Dictionary = _bond_runtime_by_id.get(bond_id, {})
+    if runtime.is_empty():
+        return
+    var patron_id: int = int(runtime.get("patron_actor_id", 0))
+    var patron: Actor = _find_actor_by_id(patron_id)
+    if patron != null:
+        patron.set_bond_state(false)
+    _bond_id_by_patron.erase(patron_id)
+    _bond_runtime_by_id.erase(bond_id)
+    bond_ended_total += 1
+    record_event("Bond END: %s (%s)." % [str(runtime.get("label", "bond")), reason])
+
+
+func _break_bond(bond_id: int, reason: String) -> void:
+    var runtime: Dictionary = _bond_runtime_by_id.get(bond_id, {})
+    if runtime.is_empty():
+        return
+    bond_broken_total += 1
+    record_event("Bond BROKEN: %s (%s)." % [str(runtime.get("label", "bond")), reason])
+    _end_bond(bond_id, reason)
+
+
+func _clear_actor_bond_tracking(actor_id: int) -> void:
+    var bond_id: int = int(_bond_id_by_patron.get(actor_id, 0))
+    if bond_id != 0 and _bond_runtime_by_id.has(bond_id):
+        _break_bond(bond_id, "patron_removed")
+    _bond_id_by_patron.erase(actor_id)
+    _bond_cooldown_until_by_actor.erase(actor_id)
+
+
+func _try_start_bond_from_legacy(successor: Actor, source_label: String) -> void:
+    if successor == null or successor.is_dead:
+        return
+    var allegiance_id: String = successor.allegiance_id
+    var reason: String = "legacy:%s" % source_label
+    _try_start_bond(successor, allegiance_id, reason, BOND_LEGACY_TRIGGER_CHANCE, allegiance_id)
+
+
+func _try_start_bond_from_recovery(allegiance_id: String, source_reason: String) -> void:
+    if allegiance_id == "":
+        return
+    var patron: Actor = _pick_bond_patron_for_allegiance(allegiance_id)
+    if patron == null:
+        return
+    _try_start_bond(
+        patron,
+        allegiance_id,
+        "recovery:%s" % source_reason,
+        BOND_RECOVERY_TRIGGER_CHANCE,
+        allegiance_id
+    )
+
+
+func _pick_bond_patron_for_allegiance(allegiance_id: String) -> Actor:
+    var selected: Actor = null
+    var best_score: float = -INF
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            continue
+        if not _is_bond_candidate(actor):
+            continue
+        var score: float = actor.renown * 0.04 + actor.notoriety * 0.02
+        if actor.is_champion:
+            score += 2.2
+        if actor.is_special_arrival():
+            score += 1.5
+        if actor.has_relic():
+            score += 1.3
+        if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+            score += 1.8
+        score += float(_prev_rally_leader_counts.get(actor.actor_id, 0)) * 0.36
+        if score > best_score:
+            best_score = score
+            selected = actor
+    return selected
+
+
+func _try_start_bond_from_rally(leader: Actor, follower_count: int) -> void:
+    if leader == null or leader.is_dead:
+        return
+    if follower_count < BOND_RALLY_TRIGGER_MIN_FOLLOWERS:
+        return
+    var allegiance_id: String = leader.allegiance_id
+    var source_reason: String = "rally:%d" % follower_count
+    _try_start_bond(leader, allegiance_id, source_reason, BOND_RALLY_TRIGGER_CHANCE, allegiance_id)
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -4099,6 +4395,7 @@ func _cleanup_dead_actors() -> void:
             _clear_actor_rally_tracking(actor.actor_id)
             _clear_actor_destiny_tracking(actor.actor_id)
             _clear_actor_rivalry_tracking(actor.actor_id)
+            _clear_actor_bond_tracking(actor.actor_id)
             _clear_actor_notability_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
@@ -4140,6 +4437,8 @@ func _build_snapshot() -> Dictionary:
     var rivalry_active_labels: Array[String] = []
     var rivalry_active_total: int = 0
     var duel_active_total: int = 0
+    var bond_active_labels: Array[String] = []
+    var bond_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -4439,6 +4738,16 @@ func _build_snapshot() -> Dictionary:
             rivalry_active_labels.append("%s(%.0fs)" % [label, remaining])
     rivalry_active_labels.sort()
     rivalry_active_total = rivalry_active_labels.size()
+    for bond_id_variant in _bond_runtime_by_id.keys():
+        var bond_id: int = int(bond_id_variant)
+        var runtime: Dictionary = _bond_runtime_by_id.get(bond_id, {})
+        if runtime.is_empty():
+            continue
+        var bond_label: String = str(runtime.get("label", "bond"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        bond_active_labels.append("%s(%.0fs)" % [bond_label, remaining])
+    bond_active_labels.sort()
+    bond_active_total = bond_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -4568,6 +4877,11 @@ func _build_snapshot() -> Dictionary:
         "rivalry_resolved_total": rivalry_resolved_total,
         "rivalry_expired_total": rivalry_expired_total,
         "duel_started_total": duel_started_total,
+        "bond_active_total": bond_active_total,
+        "bond_active_labels": bond_active_labels,
+        "bond_started_total": bond_started_total,
+        "bond_ended_total": bond_ended_total,
+        "bond_broken_total": bond_broken_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,
@@ -4795,6 +5109,8 @@ func _update_rally_runtime() -> void:
         if previous_followers <= 0 and current_followers > 0:
             rally_groups_formed_total += 1
             record_event("Rally formed: %s (+%d allies)." % [_actor_label(leader), current_followers])
+        if previous_followers < BOND_RALLY_TRIGGER_MIN_FOLLOWERS and current_followers >= BOND_RALLY_TRIGGER_MIN_FOLLOWERS:
+            _try_start_bond_from_rally(leader, current_followers)
 
     for leader_id_variant in _prev_rally_leader_counts.keys():
         var leader_id: int = int(leader_id_variant)
@@ -5040,6 +5356,7 @@ func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictio
         % [_actor_label(successor), source_label, max(0.0, successor_ends_at - elapsed_time)]
     )
     _try_start_allegiance_recovery(successor.allegiance_id, "legacy_successor", 0.22, 1.2, source_label)
+    _try_start_bond_from_legacy(successor, source_label)
 
     var renown_transfer: float = clampf(victim.renown * LEGACY_RENOWN_TRANSFER_RATIO, 1.0, 6.0)
     var notoriety_transfer: float = clampf(victim.notoriety * LEGACY_NOTORIETY_TRANSFER_RATIO, 0.6, 5.0)
@@ -5428,8 +5745,9 @@ func _actor_label(actor: Actor) -> String:
     var bounty_suffix := actor.bounty_tag()
     var destiny_suffix := actor.destiny_tag()
     var rivalry_suffix := actor.rivalry_tag()
+    var bond_suffix := actor.bond_tag()
     var renown_suffix := actor.renown_tag()
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, bond_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
