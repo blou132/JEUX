@@ -35,6 +35,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight recovery pulse layer (bounded post-shock allegiance rebound)
 - lightweight destiny pulls layer (rare temporary heroic aspirations toward local world stakes)
 - lightweight crossroads/convergence events layer (rare short local signal overlap moments)
+- lightweight sanctified/corrupted zone layer (rare temporary local world traces)
 - simple AI FSM: `wander -> detect -> chase -> attack -> flee`
 - deterministic melee combat (range + cooldown + damage)
 - three simple spells: projectile bolt + short-range nova + control slow
@@ -199,6 +200,17 @@ The active direction is a minimal but playable sandbox loop:
   - lightweight local effects only: tiny local renown/notoriety pulses and slight temporary AI pull toward the convergence zone
   - clean lifecycle: `Convergence START` -> `Convergence END`, with `Convergence INTERRUPTED` if gate closes or local signals collapse
   - observability: dedicated HUD counters + active convergence labels and a distinct short-lived world signal ring/beacon
+- Sanctified/Corrupted zones layer (MVP):
+  - rare temporary marked zones tied to existing local traces, with no terrain mutation and no permanent biome system
+  - two bounded types only:
+    - `sanctified_zone`: sourced from `memorial_site` + nearby heroic signals (champion/successor/high-renown/summoned-hero)
+    - `corrupted_zone`: sourced from `scar_site` + nearby corruption signals (calamity/high-notoriety/champion, with open-gate pressure as catalyst)
+  - optional catalyst reuse stays simple: nearby active convergence can slightly raise zone start score
+  - bounded runtime: short duration, tiny active cap, clean `Zone FADED` on timeout (or source loss)
+  - lightweight local effects only:
+    - sanctified: tiny human energy sustain + tiny local renown pulse
+    - corrupted: tiny human energy drain + tiny local monster notoriety pulse
+  - observability: `Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED` logs, HUD counters, and distinct local ring/beacon signal
 - Champion layer (MVP):
   - rare promotion based on notable performance (level, kills, survival, XP)
   - bounded bonus package (small combat/survival boost with light role/archetype flavor)
@@ -254,6 +266,7 @@ The debug overlay shows:
 - recovery pulse counters (`active`, `start/end/interrupted`) + recovery map per allegiance
 - destiny pull counters (`active`, `start/end/fulfilled/interrupted`) + active pull labels
 - convergence counters (`active`, `start/end/interrupted`) + active zone labels
+- sanctified/corrupted marked zone counters (`active`, type split, `start/fade`) + active labels
 - allegiance counters (`active`, affiliated/unassigned, creation/removal/assignment/loss)
 - doctrine counters (`warlike`, `steadfast`, `arcane`) + doctrine map per active allegiance
 - project counters (`fortify`, `warband_muster`, `ritual_focus`) + active project map per allegiance
@@ -286,6 +299,7 @@ The debug overlay shows:
 - recovery logs (`Recovery START` / `Recovery INTERRUPTED` / `Recovery END`) for temporary post-shock rebound windows
 - destiny logs (`Destiny START` / `Destiny FULFILLED` / `Destiny INTERRUPTED` / `Destiny END`) for bounded heroic convergence moments
 - convergence logs (`Convergence START` / `Convergence INTERRUPTED` / `Convergence END`) for short local crossroads moments
+- marked zone logs (`Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED`) for temporary local world traces
 - champion events (`Champion promoted`, `Champion fallen`)
 - rally events (`Rally formed`, `Rally dissolved`)
 - role-aware logs for human actions (labels include role tags)
@@ -320,6 +334,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_recovery_behavior.py](tests/test_game3d_recovery_behavior.py) (recovery pulse contracts: bounded trigger/uniqueness, clean end/interruption, lightweight rally/defense uplift)
 - [test_game3d_destiny_behavior.py](tests/test_game3d_destiny_behavior.py) (destiny contracts: notable trigger gating, one-active-per-actor uniqueness, clean fulfilled/interrupted/timeout lifecycle, light guidance bias)
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (convergence contracts: bounded trigger rarity, no-start on insufficient local signals, clean end/interruption lifecycle, light local effects)
+- [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (marked-zone contracts: bounded trigger/classification/cap, clean fade lifecycle, and lightweight local effects)
 
 Run targeted tests:
 ```bash
@@ -342,6 +357,7 @@ py -m unittest tests.test_game3d_allegiance_crisis_behavior -v
 py -m unittest tests.test_game3d_recovery_behavior -v
 py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
+py -m unittest tests.test_game3d_marked_zones_behavior -v
 ```
 
 Run full existing suite if needed:
@@ -386,6 +402,7 @@ py -m unittest discover -s tests -v
 - Add lightweight recovery pulse MVP with one-active-per-allegiance cap, cooldown, bounded rally/defense uplift, and clean interruption on renewed shocks
 - Add lightweight destiny pull MVP (`rift_call` / `relic_call` / `vendetta_call`) with one-active-per-actor cap, short duration/cooldown, clean fulfilled/interrupted lifecycle, and bounded guidance bias
 - Add lightweight crossroads/convergence events MVP (rare local overlap near open `rift_gate`) with one-active cap, short duration/cooldown, clean interrupted/end lifecycle, and bounded local pull/notability pulses
+- Add lightweight sanctified/corrupted zone MVP with tiny active cap, short fade lifecycle, and bounded local sustain/pressure pulses
 
 ### Next
 - Tune role balance and combat pacing from play sessions (durability/readability pass)
@@ -411,6 +428,7 @@ py -m unittest discover -s tests -v
 - Tune recovery pulse trigger chance/cooldown/duration and uplift strength so rebounds stay readable without creating new snowball loops
 - Tune destiny trigger rarity/duration/cooldown and pull weights so heroic convergence stays readable without overriding baseline raid/rally/gate behavior
 - Tune convergence trigger rarity/cooldown/duration and local pulse/pull weights so crossroads moments stay visible without overriding baseline destiny/raid/gate flows
+- Tune marked-zone trigger rarity/duration/cooldown and local pulse values so traces stay readable without creating persistent regional snowball
 
 ### Later
 - Replace placeholder meshes/FX with stylized fantasy assets

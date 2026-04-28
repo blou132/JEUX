@@ -39,6 +39,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var relic_active_labels: Array = snapshot.get("relic_active_labels", [])
     var destiny_active_labels: Array = snapshot.get("destiny_active_labels", [])
     var convergence_active_labels: Array = snapshot.get("convergence_active_labels", [])
+    var marked_zone_active_labels: Array = snapshot.get("marked_zone_active_labels", [])
     var top_renown_labels: Array = snapshot.get("top_renown_labels", [])
     var top_notoriety_labels: Array = snapshot.get("top_notoriety_labels", [])
     var allegiance_member_counts: Dictionary = snapshot.get("allegiance_member_counts", {})
@@ -337,6 +338,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Convergence zones: %s"
         % (" | ".join(convergence_active_labels) if not convergence_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Marked zones: active=%d (S:%d C:%d) | start=%d fade=%d"
+        % [
+            int(snapshot.get("marked_zone_active_total", 0)),
+            int(snapshot.get("marked_zone_sanctified_active_total", 0)),
+            int(snapshot.get("marked_zone_corrupted_active_total", 0)),
+            int(snapshot.get("marked_zone_started_total", 0)),
+            int(snapshot.get("marked_zone_faded_total", 0))
+        ]
+    )
+    lines.append(
+        "Marked zone labels: %s"
+        % (" | ".join(marked_zone_active_labels) if not marked_zone_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiances: active=%d | affiliated=%d (H:%d M:%d) | unassigned=%d"

@@ -73,6 +73,20 @@ const CONVERGENCE_RADIUS: float = 8.4
 const CONVERGENCE_PULSE_INTERVAL: float = 2.8
 const CONVERGENCE_RENOWN_PULSE: float = 0.07
 const CONVERGENCE_NOTORIETY_PULSE: float = 0.09
+const MARKED_ZONE_START_DELAY: float = 104.0
+const MARKED_ZONE_CHECK_INTERVAL: float = 3.4
+const MARKED_ZONE_TRIGGER_CHANCE: float = 0.22
+const MARKED_ZONE_GLOBAL_COOLDOWN: float = 42.0
+const MARKED_ZONE_DURATION_MIN: float = 18.0
+const MARKED_ZONE_DURATION_MAX: float = 30.0
+const MARKED_ZONE_MAX_ACTIVE: int = 2
+const MARKED_ZONE_MIN_POPULATION: int = 10
+const MARKED_ZONE_RADIUS: float = 7.6
+const MARKED_ZONE_PULSE_INTERVAL: float = 2.6
+const SANCTIFIED_ZONE_ENERGY_PULSE: float = 0.24
+const SANCTIFIED_ZONE_RENOWN_PULSE: float = 0.06
+const CORRUPTED_ZONE_ENERGY_DRAIN_PULSE: float = 0.22
+const CORRUPTED_ZONE_NOTORIETY_PULSE: float = 0.08
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -215,6 +229,8 @@ var destiny_interrupted_total: int = 0
 var convergence_started_total: int = 0
 var convergence_ended_total: int = 0
 var convergence_interrupted_total: int = 0
+var marked_zone_started_total: int = 0
+var marked_zone_faded_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -277,6 +293,11 @@ var _convergence_global_cooldown_left: float = CONVERGENCE_START_DELAY
 var _convergence_runtime_by_id: Dictionary = {}
 var _convergence_next_id: int = 1
 var _convergence_signals_root: Node3D = null
+var _marked_zone_check_timer: float = 0.0
+var _marked_zone_global_cooldown_left: float = MARKED_ZONE_START_DELAY
+var _marked_zone_runtime_by_id: Dictionary = {}
+var _marked_zone_next_id: int = 1
+var _marked_zone_signals_root: Node3D = null
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -303,6 +324,7 @@ func _ready() -> void:
     world_manager.setup_world()
     _setup_gate_response_state()
     _setup_convergence_state()
+    _setup_marked_zone_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_memorial_scar_sites_root()
@@ -346,6 +368,7 @@ func _tick(delta: float) -> void:
     _update_relic_system(delta)
     _update_destiny_pulls(delta)
     _update_convergence_events(delta)
+    _update_marked_zones(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _update_legacy_runtime(delta)
@@ -1093,6 +1116,369 @@ func _sync_convergence_state_to_world() -> void:
         str(selected.get("label", "crossroads")),
         pull_weight
     )
+
+
+func _setup_marked_zone_state() -> void:
+    if _marked_zone_signals_root != null and is_instance_valid(_marked_zone_signals_root):
+        _marked_zone_signals_root.queue_free()
+    _marked_zone_signals_root = Node3D.new()
+    _marked_zone_signals_root.name = "MarkedZoneSignals"
+    world_manager.add_child(_marked_zone_signals_root)
+
+    _marked_zone_runtime_by_id.clear()
+    _marked_zone_next_id = 1
+    _marked_zone_check_timer = 0.0
+    _marked_zone_global_cooldown_left = MARKED_ZONE_START_DELAY
+
+
+func _update_marked_zones(delta: float) -> void:
+    _marked_zone_global_cooldown_left = max(0.0, _marked_zone_global_cooldown_left - delta)
+    _marked_zone_check_timer += delta
+
+    if not _marked_zone_runtime_by_id.is_empty():
+        var zone_ids: Array = _marked_zone_runtime_by_id.keys()
+        for zone_id_variant in zone_ids:
+            var zone_id: int = int(zone_id_variant)
+            var runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+            if runtime.is_empty():
+                continue
+
+            var source_site_id: int = int(runtime.get("source_site_id", 0))
+            if source_site_id > 0 and not _memorial_scar_runtime.has(source_site_id):
+                _fade_marked_zone(zone_id, "source_lost")
+                continue
+
+            var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+            if elapsed_time >= next_pulse_at:
+                _apply_marked_zone_pulse(runtime)
+                runtime["next_pulse_at"] = elapsed_time + MARKED_ZONE_PULSE_INTERVAL
+
+            var started_at: float = float(runtime.get("started_at", elapsed_time))
+            var duration: float = max(0.01, float(runtime.get("duration", MARKED_ZONE_DURATION_MIN)))
+            var elapsed_ratio: float = clampf((elapsed_time - started_at) / duration, 0.0, 1.0)
+            _animate_marked_zone_signal(
+                runtime.get("visual_node", null) as Node3D,
+                elapsed_ratio,
+                str(runtime.get("zone_type", ""))
+            )
+
+            _marked_zone_runtime_by_id[zone_id] = runtime
+            if elapsed_time >= float(runtime.get("ends_at", elapsed_time)):
+                _fade_marked_zone(zone_id, "duration")
+
+    if _marked_zone_check_timer < MARKED_ZONE_CHECK_INTERVAL:
+        return
+    _marked_zone_check_timer = 0.0
+    if _marked_zone_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < MARKED_ZONE_MIN_POPULATION:
+        return
+    if _marked_zone_runtime_by_id.size() >= MARKED_ZONE_MAX_ACTIVE:
+        return
+    if randf() > MARKED_ZONE_TRIGGER_CHANCE:
+        return
+
+    var candidate: Dictionary = _build_marked_zone_candidate()
+    if candidate.is_empty():
+        return
+    _start_marked_zone(candidate)
+
+
+func _build_marked_zone_candidate() -> Dictionary:
+    var best_candidate: Dictionary = {}
+    var best_score: float = -INF
+
+    for site_id_variant in _memorial_scar_runtime.keys():
+        var site_id: int = int(site_id_variant)
+        var site_runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+        if site_runtime.is_empty():
+            continue
+
+        var center: Vector3 = site_runtime.get("position", Vector3.ZERO)
+        var signal_profile: Dictionary = _collect_marked_zone_signal_profile(center, MARKED_ZONE_RADIUS * 1.35)
+        var site_type: String = str(site_runtime.get("type", ""))
+        var source_short: String = str(site_runtime.get("source_short", "fallen"))
+        var convergence_near: bool = bool(signal_profile.get("convergence_near", false))
+        var score: float = -1.0
+        var zone_type: String = ""
+        var label: String = ""
+
+        if site_type == "memorial_site":
+            var heroic_count: int = int(signal_profile.get("heroic_count", 0))
+            if heroic_count <= 0:
+                continue
+            score = float(
+                heroic_count * 0.96
+                + int(signal_profile.get("successor_count", 0)) * 0.44
+                + int(signal_profile.get("renown_figures", 0)) * 0.28
+                + (0.24 if convergence_near else 0.0)
+            )
+            zone_type = "sanctified_zone"
+            label = "sanctified:%s" % source_short
+        elif site_type == "scar_site":
+            var corrupted_count: int = int(signal_profile.get("corrupted_count", 0))
+            var gate_pressure: bool = bool(signal_profile.get("gate_pressure", false))
+            if corrupted_count <= 0 and not gate_pressure:
+                continue
+            score = float(
+                corrupted_count * 0.92
+                + int(signal_profile.get("notoriety_figures", 0)) * 0.30
+                + (0.38 if gate_pressure else 0.0)
+                + (0.22 if convergence_near else 0.0)
+            )
+            zone_type = "corrupted_zone"
+            label = "corrupted:%s" % source_short
+        else:
+            continue
+
+        if score < 1.0:
+            continue
+        if not _can_start_marked_zone_at(center):
+            continue
+        if score <= best_score:
+            continue
+
+        best_score = score
+        best_candidate = {
+            "zone_type": zone_type,
+            "label": label,
+            "center": center,
+            "radius": MARKED_ZONE_RADIUS,
+            "score": score,
+            "source_site_id": site_id
+        }
+
+    return best_candidate
+
+
+func _collect_marked_zone_signal_profile(center: Vector3, radius: float) -> Dictionary:
+    var heroic_count: int = 0
+    var successor_count: int = 0
+    var renown_figures: int = 0
+    var corrupted_count: int = 0
+    var notoriety_figures: int = 0
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+
+        if actor.faction == "human":
+            var is_successor: bool = _legacy_successor_runtime_by_actor.has(actor.actor_id)
+            if is_successor:
+                successor_count += 1
+            if actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER:
+                renown_figures += 1
+            if (
+                actor.is_champion
+                or actor.special_arrival_id == "summoned_hero"
+                or is_successor
+                or actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER
+            ):
+                heroic_count += 1
+        elif actor.faction == "monster":
+            if actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+                notoriety_figures += 1
+            if (
+                actor.is_champion
+                or actor.special_arrival_id == "calamity_invader"
+                or actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN
+            ):
+                corrupted_count += 1
+
+    var convergence_near: bool = _is_position_near_active_convergence(center, MARKED_ZONE_RADIUS * 1.9)
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    var gate_pressure: bool = false
+    if bool(gate_runtime.get("active", false)):
+        var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        gate_pressure = gate_position.distance_to(center) <= MARKED_ZONE_RADIUS * 1.9
+
+    return {
+        "heroic_count": heroic_count,
+        "successor_count": successor_count,
+        "renown_figures": renown_figures,
+        "corrupted_count": corrupted_count,
+        "notoriety_figures": notoriety_figures,
+        "gate_pressure": gate_pressure,
+        "convergence_near": convergence_near
+    }
+
+
+func _is_position_near_active_convergence(center: Vector3, max_distance: float) -> bool:
+    for runtime_variant in _convergence_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var convergence_center: Vector3 = runtime.get("center", Vector3.ZERO)
+        if convergence_center.distance_to(center) <= max_distance:
+            return true
+    return false
+
+
+func _can_start_marked_zone_at(center: Vector3) -> bool:
+    for runtime_variant in _marked_zone_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var other_center: Vector3 = runtime.get("center", Vector3.ZERO)
+        var other_radius: float = float(runtime.get("radius", MARKED_ZONE_RADIUS))
+        if other_center.distance_to(center) <= max(other_radius, MARKED_ZONE_RADIUS) * 0.82:
+            return false
+    return true
+
+
+func _start_marked_zone(candidate: Dictionary) -> void:
+    if candidate.is_empty():
+        return
+    var zone_id: int = _marked_zone_next_id
+    _marked_zone_next_id += 1
+
+    var duration: float = randf_range(
+        min(MARKED_ZONE_DURATION_MIN, MARKED_ZONE_DURATION_MAX),
+        max(MARKED_ZONE_DURATION_MIN, MARKED_ZONE_DURATION_MAX)
+    )
+    var center: Vector3 = candidate.get("center", Vector3.ZERO)
+    var zone_type: String = str(candidate.get("zone_type", ""))
+    var label: String = str(candidate.get("label", "zone"))
+    var visual_node: Node3D = _spawn_marked_zone_signal(center, zone_type, zone_id)
+    var source_site_id: int = int(candidate.get("source_site_id", 0))
+
+    _marked_zone_runtime_by_id[zone_id] = {
+        "id": zone_id,
+        "zone_type": zone_type,
+        "label": label,
+        "center": center,
+        "radius": float(candidate.get("radius", MARKED_ZONE_RADIUS)),
+        "score": float(candidate.get("score", 1.0)),
+        "source_site_id": source_site_id,
+        "started_at": elapsed_time,
+        "duration": duration,
+        "ends_at": elapsed_time + duration,
+        "next_pulse_at": elapsed_time + MARKED_ZONE_PULSE_INTERVAL,
+        "visual_node": visual_node
+    }
+
+    marked_zone_started_total += 1
+    _marked_zone_global_cooldown_left = MARKED_ZONE_GLOBAL_COOLDOWN
+    _apply_marked_zone_pulse(_marked_zone_runtime_by_id[zone_id])
+    if zone_type == "sanctified_zone":
+        record_event("Zone SANCTIFIED: %s at %s (%.0fs)." % [label, _position_label_2d(center), duration])
+    else:
+        record_event("Zone CORRUPTED: %s at %s (%.0fs)." % [label, _position_label_2d(center), duration])
+
+
+func _spawn_marked_zone_signal(center: Vector3, zone_type: String, zone_id: int) -> Node3D:
+    if _marked_zone_signals_root == null or not is_instance_valid(_marked_zone_signals_root):
+        return null
+
+    var node := Node3D.new()
+    node.name = "MarkedZone_%d" % zone_id
+    node.position = center
+
+    var colors := _marked_zone_colors(zone_type)
+
+    var ring := MeshInstance3D.new()
+    ring.name = "Ring"
+    var ring_mesh := CylinderMesh.new()
+    ring_mesh.top_radius = 2.25
+    ring_mesh.bottom_radius = 2.25
+    ring_mesh.height = 0.08
+    ring.mesh = ring_mesh
+    ring.position = Vector3(0.0, 0.11, 0.0)
+    var ring_mat := StandardMaterial3D.new()
+    ring_mat.albedo_color = colors.get("base", Color(0.9, 0.9, 0.9))
+    ring_mat.emission_enabled = true
+    ring_mat.emission = colors.get("base", Color(0.9, 0.9, 0.9)) * 1.06
+    ring_mat.roughness = 0.68
+    ring.material_override = ring_mat
+    node.add_child(ring)
+
+    var beacon := MeshInstance3D.new()
+    beacon.name = "Beacon"
+    var beacon_mesh := SphereMesh.new()
+    beacon_mesh.radius = 0.22
+    beacon_mesh.height = 0.44
+    beacon.mesh = beacon_mesh
+    beacon.position = Vector3(0.0, 1.10, 0.0)
+    var beacon_mat := StandardMaterial3D.new()
+    beacon_mat.albedo_color = colors.get("accent", Color(1.0, 1.0, 1.0))
+    beacon_mat.emission_enabled = true
+    beacon_mat.emission = colors.get("accent", Color(1.0, 1.0, 1.0)) * 1.16
+    beacon_mat.roughness = 0.64
+    beacon.material_override = beacon_mat
+    node.add_child(beacon)
+
+    node.scale = Vector3.ONE * 0.24
+    _marked_zone_signals_root.add_child(node)
+    var tween := create_tween()
+    tween.tween_property(node, "scale", Vector3.ONE, 0.30)
+    return node
+
+
+func _animate_marked_zone_signal(node: Node3D, elapsed_ratio: float, zone_type: String) -> void:
+    if node == null or not is_instance_valid(node):
+        return
+    var ring := node.get_node_or_null("Ring") as MeshInstance3D
+    var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
+    var seed: float = float(node.get_instance_id() % 31)
+    var colors := _marked_zone_colors(zone_type)
+
+    if ring != null:
+        var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.0 + seed)
+        var fade := lerpf(1.0, 0.70, elapsed_ratio)
+        ring.scale = Vector3.ONE * pulse * fade
+    if beacon != null:
+        beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.0 + seed * 0.45)
+        var beacon_mat := beacon.material_override as StandardMaterial3D
+        if beacon_mat != null:
+            var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
+            beacon_mat.emission = accent * lerpf(1.16, 0.40, elapsed_ratio)
+
+
+func _marked_zone_colors(zone_type: String) -> Dictionary:
+    if zone_type == "sanctified_zone":
+        return {
+            "base": Color(0.52, 0.86, 1.0),
+            "accent": Color(1.0, 0.92, 0.52)
+        }
+    return {
+        "base": Color(0.96, 0.44, 0.42),
+        "accent": Color(0.82, 0.46, 1.0)
+    }
+
+
+func _apply_marked_zone_pulse(runtime: Dictionary) -> void:
+    var center: Vector3 = runtime.get("center", Vector3.ZERO)
+    var radius: float = float(runtime.get("radius", MARKED_ZONE_RADIUS))
+    var zone_type: String = str(runtime.get("zone_type", ""))
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+        if zone_type == "sanctified_zone":
+            if actor.faction != "human":
+                continue
+            actor.energy = min(actor.max_energy, actor.energy + SANCTIFIED_ZONE_ENERGY_PULSE)
+            _apply_notability_gain(actor, SANCTIFIED_ZONE_RENOWN_PULSE, 0.0, "sanctified_zone")
+        elif zone_type == "corrupted_zone":
+            if actor.faction == "human":
+                actor.energy = max(0.0, actor.energy - CORRUPTED_ZONE_ENERGY_DRAIN_PULSE)
+            elif actor.faction == "monster":
+                _apply_notability_gain(actor, 0.0, CORRUPTED_ZONE_NOTORIETY_PULSE, "corrupted_zone")
+
+
+func _fade_marked_zone(zone_id: int, reason: String) -> void:
+    var runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+    if runtime.is_empty():
+        return
+
+    var label: String = str(runtime.get("label", "zone"))
+    var node := runtime.get("visual_node", null) as Node3D
+    if node != null and is_instance_valid(node):
+        node.queue_free()
+
+    _marked_zone_runtime_by_id.erase(zone_id)
+    marked_zone_faded_total += 1
+    record_event("Zone FADED: %s (%s)." % [label, reason])
 
 
 func _setup_allegiance_crisis_state() -> void:
@@ -3271,6 +3657,10 @@ func _build_snapshot() -> Dictionary:
     var destiny_active_total: int = 0
     var convergence_active_labels: Array[String] = []
     var convergence_active_total: int = 0
+    var marked_zone_active_labels: Array[String] = []
+    var marked_zone_active_total: int = 0
+    var marked_zone_sanctified_active_total: int = 0
+    var marked_zone_corrupted_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -3539,6 +3929,22 @@ func _build_snapshot() -> Dictionary:
         )
     convergence_active_labels.sort()
     convergence_active_total = convergence_active_labels.size()
+    for zone_id_variant in _marked_zone_runtime_by_id.keys():
+        var zone_id: int = int(zone_id_variant)
+        var runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+        if runtime.is_empty():
+            continue
+        var zone_type: String = str(runtime.get("zone_type", ""))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var label: String = str(runtime.get("label", "zone"))
+        var short_type: String = "S" if zone_type == "sanctified_zone" else "C"
+        marked_zone_active_labels.append("%s:%s(%.0fs)" % [short_type, label, remaining])
+        if zone_type == "sanctified_zone":
+            marked_zone_sanctified_active_total += 1
+        elif zone_type == "corrupted_zone":
+            marked_zone_corrupted_active_total += 1
+    marked_zone_active_labels.sort()
+    marked_zone_active_total = marked_zone_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -3654,6 +4060,12 @@ func _build_snapshot() -> Dictionary:
         "convergence_started_total": convergence_started_total,
         "convergence_ended_total": convergence_ended_total,
         "convergence_interrupted_total": convergence_interrupted_total,
+        "marked_zone_active_total": marked_zone_active_total,
+        "marked_zone_sanctified_active_total": marked_zone_sanctified_active_total,
+        "marked_zone_corrupted_active_total": marked_zone_corrupted_active_total,
+        "marked_zone_active_labels": marked_zone_active_labels,
+        "marked_zone_started_total": marked_zone_started_total,
+        "marked_zone_faded_total": marked_zone_faded_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,

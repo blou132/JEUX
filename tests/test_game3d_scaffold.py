@@ -102,6 +102,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("scar", content)
         self.assertIn("destiny", content)
         self.assertIn("convergence", content)
+        self.assertIn("sanctified", content)
+        self.assertIn("corrupted", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -208,6 +210,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Destiny pulls:", content)
         self.assertIn("Convergence:", content)
         self.assertIn("Convergence zones:", content)
+        self.assertIn("Marked zones:", content)
+        self.assertIn("Marked zone labels:", content)
 
     def test_sandbox_has_ranged_spawn_ratio(self):
         content = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -395,6 +399,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Convergence END", content)
         self.assertIn("Convergence INTERRUPTED", content)
         self.assertIn('"convergence_active_total"', content)
+        self.assertIn("MARKED_ZONE_TRIGGER_CHANCE", content)
+        self.assertIn("_update_marked_zones", content)
+        self.assertIn("Zone SANCTIFIED", content)
+        self.assertIn("Zone CORRUPTED", content)
+        self.assertIn("Zone FADED", content)
+        self.assertIn('"marked_zone_active_total"', content)
         self.assertIn('"bounty_active"', content)
         self.assertIn('"bounty_started_total"', content)
         self.assertIn("_grant_bounty_clear_reward", content)
