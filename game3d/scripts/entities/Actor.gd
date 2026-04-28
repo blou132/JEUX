@@ -73,6 +73,12 @@ var special_arrival_title: String = ""
 var relic_id: String = ""
 var relic_title: String = ""
 var bounty_marked: bool = false
+var destiny_active: bool = false
+var destiny_type: String = ""
+var destiny_target_actor_id: int = 0
+var destiny_target_position: Vector3 = Vector3.ZERO
+var destiny_target_label: String = ""
+var destiny_guidance_weight: float = 0.0
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -299,6 +305,20 @@ func bounty_tag() -> String:
     return "[MARKED]"
 
 
+func destiny_tag() -> String:
+    if not destiny_active:
+        return ""
+    match destiny_type:
+        "rift_call":
+            return "[FATE:GATE]"
+        "relic_call":
+            return "[FATE:RELIC]"
+        "vendetta_call":
+            return "[FATE:VENDETTA]"
+        _:
+            return "[FATED]"
+
+
 func renown_tag() -> String:
     if renown >= 70.0:
         return "[RENOWN++]"
@@ -411,6 +431,45 @@ func set_bounty_marked(enabled: bool) -> void:
     if bounty_marked:
         _spawn_bounty_signal()
     _refresh_control_visual()
+
+
+func set_destiny_pull(
+    active: bool,
+    pull_type: String = "",
+    next_target_position: Vector3 = Vector3.ZERO,
+    next_target_actor_id: int = 0,
+    next_target_label: String = "",
+    guidance_weight: float = 0.0
+) -> void:
+    destiny_active = active
+    if not destiny_active:
+        destiny_type = ""
+        destiny_target_actor_id = 0
+        destiny_target_position = Vector3.ZERO
+        destiny_target_label = ""
+        destiny_guidance_weight = 0.0
+        _refresh_control_visual()
+        return
+
+    destiny_type = pull_type
+    destiny_target_actor_id = next_target_actor_id
+    destiny_target_position = next_target_position
+    destiny_target_label = next_target_label
+    var next_weight: float = guidance_weight if guidance_weight > 0.0 else 0.55
+    destiny_guidance_weight = clampf(next_weight, 0.20, 0.84)
+    _refresh_control_visual()
+
+
+func get_destiny_guidance() -> Dictionary:
+    if not destiny_active or destiny_type == "":
+        return {}
+    return {
+        "type": destiny_type,
+        "target_position": destiny_target_position,
+        "target_actor_id": destiny_target_actor_id,
+        "target_label": destiny_target_label,
+        "weight": destiny_guidance_weight
+    }
 
 
 func set_allegiance(next_allegiance_id: String, next_home_poi: String) -> void:
@@ -773,6 +832,13 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = bounty_glow * 0.34
+        if destiny_active:
+            var destiny_glow := _destiny_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(destiny_glow, 0.20)
+            else:
+                material.emission_enabled = true
+                material.emission = destiny_glow * 0.26
         var renown_signal := _notability_signal_strength(renown)
         if renown_signal > 0.0:
             var renown_glow := _renown_glow_color()
@@ -953,6 +1019,18 @@ func _bounty_glow_color() -> Color:
     if faction == "human":
         return Color(1.0, 0.38, 0.38)
     return Color(1.0, 0.74, 0.24)
+
+
+func _destiny_glow_color() -> Color:
+    match destiny_type:
+        "rift_call":
+            return Color(0.82, 0.50, 1.0)
+        "relic_call":
+            return Color(0.92, 0.80, 0.42)
+        "vendetta_call":
+            return Color(1.0, 0.56, 0.34)
+        _:
+            return Color(0.88, 0.88, 1.0)
 
 
 func _renown_glow_color() -> Color:

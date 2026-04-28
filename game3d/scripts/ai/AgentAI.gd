@@ -122,6 +122,22 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                     rally_bonus
                 )
 
+        var destiny_guidance: Dictionary = actor.get_destiny_guidance()
+        if not destiny_guidance.is_empty():
+            var destiny_weight: float = float(destiny_guidance.get("weight", 0.56))
+            if randf() <= clampf(destiny_weight, 0.22, 0.84):
+                var destiny_type: String = str(destiny_guidance.get("type", ""))
+                var destiny_state: String = "hunt" if destiny_type in ["relic_call", "vendetta_call"] else "poi"
+                return _with_rally(
+                    {
+                        "state": destiny_state,
+                        "target_position": destiny_guidance.get("target_position", actor.global_position),
+                        "reason": "destiny:%s" % destiny_type
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
         var poi_guidance: Dictionary = world.get_poi_guidance(actor.global_position, actor.faction)
         if not poi_guidance.is_empty() and randf() <= 0.58:
             return _with_rally(

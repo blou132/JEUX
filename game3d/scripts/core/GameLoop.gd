@@ -47,6 +47,20 @@ const BOUNTY_DURATION: float = 24.0
 const BOUNTY_CLEAR_XP: float = 1.6
 const BOUNTY_CLEAR_XP_RADIUS: float = 20.0
 const BOUNTY_NOTORIETY_PRIORITY_MIN: float = 36.0
+const DESTINY_START_DELAY: float = 74.0
+const DESTINY_CHECK_INTERVAL: float = 2.8
+const DESTINY_TRIGGER_CHANCE: float = 0.18
+const DESTINY_GLOBAL_COOLDOWN: float = 16.0
+const DESTINY_ACTOR_COOLDOWN: float = 52.0
+const DESTINY_DURATION_MIN: float = 12.0
+const DESTINY_DURATION_MAX: float = 22.0
+const DESTINY_MAX_ACTIVE: int = 4
+const DESTINY_MIN_POPULATION: int = 12
+const DESTINY_HIGH_RENOWN_TRIGGER: float = 68.0
+const DESTINY_TARGET_MAX_DISTANCE: float = 36.0
+const DESTINY_FULFILL_RADIUS: float = 4.2
+const DESTINY_FULFILL_HOLD: float = 1.3
+const DESTINY_NEAR_ENERGY_BONUS_PER_SEC: float = 0.18
 const NEUTRAL_GATE_BREACH_BOUNTY_COOLDOWN_CLAMP: float = 3.0
 const GATE_RESPONSE_MIN_POPULATION: int = 10
 const GATE_RESPONSE_CHECK_INTERVAL: float = 2.5
@@ -182,6 +196,10 @@ var relic_lost_total: int = 0
 var bounty_started_total: int = 0
 var bounty_cleared_total: int = 0
 var bounty_expired_total: int = 0
+var destiny_started_total: int = 0
+var destiny_ended_total: int = 0
+var destiny_fulfilled_total: int = 0
+var destiny_interrupted_total: int = 0
 var renown_rising_events_total: int = 0
 var notoriety_rising_events_total: int = 0
 var neutral_gate_opened_total: int = 0
@@ -235,6 +253,10 @@ var _relic_check_timer: float = 0.0
 var _relic_cooldown_left: float = RELIC_START_DELAY
 var _bounty_check_timer: float = 0.0
 var _bounty_cooldown_left: float = BOUNTY_START_DELAY
+var _destiny_check_timer: float = 0.0
+var _destiny_global_cooldown_left: float = DESTINY_START_DELAY
+var _destiny_runtime_by_actor: Dictionary = {}
+var _destiny_cooldown_until_by_actor: Dictionary = {}
 var _renown_tier_by_actor: Dictionary = {}
 var _notoriety_tier_by_actor: Dictionary = {}
 var _legacy_cooldown_left: float = 0.0
@@ -301,6 +323,7 @@ func _tick(delta: float) -> void:
     _update_bounty_system(delta)
     _update_special_arrivals(delta)
     _update_relic_system(delta)
+    _update_destiny_pulls(delta)
     _apply_poi_influences(delta)
     _scan_for_champion_promotion(delta)
     _update_legacy_runtime(delta)
@@ -2370,6 +2393,478 @@ func _bounty_source_label() -> String:
     return "unknown"
 
 
+func _update_destiny_pulls(delta: float) -> void:
+    _destiny_global_cooldown_left = max(0.0, _destiny_global_cooldown_left - delta)
+    _destiny_check_timer += delta
+
+    if not _destiny_runtime_by_actor.is_empty():
+        var runtime_ids: Array = _destiny_runtime_by_actor.keys()
+        for actor_id_variant in runtime_ids:
+            var actor_id: int = int(actor_id_variant)
+            var runtime: Dictionary = _destiny_runtime_by_actor.get(actor_id, {})
+            if runtime.is_empty():
+                continue
+
+            var actor: Actor = _find_actor_by_id(actor_id)
+            if actor == null or actor.is_dead:
+                _end_destiny_pull(actor_id, "interrupted", "actor_unavailable")
+                continue
+
+            var refreshed: Dictionary = _refresh_destiny_runtime_target(runtime, actor)
+            if not bool(refreshed.get("valid", false)):
+                _end_destiny_pull(actor_id, "interrupted", str(refreshed.get("reason", "context_lost")))
+                continue
+
+            var target_position: Vector3 = refreshed.get("target_position", actor.global_position)
+            var target_label: String = str(refreshed.get("target_label", str(runtime.get("target_label", "target"))))
+            runtime["target_position"] = target_position
+            runtime["target_label"] = target_label
+            runtime["target_actor_id"] = int(refreshed.get("target_actor_id", int(runtime.get("target_actor_id", 0))))
+            runtime["target_poi"] = str(refreshed.get("target_poi", str(runtime.get("target_poi", ""))))
+            runtime["target_allegiance_id"] = str(
+                refreshed.get("target_allegiance_id", str(runtime.get("target_allegiance_id", "")))
+            )
+
+            var distance: float = actor.global_position.distance_to(target_position)
+            var near_time: float = float(runtime.get("near_time", 0.0))
+            if distance <= DESTINY_FULFILL_RADIUS:
+                near_time += delta
+                actor.energy = min(actor.max_energy, actor.energy + DESTINY_NEAR_ENERGY_BONUS_PER_SEC * delta)
+            else:
+                near_time = max(0.0, near_time - delta * 0.40)
+            runtime["near_time"] = near_time
+
+            actor.set_destiny_pull(
+                true,
+                str(runtime.get("type", "")),
+                target_position,
+                int(runtime.get("target_actor_id", 0)),
+                target_label,
+                float(runtime.get("guidance_weight", 0.56))
+            )
+            _destiny_runtime_by_actor[actor_id] = runtime
+
+            if near_time >= DESTINY_FULFILL_HOLD:
+                _end_destiny_pull(actor_id, "fulfilled", "near_objective")
+                continue
+
+            var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+            if elapsed_time >= ends_at:
+                _end_destiny_pull(actor_id, "ended", "timeout")
+
+    if _destiny_check_timer < DESTINY_CHECK_INTERVAL:
+        return
+    _destiny_check_timer = 0.0
+
+    if _destiny_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < DESTINY_MIN_POPULATION:
+        return
+    if _destiny_runtime_by_actor.size() >= DESTINY_MAX_ACTIVE:
+        return
+    if randf() > DESTINY_TRIGGER_CHANCE:
+        return
+
+    var picked: Dictionary = _pick_destiny_start_candidate()
+    if picked.is_empty():
+        return
+    var actor: Actor = picked.get("actor", null)
+    var option: Dictionary = picked.get("option", {})
+    if actor == null or actor.is_dead or option.is_empty():
+        return
+    _start_destiny_pull(actor, option)
+
+
+func _pick_destiny_start_candidate() -> Dictionary:
+    var weighted_candidates: Array[Dictionary] = []
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if _destiny_runtime_by_actor.has(actor.actor_id):
+            continue
+        if not _is_destiny_candidate(actor):
+            continue
+
+        var actor_cooldown_until: float = float(_destiny_cooldown_until_by_actor.get(actor.actor_id, 0.0))
+        if actor_cooldown_until > elapsed_time:
+            continue
+
+        var actor_options: Array[Dictionary] = _collect_destiny_options(actor)
+        if actor_options.is_empty():
+            continue
+        var selected_option: Dictionary = _pick_weighted_entry(actor_options)
+        if selected_option.is_empty():
+            continue
+
+        var start_score: float = max(0.10, float(selected_option.get("score", 1.0)) + _destiny_candidate_bias(actor))
+        weighted_candidates.append({
+            "actor_id": actor.actor_id,
+            "option": selected_option,
+            "score": start_score
+        })
+
+    if weighted_candidates.is_empty():
+        return {}
+
+    var selected: Dictionary = _pick_weighted_entry(weighted_candidates)
+    if selected.is_empty():
+        return {}
+    var selected_actor: Actor = _find_actor_by_id(int(selected.get("actor_id", 0)))
+    if selected_actor == null or selected_actor.is_dead:
+        return {}
+    return {
+        "actor": selected_actor,
+        "option": selected.get("option", {})
+    }
+
+
+func _is_destiny_candidate(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if actor.bounty_marked:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+        return true
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        return true
+    return actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER
+
+
+func _destiny_candidate_bias(actor: Actor) -> float:
+    if actor == null:
+        return 0.0
+    var bias: float = 0.0
+    if actor.is_champion:
+        bias += 0.95
+    if actor.is_special_arrival():
+        bias += 1.20
+    if actor.has_relic():
+        bias += 1.35
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        bias += 1.05
+    if actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER:
+        bias += 0.75
+    return bias
+
+
+func _collect_destiny_options(actor: Actor) -> Array[Dictionary]:
+    var options: Array[Dictionary] = []
+    if actor == null or actor.is_dead:
+        return options
+
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    if bool(gate_runtime.get("active", false)):
+        var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        if gate_position != Vector3.ZERO:
+            var gate_distance: float = actor.global_position.distance_to(gate_position)
+            var gate_max_distance: float = DESTINY_TARGET_MAX_DISTANCE * 1.15
+            if gate_distance <= gate_max_distance:
+                var gate_closeness: float = clampf((gate_max_distance - gate_distance) / gate_max_distance, 0.0, 1.0)
+                var gate_score: float = 1.0 + gate_closeness * 0.9
+                if actor.is_champion or actor.is_special_arrival():
+                    gate_score += 0.45
+                if actor.has_relic():
+                    gate_score += 0.25
+                var gate_jitter := Vector3(randf_range(-1.4, 1.4), 0.0, randf_range(-1.4, 1.4))
+                options.append({
+                    "type": "rift_call",
+                    "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(gate_position + gate_jitter)),
+                    "target_poi": gate_name,
+                    "target_label": gate_name if gate_name != "" else "rift_gate",
+                    "guidance_weight": 0.62,
+                    "score": gate_score
+                })
+
+    var relic_target: Actor = _pick_destiny_relic_target(actor)
+    if relic_target != null:
+        var relic_distance: float = actor.global_position.distance_to(relic_target.global_position)
+        var relic_max_distance: float = DESTINY_TARGET_MAX_DISTANCE * 1.10
+        if relic_distance <= relic_max_distance:
+            var relic_closeness: float = clampf((relic_max_distance - relic_distance) / relic_max_distance, 0.0, 1.0)
+            var relic_score: float = 1.10 + relic_closeness * 1.00
+            if relic_target.faction != actor.faction:
+                relic_score += 0.24
+            var relic_jitter := Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2))
+            options.append({
+                "type": "relic_call",
+                "target_actor_id": relic_target.actor_id,
+                "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(relic_target.global_position + relic_jitter)),
+                "target_label": _actor_label(relic_target),
+                "guidance_weight": 0.58,
+                "score": relic_score
+            })
+
+    if actor.allegiance_id != "":
+        var vendetta_target_id: String = world_manager.get_allegiance_vendetta_target(actor.allegiance_id)
+        if vendetta_target_id != "":
+            var target_anchor: Dictionary = _find_active_allegiance_anchor(vendetta_target_id)
+            if not target_anchor.is_empty():
+                var target_position: Vector3 = target_anchor.get("position", actor.global_position)
+                var vendetta_distance: float = actor.global_position.distance_to(target_position)
+                var vendetta_max_distance: float = DESTINY_TARGET_MAX_DISTANCE * 1.25
+                if vendetta_distance <= vendetta_max_distance:
+                    var vendetta_closeness: float = clampf((vendetta_max_distance - vendetta_distance) / vendetta_max_distance, 0.0, 1.0)
+                    var vendetta_score: float = 1.15 + vendetta_closeness * 0.95
+                    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+                        vendetta_score += 0.42
+                    var target_poi: String = str(target_anchor.get("home_poi", ""))
+                    var target_label: String = vendetta_target_id if target_poi == "" else ("%s@%s" % [vendetta_target_id, target_poi])
+                    var vendetta_jitter := Vector3(randf_range(-1.4, 1.4), 0.0, randf_range(-1.4, 1.4))
+                    options.append({
+                        "type": "vendetta_call",
+                        "target_allegiance_id": vendetta_target_id,
+                        "target_poi": target_poi,
+                        "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(target_position + vendetta_jitter)),
+                        "target_label": target_label,
+                        "guidance_weight": 0.64,
+                        "score": vendetta_score
+                    })
+
+    return options
+
+
+func _pick_destiny_relic_target(actor: Actor) -> Actor:
+    if actor == null:
+        return null
+    var selected: Actor = null
+    var best_score: float = -INF
+    var max_distance: float = DESTINY_TARGET_MAX_DISTANCE * 1.10
+    for other in actors:
+        if other == null or other == actor or other.is_dead:
+            continue
+        if not other.has_relic():
+            continue
+        var distance: float = actor.global_position.distance_to(other.global_position)
+        if distance > max_distance:
+            continue
+        var closeness: float = clampf((max_distance - distance) / max_distance, 0.0, 1.0)
+        var score: float = 0.80 + closeness * 0.90
+        if other.faction != actor.faction:
+            score += 0.30
+        if other.relic_id == "arcane_sigil":
+            score += 0.12
+        elif other.relic_id == "oath_standard":
+            score += 0.16
+        if score > best_score:
+            best_score = score
+            selected = other
+    return selected
+
+
+func _find_active_allegiance_anchor(allegiance_id: String) -> Dictionary:
+    if allegiance_id == "":
+        return {}
+    var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+    for allegiance in active_allegiances:
+        if str(allegiance.get("allegiance_id", "")) == allegiance_id:
+            return allegiance
+    return {}
+
+
+func _pick_weighted_entry(entries: Array[Dictionary]) -> Dictionary:
+    if entries.is_empty():
+        return {}
+    var total_weight: float = 0.0
+    for entry in entries:
+        total_weight += max(0.01, float(entry.get("score", 1.0)))
+    if total_weight <= 0.0:
+        return entries[0]
+    var roll: float = randf() * total_weight
+    var cursor: float = 0.0
+    for entry in entries:
+        cursor += max(0.01, float(entry.get("score", 1.0)))
+        if roll <= cursor:
+            return entry
+    return entries[entries.size() - 1]
+
+
+func _start_destiny_pull(actor: Actor, option: Dictionary) -> void:
+    if actor == null or actor.is_dead:
+        return
+    var destiny_type: String = str(option.get("type", ""))
+    if destiny_type == "":
+        return
+    var duration: float = randf_range(
+        min(DESTINY_DURATION_MIN, DESTINY_DURATION_MAX),
+        max(DESTINY_DURATION_MIN, DESTINY_DURATION_MAX)
+    )
+    var ends_at: float = elapsed_time + duration
+    var target_position: Vector3 = option.get("target_position", actor.global_position)
+    var target_label: String = str(option.get("target_label", "target"))
+    var guidance_weight: float = float(option.get("guidance_weight", 0.56))
+    var runtime := {
+        "type": destiny_type,
+        "started_at": elapsed_time,
+        "ends_at": ends_at,
+        "target_position": target_position,
+        "target_actor_id": int(option.get("target_actor_id", 0)),
+        "target_poi": str(option.get("target_poi", "")),
+        "target_allegiance_id": str(option.get("target_allegiance_id", "")),
+        "target_label": target_label,
+        "guidance_weight": guidance_weight,
+        "near_time": 0.0
+    }
+    _destiny_runtime_by_actor[actor.actor_id] = runtime
+    actor.set_destiny_pull(
+        true,
+        destiny_type,
+        target_position,
+        int(runtime.get("target_actor_id", 0)),
+        target_label,
+        guidance_weight
+    )
+    destiny_started_total += 1
+    _destiny_global_cooldown_left = DESTINY_GLOBAL_COOLDOWN
+    record_event(
+        "Destiny START: %s -> %s (%s, %.0fs)."
+        % [ _actor_label(actor), target_label, _destiny_type_label(destiny_type), duration ]
+    )
+
+
+func _refresh_destiny_runtime_target(runtime: Dictionary, actor: Actor) -> Dictionary:
+    var destiny_type: String = str(runtime.get("type", ""))
+    if destiny_type == "rift_call":
+        var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+        if not bool(gate_runtime.get("active", false)):
+            return {
+                "valid": false,
+                "reason": "gate_closed"
+            }
+        var gate_name: String = str(gate_runtime.get("poi", str(runtime.get("target_poi", "rift_gate"))))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        if gate_position == Vector3.ZERO:
+            return {
+                "valid": false,
+                "reason": "gate_missing"
+            }
+        var gate_jitter := Vector3(randf_range(-1.3, 1.3), 0.0, randf_range(-1.3, 1.3))
+        return {
+            "valid": true,
+            "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(gate_position + gate_jitter)),
+            "target_poi": gate_name,
+            "target_label": gate_name if gate_name != "" else "rift_gate",
+            "target_actor_id": 0,
+            "target_allegiance_id": ""
+        }
+
+    if destiny_type == "relic_call":
+        var target_actor_id: int = int(runtime.get("target_actor_id", 0))
+        var target_actor: Actor = _find_actor_by_id(target_actor_id)
+        if target_actor == null or target_actor.is_dead or not target_actor.has_relic():
+            return {
+                "valid": false,
+                "reason": "relic_target_lost"
+            }
+        var relic_jitter := Vector3(randf_range(-1.1, 1.1), 0.0, randf_range(-1.1, 1.1))
+        return {
+            "valid": true,
+            "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(target_actor.global_position + relic_jitter)),
+            "target_label": _actor_label(target_actor),
+            "target_actor_id": target_actor.actor_id,
+            "target_poi": "",
+            "target_allegiance_id": ""
+        }
+
+    if destiny_type == "vendetta_call":
+        var source_allegiance_id: String = actor.allegiance_id
+        if source_allegiance_id == "":
+            return {
+                "valid": false,
+                "reason": "source_allegiance_lost"
+            }
+        var target_allegiance_id: String = world_manager.get_allegiance_vendetta_target(source_allegiance_id)
+        if target_allegiance_id == "":
+            return {
+                "valid": false,
+                "reason": "vendetta_resolved"
+            }
+        var target_anchor: Dictionary = _find_active_allegiance_anchor(target_allegiance_id)
+        if target_anchor.is_empty():
+            return {
+                "valid": false,
+                "reason": "vendetta_anchor_lost"
+            }
+        var target_position: Vector3 = target_anchor.get("position", actor.global_position)
+        if target_position == Vector3.ZERO:
+            return {
+                "valid": false,
+                "reason": "vendetta_anchor_missing"
+            }
+        var target_poi: String = str(target_anchor.get("home_poi", ""))
+        var target_label: String = target_allegiance_id if target_poi == "" else ("%s@%s" % [target_allegiance_id, target_poi])
+        var vendetta_jitter := Vector3(randf_range(-1.3, 1.3), 0.0, randf_range(-1.3, 1.3))
+        return {
+            "valid": true,
+            "target_position": world_manager.clamp_to_world(world_manager.snap_to_nav_grid(target_position + vendetta_jitter)),
+            "target_label": target_label,
+            "target_actor_id": 0,
+            "target_poi": target_poi,
+            "target_allegiance_id": target_allegiance_id
+        }
+
+    return {
+        "valid": false,
+        "reason": "unknown_type"
+    }
+
+
+func _end_destiny_pull(actor_id: int, outcome: String, reason: String) -> void:
+    var runtime: Dictionary = _destiny_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    if actor != null:
+        actor.set_destiny_pull(false)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    var destiny_type: String = str(runtime.get("type", ""))
+    var target_label: String = str(runtime.get("target_label", "target"))
+    if outcome == "fulfilled":
+        destiny_fulfilled_total += 1
+        record_event(
+            "Destiny FULFILLED: %s reached %s (%s)."
+            % [label, target_label, _destiny_type_label(destiny_type)]
+        )
+    elif outcome == "interrupted":
+        destiny_interrupted_total += 1
+        record_event(
+            "Destiny INTERRUPTED: %s (%s, %s)."
+            % [label, _destiny_type_label(destiny_type), reason]
+        )
+
+    destiny_ended_total += 1
+    record_event(
+        "Destiny END: %s (%s)."
+        % [label, reason]
+    )
+    _destiny_runtime_by_actor.erase(actor_id)
+    _destiny_cooldown_until_by_actor[actor_id] = elapsed_time + DESTINY_ACTOR_COOLDOWN
+
+
+func _destiny_type_label(destiny_type: String) -> String:
+    match destiny_type:
+        "rift_call":
+            return "rift_call"
+        "relic_call":
+            return "relic_call"
+        "vendetta_call":
+            return "vendetta_call"
+        _:
+            return "destiny"
+
+
+func _destiny_type_short(destiny_type: String) -> String:
+    match destiny_type:
+        "rift_call":
+            return "gate"
+        "relic_call":
+            return "relic"
+        "vendetta_call":
+            return "vendetta"
+        _:
+            return "destiny"
+
+
 func _cleanup_dead_actors() -> void:
     for idx in range(actors.size() - 1, -1, -1):
         var actor: Actor = actors[idx]
@@ -2381,6 +2876,7 @@ func _cleanup_dead_actors() -> void:
             actor_poi_presence.erase(actor.actor_id)
             _clear_actor_influence_timers(actor.actor_id)
             _clear_actor_rally_tracking(actor.actor_id)
+            _clear_actor_destiny_tracking(actor.actor_id)
             _clear_actor_notability_tracking(actor.actor_id)
             actor.queue_free()
             actors.remove_at(idx)
@@ -2411,6 +2907,8 @@ func _build_snapshot() -> Dictionary:
     var relic_active_humans: int = 0
     var relic_active_monsters: int = 0
     var relic_active_labels: Array[String] = []
+    var destiny_active_labels: Array[String] = []
+    var destiny_active_total: int = 0
     var bounty_marked_total: int = 0
     var bounty_marked_humans: int = 0
     var bounty_marked_monsters: int = 0
@@ -2651,6 +3149,19 @@ func _build_snapshot() -> Dictionary:
         legacy_successor_labels.append("%s<=%s(%.0fs)" % [successor_label, source_label, remaining])
     legacy_successor_labels.sort()
     legacy_successor_active_count = legacy_successor_labels.size()
+    for actor_id_variant in _destiny_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _destiny_runtime_by_actor.get(actor_id, {})
+        if runtime.is_empty():
+            continue
+        var actor: Actor = _find_actor_by_id(actor_id)
+        var actor_label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+        var type_short: String = _destiny_type_short(str(runtime.get("type", "")))
+        var target_label: String = str(runtime.get("target_label", "target"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        destiny_active_labels.append("%s:%s->%s(%.0fs)" % [type_short, actor_label, target_label, remaining])
+    destiny_active_labels.sort()
+    destiny_active_total = destiny_active_labels.size()
     for allegiance_variant in _allegiance_crisis_runtime_by_id.keys():
         var allegiance_id: String = str(allegiance_variant)
         var runtime: Dictionary = _allegiance_crisis_runtime_by_id.get(allegiance_id, {})
@@ -2755,6 +3266,12 @@ func _build_snapshot() -> Dictionary:
         "relic_appear_total": relic_appear_total,
         "relic_acquired_total": relic_acquired_total,
         "relic_lost_total": relic_lost_total,
+        "destiny_active_total": destiny_active_total,
+        "destiny_active_labels": destiny_active_labels,
+        "destiny_started_total": destiny_started_total,
+        "destiny_ended_total": destiny_ended_total,
+        "destiny_fulfilled_total": destiny_fulfilled_total,
+        "destiny_interrupted_total": destiny_interrupted_total,
         "bounty_active": bounty_active,
         "bounty_remaining": bounty_remaining,
         "bounty_target_label": bounty_target_label,
@@ -3457,6 +3974,12 @@ func _clear_actor_rally_tracking(actor_id: int) -> void:
             actor.rally_relic_bonus_active = false
 
 
+func _clear_actor_destiny_tracking(actor_id: int) -> void:
+    if _destiny_runtime_by_actor.has(actor_id):
+        _end_destiny_pull(actor_id, "interrupted", "actor_removed")
+    _destiny_cooldown_until_by_actor.erase(actor_id)
+
+
 func _clear_actor_notability_tracking(actor_id: int) -> void:
     _renown_tier_by_actor.erase(actor_id)
     _notoriety_tier_by_actor.erase(actor_id)
@@ -3607,8 +4130,9 @@ func _actor_label(actor: Actor) -> String:
     var special_suffix := actor.special_tag()
     var relic_suffix := actor.relic_tag()
     var bounty_suffix := actor.bounty_tag()
+    var destiny_suffix := actor.destiny_tag()
     var renown_suffix := actor.renown_tag()
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
