@@ -20,101 +20,101 @@ var _entities_root: Node3D = null
 
 
 func setup(loop: GameLoop, world: WorldManager, entities_root: Node3D) -> void:
-    _loop = loop
-    _world = world
-    _entities_root = entities_root
+	_loop = loop
+	_world = world
+	_entities_root = entities_root
 
 
 func spawn_initial_population(actors: Array) -> void:
-    for _i in range(initial_humans):
-        _spawn_actor("human", actors)
-    for _i in range(initial_monsters):
-        _spawn_actor("monster", actors)
+	for _i in range(initial_humans):
+		_spawn_actor("human", actors)
+	for _i in range(initial_monsters):
+		_spawn_actor("monster", actors)
 
 
 func tick_systems(delta: float, actors: Array, loop: GameLoop) -> void:
-    _respawn_timer += delta
-    if _respawn_timer < respawn_interval:
-        return
-    _respawn_timer = 0.0
+	_respawn_timer += delta
+	if _respawn_timer < respawn_interval:
+		return
+	_respawn_timer = 0.0
 
-    var counts := _count_alive_by_faction(actors)
-    var current_population: int = counts["human"] + counts["monster"]
-    if current_population >= max_population:
-        return
+	var counts: Dictionary = _count_alive_by_faction(actors)
+	var current_population: int = counts["human"] + counts["monster"]
+	if current_population >= max_population:
+		return
 
-    if counts["human"] < min_humans:
-        _spawn_actor("human", actors)
-        loop.record_event("Respawn trigger: humans below minimum.")
+	if counts["human"] < min_humans:
+		_spawn_actor("human", actors)
+		loop.record_event("Respawn trigger: humans below minimum.")
 
-    counts = _count_alive_by_faction(actors)
-    current_population = counts["human"] + counts["monster"]
-    if current_population >= max_population:
-        return
+	counts = _count_alive_by_faction(actors)
+	current_population = counts["human"] + counts["monster"]
+	if current_population >= max_population:
+		return
 
-    if counts["monster"] < min_monsters:
-        _spawn_actor("monster", actors)
-        loop.record_event("Respawn trigger: monsters below minimum.")
+	if counts["monster"] < min_monsters:
+		_spawn_actor("monster", actors)
+		loop.record_event("Respawn trigger: monsters below minimum.")
 
 
 func _spawn_actor(faction: String, actors: Array) -> void:
-    if _world == null or _entities_root == null or _loop == null:
-        return
+	if _world == null or _entities_root == null or _loop == null:
+		return
 
-    var actor: Actor
-    if faction == "human":
-        var human := HumanAgent.new()
-        human.assign_role(_pick_human_role())
-        actor = human
-    else:
-        actor = _spawn_monster_archetype()
+	var actor: Actor
+	if faction == "human":
+		var human: HumanAgent = HumanAgent.new()
+		human.assign_role(_pick_human_role())
+		actor = human
+	else:
+		actor = _spawn_monster_archetype()
 
-    actor.global_position = _world.get_spawn_point(faction)
-    _entities_root.add_child(actor)
-    actors.append(actor)
-    _loop.register_spawn(actor)
+	actor.global_position = _world.get_spawn_point(faction)
+	_entities_root.add_child(actor)
+	actors.append(actor)
+	_loop.register_spawn(actor)
 
 
 func _spawn_monster_archetype() -> Actor:
-    var brute_ratio := clamp(brute_spawn_ratio, 0.0, 1.0)
-    var ranged_ratio := clamp(ranged_spawn_ratio, 0.0, 1.0 - brute_ratio)
-    var roll := randf()
+	var brute_ratio: float = clamp(brute_spawn_ratio, 0.0, 1.0)
+	var ranged_ratio: float = clamp(ranged_spawn_ratio, 0.0, 1.0 - brute_ratio)
+	var roll: float = randf()
 
-    if roll < brute_ratio:
-        return BruteMonster.new()
-    if roll < brute_ratio + ranged_ratio:
-        return RangedMonster.new()
-    return MonsterAgent.new()
+	if roll < brute_ratio:
+		return BruteMonster.new()
+	if roll < brute_ratio + ranged_ratio:
+		return RangedMonster.new()
+	return MonsterAgent.new()
 
 
 func _pick_human_role() -> String:
-    var fighter := clamp(fighter_role_ratio, 0.0, 1.0)
-    var mage := clamp(mage_role_ratio, 0.0, 1.0 - fighter)
-    var scout := clamp(scout_role_ratio, 0.0, 1.0 - fighter - mage)
-    var remainder := max(0.0, 1.0 - (fighter + mage + scout))
+	var fighter: float = clamp(fighter_role_ratio, 0.0, 1.0)
+	var mage: float = clamp(mage_role_ratio, 0.0, 1.0 - fighter)
+	var scout: float = clamp(scout_role_ratio, 0.0, 1.0 - fighter - mage)
+	var remainder: float = max(0.0, 1.0 - (fighter + mage + scout))
 
-    fighter += remainder
-    var roll := randf()
-    if roll < fighter:
-        return "fighter"
-    if roll < fighter + mage:
-        return "mage"
-    return "scout"
+	fighter += remainder
+	var roll: float = randf()
+	if roll < fighter:
+		return "fighter"
+	if roll < fighter + mage:
+		return "mage"
+	return "scout"
 
 
 func _count_alive_by_faction(actors: Array) -> Dictionary:
-    var human_count: int = 0
-    var monster_count: int = 0
+	var human_count: int = 0
+	var monster_count: int = 0
 
-    for actor in actors:
-        if actor == null or actor.is_dead:
-            continue
-        if actor.faction == "human":
-            human_count += 1
-        elif actor.faction == "monster":
-            monster_count += 1
+	for actor in actors:
+		if actor == null or actor.is_dead:
+			continue
+		if actor.faction == "human":
+			human_count += 1
+		elif actor.faction == "monster":
+			monster_count += 1
 
-    return {
-        "human": human_count,
-        "monster": monster_count
-    }
+	return {
+		"human": human_count,
+		"monster": monster_count
+	}

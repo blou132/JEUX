@@ -1,0 +1,18 @@
+config_version=5
+
+[application]
+
+config/name="Sandbox Fantasy 3D MVP (4.2)"
+run/main_scene="res://scenes/MainSandbox.tscn"
+config/features=PackedStringArray("4.2")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+environment/defaults/default_clear_color=Color(0.101961, 0.152941, 0.219608, 1)
