@@ -55,6 +55,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_crisis_labels: Array = snapshot.get("allegiance_crisis_labels", [])
     var allegiance_recovery_labels: Array = snapshot.get("allegiance_recovery_labels", [])
     var mending_active_labels: Array = snapshot.get("mending_active_labels", [])
+    var oath_active_labels: Array = snapshot.get("oath_active_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -500,6 +501,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Mending arcs: %s"
         % (" | ".join(mending_active_labels) if not mending_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Oaths: active=%d | start=%d end=%d fulfilled=%d broken=%d"
+        % [
+            int(snapshot.get("oath_active_count", 0)),
+            int(snapshot.get("oath_started_total", 0)),
+            int(snapshot.get("oath_ended_total", 0)),
+            int(snapshot.get("oath_fulfilled_total", 0)),
+            int(snapshot.get("oath_broken_total", 0))
+        ]
+    )
+    lines.append(
+        "Oath labels: %s"
+        % (" | ".join(oath_active_labels) if not oath_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiance cores: %s"

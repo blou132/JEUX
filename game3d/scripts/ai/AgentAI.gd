@@ -8,6 +8,7 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
     var rally_bonus: bool = bool(rally_context.get("bonus_active", false))
     var rally_pressure_target: Actor = rally_context.get("pressure_target", null)
     var rally_leader_kind: String = str(rally_context.get("leader_kind", "champion"))
+    var oath_guidance: Dictionary = actor.get_oath_guidance()
     var doctrine_modifiers: Dictionary = world.get_allegiance_doctrine_modifiers(actor.allegiance_id)
     var project_modifiers: Dictionary = world.get_allegiance_project_modifiers(actor.allegiance_id)
     var rally_regroup_chance: float = float(rally_context.get("regroup_chance", 0.66))
@@ -47,6 +48,22 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                         "state": "rally",
                         "target_position": rally_leader.global_position,
                         "reason": "rally_renown_regroup" if rally_leader_kind == "renown" else "rally_regroup"
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
+        if not oath_guidance.is_empty():
+            var oath_type: String = str(oath_guidance.get("type", ""))
+            var oath_weight: float = clampf(float(oath_guidance.get("weight", 0.56)), 0.20, 0.86)
+            if oath_type in ["oath_of_guarding", "oath_of_seeking"] and randf() <= oath_weight:
+                var oath_state: String = "poi" if oath_type == "oath_of_guarding" else "hunt"
+                var oath_reason: String = "oath:guarding" if oath_type == "oath_of_guarding" else "oath:seeking"
+                return _with_rally(
+                    {
+                        "state": oath_state,
+                        "target_position": oath_guidance.get("target_position", actor.global_position),
+                        "reason": oath_reason
                     },
                     rally_leader,
                     rally_bonus
@@ -184,6 +201,17 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                 var rival_weight: float = float(rivalry_guidance.get("weight", 0.48))
                 if randf() <= clampf(rival_weight, 0.24, 0.88):
                     enemy = rival_target
+
+    if not oath_guidance.is_empty() and str(oath_guidance.get("type", "")) == "oath_of_vengeance":
+        var oath_target: Actor = _find_actor_by_id_in_list(
+            int(oath_guidance.get("target_actor_id", 0)),
+            all_actors
+        )
+        if oath_target != null and not oath_target.is_dead and actor.is_enemy(oath_target):
+            var oath_distance: float = actor.global_position.distance_to(oath_target.global_position)
+            var oath_weight: float = clampf(float(oath_guidance.get("weight", 0.56)), 0.22, 0.86)
+            if oath_distance <= actor.vision_range * 1.15 and randf() <= oath_weight:
+                enemy = oath_target
 
     if rally_pressure_target != null and rally_pressure_target != enemy:
         var pressure_distance: float = actor.global_position.distance_to(rally_pressure_target.global_position)

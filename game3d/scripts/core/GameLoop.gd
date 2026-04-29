@@ -177,6 +177,17 @@ const MENDING_MAX_ACTIVE: int = 2
 const MENDING_START_CHANCE_BASE: float = 0.34
 const MENDING_RAID_WEIGHT_DELTA: float = -0.05
 const MENDING_BOUNTY_WEIGHT_DELTA: float = -0.06
+const OATH_START_DELAY: float = 218.0
+const OATH_GLOBAL_COOLDOWN: float = 16.0
+const OATH_ACTOR_COOLDOWN: float = 58.0
+const OATH_DURATION_MIN: float = 10.0
+const OATH_DURATION_MAX: float = 18.0
+const OATH_MAX_ACTIVE: int = 3
+const OATH_START_CHANCE_BASE: float = 0.30
+const OATH_MIN_POPULATION: int = 10
+const OATH_NOTABLE_RENOWN_TRIGGER: float = 66.0
+const OATH_FULFILL_RADIUS: float = 3.9
+const OATH_FULFILL_HOLD: float = 1.2
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -325,6 +336,10 @@ var recovery_interrupted_total: int = 0
 var mending_started_total: int = 0
 var mending_ended_total: int = 0
 var mending_broken_total: int = 0
+var oath_started_total: int = 0
+var oath_ended_total: int = 0
+var oath_fulfilled_total: int = 0
+var oath_broken_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -414,6 +429,9 @@ var _mending_global_cooldown_left: float = MENDING_START_DELAY
 var _mending_runtime_by_id: Dictionary = {}
 var _mending_next_id: int = 1
 var _mending_cooldown_until_by_allegiance: Dictionary = {}
+var _oath_global_cooldown_left: float = OATH_START_DELAY
+var _oath_runtime_by_actor: Dictionary = {}
+var _oath_cooldown_until_by_actor: Dictionary = {}
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -435,6 +453,7 @@ func _ready() -> void:
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
     _setup_mending_state()
+    _setup_oath_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -478,6 +497,7 @@ func _tick(delta: float) -> void:
     _update_special_arrivals(delta)
     _update_relic_system(delta)
     _update_destiny_pulls(delta)
+    _update_oath_runtime(delta)
     _update_convergence_events(delta)
     _update_marked_zones(delta)
     _update_rivalries(delta)
@@ -2091,6 +2111,13 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
             1.6
         )
     if should_seed_bond:
+        _try_start_oath_guarding_for_allegiance(
+            allegiance_id,
+            "recovery_stabilized:%s" % recovery_reason,
+            0.10,
+            1.0
+        )
+    if should_seed_bond:
         _try_start_bond_from_recovery(allegiance_id, reason)
 
 
@@ -2223,6 +2250,12 @@ func _try_start_mending_arc(
     record_event(
         "Mending START: %s (%s, %.0fs)."
         % [label, reason, duration]
+    )
+    _try_start_oath_guarding_for_allegiance(
+        source_allegiance_id,
+        "mending_window:%s" % reason,
+        0.08,
+        0.9
     )
     return true
 
@@ -3830,6 +3863,25 @@ func _start_destiny_pull(actor: Actor, option: Dictionary) -> void:
         "Destiny START: %s -> %s (%s, %.0fs)."
         % [ _actor_label(actor), target_label, _destiny_type_label(destiny_type), duration ]
     )
+    var oath_chance_bonus: float = 0.08
+    if destiny_type == "relic_call":
+        oath_chance_bonus += 0.06
+    elif destiny_type == "vendetta_call":
+        oath_chance_bonus += 0.04
+    _try_start_oath(
+        actor,
+        "oath_of_seeking",
+        "destiny:%s" % destiny_type,
+        int(runtime.get("target_actor_id", 0)),
+        target_position,
+        target_label,
+        0.62,
+        oath_chance_bonus,
+        0.9,
+        "destiny",
+        actor.allegiance_id,
+        str(runtime.get("target_allegiance_id", ""))
+    )
 
 
 func _refresh_destiny_runtime_target(runtime: Dictionary, actor: Actor) -> Dictionary:
@@ -3949,6 +4001,353 @@ func _end_destiny_pull(actor_id: int, outcome: String, reason: String) -> void:
     )
     _destiny_runtime_by_actor.erase(actor_id)
     _destiny_cooldown_until_by_actor[actor_id] = elapsed_time + DESTINY_ACTOR_COOLDOWN
+
+
+func _setup_oath_state() -> void:
+    _oath_global_cooldown_left = OATH_START_DELAY
+    _oath_runtime_by_actor.clear()
+    _oath_cooldown_until_by_actor.clear()
+
+
+func _update_oath_runtime(delta: float) -> void:
+    _oath_global_cooldown_left = max(0.0, _oath_global_cooldown_left - delta)
+
+    var cooldown_ids: Array = _oath_cooldown_until_by_actor.keys()
+    for actor_id_variant in cooldown_ids:
+        var actor_id: int = int(actor_id_variant)
+        var cooldown_until: float = float(_oath_cooldown_until_by_actor.get(actor_id, 0.0))
+        if elapsed_time >= cooldown_until:
+            _oath_cooldown_until_by_actor.erase(actor_id)
+
+    if _oath_runtime_by_actor.is_empty():
+        return
+
+    var actor_ids: Array = _oath_runtime_by_actor.keys()
+    for actor_id_variant in actor_ids:
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _oath_runtime_by_actor.get(actor_id, {})
+        if runtime.is_empty():
+            continue
+
+        var actor: Actor = _find_actor_by_id(actor_id)
+        if actor == null or actor.is_dead:
+            _break_oath(actor_id, "actor_unavailable")
+            continue
+
+        var oath_type: String = str(runtime.get("type", ""))
+        if oath_type == "oath_of_guarding":
+            var anchor_allegiance_id: String = str(runtime.get("anchor_allegiance_id", actor.allegiance_id))
+            if anchor_allegiance_id == "" or not _is_allegiance_anchor_active(anchor_allegiance_id):
+                _break_oath(actor_id, "anchor_lost")
+                continue
+            var anchor: Dictionary = _find_active_allegiance_anchor(anchor_allegiance_id)
+            if not anchor.is_empty():
+                runtime["target_position"] = anchor.get("position", actor.global_position)
+                var home_poi: String = str(anchor.get("home_poi", ""))
+                runtime["target_label"] = home_poi if home_poi != "" else anchor_allegiance_id
+        elif oath_type == "oath_of_vengeance":
+            var target_actor_id: int = int(runtime.get("target_actor_id", 0))
+            if target_actor_id == 0:
+                _break_oath(actor_id, "target_missing")
+                continue
+            var target: Actor = _find_actor_by_id(target_actor_id)
+            if target == null or target.is_dead:
+                _fulfill_oath(actor_id, "target_fallen")
+                continue
+            if not actor.is_enemy(target):
+                _break_oath(actor_id, "hostility_lost")
+                continue
+            runtime["target_position"] = target.global_position
+            runtime["target_label"] = _actor_label(target)
+        elif oath_type == "oath_of_seeking":
+            var source_kind: String = str(runtime.get("source_kind", ""))
+            if source_kind == "destiny" and not actor.destiny_active:
+                _break_oath(actor_id, "destiny_lost")
+                continue
+
+            var target_actor_id: int = int(runtime.get("target_actor_id", 0))
+            if target_actor_id != 0:
+                var moving_target: Actor = _find_actor_by_id(target_actor_id)
+                if moving_target == null or moving_target.is_dead:
+                    _break_oath(actor_id, "target_lost")
+                    continue
+                runtime["target_position"] = moving_target.global_position
+                runtime["target_label"] = _actor_label(moving_target)
+
+            var target_position: Vector3 = runtime.get("target_position", actor.global_position)
+            var near_hold: float = float(runtime.get("near_hold", 0.0))
+            var distance: float = actor.global_position.distance_to(target_position)
+            if distance <= OATH_FULFILL_RADIUS:
+                near_hold += delta
+            else:
+                near_hold = max(0.0, near_hold - delta * 0.45)
+            runtime["near_hold"] = near_hold
+            if near_hold >= OATH_FULFILL_HOLD:
+                _fulfill_oath(actor_id, "objective_reached")
+                continue
+        else:
+            _break_oath(actor_id, "unknown_oath")
+            continue
+
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if elapsed_time >= ends_at:
+            _end_oath(actor_id, "duration_complete")
+            continue
+
+        _oath_runtime_by_actor[actor_id] = runtime
+        actor.set_oath_state(
+            true,
+            oath_type,
+            runtime.get("target_position", actor.global_position),
+            int(runtime.get("target_actor_id", 0)),
+            str(runtime.get("target_label", "objective")),
+            float(runtime.get("guidance_weight", 0.56))
+        )
+
+
+func _is_oath_candidate(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+        return true
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        return true
+    return actor.renown >= OATH_NOTABLE_RENOWN_TRIGGER
+
+
+func _try_start_oath(
+    actor: Actor,
+    oath_type: String,
+    reason: String,
+    target_actor_id: int = 0,
+    target_position: Vector3 = Vector3.ZERO,
+    target_label: String = "",
+    guidance_weight: float = 0.0,
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0,
+    source_kind: String = "",
+    anchor_allegiance_id: String = "",
+    target_allegiance_id: String = ""
+) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if oath_type not in ["oath_of_guarding", "oath_of_vengeance", "oath_of_seeking"]:
+        return false
+    if _count_alive_actors() < OATH_MIN_POPULATION:
+        return false
+    if _oath_runtime_by_actor.size() >= OATH_MAX_ACTIVE:
+        return false
+    if _oath_global_cooldown_left > 0.0:
+        return false
+    if _oath_runtime_by_actor.has(actor.actor_id):
+        return false
+    if not _is_oath_candidate(actor):
+        return false
+
+    var cooldown_until: float = float(_oath_cooldown_until_by_actor.get(actor.actor_id, 0.0))
+    if elapsed_time < cooldown_until:
+        return false
+
+    var start_chance: float = clampf(OATH_START_CHANCE_BASE + chance_bonus, 0.12, 0.78)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(OATH_DURATION_MIN, OATH_DURATION_MAX),
+        max(OATH_DURATION_MIN, OATH_DURATION_MAX)
+    ) + duration_bonus
+    duration = clampf(duration, 8.0, 28.0)
+
+    var objective_position: Vector3 = target_position
+    if target_actor_id != 0:
+        var target_actor: Actor = _find_actor_by_id(target_actor_id)
+        if target_actor != null and not target_actor.is_dead:
+            objective_position = target_actor.global_position
+            if target_label == "":
+                target_label = _actor_label(target_actor)
+    if objective_position == Vector3.ZERO:
+        objective_position = actor.global_position
+
+    var objective_label: String = target_label if target_label != "" else "objective"
+    var weight: float = guidance_weight if guidance_weight > 0.0 else 0.56
+    _oath_runtime_by_actor[actor.actor_id] = {
+        "type": oath_type,
+        "reason": reason,
+        "source_kind": source_kind,
+        "anchor_allegiance_id": anchor_allegiance_id,
+        "target_allegiance_id": target_allegiance_id,
+        "target_actor_id": target_actor_id,
+        "target_position": objective_position,
+        "target_label": objective_label,
+        "guidance_weight": clampf(weight, 0.20, 0.86),
+        "near_hold": 0.0,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration
+    }
+    actor.set_oath_state(
+        true,
+        oath_type,
+        objective_position,
+        target_actor_id,
+        objective_label,
+        weight
+    )
+    oath_started_total += 1
+    _oath_global_cooldown_left = OATH_GLOBAL_COOLDOWN
+    record_event(
+        "Oath START: %s -> %s (%s, %.0fs)."
+        % [_actor_label(actor), _oath_type_short(oath_type), reason, duration]
+    )
+    return true
+
+
+func _end_oath(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _oath_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    if actor != null:
+        actor.set_oath_state(false)
+    _oath_runtime_by_actor.erase(actor_id)
+    _oath_cooldown_until_by_actor[actor_id] = elapsed_time + OATH_ACTOR_COOLDOWN
+    oath_ended_total += 1
+    record_event("Oath END: %s (%s)." % [label, reason])
+
+
+func _fulfill_oath(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _oath_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    oath_fulfilled_total += 1
+    record_event(
+        "Oath FULFILLED: %s (%s, %s)."
+        % [label, _oath_type_short(str(runtime.get("type", ""))), reason]
+    )
+    _end_oath(actor_id, "fulfilled:%s" % reason)
+
+
+func _break_oath(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _oath_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    oath_broken_total += 1
+    record_event("Oath BROKEN: %s (%s)." % [label, reason])
+    _end_oath(actor_id, "broken:%s" % reason)
+
+
+func _oath_type_short(oath_type: String) -> String:
+    match oath_type:
+        "oath_of_guarding":
+            return "guarding"
+        "oath_of_vengeance":
+            return "vengeance"
+        "oath_of_seeking":
+            return "seeking"
+        _:
+            return "oath"
+
+
+func _pick_oath_actor_for_allegiance(allegiance_id: String) -> Actor:
+    if allegiance_id == "":
+        return null
+    var selected: Actor = null
+    var best_score: float = -INF
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != allegiance_id:
+            continue
+        if not _is_oath_candidate(actor):
+            continue
+        var score: float = actor.renown * 0.04 + actor.notoriety * 0.02
+        if actor.is_champion:
+            score += 2.0
+        if actor.is_special_arrival():
+            score += 1.5
+        if actor.has_relic():
+            score += 1.2
+        if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+            score += 1.8
+        if actor.bond_patron_active:
+            score += 0.7
+        if actor.destiny_active:
+            score += 0.5
+        if score > best_score:
+            best_score = score
+            selected = actor
+    return selected
+
+
+func _pick_oath_vengeance_target(source_actor: Actor, target_allegiance_id: String) -> Actor:
+    if source_actor == null or source_actor.is_dead or target_allegiance_id == "":
+        return null
+    var selected: Actor = null
+    var best_score: float = -INF
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.allegiance_id != target_allegiance_id:
+            continue
+        if not source_actor.is_enemy(actor):
+            continue
+        var score: float = actor.notoriety * 0.03 + actor.renown * 0.02
+        if actor.has_relic():
+            score += 1.2
+        if actor.is_special_arrival():
+            score += 1.0
+        if actor.is_champion:
+            score += 0.8
+        if source_actor.rivalry_active and source_actor.rival_actor_id == actor.actor_id:
+            score += 1.4
+        score += clampf(
+            (source_actor.vision_range * 1.25 - source_actor.global_position.distance_to(actor.global_position))
+            / max(1.0, source_actor.vision_range * 1.25),
+            0.0,
+            1.0
+        )
+        if score > best_score:
+            best_score = score
+            selected = actor
+    return selected
+
+
+func _try_start_oath_guarding_for_allegiance(
+    allegiance_id: String,
+    reason: String,
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0
+) -> bool:
+    if allegiance_id == "":
+        return false
+    var actor: Actor = _pick_oath_actor_for_allegiance(allegiance_id)
+    if actor == null:
+        return false
+    var anchor: Dictionary = _find_active_allegiance_anchor(allegiance_id)
+    var target_position: Vector3 = actor.global_position
+    var target_label: String = allegiance_id
+    if not anchor.is_empty():
+        target_position = anchor.get("position", actor.global_position)
+        var home_poi: String = str(anchor.get("home_poi", ""))
+        if home_poi != "":
+            target_label = home_poi
+    return _try_start_oath(
+        actor,
+        "oath_of_guarding",
+        reason,
+        0,
+        target_position,
+        target_label,
+        0.60,
+        chance_bonus,
+        duration_bonus,
+        "allegiance_guard",
+        allegiance_id
+    )
 
 
 func _destiny_type_label(destiny_type: String) -> String:
@@ -4211,6 +4610,38 @@ func _start_rivalry(candidate: Dictionary) -> void:
     record_event(
         "Rivalry START: %s (%s, %.0fs)."
         % [label, str(runtime.get("context", "engagement")), duration]
+    )
+    var rivalry_reason: String = "rivalry:%s" % str(runtime.get("context", "engagement"))
+    var vengeance_bonus: float = 0.08
+    if _is_rivalry_vendetta_pair(actor_a, actor_b):
+        vengeance_bonus += 0.06
+    _try_start_oath(
+        actor_a,
+        "oath_of_vengeance",
+        rivalry_reason,
+        actor_b.actor_id,
+        actor_b.global_position,
+        _actor_label(actor_b),
+        0.64,
+        vengeance_bonus,
+        0.7,
+        "rivalry",
+        actor_a.allegiance_id,
+        actor_b.allegiance_id
+    )
+    _try_start_oath(
+        actor_b,
+        "oath_of_vengeance",
+        rivalry_reason,
+        actor_a.actor_id,
+        actor_a.global_position,
+        _actor_label(actor_a),
+        0.64,
+        vengeance_bonus,
+        0.7,
+        "rivalry",
+        actor_b.allegiance_id,
+        actor_a.allegiance_id
     )
 
 
@@ -4600,6 +5031,28 @@ func _try_start_bond(
         "Bond START: %s (%s, %.0fs)."
         % [label, reason, duration]
     )
+    if allegiance_id != "":
+        var guard_anchor: Dictionary = _find_active_allegiance_anchor(allegiance_id)
+        var guard_position: Vector3 = patron.global_position
+        var guard_label: String = allegiance_id
+        if not guard_anchor.is_empty():
+            guard_position = guard_anchor.get("position", patron.global_position)
+            var home_poi: String = str(guard_anchor.get("home_poi", ""))
+            if home_poi != "":
+                guard_label = home_poi
+        _try_start_oath(
+            patron,
+            "oath_of_guarding",
+            "bond_stable:%s" % reason,
+            0,
+            guard_position,
+            guard_label,
+            0.60,
+            0.06,
+            0.8,
+            "bond",
+            allegiance_id
+        )
     return true
 
 
@@ -5161,6 +5614,7 @@ func _cleanup_dead_actors() -> void:
             _clear_actor_influence_timers(actor.actor_id)
             _clear_actor_rally_tracking(actor.actor_id)
             _clear_actor_destiny_tracking(actor.actor_id)
+            _clear_actor_oath_tracking(actor.actor_id)
             _clear_actor_rivalry_tracking(actor.actor_id)
             _clear_actor_bond_tracking(actor.actor_id)
             _clear_actor_splinter_tracking(actor.actor_id)
@@ -5386,6 +5840,8 @@ func _build_snapshot() -> Dictionary:
     var allegiance_recovery_labels: Array[String] = []
     var mending_active_count: int = 0
     var mending_active_labels: Array[String] = []
+    var oath_active_count: int = 0
+    var oath_active_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -5563,6 +6019,19 @@ func _build_snapshot() -> Dictionary:
         mending_active_labels.append("%s:%s@%.0fs" % [label, reason, remaining])
     mending_active_labels.sort()
     mending_active_count = mending_active_labels.size()
+    for actor_id_variant in _oath_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _oath_runtime_by_actor.get(actor_id, {})
+        if runtime.is_empty():
+            continue
+        var actor: Actor = _find_actor_by_id(actor_id)
+        var actor_label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+        var oath_type: String = _oath_type_short(str(runtime.get("type", "")))
+        var target_label: String = str(runtime.get("target_label", "objective"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        oath_active_labels.append("%s:%s->%s(%.0fs)" % [oath_type, actor_label, target_label, remaining])
+    oath_active_labels.sort()
+    oath_active_count = oath_active_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -5735,6 +6204,12 @@ func _build_snapshot() -> Dictionary:
         "mending_started_total": mending_started_total,
         "mending_ended_total": mending_ended_total,
         "mending_broken_total": mending_broken_total,
+        "oath_active_count": oath_active_count,
+        "oath_active_labels": oath_active_labels,
+        "oath_started_total": oath_started_total,
+        "oath_ended_total": oath_ended_total,
+        "oath_fulfilled_total": oath_fulfilled_total,
+        "oath_broken_total": oath_broken_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -6106,6 +6581,24 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         _mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, source_allegiance_id, SPLINTER_SIGNAL_WINDOW)
         _mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, target_allegiance_id, SPLINTER_SIGNAL_WINDOW * 0.82)
         _try_start_crisis_from_vendetta(source_allegiance_id, target_allegiance_id, reason)
+        var vendetta_actor: Actor = _pick_oath_actor_for_allegiance(source_allegiance_id)
+        if vendetta_actor != null:
+            var vendetta_target: Actor = _pick_oath_vengeance_target(vendetta_actor, target_allegiance_id)
+            if vendetta_target != null:
+                _try_start_oath(
+                    vendetta_actor,
+                    "oath_of_vengeance",
+                    "vendetta_started:%s" % reason,
+                    vendetta_target.actor_id,
+                    vendetta_target.global_position,
+                    _actor_label(vendetta_target),
+                    0.68,
+                    0.12,
+                    0.9,
+                    "vendetta",
+                    source_allegiance_id,
+                    target_allegiance_id
+                )
         return
 
     if kind == "vendetta_resolved":
@@ -6181,6 +6674,13 @@ func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictio
     )
     _try_start_allegiance_recovery(successor.allegiance_id, "legacy_successor", 0.22, 1.2, source_label)
     _try_start_bond_from_legacy(successor, source_label)
+    if successor.allegiance_id != "":
+        _try_start_oath_guarding_for_allegiance(
+            successor.allegiance_id,
+            "legacy_successor:%s" % source_label,
+            0.14,
+            1.2
+        )
 
     var renown_transfer: float = clampf(victim.renown * LEGACY_RENOWN_TRANSFER_RATIO, 1.0, 6.0)
     var notoriety_transfer: float = clampf(victim.notoriety * LEGACY_NOTORIETY_TRANSFER_RATIO, 0.6, 5.0)
@@ -6417,6 +6917,12 @@ func _clear_actor_destiny_tracking(actor_id: int) -> void:
     _destiny_cooldown_until_by_actor.erase(actor_id)
 
 
+func _clear_actor_oath_tracking(actor_id: int) -> void:
+    if _oath_runtime_by_actor.has(actor_id):
+        _break_oath(actor_id, "actor_removed")
+    _oath_cooldown_until_by_actor.erase(actor_id)
+
+
 func _clear_actor_notability_tracking(actor_id: int) -> void:
     _renown_tier_by_actor.erase(actor_id)
     _notoriety_tier_by_actor.erase(actor_id)
@@ -6568,6 +7074,7 @@ func _actor_label(actor: Actor) -> String:
     var relic_suffix := actor.relic_tag()
     var bounty_suffix := actor.bounty_tag()
     var destiny_suffix := actor.destiny_tag()
+    var oath_suffix := actor.oath_tag()
     var rivalry_suffix := actor.rivalry_tag()
     var bond_suffix := actor.bond_tag()
     var splinter_suffix := actor.splinter_tag()
@@ -6575,4 +7082,4 @@ func _actor_label(actor: Actor) -> String:
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, rivalry_suffix, bond_suffix, splinter_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, oath_suffix, rivalry_suffix, bond_suffix, splinter_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]

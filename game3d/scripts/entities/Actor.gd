@@ -79,6 +79,12 @@ var destiny_target_actor_id: int = 0
 var destiny_target_position: Vector3 = Vector3.ZERO
 var destiny_target_label: String = ""
 var destiny_guidance_weight: float = 0.0
+var oath_active: bool = false
+var oath_type: String = ""
+var oath_target_actor_id: int = 0
+var oath_target_position: Vector3 = Vector3.ZERO
+var oath_target_label: String = ""
+var oath_guidance_weight: float = 0.0
 var rivalry_active: bool = false
 var rival_actor_id: int = 0
 var rivalry_label: String = ""
@@ -328,6 +334,20 @@ func destiny_tag() -> String:
             return "[FATED]"
 
 
+func oath_tag() -> String:
+    if not oath_active:
+        return ""
+    match oath_type:
+        "oath_of_guarding":
+            return "[OATH:GUARD]"
+        "oath_of_vengeance":
+            return "[OATH:VENGE]"
+        "oath_of_seeking":
+            return "[OATH:SEEK]"
+        _:
+            return "[OATH]"
+
+
 func rivalry_tag() -> String:
     if not rivalry_active:
         return ""
@@ -498,6 +518,45 @@ func get_destiny_guidance() -> Dictionary:
         "target_actor_id": destiny_target_actor_id,
         "target_label": destiny_target_label,
         "weight": destiny_guidance_weight
+    }
+
+
+func set_oath_state(
+    active: bool,
+    next_oath_type: String = "",
+    next_target_position: Vector3 = Vector3.ZERO,
+    next_target_actor_id: int = 0,
+    next_target_label: String = "",
+    guidance_weight: float = 0.0
+) -> void:
+    oath_active = active
+    if not oath_active:
+        oath_type = ""
+        oath_target_actor_id = 0
+        oath_target_position = Vector3.ZERO
+        oath_target_label = ""
+        oath_guidance_weight = 0.0
+        _refresh_control_visual()
+        return
+
+    oath_type = next_oath_type
+    oath_target_actor_id = next_target_actor_id
+    oath_target_position = next_target_position
+    oath_target_label = next_target_label
+    var next_weight: float = guidance_weight if guidance_weight > 0.0 else 0.56
+    oath_guidance_weight = clampf(next_weight, 0.20, 0.86)
+    _refresh_control_visual()
+
+
+func get_oath_guidance() -> Dictionary:
+    if not oath_active or oath_type == "":
+        return {}
+    return {
+        "type": oath_type,
+        "target_position": oath_target_position,
+        "target_actor_id": oath_target_actor_id,
+        "target_label": oath_target_label,
+        "weight": oath_guidance_weight
     }
 
 
@@ -922,6 +981,13 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = destiny_glow * 0.26
+        if oath_active:
+            var oath_glow := _oath_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(oath_glow, 0.16)
+            else:
+                material.emission_enabled = true
+                material.emission = oath_glow * 0.22
         if rivalry_active:
             var rivalry_glow := _rivalry_glow_color()
             var rivalry_mix: float = 0.34 if rivalry_duel_active else 0.17
@@ -1136,6 +1202,18 @@ func _destiny_glow_color() -> Color:
             return Color(1.0, 0.56, 0.34)
         _:
             return Color(0.88, 0.88, 1.0)
+
+
+func _oath_glow_color() -> Color:
+    match oath_type:
+        "oath_of_guarding":
+            return Color(0.56, 0.90, 1.0)
+        "oath_of_vengeance":
+            return Color(1.0, 0.52, 0.36)
+        "oath_of_seeking":
+            return Color(0.98, 0.82, 0.42)
+        _:
+            return Color(0.90, 0.90, 0.96)
 
 
 func _rivalry_glow_color() -> Color:

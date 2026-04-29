@@ -112,6 +112,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("breakaway", content)
         self.assertIn("mending", content)
         self.assertIn("reconciliation", content)
+        self.assertIn("oath", content)
+        self.assertIn("sworn", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -214,6 +216,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Recovery map:", content)
         self.assertIn("Mending:", content)
         self.assertIn("Mending arcs:", content)
+        self.assertIn("Oaths:", content)
+        self.assertIn("Oath labels:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
         self.assertIn("Memorial/Scar:", content)
@@ -257,6 +261,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("rival_target", content)
         self.assertIn("get_convergence_guidance", content)
         self.assertIn("convergence_pull", content)
+        self.assertIn("get_oath_guidance", content)
+        self.assertIn("oath:guarding", content)
+        self.assertIn("oath:seeking", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
         self.assertIn("notoriety_avoid", content)
@@ -311,6 +318,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("set_destiny_pull", content)
         self.assertIn("get_destiny_guidance", content)
         self.assertIn("destiny_tag", content)
+        self.assertIn("oath_active", content)
+        self.assertIn("set_oath_state", content)
+        self.assertIn("get_oath_guidance", content)
+        self.assertIn("oath_tag", content)
         self.assertIn("rivalry_active", content)
         self.assertIn("set_rivalry_state", content)
         self.assertIn("get_rivalry_guidance", content)
@@ -499,6 +510,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Memorial/Scar BORN", content)
         self.assertIn("Memorial/Scar FADED", content)
         self.assertIn('"memorial_scar_active_total"', content)
+        self.assertIn("Oath START", content)
+        self.assertIn("Oath END", content)
+        self.assertIn("Oath FULFILLED", content)
+        self.assertIn("Oath BROKEN", content)
+        self.assertIn('"oath_active_count"', content)
 
 
 if __name__ == "__main__":
