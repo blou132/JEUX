@@ -300,6 +300,8 @@ const DataLoaderScript = preload("res://scripts/data/DataLoader.gd")
 var ai: AgentAI = AgentAI.new()
 var actors: Array = []
 var creature_profiles_by_id: Dictionary = {}
+var world_event_profiles_by_id: Dictionary = {}
+var world_event_ids: Array[String] = []
 var _data_loader: DataLoader = null
 
 var tick_accumulator: float = 0.0
@@ -585,10 +587,29 @@ func _load_creature_profiles_data() -> void:
 		creature_profiles_by_id = _data_loader.get_creature_profiles()
 		sandbox_systems.set_creature_profiles(creature_profiles_by_id)
 		record_event("DataLoader OK: creature profiles=%d." % creature_profiles_by_id.size())
+	else:
+		creature_profiles_by_id.clear()
+		sandbox_systems.set_creature_profiles({})
+		record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+
+	_load_world_events_data()
+
+
+func _load_world_events_data() -> void:
+	if _data_loader == null:
+		_data_loader = DataLoaderScript.new()
+
+	if _data_loader.load_world_events():
+		world_event_profiles_by_id = _data_loader.get_world_events()
+		world_event_ids.clear()
+		for event_id in world_event_profiles_by_id.keys():
+			world_event_ids.append(str(event_id))
+		world_event_ids.sort()
+		record_event("DataLoader OK: world events=%d." % world_event_profiles_by_id.size())
 		return
 
-	creature_profiles_by_id.clear()
-	sandbox_systems.set_creature_profiles({})
+	world_event_profiles_by_id.clear()
+	world_event_ids.clear()
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
@@ -4020,7 +4041,8 @@ func _end_world_event() -> void:
 	var finished_id := world_event_active_id
 	world_event_active_id = ""
 	world_event_remaining = 0.0
-	world_event_next_in = randf_range(WORLD_EVENT_COOLDOWN_MIN, WORLD_EVENT_COOLDOWN_MAX)
+	var cooldown_range: Dictionary = _world_event_cooldown_range(finished_id)
+	world_event_next_in = randf_range(float(cooldown_range.get("min", WORLD_EVENT_COOLDOWN_MIN)), float(cooldown_range.get("max", WORLD_EVENT_COOLDOWN_MAX)))
 	world_event_modifiers = _default_world_event_modifiers()
 	world_event_ended_total += 1
 	_apply_world_event_to_world_manager()
@@ -4031,17 +4053,21 @@ func _end_world_event() -> void:
 
 
 func _pick_next_world_event_id() -> String:
-	var choices: Array = WORLD_EVENT_TYPES.duplicate()
+	var choices: Array[String] = world_event_ids.duplicate() if not world_event_ids.is_empty() else WORLD_EVENT_TYPES.duplicate()
 	if choices.size() > 1 and world_event_last_id != "":
 		choices.erase(world_event_last_id)
 	if choices.is_empty():
-		choices = WORLD_EVENT_TYPES.duplicate()
+		choices = world_event_ids.duplicate() if not world_event_ids.is_empty() else WORLD_EVENT_TYPES.duplicate()
 	if choices.is_empty():
 		return ""
 	return choices[randi() % choices.size()]
 
 
 func _world_event_duration(event_id: String) -> float:
+	var event_profile: Dictionary = _get_world_event_profile(event_id)
+	if not event_profile.is_empty():
+		return max(1.0, float(event_profile.get("duration", 15.0)))
+
 	match event_id:
 		"mana_surge":
 			return 18.0
@@ -4068,6 +4094,17 @@ func _default_world_event_modifiers() -> Dictionary:
 
 func _modifiers_for_world_event(event_id: String) -> Dictionary:
 	var modifiers: Dictionary = _default_world_event_modifiers()
+	var event_profile: Dictionary = _get_world_event_profile(event_id)
+	if not event_profile.is_empty():
+		var profile_modifiers_variant: Variant = event_profile.get("modifiers", {})
+		if typeof(profile_modifiers_variant) == TYPE_DICTIONARY:
+			var profile_modifiers: Dictionary = profile_modifiers_variant
+			for key in profile_modifiers.keys():
+				var value: Variant = profile_modifiers[key]
+				if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT:
+					modifiers[str(key)] = float(value)
+		return modifiers
+
 	match event_id:
 		"mana_surge":
 			modifiers["magic_damage_mult"] = 1.18
@@ -4094,6 +4131,12 @@ func _apply_world_event_to_world_manager() -> void:
 
 
 func _world_event_label(event_id: String) -> String:
+	var event_profile: Dictionary = _get_world_event_profile(event_id)
+	if not event_profile.is_empty():
+		var from_data: String = str(event_profile.get("label", "")).strip_edges()
+		if from_data != "":
+			return from_data
+
 	match event_id:
 		"mana_surge":
 			return "Mana Surge"
@@ -4103,6 +4146,28 @@ func _world_event_label(event_id: String) -> String:
 			return "Sanctuary Calm"
 		_:
 			return "None"
+
+
+func _world_event_cooldown_range(event_id: String) -> Dictionary:
+	var event_profile: Dictionary = _get_world_event_profile(event_id)
+	if event_profile.is_empty():
+		return {
+			"min": WORLD_EVENT_COOLDOWN_MIN,
+			"max": WORLD_EVENT_COOLDOWN_MAX
+		}
+
+	var cooldown_min: float = max(0.0, float(event_profile.get("cooldown_min", WORLD_EVENT_COOLDOWN_MIN)))
+	var cooldown_max: float = max(cooldown_min, float(event_profile.get("cooldown_max", WORLD_EVENT_COOLDOWN_MAX)))
+	return {
+		"min": cooldown_min,
+		"max": cooldown_max
+	}
+
+
+func _get_world_event_profile(event_id: String) -> Dictionary:
+	if event_id == "" or not world_event_profiles_by_id.has(event_id):
+		return {}
+	return Dictionary(world_event_profiles_by_id[event_id])
 
 
 func _update_special_arrivals(delta: float) -> void:

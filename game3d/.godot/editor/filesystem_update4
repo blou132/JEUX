@@ -1,3 +1,2 @@
-res://scenes/MainSandbox.tscn
-res://scripts/sandbox/SandboxSystems.gd
-res://scripts/entities/Actor.gd
+res://scripts/core/GameLoop.gd
+res://scripts/data/DataLoader.gd

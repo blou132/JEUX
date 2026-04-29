@@ -1,4 +1,57 @@
-﻿{
+{
   "version": 1,
-  "events": []
+  "schema": "world_events_v1",
+  "events": [
+    {
+      "id": "mana_surge",
+      "label": "Mana Surge",
+      "duration": 18.0,
+      "cooldown_min": 28.0,
+      "cooldown_max": 52.0,
+      "modifiers": {
+        "magic_damage_mult": 1.18,
+        "magic_energy_cost_mult": 0.86,
+        "raid_pressure_global_mult": 1.03
+      },
+      "tags": [
+        "arcane",
+        "surge",
+        "offense"
+      ]
+    },
+    {
+      "id": "monster_frenzy",
+      "label": "Monster Frenzy",
+      "duration": 16.0,
+      "cooldown_min": 28.0,
+      "cooldown_max": 52.0,
+      "modifiers": {
+        "monster_melee_damage_mult": 1.14,
+        "monster_speed_mult": 1.08,
+        "raid_pressure_monster_mult": 1.16
+      },
+      "tags": [
+        "monster",
+        "frenzy",
+        "pressure"
+      ]
+    },
+    {
+      "id": "sanctuary_calm",
+      "label": "Sanctuary Calm",
+      "duration": 20.0,
+      "cooldown_min": 28.0,
+      "cooldown_max": 52.0,
+      "modifiers": {
+        "human_energy_regen_per_sec": 0.55,
+        "raid_pressure_global_mult": 0.9,
+        "raid_pressure_monster_mult": 0.78
+      },
+      "tags": [
+        "sanctuary",
+        "calm",
+        "recovery"
+      ]
+    }
+  ]
 }
