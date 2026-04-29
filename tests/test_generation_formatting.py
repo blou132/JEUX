@@ -1,6 +1,6 @@
-import unittest
+﻿import unittest
 
-from ui import format_generation_distribution
+from legacy_python.ui import format_generation_distribution
 
 
 class GenerationFormattingTests(unittest.TestCase):
@@ -29,3 +29,4 @@ class GenerationFormattingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

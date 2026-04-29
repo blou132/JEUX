@@ -1,8 +1,8 @@
-import unittest
+﻿import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from world import FoodField, FoodSource
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.world import FoodField, FoodSource
 
 
 class AiDecisionLogicTests(unittest.TestCase):
@@ -42,3 +42,4 @@ class AiDecisionLogicTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

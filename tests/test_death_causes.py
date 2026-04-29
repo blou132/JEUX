@@ -1,9 +1,9 @@
-import unittest
+﻿import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from simulation import HungerSimulation
-from world import FoodField
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodField
 
 
 class DeathCauseAggregationTests(unittest.TestCase):
@@ -53,3 +53,4 @@ class DeathCauseAggregationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

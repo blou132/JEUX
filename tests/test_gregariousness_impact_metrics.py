@@ -1,11 +1,11 @@
-import unittest
+﻿import unittest
 
-from debug_tools import (
+from legacy_python.debug_tools import (
     build_final_run_summary,
     build_multi_run_summary,
     create_proto_temporal_tracker,
 )
-from ui import format_final_run_summary, format_multi_run_summary
+from legacy_python.ui import format_final_run_summary, format_multi_run_summary
 
 
 class GregariousnessImpactMetricsTests(unittest.TestCase):
@@ -162,3 +162,4 @@ class GregariousnessImpactMetricsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,12 +1,12 @@
 ﻿import random
 import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import build_hunger_snapshot
-from genetics import GeneticTraits
-from simulation import HungerSimulation
-from world import FoodField, FoodSource
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import build_hunger_snapshot
+from legacy_python.genetics import GeneticTraits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodField, FoodSource
 
 
 class FleeBehaviorTests(unittest.TestCase):
@@ -178,3 +178,4 @@ class FleeBehaviorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

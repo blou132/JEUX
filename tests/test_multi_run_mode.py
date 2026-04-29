@@ -1,10 +1,10 @@
-import subprocess
+﻿import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-from debug_tools import build_multi_run_summary
-from ui import format_multi_run_summary
+from legacy_python.debug_tools import build_multi_run_summary
+from legacy_python.ui import format_multi_run_summary
 
 
 class MultiRunModeTests(unittest.TestCase):
@@ -297,4 +297,5 @@ class MultiRunModeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

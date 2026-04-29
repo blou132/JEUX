@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 
-from debug_tools.export_analysis import load_export_payload, summarize_export_payload
+from legacy_python.debug_tools.export_analysis import load_export_payload, summarize_export_payload
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,3 +28,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

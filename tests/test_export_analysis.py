@@ -1,12 +1,12 @@
-import json
+﻿import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from debug_tools import export_results
-from debug_tools.export_analysis import load_export_payload, summarize_export_payload
+from legacy_python.debug_tools import export_results
+from legacy_python.debug_tools.export_analysis import load_export_payload, summarize_export_payload
 
 
 class ExportAnalysisTests(unittest.TestCase):
@@ -1568,4 +1568,5 @@ class ExportAnalysisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

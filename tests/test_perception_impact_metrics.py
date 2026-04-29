@@ -1,13 +1,13 @@
 ﻿import random
 import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import build_final_run_summary, build_multi_run_summary, build_population_stats
-from genetics import GeneticTraits
-from simulation import HungerSimulation
-from ui import format_final_run_summary, format_multi_run_summary
-from world import FoodField, FoodSource
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import build_final_run_summary, build_multi_run_summary, build_population_stats
+from legacy_python.genetics import GeneticTraits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import format_final_run_summary, format_multi_run_summary
+from legacy_python.world import FoodField, FoodSource
 
 
 class PerceptionImpactMetricsTests(unittest.TestCase):
@@ -196,3 +196,4 @@ class PerceptionImpactMetricsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

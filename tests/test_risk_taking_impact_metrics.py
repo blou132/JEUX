@@ -1,17 +1,17 @@
-import random
+﻿import random
 import tempfile
 import unittest
 from pathlib import Path
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import build_batch_comparative_summary, build_population_stats
-from debug_tools.batch_comparative import format_batch_comparative_summary
-from debug_tools.export_analysis import load_export_payload
-from debug_tools.export_results import export_results
-from genetics import GeneticTraits
-from simulation import HungerSimulation
-from world import FoodField
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import build_batch_comparative_summary, build_population_stats
+from legacy_python.debug_tools.batch_comparative import format_batch_comparative_summary
+from legacy_python.debug_tools.export_analysis import load_export_payload
+from legacy_python.debug_tools.export_results import export_results
+from legacy_python.genetics import GeneticTraits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodField
 
 
 class RiskTakingImpactMetricsTests(unittest.TestCase):
@@ -210,3 +210,4 @@ class RiskTakingImpactMetricsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

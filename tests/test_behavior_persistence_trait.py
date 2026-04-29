@@ -1,12 +1,12 @@
-import random
+﻿import random
 import unittest
 
-from ai import CreatureIntent, HungerAI
-from creatures import Creature
-from debug_tools import build_hunger_snapshot, build_population_stats
-from genetics import GeneticTraits, inherit_traits
-from simulation import HungerSimulation
-from world import FoodField
+from legacy_python.ai import CreatureIntent, HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import build_hunger_snapshot, build_population_stats
+from legacy_python.genetics import GeneticTraits, inherit_traits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodField
 
 
 class FixedRandom:
@@ -157,3 +157,4 @@ class BehaviorPersistenceTraitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

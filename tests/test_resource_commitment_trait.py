@@ -1,12 +1,12 @@
-import random
+﻿import random
 import tempfile
 import unittest
 from math import pi
 from pathlib import Path
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import (
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import (
     build_final_run_summary,
     build_hunger_snapshot,
     build_multi_run_summary,
@@ -14,11 +14,11 @@ from debug_tools import (
     create_proto_temporal_tracker,
     export_results,
 )
-from debug_tools.export_analysis import load_export_payload
-from genetics import GeneticTraits, inherit_traits
-from simulation import HungerSimulation
-from ui import format_final_run_summary, format_multi_run_summary, format_population_dynamics
-from world import FoodField
+from legacy_python.debug_tools.export_analysis import load_export_payload
+from legacy_python.genetics import GeneticTraits, inherit_traits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import format_final_run_summary, format_multi_run_summary, format_population_dynamics
+from legacy_python.world import FoodField
 
 
 class FixedAngleRandom:
@@ -356,3 +356,4 @@ class ResourceCommitmentTraitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import random
 from datetime import datetime, timezone
 from typing import Dict
 
-from ai import HungerAI
-from creatures import create_initial_population
-from debug_tools import (
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import create_initial_population
+from legacy_python.debug_tools import (
     append_batch_history,
     build_batch_history_entry,
     build_batch_comparative_summary,
@@ -23,9 +23,9 @@ from debug_tools import (
     format_batch_comparative_summary,
     update_proto_temporal_tracker,
 )
-from player import PlayerRunConfig
-from simulation import HungerSimulation
-from ui import (
+from legacy_python.player import PlayerRunConfig
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import (
     format_death_causes,
     format_final_run_summary,
     format_generation_distribution,
@@ -37,7 +37,7 @@ from ui import (
     format_stats_line,
     print_run_header,
 )
-from world import FoodSpawnConfig, SimpleMap, SimpleWorld
+from legacy_python.world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
 _DEF_EXPORT_FORMATS = ("json", "csv")
@@ -599,6 +599,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -1,10 +1,10 @@
-import random
+﻿import random
 import unittest
 
-from ai import HungerAI
-from creatures import create_initial_population
-from simulation import HungerSimulation
-from world import FoodSpawnConfig, SimpleMap, SimpleWorld
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import create_initial_population
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodSpawnConfig, SimpleMap, SimpleWorld
 
 
 class FoodDistributionPressureTests(unittest.TestCase):
@@ -89,3 +89,4 @@ class FoodDistributionPressureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

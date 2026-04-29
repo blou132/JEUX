@@ -1,15 +1,15 @@
-import unittest
+﻿import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import (
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import (
     build_final_run_summary,
     build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
 )
-from simulation import HungerSimulation
-from world import FoodField
+from legacy_python.simulation import HungerSimulation
+from legacy_python.world import FoodField
 
 
 class MemoryImpactMetricsTests(unittest.TestCase):
@@ -122,3 +122,4 @@ class MemoryImpactMetricsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

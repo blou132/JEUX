@@ -1,9 +1,16 @@
 ﻿# Pivot Sandbox Fantasy 3D
 
 ## Etat du projet
-Ce depot contient maintenant deux pistes :
-- `game3d/` : prototype Godot 4 actif pour un sandbox fantasy type WorldBox.
-- `legacy_python/` (statut logique) : ancien simulateur conserve en **legacy Python (frozen)** pour reference, scripts batch et experimentation historique.
+Ce depot est maintenant organise en 4 zones claires :
+- `game3d/` : prototype Godot 4 actif (jeu principal).
+- `legacy_python/` : ancien simulateur Python conserve comme laboratoire/frozen.
+- `shared_data/` : donnees JSON intermediaires partagees.
+- `tools/` : scripts utilitaires (synchronisation/analyse).
+
+Flux de donnees cible :
+- Godot ne lit que `game3d/data/*.json`.
+- Les donnees sources sont maintenues dans `shared_data/`.
+- La copie vers Godot passe par `tools/sync_shared_to_godot.py` (pas d'import Python runtime dans Godot).
 
 La priorite est le gameplay 3D observable, pas l'ajout de micro-traits dans l'ancien simulateur.
 
@@ -141,10 +148,28 @@ Cible de validation MVP :
 - cycles repetes de rencontre -> poursuite/attaque/sort -> mort ou fuite -> respawn.
 
 ## Statut Legacy Python
-Les modules Python existants sont conserves volontairement et ne sont pas etendus dans la direction principale :
-- `simulation/`, `ai/`, `creatures/`, `genetics/`, `world/`, `ui/`, `debug_tools/`, `save/`, `player/`
+Les modules Python existants sont conserves volontairement et ne sont pas etendus dans la direction principale. Ils sont regroupes sous `legacy_python/` :
+- `legacy_python/simulation/`
+- `legacy_python/ai/`
+- `legacy_python/creatures/`
+- `legacy_python/genetics/`
+- `legacy_python/world/`
+- `legacy_python/ui/`
+- `legacy_python/debug_tools/`
+- `legacy_python/save/`
+- `legacy_python/player/`
 
 Vous pouvez encore executer l'ancien simulateur et les scripts d'analyse si necessaire, mais ce n'est plus prioritaire.
+
+## Donnees partagees et sync Godot
+- Sources JSON : `shared_data/*.json`
+- Cible Godot : `game3d/data/*.json`
+- Script de sync : `tools/sync_shared_to_godot.py`
+
+Commande :
+```bash
+py tools/sync_shared_to_godot.py
+```
 
 ## Tests
 Verifications de scaffold actuelles pour le pivot 3D :

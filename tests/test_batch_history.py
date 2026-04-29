@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from debug_tools.batch_history import (
+from legacy_python.debug_tools.batch_history import (
     append_batch_history,
     build_batch_history_behavior_mechanic_comparison_summary,
     build_batch_history_entry,
@@ -427,4 +427,5 @@ class BatchHistoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

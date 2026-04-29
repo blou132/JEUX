@@ -1,6 +1,6 @@
-import unittest
+﻿import unittest
 
-from debug_tools.batch_comparative import (
+from legacy_python.debug_tools.batch_comparative import (
     build_batch_comparative_summary,
     format_batch_comparative_summary,
 )
@@ -1907,4 +1907,5 @@ class BatchComparativeSummaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

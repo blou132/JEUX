@@ -1,13 +1,13 @@
-import random
+﻿import random
 import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import build_population_stats
-from genetics import GeneticTraits
-from simulation import HungerSimulation
-from ui import format_population_dynamics
-from world import FoodField, FoodSource
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import build_population_stats
+from legacy_python.genetics import GeneticTraits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import format_population_dynamics
+from legacy_python.world import FoodField, FoodSource
 
 
 class SocialInfluenceBehaviorTests(unittest.TestCase):
@@ -177,4 +177,5 @@ class SocialInfluenceBehaviorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

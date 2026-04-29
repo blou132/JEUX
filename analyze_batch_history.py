@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 
-from debug_tools import format_batch_history_summary, load_batch_history
+from legacy_python.debug_tools import format_batch_history_summary, load_batch_history
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,3 +22,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -1,6 +1,6 @@
-import unittest
+﻿import unittest
 
-from ui import format_population_dynamics
+from legacy_python.ui import format_population_dynamics
 
 
 class DebugReadabilityTests(unittest.TestCase):
@@ -62,5 +62,6 @@ class DebugReadabilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

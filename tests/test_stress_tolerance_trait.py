@@ -1,23 +1,23 @@
-import random
+﻿import random
 import tempfile
 import unittest
 from pathlib import Path
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import (
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import (
     build_final_run_summary,
     build_hunger_snapshot,
     build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
 )
-from debug_tools.export_analysis import load_export_payload
-from debug_tools.export_results import export_results
-from genetics import GeneticTraits, inherit_traits
-from simulation import HungerSimulation
-from ui import format_final_run_summary, format_multi_run_summary
-from world import FoodField
+from legacy_python.debug_tools.export_analysis import load_export_payload
+from legacy_python.debug_tools.export_results import export_results
+from legacy_python.genetics import GeneticTraits, inherit_traits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import format_final_run_summary, format_multi_run_summary
+from legacy_python.world import FoodField
 
 
 class FixedRandom:
@@ -251,3 +251,4 @@ class StressToleranceTraitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,19 +1,19 @@
-import random
+﻿import random
 import unittest
 
-from ai import HungerAI
-from creatures import Creature
-from debug_tools import (
+from legacy_python.ai import HungerAI
+from legacy_python.creatures import Creature
+from legacy_python.debug_tools import (
     build_final_run_summary,
     build_hunger_snapshot,
     build_multi_run_summary,
     build_population_stats,
     create_proto_temporal_tracker,
 )
-from genetics import GeneticTraits, inherit_traits
-from simulation import HungerSimulation
-from ui import format_final_run_summary, format_multi_run_summary
-from world import FoodField, FoodSource
+from legacy_python.genetics import GeneticTraits, inherit_traits
+from legacy_python.simulation import HungerSimulation
+from legacy_python.ui import format_final_run_summary, format_multi_run_summary
+from legacy_python.world import FoodField, FoodSource
 
 
 class FixedRandom:
@@ -162,3 +162,4 @@ class MobilityEfficiencyTraitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
