@@ -11,6 +11,7 @@ Flux de donnees cible :
 - Godot ne lit que `game3d/data/*.json`.
 - Les donnees sources sont maintenues dans `shared_data/`.
 - La copie vers Godot passe par `tools/sync_shared_to_godot.py` (pas d'import Python runtime dans Godot).
+- Le chargement runtime Godot passe par `game3d/scripts/data/DataLoader.gd`.
 
 La priorite est le gameplay 3D observable, pas l'ajout de micro-traits dans l'ancien simulateur.
 
@@ -164,11 +165,20 @@ Vous pouvez encore executer l'ancien simulateur et les scripts d'analyse si nece
 ## Donnees partagees et sync Godot
 - Sources JSON : `shared_data/*.json`
 - Cible Godot : `game3d/data/*.json`
+- Profils creatures : `shared_data/creatures.json` -> `game3d/data/creatures.json`
+- Export/validation profils : `tools/export_creature_profiles.py`
 - Script de sync : `tools/sync_shared_to_godot.py`
+- Chargeur Godot : `game3d/scripts/data/DataLoader.gd`
 
 Commande :
 ```bash
+py tools/export_creature_profiles.py --path shared_data/creatures.json
 py tools/sync_shared_to_godot.py
+```
+
+Validation seule :
+```bash
+py tools/export_creature_profiles.py --path shared_data/creatures.json --validate-only
 ```
 
 ## Tests
@@ -203,6 +213,7 @@ Verifications de scaffold actuelles pour le pivot 3D :
 - [test_game3d_rivalry_behavior.py](tests/test_game3d_rivalry_behavior.py) (contrats rivalry/duel : declenchement/unicite bornes, cycle resolved/expired/end propre)
 - [test_game3d_bonds_behavior.py](tests/test_game3d_bonds_behavior.py) (contrats bonds : declenchement/unicite/cap bornes, cycle end/broken propre)
 - [test_game3d_splinters_behavior.py](tests/test_game3d_splinters_behavior.py) (contrats splinters : declenchement/unicite/cooldown bornes, cycle resolved/faded/end propre)
+- [test_tools_creature_profiles_export.py](tests/test_tools_creature_profiles_export.py) (contrats export/validation des profils creatures JSON)
 
 Executer les tests cibles :
 ```bash

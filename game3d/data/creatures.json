@@ -1,4 +1,95 @@
-﻿{
+{
   "version": 1,
-  "creatures": []
+  "schema": "creature_profiles_v1",
+  "profiles": [
+    {
+      "id": "human_fighter",
+      "kind": "human",
+      "role": "fighter",
+      "hp": 144.0,
+      "speed": 4.7,
+      "melee_damage": 16.0,
+      "magic_damage": 10.0,
+      "magic_range": 12.2,
+      "tags": [
+        "human",
+        "frontline",
+        "melee"
+      ]
+    },
+    {
+      "id": "human_mage",
+      "kind": "human",
+      "role": "mage",
+      "hp": 122.0,
+      "speed": 4.8,
+      "melee_damage": 11.0,
+      "magic_damage": 13.0,
+      "magic_range": 14.6,
+      "tags": [
+        "human",
+        "caster",
+        "control"
+      ]
+    },
+    {
+      "id": "human_scout",
+      "kind": "human",
+      "role": "scout",
+      "hp": 128.0,
+      "speed": 5.3,
+      "melee_damage": 12.0,
+      "magic_damage": 10.5,
+      "magic_range": 13.6,
+      "tags": [
+        "human",
+        "skirmisher",
+        "mobile"
+      ]
+    },
+    {
+      "id": "monster_standard",
+      "kind": "monster",
+      "role": "standard",
+      "hp": 142.0,
+      "speed": 4.4,
+      "melee_damage": 16.0,
+      "magic_damage": 0.0,
+      "magic_range": 0.0,
+      "tags": [
+        "monster",
+        "melee"
+      ]
+    },
+    {
+      "id": "monster_brute",
+      "kind": "monster",
+      "role": "brute",
+      "hp": 198.0,
+      "speed": 3.7,
+      "melee_damage": 22.0,
+      "magic_damage": 0.0,
+      "magic_range": 0.0,
+      "tags": [
+        "monster",
+        "brute",
+        "tank"
+      ]
+    },
+    {
+      "id": "monster_ranged",
+      "kind": "monster",
+      "role": "ranged",
+      "hp": 114.0,
+      "speed": 4.8,
+      "melee_damage": 8.0,
+      "magic_damage": 10.0,
+      "magic_range": 16.0,
+      "tags": [
+        "monster",
+        "ranged",
+        "caster"
+      ]
+    }
+  ]
 }

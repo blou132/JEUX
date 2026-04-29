@@ -17,12 +17,17 @@ var _respawn_timer: float = 0.0
 var _loop: GameLoop = null
 var _world: WorldManager = null
 var _entities_root: Node3D = null
+var _creature_profiles_by_id: Dictionary = {}
 
 
 func setup(loop: GameLoop, world: WorldManager, entities_root: Node3D) -> void:
 	_loop = loop
 	_world = world
 	_entities_root = entities_root
+
+
+func set_creature_profiles(profiles_by_id: Dictionary) -> void:
+	_creature_profiles_by_id = profiles_by_id.duplicate(true)
 
 
 func spawn_initial_population(actors: Array) -> void:
@@ -62,12 +67,17 @@ func _spawn_actor(faction: String, actors: Array) -> void:
 		return
 
 	var actor: Actor
+	var profile_id: String = ""
 	if faction == "human":
 		var human: HumanAgent = HumanAgent.new()
 		human.assign_role(_pick_human_role())
 		actor = human
+		profile_id = "human_%s" % human.human_role
 	else:
 		actor = _spawn_monster_archetype()
+		profile_id = _monster_profile_id(actor)
+
+	_apply_profile_to_actor(actor, profile_id)
 
 	actor.global_position = _world.get_spawn_point(faction)
 	_entities_root.add_child(actor)
@@ -85,6 +95,33 @@ func _spawn_monster_archetype() -> Actor:
 	if roll < brute_ratio + ranged_ratio:
 		return RangedMonster.new()
 	return MonsterAgent.new()
+
+
+func _monster_profile_id(actor: Actor) -> String:
+	match actor.actor_kind:
+		"brute_monster":
+			return "monster_brute"
+		"ranged_monster":
+			return "monster_ranged"
+		_:
+			return "monster_standard"
+
+
+func _apply_profile_to_actor(actor: Actor, profile_id: String) -> void:
+	if profile_id == "" or not _creature_profiles_by_id.has(profile_id):
+		return
+
+	var profile: Dictionary = Dictionary(_creature_profiles_by_id[profile_id])
+	for field in ["hp", "speed", "melee_damage", "magic_damage", "magic_range"]:
+		if not profile.has(field):
+			return
+
+	actor.max_hp = float(profile["hp"])
+	actor.hp = actor.max_hp
+	actor.speed = float(profile["speed"])
+	actor.melee_damage = float(profile["melee_damage"])
+	actor.magic_damage = float(profile["magic_damage"])
+	actor.magic_range = float(profile["magic_range"])
 
 
 func _pick_human_role() -> String:

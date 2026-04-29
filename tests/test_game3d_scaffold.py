@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 
 
@@ -22,11 +23,43 @@ class TestGame3DScaffold(unittest.TestCase):
             GAME3D / "scripts" / "combat" / "CombatSystem.gd",
             GAME3D / "scripts" / "magic" / "MagicSystem.gd",
             GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd",
+            GAME3D / "scripts" / "data" / "DataLoader.gd",
             GAME3D / "scripts" / "ui" / "DebugOverlay.gd",
         ]
 
         for path in required:
             self.assertTrue(path.exists(), f"Missing file: {path}")
+
+    def test_creature_profiles_json_exists_and_has_expected_ids(self):
+        shared_path = ROOT / "shared_data" / "creatures.json"
+        godot_path = GAME3D / "data" / "creatures.json"
+        self.assertTrue(shared_path.exists(), f"Missing file: {shared_path}")
+        self.assertTrue(godot_path.exists(), f"Missing file: {godot_path}")
+
+        payload = json.loads(godot_path.read_text(encoding="utf-8"))
+        profiles = payload.get("profiles", [])
+        self.assertIsInstance(profiles, list)
+
+        ids = {entry.get("id") for entry in profiles if isinstance(entry, dict)}
+        expected_ids = {
+            "human_fighter",
+            "human_mage",
+            "human_scout",
+            "monster_standard",
+            "monster_brute",
+            "monster_ranged",
+        }
+        self.assertTrue(expected_ids.issubset(ids))
+
+    def test_data_loader_is_hooked_in_game_loop(self):
+        game_loop = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
+        self.assertIn("DataLoaderScript", game_loop)
+        self.assertIn("_load_creature_profiles_data", game_loop)
+        self.assertIn("DataLoader OK", game_loop)
+
+        sandbox = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
+        self.assertIn("set_creature_profiles", sandbox)
+        self.assertIn("_apply_profile_to_actor", sandbox)
 
     def test_project_targets_main_scene(self):
         content = (GAME3D / "project.godot").read_text(encoding="utf-8")

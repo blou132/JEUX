@@ -288,6 +288,7 @@ const MEMORIAL_SITE_RENOWN_PULSE: float = 0.18
 const SCAR_SITE_NOTORIETY_PULSE: float = 0.22
 const MEMORIAL_SCAR_RENOWN_TRIGGER: float = 56.0
 const MEMORIAL_SCAR_NOTORIETY_TRIGGER: float = 62.0
+const DataLoaderScript = preload("res://scripts/data/DataLoader.gd")
 
 @onready var world_manager: WorldManager = $World
 @onready var entities_root: Node3D = $Entities
@@ -298,6 +299,8 @@ const MEMORIAL_SCAR_NOTORIETY_TRIGGER: float = 62.0
 
 var ai: AgentAI = AgentAI.new()
 var actors: Array = []
+var creature_profiles_by_id: Dictionary = {}
+var _data_loader: DataLoader = null
 
 var tick_accumulator: float = 0.0
 var tick_index: int = 0
@@ -571,8 +574,22 @@ func _ready() -> void:
 	_apply_world_event_to_world_manager()
 	world_manager.set_bounty_state(false)
 	sandbox_systems.setup(self, world_manager, entities_root)
+	_load_creature_profiles_data()
 	sandbox_systems.spawn_initial_population(actors)
 	record_event("Sandbox boot complete.")
+
+
+func _load_creature_profiles_data() -> void:
+	_data_loader = DataLoaderScript.new()
+	if _data_loader.load_creature_profiles():
+		creature_profiles_by_id = _data_loader.get_creature_profiles()
+		sandbox_systems.set_creature_profiles(creature_profiles_by_id)
+		record_event("DataLoader OK: creature profiles=%d." % creature_profiles_by_id.size())
+		return
+
+	creature_profiles_by_id.clear()
+	sandbox_systems.set_creature_profiles({})
+	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
 func _process(delta: float) -> void:
