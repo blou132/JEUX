@@ -52,6 +52,8 @@ var world_event_visual_id: String = ""
 var bounty_state: Dictionary = {}
 var convergence_state: Dictionary = {}
 var alert_state_by_allegiance: Dictionary = {}
+var sanctuary_bastion_state_by_id: Dictionary = {}
+var taboo_state_by_id: Dictionary = {}
 var neutral_gate_status: String = "dormant"
 var neutral_gate_open_until: float = 0.0
 var neutral_gate_cooldown_until: float = 0.0
@@ -293,6 +295,167 @@ func set_alert_state(alert_entries: Array = []) -> void:
 			"expedition_start_mult": clampf(float(entry.get("expedition_start_mult", 1.0)), 0.55, 1.0),
 			"guidance_weight": clampf(float(entry.get("guidance_weight", 0.42)), 0.22, 0.78)
 		}
+
+
+func set_sanctuary_bastion_state(entries: Array = []) -> void:
+	sanctuary_bastion_state_by_id.clear()
+	for entry_variant in entries:
+		var entry: Dictionary = entry_variant
+		var site_id: int = int(entry.get("site_id", 0))
+		if site_id <= 0:
+			continue
+		sanctuary_bastion_state_by_id[str(site_id)] = {
+			"active": true,
+			"site_id": site_id,
+			"site_type": str(entry.get("site_type", "")),
+			"label": str(entry.get("label", "site")),
+			"faction": str(entry.get("faction", "")),
+			"center_position": entry.get("center_position", Vector3.ZERO),
+			"radius": clampf(float(entry.get("radius", poi_guidance_distance * 0.45)), 4.0, poi_guidance_distance * 1.25),
+			"cause": str(entry.get("cause", "")),
+			"score": max(0.0, float(entry.get("score", 0.0))),
+			"started_at": float(entry.get("started_at", 0.0)),
+			"ends_at": float(entry.get("ends_at", 0.0)),
+			"guidance_weight": clampf(float(entry.get("guidance_weight", 0.40)), 0.18, 0.72)
+		}
+
+
+func set_taboo_state(entries: Array = []) -> void:
+	taboo_state_by_id.clear()
+	for entry_variant in entries:
+		var entry: Dictionary = entry_variant
+		var taboo_id: int = int(entry.get("taboo_id", 0))
+		if taboo_id <= 0:
+			continue
+		taboo_state_by_id[str(taboo_id)] = {
+			"active": true,
+			"taboo_id": taboo_id,
+			"taboo_type": str(entry.get("taboo_type", "")),
+			"label": str(entry.get("label", "taboo")),
+			"center_position": entry.get("center_position", Vector3.ZERO),
+			"radius": clampf(float(entry.get("radius", poi_guidance_distance * 0.42)), 4.0, poi_guidance_distance * 1.20),
+			"cause": str(entry.get("cause", "")),
+			"score": max(0.0, float(entry.get("score", 0.0))),
+			"started_at": float(entry.get("started_at", 0.0)),
+			"ends_at": float(entry.get("ends_at", 0.0)),
+			"guidance_weight": clampf(float(entry.get("guidance_weight", 0.34)), 0.18, 0.72)
+		}
+
+
+func get_taboo_avoidance_guidance(actor: Actor) -> Dictionary:
+	if actor == null or actor.is_dead:
+		return {}
+	if taboo_state_by_id.is_empty():
+		return {}
+
+	var best: Dictionary = {}
+	var best_weight: float = 0.0
+	for runtime_variant in taboo_state_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var taboo_type: String = str(runtime.get("taboo_type", ""))
+		if taboo_type not in ["forbidden_site", "cursed_warning"]:
+			continue
+
+		var center: Vector3 = runtime.get("center_position", actor.global_position)
+		var radius: float = clampf(float(runtime.get("radius", poi_guidance_distance * 0.42)), 4.0, poi_guidance_distance * 1.20)
+		var distance: float = actor.global_position.distance_to(center)
+		if distance > radius * 1.95:
+			continue
+
+		var low_resources: bool = actor.hp <= actor.max_hp * 0.72 or actor.energy <= actor.max_energy * 0.52
+		var prudent_profile: bool = actor.faction == "human" or low_resources
+		if taboo_type == "forbidden_site" and actor.faction != "human" and not low_resources:
+			continue
+		if taboo_type == "cursed_warning" and actor.faction == "monster" and actor.is_champion and not low_resources:
+			continue
+		if taboo_type == "cursed_warning" and not prudent_profile and actor.faction != "human":
+			continue
+
+		var pull_weight: float = clampf(float(runtime.get("guidance_weight", 0.34)), 0.18, 0.72)
+		if taboo_type == "forbidden_site":
+			if actor.faction == "human":
+				pull_weight += 0.06
+			else:
+				pull_weight += 0.02
+		else:
+			if actor.faction == "human":
+				pull_weight += 0.10
+			else:
+				pull_weight += 0.04
+		if distance <= radius * 0.95:
+			pull_weight += 0.08
+		if low_resources:
+			pull_weight += 0.08
+		if actor.is_champion and not low_resources:
+			pull_weight -= 0.06
+		pull_weight = clampf(pull_weight, 0.18, 0.78)
+		if pull_weight <= best_weight:
+			continue
+
+		var away_dir: Vector3 = actor.global_position - center
+		if away_dir.length_squared() <= 0.01:
+			away_dir = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
+		away_dir.y = 0.0
+		var avoid_step: float = clampf(radius * 0.90, 3.0, 9.0)
+		best_weight = pull_weight
+		best = {
+			"reason": "taboo:%s" % taboo_type,
+			"target_position": clamp_to_world(snap_to_nav_grid(actor.global_position + away_dir.normalized() * avoid_step)),
+			"distance": distance,
+			"weight": pull_weight
+		}
+
+	return best
+
+
+func get_sanctuary_bastion_guidance(actor: Actor) -> Dictionary:
+	if actor == null or actor.is_dead:
+		return {}
+	if sanctuary_bastion_state_by_id.is_empty():
+		return {}
+
+	var best: Dictionary = {}
+	var best_weight: float = 0.0
+	for runtime_variant in sanctuary_bastion_state_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var site_type: String = str(runtime.get("site_type", ""))
+		if site_type == "":
+			continue
+		if site_type == "sanctuary_site" and actor.faction != "human":
+			continue
+		if site_type == "dark_bastion" and actor.faction != "monster":
+			continue
+
+		var center: Vector3 = runtime.get("center_position", actor.global_position)
+		var distance: float = actor.global_position.distance_to(center)
+		var radius: float = clampf(float(runtime.get("radius", poi_guidance_distance * 0.45)), 4.0, poi_guidance_distance * 1.25)
+		if distance > radius * 2.0:
+			continue
+
+		var pull_weight: float = clampf(float(runtime.get("guidance_weight", 0.40)), 0.18, 0.72)
+		if distance > radius * 1.05:
+			pull_weight += 0.06
+		if site_type == "sanctuary_site" and (
+			actor.hp <= actor.max_hp * 0.74 or actor.energy <= actor.max_energy * 0.52
+		):
+			pull_weight += 0.05
+		if site_type == "dark_bastion" and actor.hp >= actor.max_hp * 0.62:
+			pull_weight += 0.04
+		pull_weight = clampf(pull_weight, 0.18, 0.78)
+		if pull_weight <= best_weight:
+			continue
+
+		best_weight = pull_weight
+		var jitter := Vector3(randf_range(-1.4, 1.4), 0.0, randf_range(-1.4, 1.4))
+		var base_reason: String = "sanctuary" if site_type == "sanctuary_site" else "bastion"
+		best = {
+			"reason": "%s:%s" % [base_reason, str(runtime.get("cause", "watch"))],
+			"target_position": clamp_to_world(snap_to_nav_grid(center + jitter)),
+			"distance": distance,
+			"weight": pull_weight
+		}
+
+	return best
 
 
 func get_alert_defense_delta(allegiance_id: String, time_seconds: float = 0.0) -> float:
@@ -1350,6 +1513,8 @@ func _build_pois() -> void:
 	allegiance_mending_modifiers_by_id.clear()
 	vendetta_suppressed_pair_keys.clear()
 	alert_state_by_allegiance.clear()
+	sanctuary_bastion_state_by_id.clear()
+	taboo_state_by_id.clear()
 
 	_refresh_poi_markers()
 

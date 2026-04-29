@@ -226,6 +226,36 @@ const ALERT_DEFENSE_WEIGHT_DELTA: float = 0.08
 const ALERT_OFFENSE_WEIGHT_DELTA: float = -0.07
 const ALERT_EXPEDITION_START_MULT: float = 0.76
 const ALERT_GUIDANCE_WEIGHT: float = 0.44
+const SANCTUARY_BASTION_START_DELAY: float = 334.0
+const SANCTUARY_BASTION_CHECK_INTERVAL: float = 4.4
+const SANCTUARY_BASTION_TRIGGER_CHANCE: float = 0.16
+const SANCTUARY_BASTION_GLOBAL_COOLDOWN: float = 52.0
+const SANCTUARY_BASTION_DURATION_MIN: float = 16.0
+const SANCTUARY_BASTION_DURATION_MAX: float = 28.0
+const SANCTUARY_BASTION_MAX_ACTIVE: int = 2
+const SANCTUARY_BASTION_MIN_POPULATION: int = 10
+const SANCTUARY_BASTION_RADIUS: float = 8.4
+const SANCTUARY_BASTION_PULSE_INTERVAL: float = 3.0
+const SANCTUARY_SITE_RENOWN_PULSE: float = 0.06
+const SANCTUARY_SITE_ENERGY_PULSE: float = 0.16
+const DARK_BASTION_NOTORIETY_PULSE: float = 0.08
+const DARK_BASTION_ENERGY_DRAIN_PULSE: float = 0.14
+const DARK_BASTION_ALERT_SCORE_BONUS: float = 0.32
+const SANCTUARY_BASTION_GUIDANCE_WEIGHT: float = 0.40
+const SANCTUARY_BASTION_RECENT_EXPEDITION_WINDOW: float = 14.0
+const TABOO_START_DELAY: float = 382.0
+const TABOO_CHECK_INTERVAL: float = 4.8
+const TABOO_TRIGGER_CHANCE: float = 0.14
+const TABOO_GLOBAL_COOLDOWN: float = 46.0
+const TABOO_DURATION_MIN: float = 14.0
+const TABOO_DURATION_MAX: float = 24.0
+const TABOO_MAX_ACTIVE: int = 2
+const TABOO_MIN_POPULATION: int = 10
+const TABOO_RADIUS: float = 8.2
+const TABOO_ANCHOR_COOLDOWN: float = 64.0
+const TABOO_ALERT_SCORE_BONUS: float = 0.24
+const TABOO_GUIDANCE_WEIGHT: float = 0.34
+const TABOO_RECENT_BREACH_WINDOW: float = 18.0
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -387,6 +417,11 @@ var expedition_ended_total: int = 0
 var expedition_interrupted_total: int = 0
 var alert_started_total: int = 0
 var alert_ended_total: int = 0
+var sanctuary_risen_total: int = 0
+var bastion_risen_total: int = 0
+var sanctuary_bastion_faded_total: int = 0
+var taboo_risen_total: int = 0
+var taboo_faded_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -491,6 +526,20 @@ var _alert_check_timer: float = 0.0
 var _alert_global_cooldown_left: float = ALERT_START_DELAY
 var _alert_runtime_by_allegiance: Dictionary = {}
 var _alert_cooldown_until_by_allegiance: Dictionary = {}
+var _sanctuary_bastion_check_timer: float = 0.0
+var _sanctuary_bastion_global_cooldown_left: float = SANCTUARY_BASTION_START_DELAY
+var _sanctuary_bastion_runtime_by_id: Dictionary = {}
+var _sanctuary_bastion_next_id: int = 1
+var _sanctuary_bastion_cooldown_until_by_anchor: Dictionary = {}
+var _sanctuary_bastion_signals_root: Node3D = null
+var _taboo_check_timer: float = 0.0
+var _taboo_global_cooldown_left: float = TABOO_START_DELAY
+var _taboo_runtime_by_id: Dictionary = {}
+var _taboo_next_id: int = 1
+var _taboo_cooldown_until_by_anchor: Dictionary = {}
+var _taboo_signals_root: Node3D = null
+var _recent_expedition_arrivals: Array[Dictionary] = []
+var _recent_gate_breach_until: float = 0.0
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -516,6 +565,8 @@ func _ready() -> void:
 	_setup_echo_state()
 	_setup_expedition_state()
 	_setup_alert_state()
+	_setup_sanctuary_bastion_state()
+	_setup_taboo_state()
 	_setup_memorial_scar_sites_root()
 	_apply_world_event_to_world_manager()
 	world_manager.set_bounty_state(false)
@@ -564,6 +615,8 @@ func _tick(delta: float) -> void:
 	_update_expeditions(delta)
 	_update_convergence_events(delta)
 	_update_marked_zones(delta)
+	_update_sanctuary_bastions(delta)
+	_update_taboos(delta)
 	_update_alert_pulses(delta)
 	_update_rivalries(delta)
 	_apply_poi_influences(delta)
@@ -1689,6 +1742,1119 @@ func _fade_marked_zone(zone_id: int, reason: String) -> void:
 	_marked_zone_runtime_by_id.erase(zone_id)
 	marked_zone_faded_total += 1
 	record_event("Zone FADED: %s (%s)." % [label, reason])
+
+
+func _setup_sanctuary_bastion_state() -> void:
+	if _sanctuary_bastion_signals_root != null and is_instance_valid(_sanctuary_bastion_signals_root):
+		_sanctuary_bastion_signals_root.queue_free()
+	_sanctuary_bastion_signals_root = Node3D.new()
+	_sanctuary_bastion_signals_root.name = "SanctuaryBastionSignals"
+	world_manager.add_child(_sanctuary_bastion_signals_root)
+
+	_sanctuary_bastion_check_timer = 0.0
+	_sanctuary_bastion_global_cooldown_left = SANCTUARY_BASTION_START_DELAY
+	_sanctuary_bastion_runtime_by_id.clear()
+	_sanctuary_bastion_next_id = 1
+	_sanctuary_bastion_cooldown_until_by_anchor.clear()
+	_recent_expedition_arrivals.clear()
+	_sync_sanctuary_bastion_state_to_world()
+
+
+func _update_sanctuary_bastions(delta: float) -> void:
+	_sanctuary_bastion_global_cooldown_left = max(0.0, _sanctuary_bastion_global_cooldown_left - delta)
+	_sanctuary_bastion_check_timer += delta
+	_prune_recent_expedition_arrivals()
+
+	var cooldown_keys: Array = _sanctuary_bastion_cooldown_until_by_anchor.keys()
+	for key_variant in cooldown_keys:
+		var anchor_key: String = str(key_variant)
+		if anchor_key == "":
+			continue
+		var cooldown_until: float = float(_sanctuary_bastion_cooldown_until_by_anchor.get(anchor_key, 0.0))
+		if elapsed_time >= cooldown_until:
+			_sanctuary_bastion_cooldown_until_by_anchor.erase(anchor_key)
+
+	if not _sanctuary_bastion_runtime_by_id.is_empty():
+		var active_ids: Array = _sanctuary_bastion_runtime_by_id.keys()
+		for site_id_variant in active_ids:
+			var site_id: int = int(site_id_variant)
+			var runtime: Dictionary = _sanctuary_bastion_runtime_by_id.get(site_id, {})
+			if runtime.is_empty():
+				continue
+
+			if not _is_sanctuary_bastion_source_active(runtime):
+				_fade_sanctuary_bastion(site_id, "source_lost")
+				continue
+
+			var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+			if elapsed_time >= next_pulse_at:
+				_apply_sanctuary_bastion_pulse(runtime)
+				runtime["next_pulse_at"] = elapsed_time + SANCTUARY_BASTION_PULSE_INTERVAL
+
+			var started_at: float = float(runtime.get("started_at", elapsed_time))
+			var duration: float = max(0.01, float(runtime.get("duration", SANCTUARY_BASTION_DURATION_MIN)))
+			var elapsed_ratio: float = clampf((elapsed_time - started_at) / duration, 0.0, 1.0)
+			_animate_sanctuary_bastion_signal(
+				runtime.get("visual_node", null) as Node3D,
+				elapsed_ratio,
+				str(runtime.get("site_type", ""))
+			)
+
+			_sanctuary_bastion_runtime_by_id[site_id] = runtime
+			var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+			if elapsed_time >= ends_at:
+				_fade_sanctuary_bastion(site_id, "duration")
+
+	_sync_sanctuary_bastion_state_to_world()
+
+	if _sanctuary_bastion_check_timer < SANCTUARY_BASTION_CHECK_INTERVAL:
+		return
+	_sanctuary_bastion_check_timer = 0.0
+	if _sanctuary_bastion_global_cooldown_left > 0.0:
+		return
+	if _count_alive_actors() < SANCTUARY_BASTION_MIN_POPULATION:
+		return
+	if _sanctuary_bastion_runtime_by_id.size() >= SANCTUARY_BASTION_MAX_ACTIVE:
+		return
+	if randf() > SANCTUARY_BASTION_TRIGGER_CHANCE:
+		return
+
+	var candidate: Dictionary = _build_sanctuary_bastion_candidate()
+	if candidate.is_empty():
+		return
+	_start_sanctuary_bastion(candidate)
+	_sync_sanctuary_bastion_state_to_world()
+
+
+func _build_sanctuary_bastion_candidate() -> Dictionary:
+	var best: Dictionary = {}
+	var best_score: float = -INF
+
+	for zone_id_variant in _marked_zone_runtime_by_id.keys():
+		var zone_id: int = int(zone_id_variant)
+		var zone_runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+		if zone_runtime.is_empty():
+			continue
+		var zone_type: String = str(zone_runtime.get("zone_type", ""))
+		if zone_type not in ["sanctified_zone", "corrupted_zone"]:
+			continue
+
+		var center: Vector3 = zone_runtime.get("center", Vector3.ZERO)
+		var anchor_key: String = "zone:%d" % zone_id
+		if _has_sanctuary_bastion_for_source("marked_zone", zone_id):
+			continue
+		var anchor_cooldown_until: float = float(_sanctuary_bastion_cooldown_until_by_anchor.get(anchor_key, 0.0))
+		if elapsed_time < anchor_cooldown_until:
+			continue
+		if not _can_start_sanctuary_bastion_at(center):
+			continue
+
+		var source_site_id: int = int(zone_runtime.get("source_site_id", 0))
+		var profile: Dictionary = _collect_sanctuary_bastion_signal_profile(center, SANCTUARY_BASTION_RADIUS * 1.40)
+		var recent_arrivals: int = _count_recent_expedition_arrivals_near(
+			center,
+			SANCTUARY_BASTION_RADIUS * 1.55,
+			zone_id,
+			source_site_id
+		)
+		var signals: Array[String] = []
+		var score: float = 0.0
+		var site_type: String = ""
+		var label: String = ""
+		var faction: String = ""
+
+		if zone_type == "sanctified_zone":
+			var heroic_count: int = int(profile.get("heroic_count", 0))
+			var renown_figures: int = int(profile.get("renown_figures", 0))
+			var memorial_sites_near: int = int(profile.get("memorial_sites_near", 0))
+			var recovery_near: bool = bool(profile.get("recovery_near", false))
+			var alert_near: bool = bool(profile.get("alert_near", false))
+			if heroic_count <= 0 and memorial_sites_near <= 0:
+				continue
+			score = float(
+				heroic_count * 0.86
+				+ renown_figures * 0.24
+				+ memorial_sites_near * 0.34
+				+ recent_arrivals * 0.26
+				+ (0.20 if recovery_near else 0.0)
+				+ (0.12 if alert_near else 0.0)
+			)
+			if score < 1.08:
+				continue
+			site_type = "sanctuary_site"
+			faction = "human"
+			label = "sanctuary:%s" % str(zone_runtime.get("label", "sanctified_zone"))
+			signals.append("sanctified_zone")
+			if heroic_count > 0:
+				signals.append("heroic_presence")
+			if memorial_sites_near > 0:
+				signals.append("memorial_site")
+			if recent_arrivals > 0:
+				signals.append("expedition_arrival")
+			if recovery_near:
+				signals.append("recovery_pulse")
+			if alert_near:
+				signals.append("alert_nearby")
+		else:
+			var corrupted_count: int = int(profile.get("corrupted_count", 0))
+			var notoriety_figures: int = int(profile.get("notoriety_figures", 0))
+			var scar_sites_near: int = int(profile.get("scar_sites_near", 0))
+			var gate_pressure: bool = bool(profile.get("gate_pressure", false))
+			var alert_near: bool = bool(profile.get("alert_near", false))
+			var vendetta_pressure: bool = bool(profile.get("vendetta_pressure", false))
+			if corrupted_count <= 0 and scar_sites_near <= 0 and not gate_pressure:
+				continue
+			score = float(
+				corrupted_count * 0.86
+				+ notoriety_figures * 0.24
+				+ scar_sites_near * 0.36
+				+ recent_arrivals * 0.24
+				+ (0.32 if gate_pressure else 0.0)
+				+ (0.28 if alert_near else 0.0)
+				+ (0.18 if vendetta_pressure else 0.0)
+			)
+			if score < 1.12:
+				continue
+			site_type = "dark_bastion"
+			faction = "monster"
+			label = "bastion:%s" % str(zone_runtime.get("label", "corrupted_zone"))
+			signals.append("dark_pressure")
+			signals.append("corrupted_zone")
+			if corrupted_count > 0:
+				signals.append("notorious_presence")
+			if scar_sites_near > 0:
+				signals.append("scar_site")
+			if recent_arrivals > 0:
+				signals.append("expedition_arrival")
+			if gate_pressure:
+				signals.append("gate_pressure")
+			if alert_near:
+				signals.append("alert_nearby")
+			if vendetta_pressure:
+				signals.append("vendetta_pressure")
+
+		if score <= best_score:
+			continue
+
+		best_score = score
+		best = {
+			"site_type": site_type,
+			"label": label,
+			"faction": faction,
+			"center": center,
+			"radius": SANCTUARY_BASTION_RADIUS,
+			"score": score,
+			"cause": _primary_sanctuary_bastion_cause(signals, site_type),
+			"signals": signals,
+			"source_kind": "marked_zone",
+			"source_zone_id": zone_id,
+			"source_site_id": source_site_id,
+			"anchor_key": anchor_key
+		}
+
+	return best
+
+
+func _collect_sanctuary_bastion_signal_profile(center: Vector3, radius: float) -> Dictionary:
+	var heroic_count: int = 0
+	var corrupted_count: int = 0
+	var renown_figures: int = 0
+	var notoriety_figures: int = 0
+	var memorial_sites_near: int = 0
+	var scar_sites_near: int = 0
+	var alert_near: bool = false
+	var recovery_near: bool = false
+	var vendetta_pressure: bool = false
+
+	for actor in actors:
+		if actor == null or actor.is_dead:
+			continue
+		if actor.global_position.distance_to(center) > radius:
+			continue
+		var is_successor: bool = _legacy_successor_runtime_by_actor.has(actor.actor_id)
+		if actor.faction == "human":
+			if actor.renown >= DESTINY_HIGH_RENOWN_TRIGGER:
+				renown_figures += 1
+			if actor.is_champion or actor.special_arrival_id == "summoned_hero" or is_successor:
+				heroic_count += 1
+		elif actor.faction == "monster":
+			if actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN:
+				notoriety_figures += 1
+			if (
+				actor.is_champion
+				or actor.special_arrival_id == "calamity_invader"
+				or actor.notoriety >= BOUNTY_NOTORIETY_PRIORITY_MIN
+			):
+				corrupted_count += 1
+
+	for site_runtime_variant in _memorial_scar_runtime.values():
+		var site_runtime: Dictionary = site_runtime_variant
+		var site_type: String = str(site_runtime.get("type", ""))
+		var site_pos: Vector3 = site_runtime.get("position", Vector3.ZERO)
+		if site_pos.distance_to(center) > radius * 1.30:
+			continue
+		if site_type == "memorial_site":
+			memorial_sites_near += 1
+		elif site_type == "scar_site":
+			scar_sites_near += 1
+
+	for runtime_variant in _alert_runtime_by_allegiance.values():
+		var runtime: Dictionary = runtime_variant
+		var alert_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if alert_center.distance_to(center) <= radius * 1.75:
+			alert_near = true
+			break
+
+	for runtime_variant in _allegiance_recovery_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var recovery_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if recovery_center.distance_to(center) <= radius * 1.65:
+			recovery_near = true
+			break
+
+	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+	var gate_pressure: bool = false
+	if bool(gate_runtime.get("active", false)):
+		var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+		var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+		gate_pressure = gate_position.distance_to(center) <= radius * 1.95
+
+	for allegiance in world_manager.get_active_allegiances(elapsed_time):
+		var vendetta_target: String = str(allegiance.get("vendetta_target", ""))
+		if vendetta_target == "":
+			continue
+		var allegiance_center: Vector3 = allegiance.get("position", Vector3.ZERO)
+		if allegiance_center.distance_to(center) <= radius * 1.85:
+			vendetta_pressure = true
+			break
+
+	return {
+		"heroic_count": heroic_count,
+		"corrupted_count": corrupted_count,
+		"renown_figures": renown_figures,
+		"notoriety_figures": notoriety_figures,
+		"memorial_sites_near": memorial_sites_near,
+		"scar_sites_near": scar_sites_near,
+		"alert_near": alert_near,
+		"recovery_near": recovery_near,
+		"gate_pressure": gate_pressure,
+		"vendetta_pressure": vendetta_pressure
+	}
+
+
+func _primary_sanctuary_bastion_cause(signals: Array[String], site_type: String) -> String:
+	if signals.is_empty():
+		return "prestige_site" if site_type == "sanctuary_site" else "dark_pressure"
+	var priority: Array[String] = []
+	if site_type == "sanctuary_site":
+		priority = [
+			"expedition_arrival",
+			"memorial_site",
+			"heroic_presence",
+			"sanctified_zone",
+			"recovery_pulse",
+			"alert_nearby"
+		]
+	else:
+		priority = [
+			"dark_pressure",
+			"gate_pressure",
+			"vendetta_pressure",
+			"expedition_arrival",
+			"scar_site",
+			"corrupted_zone",
+			"alert_nearby"
+		]
+	for key in priority:
+		if signals.has(key):
+			return key
+	return str(signals[0])
+
+
+func _count_recent_expedition_arrivals_near(
+	center: Vector3,
+	radius: float,
+	target_zone_id: int = 0,
+	target_site_id: int = 0
+) -> int:
+	var total: int = 0
+	for entry_variant in _recent_expedition_arrivals:
+		var entry: Dictionary = entry_variant
+		var target_position: Vector3 = entry.get("target_position", Vector3.ZERO)
+		if target_position.distance_to(center) > radius:
+			continue
+		var matched: bool = false
+		if target_zone_id > 0 and int(entry.get("target_zone_id", 0)) == target_zone_id:
+			matched = true
+		elif target_site_id > 0 and int(entry.get("target_site_id", 0)) == target_site_id:
+			matched = true
+		elif str(entry.get("destination_kind", "")) in ["marked_zone", "memorial_scar"]:
+			matched = true
+		if not matched:
+			continue
+		total += 1
+		if total >= 2:
+			return total
+	return total
+
+
+func _prune_recent_expedition_arrivals() -> void:
+	if _recent_expedition_arrivals.is_empty():
+		return
+	var kept: Array[Dictionary] = []
+	for entry_variant in _recent_expedition_arrivals:
+		var entry: Dictionary = entry_variant
+		var arrived_at: float = float(entry.get("arrived_at", 0.0))
+		if elapsed_time - arrived_at <= SANCTUARY_BASTION_RECENT_EXPEDITION_WINDOW:
+			kept.append(entry)
+	_recent_expedition_arrivals = kept
+
+
+func _is_sanctuary_bastion_source_active(runtime: Dictionary) -> bool:
+	var source_kind: String = str(runtime.get("source_kind", ""))
+	var source_zone_id: int = int(runtime.get("source_zone_id", 0))
+	if source_kind == "marked_zone":
+		return source_zone_id > 0 and _marked_zone_runtime_by_id.has(source_zone_id)
+	return true
+
+
+func _has_sanctuary_bastion_for_source(source_kind: String, source_zone_id: int) -> bool:
+	if source_kind == "" or source_zone_id <= 0:
+		return false
+	for runtime_variant in _sanctuary_bastion_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		if str(runtime.get("source_kind", "")) != source_kind:
+			continue
+		if int(runtime.get("source_zone_id", 0)) != source_zone_id:
+			continue
+		return true
+	return false
+
+
+func _can_start_sanctuary_bastion_at(center: Vector3) -> bool:
+	for runtime_variant in _sanctuary_bastion_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var other_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		var other_radius: float = float(runtime.get("radius", SANCTUARY_BASTION_RADIUS))
+		if other_center.distance_to(center) <= max(other_radius, SANCTUARY_BASTION_RADIUS) * 0.86:
+			return false
+	return true
+
+
+func _start_sanctuary_bastion(candidate: Dictionary) -> void:
+	if candidate.is_empty():
+		return
+	var site_type: String = str(candidate.get("site_type", ""))
+	if site_type not in ["sanctuary_site", "dark_bastion"]:
+		return
+
+	var site_id: int = _sanctuary_bastion_next_id
+	_sanctuary_bastion_next_id += 1
+	var duration: float = randf_range(
+		min(SANCTUARY_BASTION_DURATION_MIN, SANCTUARY_BASTION_DURATION_MAX),
+		max(SANCTUARY_BASTION_DURATION_MIN, SANCTUARY_BASTION_DURATION_MAX)
+	)
+	var center: Vector3 = candidate.get("center", Vector3.ZERO)
+	var label: String = str(candidate.get("label", "site"))
+	var visual_node: Node3D = _spawn_sanctuary_bastion_signal(center, site_type, site_id)
+	var anchor_key: String = str(candidate.get("anchor_key", ""))
+
+	_sanctuary_bastion_runtime_by_id[site_id] = {
+		"id": site_id,
+		"site_type": site_type,
+		"label": label,
+		"faction": str(candidate.get("faction", "")),
+		"center": center,
+		"radius": float(candidate.get("radius", SANCTUARY_BASTION_RADIUS)),
+		"score": float(candidate.get("score", 1.0)),
+		"cause": str(candidate.get("cause", "")),
+		"signals": candidate.get("signals", []),
+		"source_kind": str(candidate.get("source_kind", "")),
+		"source_zone_id": int(candidate.get("source_zone_id", 0)),
+		"source_site_id": int(candidate.get("source_site_id", 0)),
+		"anchor_key": anchor_key,
+		"started_at": elapsed_time,
+		"duration": duration,
+		"ends_at": elapsed_time + duration,
+		"next_pulse_at": elapsed_time + SANCTUARY_BASTION_PULSE_INTERVAL,
+		"visual_node": visual_node
+	}
+	_sanctuary_bastion_global_cooldown_left = SANCTUARY_BASTION_GLOBAL_COOLDOWN
+	_apply_sanctuary_bastion_pulse(_sanctuary_bastion_runtime_by_id[site_id])
+
+	var cause: String = str(candidate.get("cause", "signal"))
+	if site_type == "sanctuary_site":
+		sanctuary_risen_total += 1
+		record_event("Sanctuary RISE: %s at %s (%s, %.0fs)." % [label, _position_label_2d(center), cause, duration])
+	else:
+		bastion_risen_total += 1
+		record_event("Bastion RISE: %s at %s (%s, %.0fs)." % [label, _position_label_2d(center), cause, duration])
+
+
+func _spawn_sanctuary_bastion_signal(center: Vector3, site_type: String, site_id: int) -> Node3D:
+	if _sanctuary_bastion_signals_root == null or not is_instance_valid(_sanctuary_bastion_signals_root):
+		return null
+
+	var node := Node3D.new()
+	node.name = "SanctuaryBastion_%d" % site_id
+	node.position = center
+	var colors := _sanctuary_bastion_colors(site_type)
+
+	var ring := MeshInstance3D.new()
+	ring.name = "Ring"
+	var ring_mesh := CylinderMesh.new()
+	ring_mesh.top_radius = 2.15
+	ring_mesh.bottom_radius = 2.15
+	ring_mesh.height = 0.09
+	ring.mesh = ring_mesh
+	ring.position = Vector3(0.0, 0.11, 0.0)
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.albedo_color = colors.get("base", Color(0.82, 0.82, 0.82))
+	ring_mat.emission_enabled = true
+	ring_mat.emission = colors.get("base", Color(0.82, 0.82, 0.82)) * 1.08
+	ring_mat.roughness = 0.66
+	ring.material_override = ring_mat
+	node.add_child(ring)
+
+	var beacon := MeshInstance3D.new()
+	beacon.name = "Beacon"
+	var beacon_mesh := SphereMesh.new()
+	beacon_mesh.radius = 0.24
+	beacon_mesh.height = 0.48
+	beacon.mesh = beacon_mesh
+	beacon.position = Vector3(0.0, 1.08, 0.0)
+	var beacon_mat := StandardMaterial3D.new()
+	beacon_mat.albedo_color = colors.get("accent", Color(1.0, 1.0, 1.0))
+	beacon_mat.emission_enabled = true
+	beacon_mat.emission = colors.get("accent", Color(1.0, 1.0, 1.0)) * 1.18
+	beacon_mat.roughness = 0.64
+	beacon.material_override = beacon_mat
+	node.add_child(beacon)
+
+	node.scale = Vector3.ONE * 0.22
+	_sanctuary_bastion_signals_root.add_child(node)
+	var tween := create_tween()
+	tween.tween_property(node, "scale", Vector3.ONE, 0.34)
+	return node
+
+
+func _animate_sanctuary_bastion_signal(node: Node3D, elapsed_ratio: float, site_type: String) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var ring := node.get_node_or_null("Ring") as MeshInstance3D
+	var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
+	var seed: float = float(node.get_instance_id() % 37)
+	var colors := _sanctuary_bastion_colors(site_type)
+
+	if ring != null:
+		var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.2 + seed)
+		var fade := lerpf(1.0, 0.68, elapsed_ratio)
+		ring.scale = Vector3.ONE * pulse * fade
+	if beacon != null:
+		beacon.position.y = 1.08 + 0.10 * sin(elapsed_time * 3.2 + seed * 0.45)
+		var beacon_mat := beacon.material_override as StandardMaterial3D
+		if beacon_mat != null:
+			var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
+			beacon_mat.emission = accent * lerpf(1.18, 0.40, elapsed_ratio)
+
+
+func _sanctuary_bastion_colors(site_type: String) -> Dictionary:
+	if site_type == "sanctuary_site":
+		return {
+			"base": Color(0.56, 0.88, 1.0),
+			"accent": Color(1.0, 0.92, 0.56)
+		}
+	return {
+		"base": Color(0.96, 0.46, 0.44),
+		"accent": Color(0.82, 0.42, 1.0)
+	}
+
+
+func _apply_sanctuary_bastion_pulse(runtime: Dictionary) -> void:
+	var center: Vector3 = runtime.get("center", Vector3.ZERO)
+	var radius: float = float(runtime.get("radius", SANCTUARY_BASTION_RADIUS))
+	var site_type: String = str(runtime.get("site_type", ""))
+	for actor in actors:
+		if actor == null or actor.is_dead:
+			continue
+		if actor.global_position.distance_to(center) > radius:
+			continue
+		if site_type == "sanctuary_site":
+			if actor.faction != "human":
+				continue
+			actor.energy = min(actor.max_energy, actor.energy + SANCTUARY_SITE_ENERGY_PULSE)
+			_apply_notability_gain(actor, SANCTUARY_SITE_RENOWN_PULSE, 0.0, "sanctuary_site")
+		elif site_type == "dark_bastion":
+			if actor.faction == "human":
+				actor.energy = max(0.0, actor.energy - DARK_BASTION_ENERGY_DRAIN_PULSE)
+			elif actor.faction == "monster":
+				_apply_notability_gain(actor, 0.0, DARK_BASTION_NOTORIETY_PULSE, "dark_bastion")
+
+
+func _fade_sanctuary_bastion(site_id: int, reason: String) -> void:
+	var runtime: Dictionary = _sanctuary_bastion_runtime_by_id.get(site_id, {})
+	if runtime.is_empty():
+		return
+
+	var label: String = str(runtime.get("label", "site"))
+	var node := runtime.get("visual_node", null) as Node3D
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+
+	var anchor_key: String = str(runtime.get("anchor_key", ""))
+	if anchor_key != "":
+		_sanctuary_bastion_cooldown_until_by_anchor[anchor_key] = elapsed_time + SANCTUARY_BASTION_GLOBAL_COOLDOWN
+
+	_sanctuary_bastion_runtime_by_id.erase(site_id)
+	sanctuary_bastion_faded_total += 1
+	record_event("Sanctuary/Bastion FADE: %s (%s)." % [label, reason])
+	_sync_sanctuary_bastion_state_to_world()
+
+
+func _sync_sanctuary_bastion_state_to_world() -> void:
+	var entries: Array[Dictionary] = []
+	for runtime_variant in _sanctuary_bastion_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var site_id: int = int(runtime.get("id", 0))
+		if site_id <= 0:
+			continue
+		var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+		if ends_at <= elapsed_time:
+			continue
+		entries.append({
+			"site_id": site_id,
+			"site_type": str(runtime.get("site_type", "")),
+			"label": str(runtime.get("label", "site")),
+			"faction": str(runtime.get("faction", "")),
+			"center_position": runtime.get("center", Vector3.ZERO),
+			"radius": float(runtime.get("radius", SANCTUARY_BASTION_RADIUS)),
+			"cause": str(runtime.get("cause", "")),
+			"score": float(runtime.get("score", 0.0)),
+			"started_at": float(runtime.get("started_at", elapsed_time)),
+			"ends_at": ends_at,
+			"guidance_weight": SANCTUARY_BASTION_GUIDANCE_WEIGHT
+		})
+	world_manager.set_sanctuary_bastion_state(entries)
+
+
+func _sanctuary_bastion_type_short(site_type: String) -> String:
+	return "S" if site_type == "sanctuary_site" else "B"
+
+
+func _setup_taboo_state() -> void:
+	if _taboo_signals_root != null and is_instance_valid(_taboo_signals_root):
+		_taboo_signals_root.queue_free()
+	_taboo_signals_root = Node3D.new()
+	_taboo_signals_root.name = "TabooSignals"
+	world_manager.add_child(_taboo_signals_root)
+
+	_taboo_check_timer = 0.0
+	_taboo_global_cooldown_left = TABOO_START_DELAY
+	_taboo_runtime_by_id.clear()
+	_taboo_next_id = 1
+	_taboo_cooldown_until_by_anchor.clear()
+	_recent_gate_breach_until = 0.0
+	_sync_taboo_state_to_world()
+
+
+func _update_taboos(delta: float) -> void:
+	_taboo_global_cooldown_left = max(0.0, _taboo_global_cooldown_left - delta)
+	_taboo_check_timer += delta
+
+	var cooldown_keys: Array = _taboo_cooldown_until_by_anchor.keys()
+	for key_variant in cooldown_keys:
+		var anchor_key: String = str(key_variant)
+		if anchor_key == "":
+			continue
+		var cooldown_until: float = float(_taboo_cooldown_until_by_anchor.get(anchor_key, 0.0))
+		if elapsed_time >= cooldown_until:
+			_taboo_cooldown_until_by_anchor.erase(anchor_key)
+
+	if not _taboo_runtime_by_id.is_empty():
+		var taboo_ids: Array = _taboo_runtime_by_id.keys()
+		for taboo_id_variant in taboo_ids:
+			var taboo_id: int = int(taboo_id_variant)
+			var runtime: Dictionary = _taboo_runtime_by_id.get(taboo_id, {})
+			if runtime.is_empty():
+				continue
+			if not _is_taboo_source_active(runtime):
+				_fade_taboo(taboo_id, "source_lost")
+				continue
+
+			var started_at: float = float(runtime.get("started_at", elapsed_time))
+			var duration: float = max(0.01, float(runtime.get("duration", TABOO_DURATION_MIN)))
+			var elapsed_ratio: float = clampf((elapsed_time - started_at) / duration, 0.0, 1.0)
+			_animate_taboo_signal(
+				runtime.get("visual_node", null) as Node3D,
+				elapsed_ratio,
+				str(runtime.get("taboo_type", ""))
+			)
+			if elapsed_time >= float(runtime.get("ends_at", elapsed_time)):
+				_fade_taboo(taboo_id, "duration")
+
+	_sync_taboo_state_to_world()
+
+	if _taboo_check_timer < TABOO_CHECK_INTERVAL:
+		return
+	_taboo_check_timer = 0.0
+	if _taboo_global_cooldown_left > 0.0:
+		return
+	if _count_alive_actors() < TABOO_MIN_POPULATION:
+		return
+	if _taboo_runtime_by_id.size() >= TABOO_MAX_ACTIVE:
+		return
+	if randf() > TABOO_TRIGGER_CHANCE:
+		return
+
+	var candidate: Dictionary = _build_taboo_candidate()
+	if candidate.is_empty():
+		return
+	_start_taboo(candidate)
+	_sync_taboo_state_to_world()
+
+
+func _build_taboo_candidate() -> Dictionary:
+	var best: Dictionary = {}
+	var best_score: float = -INF
+
+	for site_id_variant in _sanctuary_bastion_runtime_by_id.keys():
+		var site_id: int = int(site_id_variant)
+		var site_runtime: Dictionary = _sanctuary_bastion_runtime_by_id.get(site_id, {})
+		if site_runtime.is_empty():
+			continue
+		var site_type: String = str(site_runtime.get("site_type", ""))
+		if site_type not in ["sanctuary_site", "dark_bastion"]:
+			continue
+
+		var anchor_key: String = "sanctuary_bastion:%d" % site_id
+		if _has_taboo_for_source("sanctuary_bastion", site_id):
+			continue
+		var anchor_cooldown_until: float = float(_taboo_cooldown_until_by_anchor.get(anchor_key, 0.0))
+		if elapsed_time < anchor_cooldown_until:
+			continue
+
+		var center: Vector3 = site_runtime.get("center", Vector3.ZERO)
+		if not _can_start_taboo_at(center):
+			continue
+		var profile: Dictionary = _collect_taboo_signal_profile(center, TABOO_RADIUS * 1.45)
+		var scar_sites_near: int = int(profile.get("scar_sites_near", 0))
+		var duel_near: bool = bool(profile.get("duel_near", false))
+		var alert_near: bool = bool(profile.get("alert_near", false))
+		var corrupted_zone_near: bool = bool(profile.get("corrupted_zone_near", false))
+		var gate_breach_near: bool = bool(profile.get("gate_breach_near", false))
+
+		var taboo_type: String = ""
+		var label: String = ""
+		var cause: String = ""
+		var score: float = 0.0
+		var signals: Array[String] = []
+		if site_type == "sanctuary_site":
+			if scar_sites_near <= 0 and not duel_near:
+				continue
+			taboo_type = "forbidden_site"
+			label = "forbidden:%s" % str(site_runtime.get("label", "sanctuary_site"))
+			score = float(
+				0.58
+				+ scar_sites_near * 0.36
+				+ (0.44 if duel_near else 0.0)
+				+ (0.14 if alert_near else 0.0)
+			)
+			signals = ["sanctuary_site"]
+			if scar_sites_near > 0:
+				signals.append("scar_site")
+			if duel_near:
+				signals.append("duel_mark")
+			if alert_near:
+				signals.append("alert_nearby")
+		else:
+			taboo_type = "cursed_warning"
+			score = float(
+				0.72
+				+ scar_sites_near * 0.20
+				+ (0.34 if corrupted_zone_near else 0.0)
+				+ (0.34 if gate_breach_near else 0.0)
+				+ (0.16 if duel_near else 0.0)
+			)
+			signals = ["dark_bastion"]
+			if corrupted_zone_near:
+				signals.append("corrupted_zone")
+			if gate_breach_near:
+				signals.append("gate_breach")
+			if scar_sites_near > 0:
+				signals.append("scar_site")
+			if duel_near:
+				signals.append("duel_mark")
+			label = "cursed:%s" % str(site_runtime.get("label", "dark_bastion"))
+		if score < 1.0:
+			continue
+		cause = _primary_taboo_cause(signals, taboo_type)
+		if score <= best_score:
+			continue
+		best_score = score
+		best = {
+			"taboo_type": taboo_type,
+			"label": label,
+			"center": center,
+			"radius": TABOO_RADIUS,
+			"score": score,
+			"cause": cause,
+			"signals": signals,
+			"source_kind": "sanctuary_bastion",
+			"source_id": site_id,
+			"anchor_key": anchor_key
+		}
+
+	for zone_id_variant in _marked_zone_runtime_by_id.keys():
+		var zone_id: int = int(zone_id_variant)
+		var zone_runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+		if zone_runtime.is_empty():
+			continue
+		if str(zone_runtime.get("zone_type", "")) != "corrupted_zone":
+			continue
+		if _has_taboo_for_source("marked_zone", zone_id):
+			continue
+
+		var anchor_key: String = "marked_zone:%d" % zone_id
+		var anchor_cooldown_until: float = float(_taboo_cooldown_until_by_anchor.get(anchor_key, 0.0))
+		if elapsed_time < anchor_cooldown_until:
+			continue
+
+		var center: Vector3 = zone_runtime.get("center", Vector3.ZERO)
+		if not _can_start_taboo_at(center):
+			continue
+		var profile: Dictionary = _collect_taboo_signal_profile(center, TABOO_RADIUS * 1.35)
+		var scar_sites_near: int = int(profile.get("scar_sites_near", 0))
+		var gate_breach_near: bool = bool(profile.get("gate_breach_near", false))
+		var duel_near: bool = bool(profile.get("duel_near", false))
+		if scar_sites_near <= 0 and not gate_breach_near and not duel_near:
+			continue
+
+		var score: float = float(
+			0.70
+			+ scar_sites_near * 0.24
+			+ (0.42 if gate_breach_near else 0.0)
+			+ (0.18 if duel_near else 0.0)
+		)
+		if score < 1.0 or score <= best_score:
+			continue
+		var signals: Array[String] = ["corrupted_zone"]
+		if gate_breach_near:
+			signals.append("gate_breach")
+		if scar_sites_near > 0:
+			signals.append("scar_site")
+		if duel_near:
+			signals.append("duel_mark")
+
+		best_score = score
+		best = {
+			"taboo_type": "cursed_warning",
+			"label": "cursed:%s" % str(zone_runtime.get("label", "corrupted_zone")),
+			"center": center,
+			"radius": TABOO_RADIUS,
+			"score": score,
+			"cause": _primary_taboo_cause(signals, "cursed_warning"),
+			"signals": signals,
+			"source_kind": "marked_zone",
+			"source_id": zone_id,
+			"anchor_key": anchor_key
+		}
+
+	return best
+
+
+func _collect_taboo_signal_profile(center: Vector3, radius: float) -> Dictionary:
+	var scar_sites_near: int = 0
+	var memorial_sites_near: int = 0
+	var corrupted_zone_near: bool = false
+	var dark_bastion_near: bool = false
+	var alert_near: bool = false
+	var duel_near: bool = false
+
+	for site_runtime_variant in _memorial_scar_runtime.values():
+		var site_runtime: Dictionary = site_runtime_variant
+		var site_type: String = str(site_runtime.get("type", ""))
+		var site_pos: Vector3 = site_runtime.get("position", Vector3.ZERO)
+		if site_pos.distance_to(center) > radius * 1.25:
+			continue
+		if site_type == "scar_site":
+			scar_sites_near += 1
+		elif site_type == "memorial_site":
+			memorial_sites_near += 1
+
+	for zone_runtime_variant in _marked_zone_runtime_by_id.values():
+		var zone_runtime: Dictionary = zone_runtime_variant
+		if str(zone_runtime.get("zone_type", "")) != "corrupted_zone":
+			continue
+		var zone_center: Vector3 = zone_runtime.get("center", Vector3.ZERO)
+		if zone_center.distance_to(center) <= radius * 1.45:
+			corrupted_zone_near = true
+			break
+
+	for runtime_variant in _sanctuary_bastion_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		if str(runtime.get("site_type", "")) != "dark_bastion":
+			continue
+		var site_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if site_center.distance_to(center) <= radius * 1.60:
+			dark_bastion_near = true
+			break
+
+	for alert_variant in _alert_runtime_by_allegiance.values():
+		var alert_runtime: Dictionary = alert_variant
+		var alert_center: Vector3 = alert_runtime.get("center", Vector3.ZERO)
+		if alert_center.distance_to(center) <= radius * 1.70:
+			alert_near = true
+			break
+
+	for rivalry_variant in _rivalry_runtime_by_id.values():
+		var rivalry_runtime: Dictionary = rivalry_variant
+		if not bool(rivalry_runtime.get("duel_active", false)):
+			continue
+		var actor_a: Actor = _find_actor_by_id(int(rivalry_runtime.get("actor_a_id", 0)))
+		var actor_b: Actor = _find_actor_by_id(int(rivalry_runtime.get("actor_b_id", 0)))
+		var duel_center: Vector3 = Vector3.ZERO
+		if actor_a != null and not actor_a.is_dead and actor_b != null and not actor_b.is_dead:
+			duel_center = (actor_a.global_position + actor_b.global_position) * 0.5
+		elif actor_a != null and not actor_a.is_dead:
+			duel_center = actor_a.global_position
+		elif actor_b != null and not actor_b.is_dead:
+			duel_center = actor_b.global_position
+		else:
+			continue
+		if duel_center.distance_to(center) <= radius * 1.70:
+			duel_near = true
+			break
+
+	var gate_breach_near: bool = false
+	if elapsed_time <= _recent_gate_breach_until:
+		var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+		var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+		var gate_pos: Vector3 = _get_poi_position_by_name(gate_name)
+		if gate_pos != Vector3.ZERO and gate_pos.distance_to(center) <= radius * 2.10:
+			gate_breach_near = true
+
+	return {
+		"scar_sites_near": scar_sites_near,
+		"memorial_sites_near": memorial_sites_near,
+		"corrupted_zone_near": corrupted_zone_near,
+		"dark_bastion_near": dark_bastion_near,
+		"alert_near": alert_near,
+		"duel_near": duel_near,
+		"gate_breach_near": gate_breach_near
+	}
+
+
+func _primary_taboo_cause(signals: Array[String], taboo_type: String) -> String:
+	if signals.is_empty():
+		return taboo_type
+	var priority: Array[String] = []
+	if taboo_type == "forbidden_site":
+		priority = ["sanctuary_site", "duel_mark", "scar_site", "alert_nearby"]
+	else:
+		priority = ["dark_bastion", "gate_breach", "corrupted_zone", "scar_site", "duel_mark"]
+	for key in priority:
+		if signals.has(key):
+			return key
+	return str(signals[0])
+
+
+func _is_taboo_source_active(runtime: Dictionary) -> bool:
+	var source_kind: String = str(runtime.get("source_kind", ""))
+	var source_id: int = int(runtime.get("source_id", 0))
+	if source_kind == "sanctuary_bastion":
+		return source_id > 0 and _sanctuary_bastion_runtime_by_id.has(source_id)
+	if source_kind == "marked_zone":
+		return source_id > 0 and _marked_zone_runtime_by_id.has(source_id)
+	return true
+
+
+func _has_taboo_for_source(source_kind: String, source_id: int) -> bool:
+	if source_kind == "" or source_id <= 0:
+		return false
+	for runtime_variant in _taboo_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		if str(runtime.get("source_kind", "")) != source_kind:
+			continue
+		if int(runtime.get("source_id", 0)) != source_id:
+			continue
+		return true
+	return false
+
+
+func _can_start_taboo_at(center: Vector3) -> bool:
+	for runtime_variant in _taboo_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var other_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		var other_radius: float = float(runtime.get("radius", TABOO_RADIUS))
+		if other_center.distance_to(center) <= max(other_radius, TABOO_RADIUS) * 0.84:
+			return false
+	return true
+
+
+func _start_taboo(candidate: Dictionary) -> void:
+	if candidate.is_empty():
+		return
+	var taboo_type: String = str(candidate.get("taboo_type", ""))
+	if taboo_type not in ["forbidden_site", "cursed_warning"]:
+		return
+
+	var taboo_id: int = _taboo_next_id
+	_taboo_next_id += 1
+	var duration: float = randf_range(
+		min(TABOO_DURATION_MIN, TABOO_DURATION_MAX),
+		max(TABOO_DURATION_MIN, TABOO_DURATION_MAX)
+	)
+	var center: Vector3 = candidate.get("center", Vector3.ZERO)
+	var label: String = str(candidate.get("label", "taboo"))
+	var visual_node: Node3D = _spawn_taboo_signal(center, taboo_type, taboo_id)
+	_taboo_runtime_by_id[taboo_id] = {
+		"id": taboo_id,
+		"taboo_type": taboo_type,
+		"label": label,
+		"center": center,
+		"radius": float(candidate.get("radius", TABOO_RADIUS)),
+		"score": float(candidate.get("score", 1.0)),
+		"cause": str(candidate.get("cause", taboo_type)),
+		"signals": candidate.get("signals", []),
+		"source_kind": str(candidate.get("source_kind", "")),
+		"source_id": int(candidate.get("source_id", 0)),
+		"anchor_key": str(candidate.get("anchor_key", "")),
+		"started_at": elapsed_time,
+		"duration": duration,
+		"ends_at": elapsed_time + duration,
+		"visual_node": visual_node
+	}
+	_taboo_global_cooldown_left = TABOO_GLOBAL_COOLDOWN
+	taboo_risen_total += 1
+	record_event(
+		"Taboo RISE: %s at %s (%s, %.0fs)."
+		% [label, _position_label_2d(center), str(candidate.get("cause", taboo_type)), duration]
+	)
+
+
+func _spawn_taboo_signal(center: Vector3, taboo_type: String, taboo_id: int) -> Node3D:
+	if _taboo_signals_root == null or not is_instance_valid(_taboo_signals_root):
+		return null
+
+	var node := Node3D.new()
+	node.name = "Taboo_%d" % taboo_id
+	node.position = center
+	var colors := _taboo_colors(taboo_type)
+
+	var ring := MeshInstance3D.new()
+	ring.name = "Ring"
+	var ring_mesh := CylinderMesh.new()
+	ring_mesh.top_radius = 1.95
+	ring_mesh.bottom_radius = 1.95
+	ring_mesh.height = 0.08
+	ring.mesh = ring_mesh
+	ring.position = Vector3(0.0, 0.10, 0.0)
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.albedo_color = colors.get("base", Color(0.82, 0.82, 0.82))
+	ring_mat.emission_enabled = true
+	ring_mat.emission = colors.get("base", Color(0.82, 0.82, 0.82)) * 1.06
+	ring_mat.roughness = 0.70
+	ring.material_override = ring_mat
+	node.add_child(ring)
+
+	var beacon := MeshInstance3D.new()
+	beacon.name = "Beacon"
+	var beacon_mesh := SphereMesh.new()
+	beacon_mesh.radius = 0.20
+	beacon_mesh.height = 0.40
+	beacon.mesh = beacon_mesh
+	beacon.position = Vector3(0.0, 0.98, 0.0)
+	var beacon_mat := StandardMaterial3D.new()
+	beacon_mat.albedo_color = colors.get("accent", Color(1.0, 1.0, 1.0))
+	beacon_mat.emission_enabled = true
+	beacon_mat.emission = colors.get("accent", Color(1.0, 1.0, 1.0)) * 1.16
+	beacon_mat.roughness = 0.66
+	beacon.material_override = beacon_mat
+	node.add_child(beacon)
+
+	node.scale = Vector3.ONE * 0.20
+	_taboo_signals_root.add_child(node)
+	var tween := create_tween()
+	tween.tween_property(node, "scale", Vector3.ONE, 0.30)
+	return node
+
+
+func _animate_taboo_signal(node: Node3D, elapsed_ratio: float, taboo_type: String) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var ring := node.get_node_or_null("Ring") as MeshInstance3D
+	var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
+	var seed: float = float(node.get_instance_id() % 41)
+	var colors := _taboo_colors(taboo_type)
+
+	if ring != null:
+		var pulse: float = 1.0 + 0.08 * sin(elapsed_time * 5.0 + seed)
+		var fade: float = lerpf(1.0, 0.66, elapsed_ratio)
+		ring.scale = Vector3.ONE * pulse * fade
+	if beacon != null:
+		beacon.position.y = 0.98 + 0.08 * sin(elapsed_time * 3.8 + seed * 0.45)
+		var beacon_mat := beacon.material_override as StandardMaterial3D
+		if beacon_mat != null:
+			var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
+			beacon_mat.emission = accent * lerpf(1.16, 0.40, elapsed_ratio)
+
+
+func _taboo_colors(taboo_type: String) -> Dictionary:
+	if taboo_type == "forbidden_site":
+		return {
+			"base": Color(0.88, 0.72, 0.46),
+			"accent": Color(0.94, 0.92, 0.68)
+		}
+	return {
+		"base": Color(0.90, 0.42, 0.40),
+		"accent": Color(0.76, 0.38, 0.96)
+	}
+
+
+func _fade_taboo(taboo_id: int, reason: String) -> void:
+	var runtime: Dictionary = _taboo_runtime_by_id.get(taboo_id, {})
+	if runtime.is_empty():
+		return
+
+	var node := runtime.get("visual_node", null) as Node3D
+	if node != null and is_instance_valid(node):
+		node.queue_free()
+	var anchor_key: String = str(runtime.get("anchor_key", ""))
+	if anchor_key != "":
+		_taboo_cooldown_until_by_anchor[anchor_key] = elapsed_time + TABOO_ANCHOR_COOLDOWN
+	_taboo_runtime_by_id.erase(taboo_id)
+	taboo_faded_total += 1
+	record_event("Taboo FADE: %s (%s)." % [str(runtime.get("label", "taboo")), reason])
+	_sync_taboo_state_to_world()
+
+
+func _sync_taboo_state_to_world() -> void:
+	var entries: Array[Dictionary] = []
+	for runtime_variant in _taboo_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var taboo_id: int = int(runtime.get("id", 0))
+		if taboo_id <= 0:
+			continue
+		var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+		if ends_at <= elapsed_time:
+			continue
+		entries.append({
+			"taboo_id": taboo_id,
+			"taboo_type": str(runtime.get("taboo_type", "")),
+			"label": str(runtime.get("label", "taboo")),
+			"center_position": runtime.get("center", Vector3.ZERO),
+			"radius": float(runtime.get("radius", TABOO_RADIUS)),
+			"cause": str(runtime.get("cause", "")),
+			"score": float(runtime.get("score", 0.0)),
+			"started_at": float(runtime.get("started_at", elapsed_time)),
+			"ends_at": ends_at,
+			"guidance_weight": TABOO_GUIDANCE_WEIGHT
+		})
+	world_manager.set_taboo_state(entries)
+
+
+func _taboo_type_short(taboo_type: String) -> String:
+	return "F" if taboo_type == "forbidden_site" else "C"
 
 
 func _setup_allegiance_crisis_state() -> void:
@@ -5158,6 +6324,18 @@ func _arrive_expedition(actor_id: int, reason: String) -> void:
 	record_event("Expedition ARRIVED: %s -> %s (%s)." % [label, target_label, reason])
 	if actor != null:
 		_apply_notability_gain(actor, EXPEDITION_RENOWN_ON_ARRIVAL, 0.0, "expedition_arrival")
+	_recent_expedition_arrivals.append({
+		"arrived_at": elapsed_time,
+		"actor_id": actor_id,
+		"faction": actor.faction if actor != null else "",
+		"allegiance_id": actor.allegiance_id if actor != null else "",
+		"destination_kind": str(runtime.get("destination_kind", "")),
+		"target_zone_id": int(runtime.get("target_zone_id", 0)),
+		"target_site_id": int(runtime.get("target_site_id", 0)),
+		"target_position": runtime.get("target_position", actor.global_position if actor != null else Vector3.ZERO),
+		"target_label": target_label
+	})
+	_prune_recent_expedition_arrivals()
 	_end_expedition(actor_id, "arrived:%s" % reason)
 
 
@@ -5269,6 +6447,10 @@ func _build_alert_candidate() -> Dictionary:
 			start_chance += 0.05
 		if bool(signal_context.get("raid_targeted", false)):
 			start_chance += 0.04
+		if bool(signal_context.get("dark_bastion_near", false)):
+			start_chance += 0.04
+		if bool(signal_context.get("taboo_warning_near", false)):
+			start_chance += 0.03
 		if int(signal_context.get("hostile_expeditions", 0)) > 0:
 			start_chance += 0.04
 		start_chance = clampf(start_chance, 0.10, 0.66)
@@ -5299,6 +6481,8 @@ func _collect_alert_signal_context(allegiance: Dictionary) -> Dictionary:
 	var gate_open_near: bool = false
 	var convergence_near: bool = false
 	var corrupted_zone_near: bool = false
+	var dark_bastion_near: bool = false
+	var taboo_warning_near: bool = false
 	var raid_targeted: bool = false
 	var bounty_targeted: bool = false
 	var vendetta_targeted: bool = false
@@ -5332,6 +6516,34 @@ func _collect_alert_signal_context(allegiance: Dictionary) -> Dictionary:
 		corrupted_zone_near = true
 		score += 0.66
 		signals.append("corrupted_zone")
+		break
+
+	for runtime_variant in _sanctuary_bastion_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		if str(runtime.get("site_type", "")) != "dark_bastion":
+			continue
+		var bastion_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if center.distance_to(bastion_center) > ALERT_SIGNAL_RADIUS * 1.15:
+			continue
+		dark_bastion_near = true
+		score += DARK_BASTION_ALERT_SCORE_BONUS
+		signals.append("dark_bastion")
+		break
+
+	for runtime_variant in _taboo_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var taboo_type: String = str(runtime.get("taboo_type", ""))
+		if taboo_type not in ["cursed_warning", "forbidden_site"]:
+			continue
+		var taboo_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if center.distance_to(taboo_center) > ALERT_SIGNAL_RADIUS * 1.10:
+			continue
+		taboo_warning_near = true
+		var taboo_bonus: float = TABOO_ALERT_SCORE_BONUS
+		if taboo_type == "forbidden_site":
+			taboo_bonus *= 0.72
+		score += taboo_bonus
+		signals.append("taboo_warning")
 		break
 
 	var hostile_expeditions: int = _count_hostile_expeditions_near(faction, center, ALERT_SIGNAL_RADIUS * 1.20)
@@ -5375,6 +6587,8 @@ func _collect_alert_signal_context(allegiance: Dictionary) -> Dictionary:
 		"gate_open_near": gate_open_near,
 		"convergence_near": convergence_near,
 		"corrupted_zone_near": corrupted_zone_near,
+		"dark_bastion_near": dark_bastion_near,
+		"taboo_warning_near": taboo_warning_near,
 		"raid_targeted": raid_targeted,
 		"bounty_targeted": bounty_targeted,
 		"vendetta_targeted": vendetta_targeted,
@@ -5409,6 +6623,8 @@ func _primary_alert_cause(signals: Array[String]) -> String:
 	var priority: Array[String] = [
 		"raid_targeted",
 		"rift_gate_open",
+		"dark_bastion",
+		"taboo_warning",
 		"vendetta_targeted",
 		"bounty_targeted",
 		"hostile_expedition",
@@ -6875,6 +8091,14 @@ func _build_snapshot() -> Dictionary:
 	var marked_zone_active_total: int = 0
 	var marked_zone_sanctified_active_total: int = 0
 	var marked_zone_corrupted_active_total: int = 0
+	var sanctuary_bastion_active_labels: Array[String] = []
+	var sanctuary_bastion_active_total: int = 0
+	var sanctuary_site_active_total: int = 0
+	var dark_bastion_active_total: int = 0
+	var taboo_active_labels: Array[String] = []
+	var taboo_active_total: int = 0
+	var forbidden_site_active_total: int = 0
+	var cursed_warning_active_total: int = 0
 	var rivalry_active_labels: Array[String] = []
 	var rivalry_active_total: int = 0
 	var duel_active_total: int = 0
@@ -7194,6 +8418,39 @@ func _build_snapshot() -> Dictionary:
 			marked_zone_corrupted_active_total += 1
 	marked_zone_active_labels.sort()
 	marked_zone_active_total = marked_zone_active_labels.size()
+	for site_id_variant in _sanctuary_bastion_runtime_by_id.keys():
+		var site_id: int = int(site_id_variant)
+		var runtime: Dictionary = _sanctuary_bastion_runtime_by_id.get(site_id, {})
+		if runtime.is_empty():
+			continue
+		var site_type: String = str(runtime.get("site_type", ""))
+		var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+		var label: String = str(runtime.get("label", "site"))
+		sanctuary_bastion_active_labels.append(
+			"%s:%s@%.0fs"
+			% [_sanctuary_bastion_type_short(site_type), label, remaining]
+		)
+		if site_type == "sanctuary_site":
+			sanctuary_site_active_total += 1
+		elif site_type == "dark_bastion":
+			dark_bastion_active_total += 1
+	sanctuary_bastion_active_labels.sort()
+	sanctuary_bastion_active_total = sanctuary_bastion_active_labels.size()
+	for taboo_id_variant in _taboo_runtime_by_id.keys():
+		var taboo_id: int = int(taboo_id_variant)
+		var runtime: Dictionary = _taboo_runtime_by_id.get(taboo_id, {})
+		if runtime.is_empty():
+			continue
+		var taboo_type: String = str(runtime.get("taboo_type", ""))
+		var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+		var label: String = str(runtime.get("label", "taboo"))
+		taboo_active_labels.append("%s:%s(%.0fs)" % [_taboo_type_short(taboo_type), label, remaining])
+		if taboo_type == "forbidden_site":
+			forbidden_site_active_total += 1
+		elif taboo_type == "cursed_warning":
+			cursed_warning_active_total += 1
+	taboo_active_labels.sort()
+	taboo_active_total = taboo_active_labels.size()
 	for rivalry_id_variant in _rivalry_runtime_by_id.keys():
 		var rivalry_id: int = int(rivalry_id_variant)
 		var runtime: Dictionary = _rivalry_runtime_by_id.get(rivalry_id, {})
@@ -7400,6 +8657,19 @@ func _build_snapshot() -> Dictionary:
 		"marked_zone_active_labels": marked_zone_active_labels,
 		"marked_zone_started_total": marked_zone_started_total,
 		"marked_zone_faded_total": marked_zone_faded_total,
+		"sanctuary_bastion_active_total": sanctuary_bastion_active_total,
+		"sanctuary_site_active_total": sanctuary_site_active_total,
+		"dark_bastion_active_total": dark_bastion_active_total,
+		"sanctuary_bastion_active_labels": sanctuary_bastion_active_labels,
+		"sanctuary_risen_total": sanctuary_risen_total,
+		"bastion_risen_total": bastion_risen_total,
+		"sanctuary_bastion_faded_total": sanctuary_bastion_faded_total,
+		"taboo_active_total": taboo_active_total,
+		"forbidden_site_active_total": forbidden_site_active_total,
+		"cursed_warning_active_total": cursed_warning_active_total,
+		"taboo_active_labels": taboo_active_labels,
+		"taboo_risen_total": taboo_risen_total,
+		"taboo_faded_total": taboo_faded_total,
 		"rivalry_active_total": rivalry_active_total,
 		"rivalry_active_labels": rivalry_active_labels,
 		"duel_active_total": duel_active_total,
@@ -7833,6 +9103,7 @@ func _update_poi_runtime() -> void:
 			)
 		elif kind == "neutral_gate_breach":
 			neutral_gate_breach_total += 1
+			_recent_gate_breach_until = elapsed_time + TABOO_RECENT_BREACH_WINDOW
 			var breach_actor: Actor = _spawn_neutral_gate_breach(transition)
 			var breach_label := _actor_label(breach_actor) if breach_actor != null else "none"
 			record_event("Dungeon/Gate BREACH: %s -> %s." % [poi_name, breach_label])

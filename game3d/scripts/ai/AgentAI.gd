@@ -116,6 +116,37 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 					rally_bonus
 				)
 
+		var taboo_guidance: Dictionary = world.get_taboo_avoidance_guidance(actor)
+		if not taboo_guidance.is_empty():
+			var taboo_weight: float = float(taboo_guidance.get("weight", 0.34))
+			if randf() <= clampf(taboo_weight, 0.18, 0.78):
+				return _with_rally(
+					{
+						"state": "poi",
+						"target_position": taboo_guidance.get("target_position", actor.global_position),
+						"reason": str(taboo_guidance.get("reason", "taboo:caution"))
+					},
+					rally_leader,
+					rally_bonus
+				)
+
+		var sanctuary_bastion_guidance: Dictionary = world.get_sanctuary_bastion_guidance(actor)
+		if not sanctuary_bastion_guidance.is_empty():
+			var sanctuary_bastion_weight: float = float(sanctuary_bastion_guidance.get("weight", 0.34))
+			if randf() <= clampf(sanctuary_bastion_weight, 0.18, 0.78):
+				var sanctuary_bastion_reason: String = str(
+					sanctuary_bastion_guidance.get("reason", "sanctuary:watch")
+				)
+				return _with_rally(
+					{
+						"state": "poi",
+						"target_position": sanctuary_bastion_guidance.get("target_position", actor.global_position),
+						"reason": sanctuary_bastion_reason if sanctuary_bastion_reason != "" else "bastion:watch"
+					},
+					rally_leader,
+					rally_bonus
+				)
+
 		var bounty_guidance: Dictionary = world.get_bounty_guidance(
 			actor.global_position,
 			actor.faction,

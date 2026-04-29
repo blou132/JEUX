@@ -59,6 +59,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var echo_active_labels: Array = snapshot.get("echo_active_labels", [])
     var expedition_active_labels: Array = snapshot.get("expedition_active_labels", [])
     var alert_active_labels: Array = snapshot.get("alert_active_labels", [])
+    var sanctuary_bastion_active_labels: Array = snapshot.get("sanctuary_bastion_active_labels", [])
+    var taboo_active_labels: Array = snapshot.get("taboo_active_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -557,6 +559,35 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Alert labels: %s"
         % (" | ".join(alert_active_labels) if not alert_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Sanctuaries/Bastions: active=%d (S:%d B:%d) | rise(S:%d B:%d) fade=%d"
+        % [
+            int(snapshot.get("sanctuary_bastion_active_total", 0)),
+            int(snapshot.get("sanctuary_site_active_total", 0)),
+            int(snapshot.get("dark_bastion_active_total", 0)),
+            int(snapshot.get("sanctuary_risen_total", 0)),
+            int(snapshot.get("bastion_risen_total", 0)),
+            int(snapshot.get("sanctuary_bastion_faded_total", 0))
+        ]
+    )
+    lines.append(
+        "Sanctuary/Bastion labels: %s"
+        % (" | ".join(sanctuary_bastion_active_labels) if not sanctuary_bastion_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Taboos: active=%d (F:%d C:%d) | rise=%d fade=%d"
+        % [
+            int(snapshot.get("taboo_active_total", 0)),
+            int(snapshot.get("forbidden_site_active_total", 0)),
+            int(snapshot.get("cursed_warning_active_total", 0)),
+            int(snapshot.get("taboo_risen_total", 0)),
+            int(snapshot.get("taboo_faded_total", 0))
+        ]
+    )
+    lines.append(
+        "Taboo labels: %s"
+        % (" | ".join(taboo_active_labels) if not taboo_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiance cores: %s"

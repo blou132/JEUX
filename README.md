@@ -41,6 +41,8 @@ La direction active est une boucle sandbox minimale mais jouable :
 - couche destiny pulls legere (aspirations heroiques temporaires)
 - couche convergence/crossroads legere (chevauchements de signaux locaux)
 - couche marked zones legere (`sanctified_zone` / `corrupted_zone`)
+- couche sanctuaries/bastions legere (`sanctuary_site` / `dark_bastion`)
+- couche taboos/cursed warnings legere (`forbidden_site` / `cursed_warning`)
 - couche rivalry/duel legere (oppositions notables bornees)
 - couche patronage/bond legere (attaches locales temporaires)
 - couche splinter/breakaway legere (fractures locales bornees)
@@ -94,16 +96,20 @@ La direction active est une boucle sandbox minimale mais jouable :
 - Destiny pulls : `rift_call` / `relic_call` / `vendetta_call`, une destinee active max par acteur.
 - Convergence : evenements locaux rares autour d'un `rift_gate` ouvert, effets legers et courte duree.
 - Marked zones : `sanctified_zone` / `corrupted_zone`, cap petit, duree courte, fade propre.
+- Sanctuaries/Bastions : `sanctuary_site` / `dark_bastion`, cap global petit, duree bornee, fade propre.
+- Taboos : `forbidden_site` / `cursed_warning`, zones redoutees temporaires, cap global petit, fade propre.
 - Rivalry/duel : rivalites rares entre figures notables, duel optionnel court, cycle propre.
 - Bonds : liens temporaires notable->groupe, cohesion locale legere, rupture propre.
 - Splinters : fractures locales temporaires dans une allegiance, pas de vraie nouvelle faction persistante.
 
 ### Observabilite
 - Logs dedies pour toutes les couches majeures (`START/END` + transitions de statut).
+- Logs dedies supplementaires pour sanctuaries/bastions (`Sanctuary RISE`, `Bastion RISE`, `Sanctuary/Bastion FADE`).
+- Logs dedies supplementaires pour taboos (`Taboo RISE`, `Taboo FADE`).
 - HUD debug avec compteurs actifs, compteurs historiques et labels courts de contexte.
 - Tags legers runtime sur POI/allegiances/acteurs selon couche active.
 
-Alias techniques conserves pour compatibilite runtime/tests : world event, mana surge, monster frenzy, sanctuary calm, special arrival, summoned hero, calamity invader, relic, arcane sigil, oath standard, bounty, marked target, hunt, renown, notoriety, rift gate, dungeon/gate, gate response, gate_seal, gate_exploit, allegiance crisis, recovery pulse, doctrine, ethos, project, fortify, warband, ritual, vendetta, grudge, legacy, succession, successor, memorial, scar, destiny, convergence, sanctified, corrupted, rivalry, duel, bond, patron, splinter, breakaway, mending, reconciliation, oath, sworn, echo, aftershock, expedition, pilgrimage, alert pulse, watch.
+Alias techniques conserves pour compatibilite runtime/tests : world event, mana surge, monster frenzy, sanctuary calm, special arrival, summoned hero, calamity invader, relic, arcane sigil, oath standard, bounty, marked target, hunt, renown, notoriety, rift gate, dungeon/gate, gate response, gate_seal, gate_exploit, allegiance crisis, recovery pulse, doctrine, ethos, project, fortify, warband, ritual, vendetta, grudge, legacy, succession, successor, memorial, scar, destiny, convergence, sanctified, corrupted, zone faded, sanctuary_site, dark_bastion, sanctuary rise, bastion rise, sanctuary/bastion fade, taboo, forbidden_site, cursed_warning, taboo rise, taboo fade, rivalry, duel, bond, patron, splinter, breakaway, mending, reconciliation, oath, sworn, echo, aftershock, expedition, pilgrimage, alert pulse, alert start, alert end, watch.
 
 ## Lancer le prototype 3D
 Prerequis : Godot 4.x installe localement.
@@ -128,7 +134,7 @@ Le debug overlay affiche notamment :
 - compteurs legacy/memorials/relics/bounties
 - compteurs `rift_gate`, reponses, crises, recovery, mending
 - compteurs oaths/echoes/expeditions/alerts/destiny/convergence
-- compteurs zones marquees/rivalries/bonds/splinters
+- compteurs zones marquees/sanctuaries-bastions/taboos/rivalries/bonds/splinters
 - evenementiel recent en logs
 
 Cible de validation MVP :
@@ -167,6 +173,8 @@ Verifications de scaffold actuelles pour le pivot 3D :
 - [test_game3d_destiny_behavior.py](tests/test_game3d_destiny_behavior.py) (contrats destiny : verrou des declencheurs notables, unicite par acteur, cycle fulfilled/interrupted/timeout propre)
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (contrats convergence : rarete bornee, pas de start sans signaux suffisants, cycle end/interruption propre)
 - [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (contrats marked zones : declenchement/classification/cap bornes, cycle fade propre)
+- [test_game3d_sanctuary_bastions_behavior.py](tests/test_game3d_sanctuary_bastions_behavior.py) (contrats sanctuaries/bastions : declenchement/classification/cap/cooldown bornes, cycle fade propre, effets locaux legers)
+- [test_game3d_taboos_behavior.py](tests/test_game3d_taboos_behavior.py) (contrats taboos : declenchement/classification/cap/cooldowns bornes, cycle fade propre, avoidance/pression locale legeres)
 - [test_game3d_rivalry_behavior.py](tests/test_game3d_rivalry_behavior.py) (contrats rivalry/duel : declenchement/unicite bornes, cycle resolved/expired/end propre)
 - [test_game3d_bonds_behavior.py](tests/test_game3d_bonds_behavior.py) (contrats bonds : declenchement/unicite/cap bornes, cycle end/broken propre)
 - [test_game3d_splinters_behavior.py](tests/test_game3d_splinters_behavior.py) (contrats splinters : declenchement/unicite/cooldown bornes, cycle resolved/faded/end propre)
@@ -198,6 +206,8 @@ py -m unittest tests.test_game3d_alert_pulses_behavior -v
 py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
 py -m unittest tests.test_game3d_marked_zones_behavior -v
+py -m unittest tests.test_game3d_sanctuary_bastions_behavior -v
+py -m unittest tests.test_game3d_taboos_behavior -v
 py -m unittest tests.test_game3d_rivalry_behavior -v
 py -m unittest tests.test_game3d_bonds_behavior -v
 py -m unittest tests.test_game3d_splinters_behavior -v
@@ -214,12 +224,12 @@ py -m unittest discover -s tests -v
 - Construction de la scene sandbox 3D minimale avec camera libre.
 - Ajout humains/monstres autonomes + IA FSM + combat melee + magie simple.
 - Ajout de la regulation sandbox et de l'observabilite runtime.
-- Ajout de toutes les couches MVP decrites ci-dessus, jusqu'a `alert`, `destiny`, `convergence`, `marked zones`, `rivalry`, `bond` et `splinter`.
+- Ajout de toutes les couches MVP decrites ci-dessus, jusqu'a `alert`, `destiny`, `convergence`, `marked zones`, `sanctuaries/bastions`, `taboos`, `rivalry`, `bond` et `splinter`.
 
 ### Prochaines etapes
 - Ajuster l'equilibrage role/combat a partir de sessions de jeu.
 - Ajuster les timings/cooldowns/effets des couches POI, raids et allegiances pour eviter tout snowball.
-- Ajuster la cadence des couches rares (evenements, arrivees, relics, bounties, gate, crises, recovery, mending, oaths, echoes, expeditions, alerts, destiny, convergence, zones, rivalry, bonds, splinters).
+- Ajuster la cadence des couches rares (evenements, arrivees, relics, bounties, gate, crises, recovery, mending, oaths, echoes, expeditions, alerts, destiny, convergence, zones, sanctuaries/bastions, taboos, rivalry, bonds, splinters).
 - Conserver un prototype lisible, borne et observable sans systemes lourds.
 
 ### Plus tard
