@@ -35,6 +35,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight recovery pulse layer (bounded post-shock allegiance rebound)
 - lightweight mending/reconciliation arcs layer (rare bounded local de-escalation windows)
 - lightweight oaths/sworn moments layer (rare bounded notable temporary commitments)
+- lightweight echoes/aftershocks layer (rare bounded short resonance after major beats)
 - lightweight destiny pulls layer (rare temporary heroic aspirations toward local world stakes)
 - lightweight crossroads/convergence events layer (rare short local signal overlap moments)
 - lightweight sanctified/corrupted zone layer (rare temporary local world traces)
@@ -211,6 +212,13 @@ The active direction is a minimal but playable sandbox loop:
     - extra runtime readability for notable intent without new diplomacy/quest systems
   - clean lifecycle: `Oath START` -> `Oath END`, with optional `Oath FULFILLED` / `Oath BROKEN`
   - observability: dedicated oath counters + active labels (`type:actor->objective`) + lightweight actor oath tag
+- Echoes / aftershocks layer (MVP):
+  - two bounded resonance types only: `heroic_echo` and `dark_aftershock`
+  - autonomous rare triggers reuse existing strong transitions: convergence end, rivalry resolve, notable falls, rift-gate close/breach, oath fulfill/break, and crisis outcomes
+  - hard bounds: short duration, tiny global active cap, and global cooldown
+  - lightweight local effect only: tiny periodic local notability pulse (`renown` for heroic, `notoriety` for dark)
+  - clean lifecycle: `Echo START` -> optional `Echo FADED` -> `Echo END`
+  - observability: dedicated echo counters + active labels, plus a distinct short-lived local ring/beacon signal
 - Destiny pulls layer (MVP):
   - no quest system: only rare short-lived pull states for notable/promising actors, with one active destiny max per actor
   - candidate signals reuse existing notability markers (champion, special arrival, relic carrier, active successor, very high renown), with simple cooldown gates
@@ -310,6 +318,7 @@ The debug overlay shows:
 - recovery pulse counters (`active`, `start/end/interrupted`) + recovery map per allegiance
 - mending arc counters (`active`, `start/end/broken`) + active mending pair labels
 - oath counters (`active`, `start/end/fulfilled/broken`) + active oath labels
+- echo counters (`active`, `start/end/faded`) + active echo labels
 - destiny pull counters (`active`, `start/end/fulfilled/interrupted`) + active pull labels
 - convergence counters (`active`, `start/end/interrupted`) + active zone labels
 - sanctified/corrupted marked zone counters (`active`, type split, `start/fade`) + active labels
@@ -348,6 +357,7 @@ The debug overlay shows:
 - recovery logs (`Recovery START` / `Recovery INTERRUPTED` / `Recovery END`) for temporary post-shock rebound windows
 - mending logs (`Mending START` / `Mending BROKEN` / `Mending END`) for short local reconciliation windows
 - oath logs (`Oath START` / `Oath FULFILLED` / `Oath BROKEN` / `Oath END`) for bounded sworn local intent windows
+- echo logs (`Echo START` / `Echo FADED` / `Echo END`) for short bounded resonance windows after major events
 - destiny logs (`Destiny START` / `Destiny FULFILLED` / `Destiny INTERRUPTED` / `Destiny END`) for bounded heroic convergence moments
 - convergence logs (`Convergence START` / `Convergence INTERRUPTED` / `Convergence END`) for short local crossroads moments
 - marked zone logs (`Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED`) for temporary local world traces
@@ -388,6 +398,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_recovery_behavior.py](tests/test_game3d_recovery_behavior.py) (recovery pulse contracts: bounded trigger/uniqueness, clean end/interruption, lightweight rally/defense uplift)
 - [test_game3d_mending_behavior.py](tests/test_game3d_mending_behavior.py) (mending/reconciliation contracts: bounded trigger/uniqueness/cap, clean end/broken lifecycle, lightweight local de-escalation effects)
 - [test_game3d_oaths_behavior.py](tests/test_game3d_oaths_behavior.py) (oath/sworn contracts: bounded notable trigger/uniqueness/cap, clean end/fulfilled/broken lifecycle, and lightweight local guidance bias)
+- [test_game3d_echoes_behavior.py](tests/test_game3d_echoes_behavior.py) (echo/aftershock contracts: bounded trigger/cap/cooldown, clean fade/end lifecycle, and lightweight local notability pulse effects)
 - [test_game3d_destiny_behavior.py](tests/test_game3d_destiny_behavior.py) (destiny contracts: notable trigger gating, one-active-per-actor uniqueness, clean fulfilled/interrupted/timeout lifecycle, light guidance bias)
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (convergence contracts: bounded trigger rarity, no-start on insufficient local signals, clean end/interruption lifecycle, light local effects)
 - [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (marked-zone contracts: bounded trigger/classification/cap, clean fade lifecycle, and lightweight local effects)
@@ -416,6 +427,7 @@ py -m unittest tests.test_game3d_allegiance_crisis_behavior -v
 py -m unittest tests.test_game3d_recovery_behavior -v
 py -m unittest tests.test_game3d_mending_behavior -v
 py -m unittest tests.test_game3d_oaths_behavior -v
+py -m unittest tests.test_game3d_echoes_behavior -v
 py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
 py -m unittest tests.test_game3d_marked_zones_behavior -v
@@ -466,6 +478,7 @@ py -m unittest discover -s tests -v
 - Add lightweight recovery pulse MVP with one-active-per-allegiance cap, cooldown, bounded rally/defense uplift, and clean interruption on renewed shocks
 - Add lightweight mending/reconciliation arcs MVP with pair-local cooldown/cap, clean start/end/broken lifecycle, and bounded vendetta/pressure de-escalation
 - Add lightweight oaths/sworn moments MVP with one-active-per-actor cap, short duration/cooldowns, clean start/end/fulfilled/broken lifecycle, and lightweight local guidance/focus bias for notable figures
+- Add lightweight echoes/aftershocks MVP with tiny active cap/cooldown, clean start/faded/end lifecycle, and lightweight local renown/notoriety resonance pulses
 - Add lightweight destiny pull MVP (`rift_call` / `relic_call` / `vendetta_call`) with one-active-per-actor cap, short duration/cooldown, clean fulfilled/interrupted lifecycle, and bounded guidance bias
 - Add lightweight crossroads/convergence events MVP (rare local overlap near open `rift_gate`) with one-active cap, short duration/cooldown, clean interrupted/end lifecycle, and bounded local pull/notability pulses
 - Add lightweight sanctified/corrupted zone MVP with tiny active cap, short fade lifecycle, and bounded local sustain/pressure pulses
@@ -497,6 +510,7 @@ py -m unittest discover -s tests -v
 - Tune recovery pulse trigger chance/cooldown/duration and uplift strength so rebounds stay readable without creating new snowball loops
 - Tune mending trigger rarity/cooldowns/duration and small de-escalation deltas so reconciliation windows stay readable without suppressing baseline rivalry/vendetta loops
 - Tune oath trigger rarity/cooldown/duration and lightweight guidance weights so sworn moments stay readable without overriding baseline rally/vendetta/destiny behavior
+- Tune echo trigger rarity/cooldown/duration and tiny pulse values so resonance remains readable without creating secondary snowball
 - Tune destiny trigger rarity/duration/cooldown and pull weights so heroic convergence stays readable without overriding baseline raid/rally/gate behavior
 - Tune convergence trigger rarity/cooldown/duration and local pulse/pull weights so crossroads moments stay visible without overriding baseline destiny/raid/gate flows
 - Tune marked-zone trigger rarity/duration/cooldown and local pulse values so traces stay readable without creating persistent regional snowball

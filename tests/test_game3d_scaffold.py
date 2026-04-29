@@ -114,6 +114,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("reconciliation", content)
         self.assertIn("oath", content)
         self.assertIn("sworn", content)
+        self.assertIn("echo", content)
+        self.assertIn("aftershock", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -218,6 +220,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Mending arcs:", content)
         self.assertIn("Oaths:", content)
         self.assertIn("Oath labels:", content)
+        self.assertIn("Echoes:", content)
+        self.assertIn("Echo labels:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
         self.assertIn("Memorial/Scar:", content)
@@ -515,6 +519,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Oath FULFILLED", content)
         self.assertIn("Oath BROKEN", content)
         self.assertIn('"oath_active_count"', content)
+        self.assertIn("Echo START", content)
+        self.assertIn("Echo END", content)
+        self.assertIn("Echo FADED", content)
+        self.assertIn('"echo_active_count"', content)
 
 
 if __name__ == "__main__":

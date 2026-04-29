@@ -188,6 +188,17 @@ const OATH_MIN_POPULATION: int = 10
 const OATH_NOTABLE_RENOWN_TRIGGER: float = 66.0
 const OATH_FULFILL_RADIUS: float = 3.9
 const OATH_FULFILL_HOLD: float = 1.2
+const ECHO_START_DELAY: float = 236.0
+const ECHO_GLOBAL_COOLDOWN: float = 16.0
+const ECHO_DURATION_MIN: float = 8.0
+const ECHO_DURATION_MAX: float = 13.0
+const ECHO_MAX_ACTIVE: int = 2
+const ECHO_MIN_POPULATION: int = 10
+const ECHO_START_CHANCE_BASE: float = 0.30
+const ECHO_RADIUS: float = 7.2
+const ECHO_PULSE_INTERVAL: float = 2.8
+const ECHO_RENOWN_PULSE: float = 0.06
+const ECHO_NOTORIETY_PULSE: float = 0.07
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -340,6 +351,9 @@ var oath_started_total: int = 0
 var oath_ended_total: int = 0
 var oath_fulfilled_total: int = 0
 var oath_broken_total: int = 0
+var echo_started_total: int = 0
+var echo_ended_total: int = 0
+var echo_faded_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -432,6 +446,10 @@ var _mending_cooldown_until_by_allegiance: Dictionary = {}
 var _oath_global_cooldown_left: float = OATH_START_DELAY
 var _oath_runtime_by_actor: Dictionary = {}
 var _oath_cooldown_until_by_actor: Dictionary = {}
+var _echo_global_cooldown_left: float = ECHO_START_DELAY
+var _echo_runtime_by_id: Dictionary = {}
+var _echo_next_id: int = 1
+var _echo_signals_root: Node3D = null
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -454,6 +472,7 @@ func _ready() -> void:
     _setup_allegiance_recovery_state()
     _setup_mending_state()
     _setup_oath_state()
+    _setup_echo_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -498,6 +517,7 @@ func _tick(delta: float) -> void:
     _update_relic_system(delta)
     _update_destiny_pulls(delta)
     _update_oath_runtime(delta)
+    _update_echo_runtime(delta)
     _update_convergence_events(delta)
     _update_marked_zones(delta)
     _update_rivalries(delta)
@@ -617,6 +637,7 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
     _handle_bounty_target_death(victim, killer)
     _try_spawn_memorial_scar_site(victim, killer, reason, legacy_result, had_relic)
     _try_start_crisis_from_notable_fall(victim, reason, legacy_result, had_relic)
+    _try_start_echo_from_notable_fall(victim, legacy_result, had_relic)
 
 
 func register_level_up(actor: Actor, old_level: int, new_level: int, reason: String) -> void:
@@ -1219,6 +1240,16 @@ func _end_convergence_event(event_id: int, interrupted: bool, reason: String) ->
 
     convergence_ended_total += 1
     record_event("Convergence END: %s (%s)." % [label, reason])
+    if not interrupted:
+        _try_start_echo(
+            "heroic_echo",
+            "convergence_end",
+            runtime.get("center", Vector3.ZERO),
+            label,
+            0.22,
+            0.8,
+            0.6
+        )
 
     var signal_node := runtime.get("visual_node", null) as Node3D
     if signal_node != null and is_instance_valid(signal_node):
@@ -1926,6 +1957,27 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
 
     crisis_ended_total += 1
     record_event("Crisis END: %s (%s)." % [allegiance_id, reason])
+    var echo_center: Vector3 = _echo_center_for_allegiance(allegiance_id, Vector3.ZERO)
+    if outcome == "resolved":
+        _try_start_echo(
+            "heroic_echo",
+            "crisis_resolved",
+            echo_center,
+            allegiance_id,
+            0.12,
+            0.6,
+            0.5
+        )
+    else:
+        _try_start_echo(
+            "dark_aftershock",
+            "crisis_expired",
+            echo_center,
+            allegiance_id,
+            0.10,
+            0.4,
+            0.4
+        )
     _allegiance_crisis_runtime_by_id.erase(allegiance_id)
     _allegiance_crisis_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_CRISIS_COOLDOWN
     var crisis_signal_window: float = SPLINTER_SIGNAL_WINDOW * (1.10 if outcome == "expired" else 0.88)
@@ -4207,6 +4259,31 @@ func _end_oath(actor_id: int, reason: String) -> void:
         return
     var actor: Actor = _find_actor_by_id(actor_id)
     var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    var oath_type: String = str(runtime.get("type", ""))
+    var center: Vector3 = actor.global_position if actor != null else runtime.get("target_position", Vector3.ZERO)
+    if reason.begins_with("fulfilled:"):
+        var fulfilled_echo: String = "heroic_echo"
+        if oath_type == "oath_of_vengeance":
+            fulfilled_echo = "dark_aftershock"
+        _try_start_echo(
+            fulfilled_echo,
+            "oath_fulfilled:%s" % _oath_type_short(oath_type),
+            center,
+            label,
+            0.10,
+            0.4,
+            0.2
+        )
+    elif reason.begins_with("broken:") and oath_type == "oath_of_vengeance":
+        _try_start_echo(
+            "dark_aftershock",
+            "oath_broken:vengeance",
+            center,
+            label,
+            0.06,
+            0.2,
+            0.1
+        )
     if actor != null:
         actor.set_oath_state(false)
     _oath_runtime_by_actor.erase(actor_id)
@@ -4347,6 +4424,289 @@ func _try_start_oath_guarding_for_allegiance(
         duration_bonus,
         "allegiance_guard",
         allegiance_id
+    )
+
+
+func _setup_echo_state() -> void:
+    _echo_global_cooldown_left = ECHO_START_DELAY
+    _echo_runtime_by_id.clear()
+    _echo_next_id = 1
+    if _echo_signals_root != null and is_instance_valid(_echo_signals_root):
+        _echo_signals_root.queue_free()
+    _echo_signals_root = Node3D.new()
+    _echo_signals_root.name = "EchoSignals"
+    world_manager.add_child(_echo_signals_root)
+
+
+func _update_echo_runtime(delta: float) -> void:
+    _echo_global_cooldown_left = max(0.0, _echo_global_cooldown_left - delta)
+    if _echo_runtime_by_id.is_empty():
+        return
+
+    var to_fade: Array[int] = []
+    for echo_id_variant in _echo_runtime_by_id.keys():
+        var echo_id: int = int(echo_id_variant)
+        var runtime: Dictionary = _echo_runtime_by_id.get(echo_id, {})
+        if runtime.is_empty():
+            continue
+
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        var duration: float = max(0.01, float(runtime.get("duration", ECHO_DURATION_MIN)))
+        var remaining: float = max(0.0, ends_at - elapsed_time)
+        var elapsed_ratio: float = clampf(1.0 - (remaining / duration), 0.0, 1.0)
+
+        var signal_node := runtime.get("visual_node", null) as Node3D
+        if signal_node != null and is_instance_valid(signal_node):
+            _animate_echo_signal(signal_node, str(runtime.get("type", "")), elapsed_ratio)
+
+        if elapsed_time >= ends_at:
+            to_fade.append(echo_id)
+            continue
+
+        var next_pulse_at: float = float(runtime.get("next_pulse_at", elapsed_time))
+        if elapsed_time < next_pulse_at:
+            continue
+        runtime["next_pulse_at"] = elapsed_time + ECHO_PULSE_INTERVAL
+        _echo_runtime_by_id[echo_id] = runtime
+        _apply_echo_pulse(runtime)
+
+    for echo_id in to_fade:
+        if _echo_runtime_by_id.has(echo_id):
+            _fade_echo(echo_id, "duration")
+
+
+func _try_start_echo(
+    echo_type: String,
+    reason: String,
+    center: Vector3,
+    source_label: String = "",
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0,
+    radius_bonus: float = 0.0
+) -> bool:
+    if echo_type not in ["heroic_echo", "dark_aftershock"]:
+        return false
+    if _count_alive_actors() < ECHO_MIN_POPULATION:
+        return false
+    if _echo_runtime_by_id.size() >= ECHO_MAX_ACTIVE:
+        return false
+    if _echo_global_cooldown_left > 0.0:
+        return false
+
+    var start_chance: float = clampf(ECHO_START_CHANCE_BASE + chance_bonus, 0.10, 0.82)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(ECHO_DURATION_MIN, ECHO_DURATION_MAX),
+        max(ECHO_DURATION_MIN, ECHO_DURATION_MAX)
+    ) + duration_bonus
+    duration = clampf(duration, 6.0, 22.0)
+    var radius: float = clampf(ECHO_RADIUS + radius_bonus, 4.0, 12.5)
+
+    var echo_id: int = _echo_next_id
+    _echo_next_id += 1
+    var short_type: String = _echo_type_short(echo_type)
+    var label: String = "%s:%s" % [short_type, source_label if source_label != "" else reason]
+    var visual_node: Node3D = _spawn_echo_signal(center, echo_id, echo_type)
+    _echo_runtime_by_id[echo_id] = {
+        "id": echo_id,
+        "type": echo_type,
+        "reason": reason,
+        "center": center,
+        "radius": radius,
+        "source_label": source_label,
+        "label": label,
+        "started_at": elapsed_time,
+        "duration": duration,
+        "ends_at": elapsed_time + duration,
+        "next_pulse_at": elapsed_time + ECHO_PULSE_INTERVAL,
+        "visual_node": visual_node
+    }
+    echo_started_total += 1
+    _echo_global_cooldown_left = ECHO_GLOBAL_COOLDOWN
+    record_event(
+        "Echo START: %s at %s (%s, %.0fs)."
+        % [label, _position_label_2d(center), reason, duration]
+    )
+    return true
+
+
+func _fade_echo(echo_id: int, reason: String) -> void:
+    var runtime: Dictionary = _echo_runtime_by_id.get(echo_id, {})
+    if runtime.is_empty():
+        return
+    var label: String = str(runtime.get("label", "echo"))
+    echo_faded_total += 1
+    record_event("Echo FADED: %s (%s)." % [label, reason])
+    _end_echo(echo_id, "faded:%s" % reason)
+
+
+func _end_echo(echo_id: int, reason: String) -> void:
+    var runtime: Dictionary = _echo_runtime_by_id.get(echo_id, {})
+    if runtime.is_empty():
+        return
+    var label: String = str(runtime.get("label", "echo"))
+    var signal_node := runtime.get("visual_node", null) as Node3D
+    if signal_node != null and is_instance_valid(signal_node):
+        signal_node.queue_free()
+    _echo_runtime_by_id.erase(echo_id)
+    echo_ended_total += 1
+    record_event("Echo END: %s (%s)." % [label, reason])
+
+
+func _apply_echo_pulse(runtime: Dictionary) -> void:
+    var echo_type: String = str(runtime.get("type", ""))
+    var center: Vector3 = runtime.get("center", Vector3.ZERO)
+    var radius: float = float(runtime.get("radius", ECHO_RADIUS))
+    if echo_type == "" or radius <= 0.0:
+        return
+
+    for actor in actors:
+        if actor == null or actor.is_dead:
+            continue
+        if actor.global_position.distance_to(center) > radius:
+            continue
+        if echo_type == "heroic_echo":
+            _apply_notability_gain(actor, ECHO_RENOWN_PULSE, 0.0, "echo_heroic")
+        elif echo_type == "dark_aftershock":
+            _apply_notability_gain(actor, 0.0, ECHO_NOTORIETY_PULSE, "echo_dark")
+
+
+func _spawn_echo_signal(position: Vector3, echo_id: int, echo_type: String) -> Node3D:
+    if _echo_signals_root == null or not is_instance_valid(_echo_signals_root):
+        return null
+    var colors: Dictionary = _echo_colors(echo_type)
+    var base_color: Color = colors.get("base", Color(0.82, 0.82, 0.82))
+    var accent_color: Color = colors.get("accent", Color(0.95, 0.95, 0.95))
+
+    var node := Node3D.new()
+    node.name = "Echo_%d" % echo_id
+    node.position = position
+
+    var ring := MeshInstance3D.new()
+    ring.name = "Ring"
+    var ring_mesh := CylinderMesh.new()
+    ring_mesh.top_radius = 2.0
+    ring_mesh.bottom_radius = 2.0
+    ring_mesh.height = 0.08
+    ring.mesh = ring_mesh
+    ring.position = Vector3(0.0, 0.10, 0.0)
+    var ring_mat := StandardMaterial3D.new()
+    ring_mat.albedo_color = base_color
+    ring_mat.emission_enabled = true
+    ring_mat.emission = base_color * 1.02
+    ring_mat.roughness = 0.70
+    ring.material_override = ring_mat
+    node.add_child(ring)
+
+    var beacon := MeshInstance3D.new()
+    beacon.name = "Beacon"
+    var beacon_mesh := SphereMesh.new()
+    beacon_mesh.radius = 0.24
+    beacon_mesh.height = 0.48
+    beacon.mesh = beacon_mesh
+    beacon.position = Vector3(0.0, 1.10, 0.0)
+    var beacon_mat := StandardMaterial3D.new()
+    beacon_mat.albedo_color = accent_color
+    beacon_mat.emission_enabled = true
+    beacon_mat.emission = accent_color * 1.14
+    beacon_mat.roughness = 0.68
+    beacon.material_override = beacon_mat
+    node.add_child(beacon)
+
+    node.scale = Vector3.ONE * 0.24
+    _echo_signals_root.add_child(node)
+    var tween := create_tween()
+    tween.tween_property(node, "scale", Vector3.ONE, 0.28)
+    return node
+
+
+func _animate_echo_signal(signal_node: Node3D, echo_type: String, elapsed_ratio: float) -> void:
+    if signal_node == null or not is_instance_valid(signal_node):
+        return
+    var ring := signal_node.get_node_or_null("Ring") as MeshInstance3D
+    var beacon := signal_node.get_node_or_null("Beacon") as MeshInstance3D
+    var seed: float = float(signal_node.get_instance_id() % 41)
+
+    if ring != null:
+        var pulse := 1.0 + 0.10 * sin(elapsed_time * 4.4 + seed)
+        var fade := lerpf(1.0, 0.68, elapsed_ratio)
+        ring.scale = Vector3.ONE * pulse * fade
+    if beacon != null:
+        beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.1 + seed * 0.42)
+        var beacon_mat := beacon.material_override as StandardMaterial3D
+        if beacon_mat != null:
+            var colors: Dictionary = _echo_colors(echo_type)
+            var accent_color: Color = colors.get("accent", Color(0.95, 0.95, 0.95))
+            beacon_mat.emission = accent_color * lerpf(1.14, 0.40, elapsed_ratio)
+
+
+func _echo_colors(echo_type: String) -> Dictionary:
+    if echo_type == "heroic_echo":
+        return {
+            "base": Color(0.58, 0.86, 1.0),
+            "accent": Color(0.95, 0.82, 0.46)
+        }
+    if echo_type == "dark_aftershock":
+        return {
+            "base": Color(0.88, 0.42, 0.42),
+            "accent": Color(0.68, 0.46, 1.0)
+        }
+    return {
+        "base": Color(0.82, 0.82, 0.82),
+        "accent": Color(0.94, 0.94, 0.94)
+    }
+
+
+func _echo_type_short(echo_type: String) -> String:
+    if echo_type == "heroic_echo":
+        return "heroic"
+    if echo_type == "dark_aftershock":
+        return "dark"
+    return "echo"
+
+
+func _echo_center_for_allegiance(allegiance_id: String, fallback: Vector3 = Vector3.ZERO) -> Vector3:
+    if allegiance_id == "":
+        return fallback
+    var anchor: Dictionary = _find_active_allegiance_anchor(allegiance_id)
+    if anchor.is_empty():
+        return fallback
+    return anchor.get("position", fallback)
+
+
+func _is_echo_notable_fall(victim: Actor, legacy_result: Dictionary, had_relic: bool) -> bool:
+    if victim == null:
+        return false
+    if victim.is_champion or victim.is_special_arrival() or had_relic:
+        return true
+    if bool(legacy_result.get("triggered", false)):
+        return true
+    return victim.renown >= MEMORIAL_SCAR_RENOWN_TRIGGER or victim.notoriety >= MEMORIAL_SCAR_NOTORIETY_TRIGGER
+
+
+func _try_start_echo_from_notable_fall(victim: Actor, legacy_result: Dictionary, had_relic: bool) -> void:
+    if victim == null:
+        return
+    if not _is_echo_notable_fall(victim, legacy_result, had_relic):
+        return
+    var echo_type: String = "heroic_echo"
+    if victim.notoriety > victim.renown or victim.faction == "monster":
+        echo_type = "dark_aftershock"
+    var chance_bonus: float = 0.12
+    if victim.is_special_arrival() or had_relic:
+        chance_bonus += 0.06
+    if victim.is_champion:
+        chance_bonus += 0.04
+    _try_start_echo(
+        echo_type,
+        "notable_fall",
+        victim.global_position,
+        _actor_label(victim),
+        chance_bonus,
+        0.8,
+        0.4
     )
 
 
@@ -4743,6 +5103,22 @@ func _end_rivalry(rivalry_id: int, outcome: String, reason: String) -> void:
     if outcome == "resolved":
         rivalry_resolved_total += 1
         record_event("Rivalry RESOLVED: %s (%s)." % [label, reason])
+        var center: Vector3 = Vector3.ZERO
+        if actor_a != null and actor_b != null:
+            center = (actor_a.global_position + actor_b.global_position) * 0.5
+        elif actor_a != null:
+            center = actor_a.global_position
+        elif actor_b != null:
+            center = actor_b.global_position
+        _try_start_echo(
+            "heroic_echo",
+            "rivalry_resolved",
+            center,
+            label,
+            0.12,
+            0.5,
+            0.3
+        )
     elif outcome == "expired":
         rivalry_expired_total += 1
         record_event("Rivalry EXPIRED: %s (%s)." % [label, reason])
@@ -5842,6 +6218,8 @@ func _build_snapshot() -> Dictionary:
     var mending_active_labels: Array[String] = []
     var oath_active_count: int = 0
     var oath_active_labels: Array[String] = []
+    var echo_active_count: int = 0
+    var echo_active_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -6032,6 +6410,17 @@ func _build_snapshot() -> Dictionary:
         oath_active_labels.append("%s:%s->%s(%.0fs)" % [oath_type, actor_label, target_label, remaining])
     oath_active_labels.sort()
     oath_active_count = oath_active_labels.size()
+    for echo_id_variant in _echo_runtime_by_id.keys():
+        var echo_id: int = int(echo_id_variant)
+        var runtime: Dictionary = _echo_runtime_by_id.get(echo_id, {})
+        if runtime.is_empty():
+            continue
+        var short_type: String = _echo_type_short(str(runtime.get("type", "")))
+        var label: String = str(runtime.get("label", "echo"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        echo_active_labels.append("%s:%s(%.0fs)" % [short_type, label, remaining])
+    echo_active_labels.sort()
+    echo_active_count = echo_active_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -6210,6 +6599,11 @@ func _build_snapshot() -> Dictionary:
         "oath_ended_total": oath_ended_total,
         "oath_fulfilled_total": oath_fulfilled_total,
         "oath_broken_total": oath_broken_total,
+        "echo_active_count": echo_active_count,
+        "echo_active_labels": echo_active_labels,
+        "echo_started_total": echo_started_total,
+        "echo_ended_total": echo_ended_total,
+        "echo_faded_total": echo_faded_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -6540,11 +6934,32 @@ func _update_poi_runtime() -> void:
             neutral_gate_closed_total += 1
             var cooldown_seconds: float = float(transition.get("cooldown_seconds", 0.0))
             record_event("Dungeon/Gate CLOSED: %s (next in ~%.0fs)." % [poi_name, cooldown_seconds])
+            _try_start_echo(
+                "dark_aftershock",
+                "rift_gate_closed",
+                _get_poi_position_by_name(poi_name),
+                poi_name,
+                0.06,
+                0.2,
+                0.4
+            )
         elif kind == "neutral_gate_breach":
             neutral_gate_breach_total += 1
             var breach_actor: Actor = _spawn_neutral_gate_breach(transition)
             var breach_label := _actor_label(breach_actor) if breach_actor != null else "none"
             record_event("Dungeon/Gate BREACH: %s -> %s." % [poi_name, breach_label])
+            var breach_center: Vector3 = _get_poi_position_by_name(poi_name)
+            if breach_actor != null:
+                breach_center = breach_actor.global_position
+            _try_start_echo(
+                "dark_aftershock",
+                "rift_gate_breach",
+                breach_center,
+                breach_label,
+                0.16,
+                0.8,
+                0.8
+            )
 
     for actor in actors:
         if actor == null or actor.is_dead:
