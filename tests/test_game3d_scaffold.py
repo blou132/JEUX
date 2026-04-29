@@ -118,6 +118,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("aftershock", content)
         self.assertIn("expedition", content)
         self.assertIn("pilgrimage", content)
+        self.assertIn("alert pulse", content)
+        self.assertIn("watch", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -179,6 +181,9 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_allegiance_recovery_defense_delta", content)
         self.assertIn("set_mending_state", content)
         self.assertIn("get_allegiance_mending_modifiers", content)
+        self.assertIn("set_alert_state", content)
+        self.assertIn("get_alert_guidance", content)
+        self.assertIn("get_alert_expedition_start_multiplier", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -226,6 +231,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Echo labels:", content)
         self.assertIn("Expeditions:", content)
         self.assertIn("Expedition labels:", content)
+        self.assertIn("Alerts:", content)
+        self.assertIn("Alert labels:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
         self.assertIn("Memorial/Scar:", content)
@@ -274,6 +281,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("oath:seeking", content)
         self.assertIn("get_expedition_guidance", content)
         self.assertIn("expedition:", content)
+        self.assertIn("get_alert_guidance", content)
+        self.assertIn("alert:", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
         self.assertIn("notoriety_avoid", content)
@@ -538,6 +547,12 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Expedition END", content)
         self.assertIn("Expedition INTERRUPTED", content)
         self.assertIn('"expedition_active_count"', content)
+        self.assertIn("ALERT_START_CHANCE_BASE", content)
+        self.assertIn("_setup_alert_state", content)
+        self.assertIn("_update_alert_pulses", content)
+        self.assertIn("Alert START", content)
+        self.assertIn("Alert END", content)
+        self.assertIn('"alert_active_count"', content)
 
 
 if __name__ == "__main__":

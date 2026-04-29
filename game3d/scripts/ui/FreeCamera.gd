@@ -39,17 +39,17 @@ func _process(delta: float) -> void:
         right = right.normalized()
 
     var direction := Vector3.ZERO
-    if Input.is_key_pressed(KEY_W):
+    if Input.is_key_pressed(KEY_Z):
         direction += forward
     if Input.is_key_pressed(KEY_S):
         direction -= forward
     if Input.is_key_pressed(KEY_D):
         direction += right
-    if Input.is_key_pressed(KEY_A):
+    if Input.is_key_pressed(KEY_Q):
         direction -= right
     if Input.is_key_pressed(KEY_E):
         direction += Vector3.UP
-    if Input.is_key_pressed(KEY_Q):
+    if Input.is_key_pressed(KEY_A):
         direction += Vector3.DOWN
 
     if direction == Vector3.ZERO:

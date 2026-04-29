@@ -58,6 +58,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var oath_active_labels: Array = snapshot.get("oath_active_labels", [])
     var echo_active_labels: Array = snapshot.get("echo_active_labels", [])
     var expedition_active_labels: Array = snapshot.get("expedition_active_labels", [])
+    var alert_active_labels: Array = snapshot.get("alert_active_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -546,6 +547,18 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % (" | ".join(expedition_active_labels) if not expedition_active_labels.is_empty() else "(none)")
     )
     lines.append(
+        "Alerts: active=%d | start=%d end=%d"
+        % [
+            int(snapshot.get("alert_active_count", 0)),
+            int(snapshot.get("alert_started_total", 0)),
+            int(snapshot.get("alert_ended_total", 0))
+        ]
+    )
+    lines.append(
+        "Alert labels: %s"
+        % (" | ".join(alert_active_labels) if not alert_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
         "Allegiance cores: %s"
         % (" | ".join(allegiance_structure_labels) if not allegiance_structure_labels.is_empty() else "(none)")
     )
@@ -684,7 +697,10 @@ func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary
             str(details.get("allegiance_project", "")),
             float(details.get("allegiance_project_remaining", 0.0)),
             str(details.get("allegiance_vendetta_target", "")),
-            float(details.get("allegiance_vendetta_remaining", 0.0))
+            float(details.get("allegiance_vendetta_remaining", 0.0)),
+            bool(details.get("allegiance_alert_active", false)),
+            str(details.get("allegiance_alert_cause", "")),
+            float(details.get("allegiance_alert_remaining", 0.0))
         )
         var dominance_seconds: int = int(round(float(details.get("dominance_seconds", 0.0))))
         var structure_seconds: int = int(round(float(details.get("structure_seconds", 0.0))))
@@ -770,7 +786,10 @@ func _allegiance_label(
     project_id: String = "",
     project_remaining: float = 0.0,
     vendetta_target: String = "",
-    vendetta_remaining: float = 0.0
+    vendetta_remaining: float = 0.0,
+    alert_active: bool = false,
+    alert_cause: String = "",
+    alert_remaining: float = 0.0
 ) -> String:
     if allegiance_id == "":
         return "allegiance:none"
@@ -781,6 +800,8 @@ func _allegiance_label(
         tags.append("%s@%.0fs" % [project_id, project_remaining])
     if vendetta_target != "":
         tags.append("vs:%s@%.0fs" % [vendetta_target, vendetta_remaining])
+    if alert_active:
+        tags.append("alert:%s@%.0fs" % [alert_cause if alert_cause != "" else "watch", alert_remaining])
     if not tags.is_empty():
         return "allegiance:%s[%s]" % [allegiance_id, "|".join(tags)]
     return "allegiance:%s" % allegiance_id

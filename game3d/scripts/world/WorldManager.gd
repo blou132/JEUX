@@ -51,6 +51,7 @@ var raid_pressure_monster_multiplier: float = 1.0
 var world_event_visual_id: String = ""
 var bounty_state: Dictionary = {}
 var convergence_state: Dictionary = {}
+var alert_state_by_allegiance: Dictionary = {}
 var neutral_gate_status: String = "dormant"
 var neutral_gate_open_until: float = 0.0
 var neutral_gate_cooldown_until: float = 0.0
@@ -266,6 +267,83 @@ func set_convergence_state(
 		"radius": max(0.0, radius),
 		"label": label,
 		"pull_weight": clampf(pull_weight, 0.20, 0.74)
+	}
+
+
+func set_alert_state(alert_entries: Array = []) -> void:
+	alert_state_by_allegiance.clear()
+	for entry_variant in alert_entries:
+		var entry: Dictionary = entry_variant
+		var allegiance_id: String = str(entry.get("allegiance_id", ""))
+		if allegiance_id == "":
+			continue
+		alert_state_by_allegiance[allegiance_id] = {
+			"active": true,
+			"allegiance_id": allegiance_id,
+			"faction": str(entry.get("faction", "")),
+			"home_poi": str(entry.get("home_poi", "")),
+			"center_position": entry.get("center_position", Vector3.ZERO),
+			"radius": clampf(float(entry.get("radius", poi_guidance_distance * 0.50)), 4.0, poi_guidance_distance * 1.20),
+			"cause": str(entry.get("cause", "")),
+			"score": max(0.0, float(entry.get("score", 0.0))),
+			"started_at": float(entry.get("started_at", 0.0)),
+			"ends_at": float(entry.get("ends_at", 0.0)),
+			"defense_weight_delta": clampf(float(entry.get("defense_weight_delta", 0.0)), 0.0, 0.18),
+			"offense_weight_delta": clampf(float(entry.get("offense_weight_delta", 0.0)), -0.22, 0.0),
+			"expedition_start_mult": clampf(float(entry.get("expedition_start_mult", 1.0)), 0.55, 1.0),
+			"guidance_weight": clampf(float(entry.get("guidance_weight", 0.42)), 0.22, 0.78)
+		}
+
+
+func get_alert_defense_delta(allegiance_id: String, time_seconds: float = 0.0) -> float:
+	var runtime: Dictionary = _get_alert_runtime_for_allegiance(allegiance_id, time_seconds)
+	if runtime.is_empty():
+		return 0.0
+	return clampf(float(runtime.get("defense_weight_delta", 0.0)), 0.0, 0.18)
+
+
+func get_alert_offense_weight_delta(allegiance_id: String, time_seconds: float = 0.0) -> float:
+	var runtime: Dictionary = _get_alert_runtime_for_allegiance(allegiance_id, time_seconds)
+	if runtime.is_empty():
+		return 0.0
+	return clampf(float(runtime.get("offense_weight_delta", 0.0)), -0.22, 0.0)
+
+
+func get_alert_expedition_start_multiplier(allegiance_id: String, time_seconds: float = 0.0) -> float:
+	var runtime: Dictionary = _get_alert_runtime_for_allegiance(allegiance_id, time_seconds)
+	if runtime.is_empty():
+		return 1.0
+	return clampf(float(runtime.get("expedition_start_mult", 1.0)), 0.55, 1.0)
+
+
+func get_alert_guidance(actor: Actor) -> Dictionary:
+	if actor == null or actor.is_dead:
+		return {}
+	if actor.allegiance_id == "":
+		return {}
+
+	var runtime: Dictionary = _get_alert_runtime_for_allegiance(actor.allegiance_id)
+	if runtime.is_empty():
+		return {}
+
+	var center: Vector3 = runtime.get("center_position", actor.global_position)
+	var distance: float = actor.global_position.distance_to(center)
+	if distance > poi_guidance_distance * 2.10:
+		return {}
+
+	var radius: float = clampf(float(runtime.get("radius", poi_guidance_distance * 0.50)), 4.0, poi_guidance_distance * 1.20)
+	var pull_weight: float = clampf(float(runtime.get("guidance_weight", 0.42)), 0.22, 0.78)
+	if distance > radius * 1.08:
+		pull_weight += 0.08
+	if actor.hp <= actor.max_hp * 0.76 or actor.energy <= actor.max_energy * 0.50:
+		pull_weight += 0.08
+
+	var jitter := Vector3(randf_range(-1.6, 1.6), 0.0, randf_range(-1.6, 1.6))
+	return {
+		"reason": "alert:%s" % str(runtime.get("cause", "watch")),
+		"target_position": clamp_to_world(snap_to_nav_grid(center + jitter)),
+		"distance": distance,
+		"weight": clampf(pull_weight, 0.22, 0.84)
 	}
 
 
@@ -489,6 +567,7 @@ func get_raid_guidance(
 		var mending_modifiers: Dictionary = get_allegiance_mending_modifiers(allegiance_id, target_allegiance_id)
 		weight += float(mending_modifiers.get("raid_weight_delta", 0.0))
 		weight *= get_allegiance_crisis_raid_multiplier(allegiance_id)
+		weight += get_alert_offense_weight_delta(allegiance_id)
 	weight *= raid_pressure_global_multiplier
 	if faction == "human":
 		weight *= raid_pressure_human_multiplier
@@ -538,6 +617,7 @@ func get_bounty_guidance(
 		weight += float(vendetta_modifiers.get("bounty_weight_delta", 0.0))
 		var mending_modifiers: Dictionary = get_allegiance_mending_modifiers(allegiance_id, target_allegiance_id)
 		weight += float(mending_modifiers.get("bounty_weight_delta", 0.0))
+		weight += get_alert_offense_weight_delta(allegiance_id)
 
 	var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
 	return {
@@ -608,6 +688,7 @@ func get_allegiance_defense_guidance(
 		var project_modifiers: Dictionary = get_allegiance_project_modifiers(home_allegiance_id)
 		weight += float(project_modifiers.get("defense_weight_delta", 0.0))
 		weight += get_allegiance_recovery_defense_delta(home_allegiance_id)
+		weight += get_alert_defense_delta(home_allegiance_id)
 	return {
 		"reason": "allegiance_defend:%s" % home_poi,
 		"target_position": clamp_to_world(snap_to_nav_grid(home_pos + jitter)),
@@ -627,6 +708,11 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 		var allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
 		if allegiance_id == "":
 			continue
+		var alert_runtime: Dictionary = _get_alert_runtime_for_allegiance(allegiance_id, time_seconds)
+		var alert_active: bool = not alert_runtime.is_empty()
+		var alert_remaining: float = 0.0
+		if time_seconds >= 0.0:
+			alert_remaining = max(0.0, float(alert_runtime.get("ends_at", time_seconds)) - time_seconds)
 		active.append({
 			"allegiance_id": allegiance_id,
 			"faction": str(poi_structure_faction.get(poi_name, "")),
@@ -637,7 +723,10 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 			"project": get_allegiance_project(allegiance_id),
 			"project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
 			"vendetta_target": get_allegiance_vendetta_target(allegiance_id),
-			"vendetta_remaining": get_allegiance_vendetta_remaining(allegiance_id, time_seconds)
+			"vendetta_remaining": get_allegiance_vendetta_remaining(allegiance_id, time_seconds),
+			"alert_active": alert_active,
+			"alert_cause": str(alert_runtime.get("cause", "")),
+			"alert_remaining": alert_remaining
 		})
 	return active
 
@@ -829,11 +918,18 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
 	for poi_name in snapshot.keys():
 		var details: Dictionary = snapshot.get(poi_name, {})
 		var details_allegiance_id: String = str(details.get("allegiance_id", ""))
+		var alert_runtime: Dictionary = _get_alert_runtime_for_allegiance(details_allegiance_id, time_seconds)
 		details["allegiance_doctrine"] = get_allegiance_doctrine(details_allegiance_id)
 		details["allegiance_project"] = get_allegiance_project(details_allegiance_id)
 		details["allegiance_project_remaining"] = get_allegiance_project_remaining(details_allegiance_id, time_seconds)
 		details["allegiance_vendetta_target"] = get_allegiance_vendetta_target(details_allegiance_id)
 		details["allegiance_vendetta_remaining"] = get_allegiance_vendetta_remaining(details_allegiance_id, time_seconds)
+		details["allegiance_alert_active"] = not alert_runtime.is_empty()
+		details["allegiance_alert_cause"] = str(alert_runtime.get("cause", ""))
+		details["allegiance_alert_remaining"] = max(
+			0.0,
+			float(alert_runtime.get("ends_at", time_seconds)) - time_seconds
+		)
 		if str(poi_name) == str(gate_runtime.get("poi", "")):
 			details["gate_status"] = str(gate_runtime.get("status", "dormant"))
 			details["gate_active"] = bool(gate_runtime.get("active", false))
@@ -1253,6 +1349,7 @@ func _build_pois() -> void:
 	allegiance_recovery_defense_delta_by_id.clear()
 	allegiance_mending_modifiers_by_id.clear()
 	vendetta_suppressed_pair_keys.clear()
+	alert_state_by_allegiance.clear()
 
 	_refresh_poi_markers()
 
@@ -1969,6 +2066,18 @@ func _is_vendetta_pair_suppressed(source_allegiance_id: String, target_allegianc
 		return false
 	var pair_key: String = _mending_pair_key(source_allegiance_id, target_allegiance_id)
 	return bool(vendetta_suppressed_pair_keys.get(pair_key, false))
+
+
+func _get_alert_runtime_for_allegiance(allegiance_id: String, time_seconds: float = 0.0) -> Dictionary:
+	if allegiance_id == "":
+		return {}
+	var runtime: Dictionary = alert_state_by_allegiance.get(allegiance_id, {})
+	if runtime.is_empty():
+		return {}
+	var ends_at: float = float(runtime.get("ends_at", 0.0))
+	if ends_at > 0.0 and time_seconds > 0.0 and time_seconds >= ends_at:
+		return {}
+	return runtime
 
 
 func _is_allegiance_anchor_active(allegiance_id: String) -> bool:

@@ -102,6 +102,20 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 					rally_bonus
 				)
 
+		var alert_guidance: Dictionary = world.get_alert_guidance(actor)
+		if not alert_guidance.is_empty():
+			var alert_weight: float = float(alert_guidance.get("weight", 0.42))
+			if randf() <= clampf(alert_weight, 0.22, 0.84):
+				return _with_rally(
+					{
+						"state": "poi",
+						"target_position": alert_guidance.get("target_position", actor.global_position),
+						"reason": str(alert_guidance.get("reason", "alert:watch"))
+					},
+					rally_leader,
+					rally_bonus
+				)
+
 		var bounty_guidance: Dictionary = world.get_bounty_guidance(
 			actor.global_position,
 			actor.faction,

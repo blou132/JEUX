@@ -211,6 +211,21 @@ const EXPEDITION_START_CHANCE_BASE: float = 0.18
 const EXPEDITION_ARRIVAL_RADIUS: float = 4.2
 const EXPEDITION_ARRIVAL_HOLD: float = 1.2
 const EXPEDITION_RENOWN_ON_ARRIVAL: float = 0.12
+const ALERT_START_DELAY: float = 286.0
+const ALERT_CHECK_INTERVAL: float = 4.2
+const ALERT_START_CHANCE_BASE: float = 0.18
+const ALERT_GLOBAL_COOLDOWN: float = 10.0
+const ALERT_ALLEGIANCE_COOLDOWN: float = 28.0
+const ALERT_DURATION_MIN: float = 8.0
+const ALERT_DURATION_MAX: float = 14.0
+const ALERT_MAX_ACTIVE: int = 2
+const ALERT_MIN_POPULATION: int = 10
+const ALERT_SIGNAL_RADIUS: float = 13.0
+const ALERT_SIGNAL_RADIUS_GATE: float = 16.5
+const ALERT_DEFENSE_WEIGHT_DELTA: float = 0.08
+const ALERT_OFFENSE_WEIGHT_DELTA: float = -0.07
+const ALERT_EXPEDITION_START_MULT: float = 0.76
+const ALERT_GUIDANCE_WEIGHT: float = 0.44
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -370,6 +385,8 @@ var expedition_started_total: int = 0
 var expedition_arrived_total: int = 0
 var expedition_ended_total: int = 0
 var expedition_interrupted_total: int = 0
+var alert_started_total: int = 0
+var alert_ended_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -470,6 +487,10 @@ var _expedition_check_timer: float = 0.0
 var _expedition_global_cooldown_left: float = EXPEDITION_START_DELAY
 var _expedition_runtime_by_actor: Dictionary = {}
 var _expedition_cooldown_until_by_actor: Dictionary = {}
+var _alert_check_timer: float = 0.0
+var _alert_global_cooldown_left: float = ALERT_START_DELAY
+var _alert_runtime_by_allegiance: Dictionary = {}
+var _alert_cooldown_until_by_allegiance: Dictionary = {}
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -494,6 +515,7 @@ func _ready() -> void:
 	_setup_oath_state()
 	_setup_echo_state()
 	_setup_expedition_state()
+	_setup_alert_state()
 	_setup_memorial_scar_sites_root()
 	_apply_world_event_to_world_manager()
 	world_manager.set_bounty_state(false)
@@ -542,6 +564,7 @@ func _tick(delta: float) -> void:
 	_update_expeditions(delta)
 	_update_convergence_events(delta)
 	_update_marked_zones(delta)
+	_update_alert_pulses(delta)
 	_update_rivalries(delta)
 	_apply_poi_influences(delta)
 	_scan_for_champion_promotion(delta)
@@ -4871,6 +4894,10 @@ func _build_expedition_signal_context(actor: Actor) -> Dictionary:
 	if _has_nearby_echo(actor, 10.5):
 		chance_bonus += 0.04
 		reason_parts.append("echo_near")
+	if _is_actor_in_alert(actor):
+		chance_bonus -= 0.08
+		guidance_weight -= 0.06
+		reason_parts.append("alert_guarded")
 
 	if reason_parts.is_empty():
 		reason_parts.append("notable_wanderlust")
@@ -5033,6 +5060,9 @@ func _try_start_expedition(
 		return false
 
 	var start_chance: float = clampf(EXPEDITION_START_CHANCE_BASE + chance_bonus, 0.08, 0.62)
+	if actor.allegiance_id != "":
+		start_chance *= world_manager.get_alert_expedition_start_multiplier(actor.allegiance_id, elapsed_time)
+	start_chance = clampf(start_chance, 0.06, 0.62)
 	if randf() > start_chance:
 		return false
 
@@ -5154,6 +5184,317 @@ func _end_expedition(actor_id: int, reason: String) -> void:
 	_expedition_cooldown_until_by_actor[actor_id] = elapsed_time + EXPEDITION_ACTOR_COOLDOWN
 	expedition_ended_total += 1
 	record_event("Expedition END: %s (%s)." % [label, reason])
+
+
+func _setup_alert_state() -> void:
+	_alert_check_timer = 0.0
+	_alert_global_cooldown_left = ALERT_START_DELAY
+	_alert_runtime_by_allegiance.clear()
+	_alert_cooldown_until_by_allegiance.clear()
+	_sync_alert_state_to_world()
+
+
+func _update_alert_pulses(delta: float) -> void:
+	_alert_global_cooldown_left = max(0.0, _alert_global_cooldown_left - delta)
+	_alert_check_timer += delta
+
+	var cooldown_ids: Array = _alert_cooldown_until_by_allegiance.keys()
+	for allegiance_variant in cooldown_ids:
+		var allegiance_id: String = str(allegiance_variant)
+		var cooldown_until: float = float(_alert_cooldown_until_by_allegiance.get(allegiance_id, 0.0))
+		if elapsed_time >= cooldown_until:
+			_alert_cooldown_until_by_allegiance.erase(allegiance_id)
+
+	if not _alert_runtime_by_allegiance.is_empty():
+		var active_ids: Array = _alert_runtime_by_allegiance.keys()
+		for allegiance_variant in active_ids:
+			var allegiance_id: String = str(allegiance_variant)
+			var runtime: Dictionary = _alert_runtime_by_allegiance.get(allegiance_id, {})
+			if runtime.is_empty():
+				continue
+			if not _is_allegiance_anchor_active(allegiance_id):
+				_end_alert_pulse(allegiance_id, "anchor_lost")
+				continue
+			var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+			if elapsed_time >= ends_at:
+				_end_alert_pulse(allegiance_id, "duration_complete")
+	_sync_alert_state_to_world()
+
+	if _alert_check_timer < ALERT_CHECK_INTERVAL:
+		return
+	_alert_check_timer = 0.0
+
+	if _alert_global_cooldown_left > 0.0:
+		return
+	if _count_alive_actors() < ALERT_MIN_POPULATION:
+		return
+	if _alert_runtime_by_allegiance.size() >= ALERT_MAX_ACTIVE:
+		return
+
+	var candidate: Dictionary = _build_alert_candidate()
+	if candidate.is_empty():
+		return
+
+	var start_chance: float = clampf(float(candidate.get("start_chance", ALERT_START_CHANCE_BASE)), 0.10, 0.66)
+	if randf() > start_chance:
+		return
+	_start_alert_pulse(candidate)
+	_sync_alert_state_to_world()
+
+
+func _build_alert_candidate() -> Dictionary:
+	var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+	if active_allegiances.is_empty():
+		return {}
+
+	var best: Dictionary = {}
+	var best_score: float = -INF
+	for allegiance in active_allegiances:
+		var allegiance_id: String = str(allegiance.get("allegiance_id", ""))
+		if allegiance_id == "":
+			continue
+		if _alert_runtime_by_allegiance.has(allegiance_id):
+			continue
+		var cooldown_until: float = float(_alert_cooldown_until_by_allegiance.get(allegiance_id, 0.0))
+		if elapsed_time < cooldown_until:
+			continue
+
+		var signal_context: Dictionary = _collect_alert_signal_context(allegiance)
+		var score: float = float(signal_context.get("score", 0.0))
+		if score < 1.0:
+			continue
+
+		var start_chance: float = ALERT_START_CHANCE_BASE + min(0.22, max(0.0, score - 1.0) * 0.10)
+		if bool(signal_context.get("gate_open_near", false)):
+			start_chance += 0.05
+		if bool(signal_context.get("raid_targeted", false)):
+			start_chance += 0.04
+		if int(signal_context.get("hostile_expeditions", 0)) > 0:
+			start_chance += 0.04
+		start_chance = clampf(start_chance, 0.10, 0.66)
+
+		if score > best_score:
+			best_score = score
+			best = {
+				"allegiance_id": allegiance_id,
+				"faction": str(allegiance.get("faction", "")),
+				"home_poi": str(allegiance.get("home_poi", "")),
+				"center": allegiance.get("position", Vector3.ZERO),
+				"score": score,
+				"signals": signal_context.get("signals", []),
+				"cause": str(signal_context.get("cause", "heightened_tension")),
+				"start_chance": start_chance
+			}
+
+	return best
+
+
+func _collect_alert_signal_context(allegiance: Dictionary) -> Dictionary:
+	var allegiance_id: String = str(allegiance.get("allegiance_id", ""))
+	var faction: String = str(allegiance.get("faction", ""))
+	var home_poi: String = str(allegiance.get("home_poi", ""))
+	var center: Vector3 = allegiance.get("position", Vector3.ZERO)
+	var signals: Array[String] = []
+	var score: float = 0.0
+	var gate_open_near: bool = false
+	var convergence_near: bool = false
+	var corrupted_zone_near: bool = false
+	var raid_targeted: bool = false
+	var bounty_targeted: bool = false
+	var vendetta_targeted: bool = false
+
+	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+	if bool(gate_runtime.get("active", false)):
+		var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+		var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+		if gate_position != Vector3.ZERO and center.distance_to(gate_position) <= ALERT_SIGNAL_RADIUS_GATE:
+			gate_open_near = true
+			score += 1.05
+			signals.append("rift_gate_open")
+
+	for runtime_variant in _convergence_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		var convergence_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if center.distance_to(convergence_center) > ALERT_SIGNAL_RADIUS:
+			continue
+		convergence_near = true
+		score += 0.72
+		signals.append("convergence_near")
+		break
+
+	for runtime_variant in _marked_zone_runtime_by_id.values():
+		var runtime: Dictionary = runtime_variant
+		if str(runtime.get("zone_type", "")) != "corrupted_zone":
+			continue
+		var zone_center: Vector3 = runtime.get("center", Vector3.ZERO)
+		if center.distance_to(zone_center) > ALERT_SIGNAL_RADIUS * 1.05:
+			continue
+		corrupted_zone_near = true
+		score += 0.66
+		signals.append("corrupted_zone")
+		break
+
+	var hostile_expeditions: int = _count_hostile_expeditions_near(faction, center, ALERT_SIGNAL_RADIUS * 1.20)
+	if hostile_expeditions > 0:
+		score += float(hostile_expeditions) * 0.52
+		signals.append("hostile_expedition")
+
+	if bool(active_raid_snapshot.get("active", false)):
+		if str(active_raid_snapshot.get("defender_allegiance_id", "")) == allegiance_id:
+			raid_targeted = true
+			score += 0.78
+			signals.append("raid_targeted")
+		elif home_poi != "" and str(active_raid_snapshot.get("target_poi", "")) == home_poi:
+			raid_targeted = true
+			score += 0.72
+			signals.append("raid_targeted")
+
+	if bounty_active:
+		if bounty_target_allegiance_id != "" and bounty_target_allegiance_id == allegiance_id:
+			bounty_targeted = true
+			score += 0.86
+			signals.append("bounty_targeted")
+		elif bounty_target_position.distance_to(center) <= ALERT_SIGNAL_RADIUS:
+			bounty_targeted = true
+			score += 0.48
+			signals.append("bounty_near")
+
+	for vendetta in world_manager.get_active_vendettas(elapsed_time):
+		var target_id: String = str(vendetta.get("target_allegiance_id", ""))
+		if target_id != allegiance_id:
+			continue
+		vendetta_targeted = true
+		score += 0.84
+		signals.append("vendetta_targeted")
+		break
+
+	return {
+		"score": score,
+		"signals": signals,
+		"cause": _primary_alert_cause(signals),
+		"gate_open_near": gate_open_near,
+		"convergence_near": convergence_near,
+		"corrupted_zone_near": corrupted_zone_near,
+		"raid_targeted": raid_targeted,
+		"bounty_targeted": bounty_targeted,
+		"vendetta_targeted": vendetta_targeted,
+		"hostile_expeditions": hostile_expeditions
+	}
+
+
+func _count_hostile_expeditions_near(faction: String, center: Vector3, radius: float) -> int:
+	var total: int = 0
+	for actor_id_variant in _expedition_runtime_by_actor.keys():
+		var actor_id: int = int(actor_id_variant)
+		var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+		if runtime.is_empty():
+			continue
+		var actor: Actor = _find_actor_by_id(actor_id)
+		if actor == null or actor.is_dead:
+			continue
+		if actor.faction == faction:
+			continue
+		var target_position: Vector3 = runtime.get("target_position", actor.global_position)
+		if center.distance_to(target_position) > radius:
+			continue
+		total += 1
+		if total >= 2:
+			return total
+	return total
+
+
+func _primary_alert_cause(signals: Array[String]) -> String:
+	if signals.is_empty():
+		return "heightened_tension"
+	var priority: Array[String] = [
+		"raid_targeted",
+		"rift_gate_open",
+		"vendetta_targeted",
+		"bounty_targeted",
+		"hostile_expedition",
+		"corrupted_zone",
+		"convergence_near"
+	]
+	for key in priority:
+		if signals.has(key):
+			return key
+	return str(signals[0])
+
+
+func _start_alert_pulse(candidate: Dictionary) -> void:
+	var allegiance_id: String = str(candidate.get("allegiance_id", ""))
+	if allegiance_id == "":
+		return
+	var duration: float = randf_range(
+		min(ALERT_DURATION_MIN, ALERT_DURATION_MAX),
+		max(ALERT_DURATION_MIN, ALERT_DURATION_MAX)
+	)
+	var home_poi: String = str(candidate.get("home_poi", ""))
+	var cause: String = str(candidate.get("cause", "heightened_tension"))
+	_alert_runtime_by_allegiance[allegiance_id] = {
+		"allegiance_id": allegiance_id,
+		"faction": str(candidate.get("faction", "")),
+		"home_poi": home_poi,
+		"center": candidate.get("center", Vector3.ZERO),
+		"cause": cause,
+		"signals": candidate.get("signals", []),
+		"score": float(candidate.get("score", 0.0)),
+		"started_at": elapsed_time,
+		"ends_at": elapsed_time + duration
+	}
+
+	alert_started_total += 1
+	_alert_global_cooldown_left = ALERT_GLOBAL_COOLDOWN
+	var anchor_label: String = home_poi if home_poi != "" else allegiance_id
+	record_event("Alert START: %s at %s (%s, %.0fs)." % [allegiance_id, anchor_label, cause, duration])
+
+
+func _end_alert_pulse(allegiance_id: String, reason: String) -> void:
+	var runtime: Dictionary = _alert_runtime_by_allegiance.get(allegiance_id, {})
+	if runtime.is_empty():
+		return
+	var home_poi: String = str(runtime.get("home_poi", ""))
+	var anchor_label: String = home_poi if home_poi != "" else allegiance_id
+	_alert_runtime_by_allegiance.erase(allegiance_id)
+	_alert_cooldown_until_by_allegiance[allegiance_id] = elapsed_time + ALERT_ALLEGIANCE_COOLDOWN
+	alert_ended_total += 1
+	record_event("Alert END: %s at %s (%s)." % [allegiance_id, anchor_label, reason])
+
+
+func _sync_alert_state_to_world() -> void:
+	var alert_entries: Array[Dictionary] = []
+	for runtime_variant in _alert_runtime_by_allegiance.values():
+		var runtime: Dictionary = runtime_variant
+		var allegiance_id: String = str(runtime.get("allegiance_id", ""))
+		if allegiance_id == "":
+			continue
+		var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+		if ends_at <= elapsed_time:
+			continue
+		alert_entries.append({
+			"allegiance_id": allegiance_id,
+			"faction": str(runtime.get("faction", "")),
+			"home_poi": str(runtime.get("home_poi", "")),
+			"center_position": runtime.get("center", Vector3.ZERO),
+			"radius": ALERT_SIGNAL_RADIUS,
+			"cause": str(runtime.get("cause", "heightened_tension")),
+			"score": float(runtime.get("score", 0.0)),
+			"started_at": float(runtime.get("started_at", elapsed_time)),
+			"ends_at": ends_at,
+			"defense_weight_delta": ALERT_DEFENSE_WEIGHT_DELTA,
+			"offense_weight_delta": ALERT_OFFENSE_WEIGHT_DELTA,
+			"expedition_start_mult": ALERT_EXPEDITION_START_MULT,
+			"guidance_weight": ALERT_GUIDANCE_WEIGHT
+		})
+	world_manager.set_alert_state(alert_entries)
+
+
+func _is_actor_in_alert(actor: Actor) -> bool:
+	if actor == null or actor.is_dead:
+		return false
+	if actor.allegiance_id == "":
+		return false
+	return _alert_runtime_by_allegiance.has(actor.allegiance_id)
 
 
 func _expedition_type_short(expedition_type: String) -> String:
@@ -6724,6 +7065,8 @@ func _build_snapshot() -> Dictionary:
 	var echo_active_labels: Array[String] = []
 	var expedition_active_count: int = 0
 	var expedition_active_labels: Array[String] = []
+	var alert_active_count: int = 0
+	var alert_active_labels: Array[String] = []
 	var memorial_scar_active_total: int = 0
 	var memorial_site_active_count: int = 0
 	var scar_site_active_count: int = 0
@@ -6740,21 +7083,28 @@ func _build_snapshot() -> Dictionary:
 		var project_remaining: float = float(allegiance.get("project_remaining", 0.0))
 		var vendetta_target: String = str(allegiance.get("vendetta_target", ""))
 		var vendetta_remaining: float = float(allegiance.get("vendetta_remaining", 0.0))
+		var alert_active: bool = bool(allegiance.get("alert_active", false))
+		var alert_cause: String = str(allegiance.get("alert_cause", ""))
+		var alert_remaining: float = float(allegiance.get("alert_remaining", 0.0))
 		var project_label: String = project_id if project_id != "" else "none"
 		if project_id != "":
 			project_label = "%s@%.0fs" % [project_id, project_remaining]
 		var vendetta_label: String = vendetta_target if vendetta_target != "" else "none"
 		if vendetta_target != "":
 			vendetta_label = "%s@%.0fs" % [vendetta_target, vendetta_remaining]
+		var alert_label: String = "none"
+		if alert_active:
+			alert_label = "%s@%.0fs" % [alert_cause if alert_cause != "" else "watch", alert_remaining]
 		allegiance_structure_labels.append(
-            "%s[%s,%s,%s,%s,%s]"
+            "%s[%s,%s,%s,%s,%s,%s]"
 			% [
 				str(allegiance.get("allegiance_id", "")),
 				str(allegiance.get("home_poi", "")),
 				str(allegiance.get("structure_state", "")),
 				doctrine if doctrine != "" else "none",
 				project_label,
-				vendetta_label
+				vendetta_label,
+				alert_label
 			]
 		)
 		if doctrine != "":
@@ -6775,10 +7125,21 @@ func _build_snapshot() -> Dictionary:
                 "%s->%s(%.0fs)"
 				% [str(allegiance.get("allegiance_id", "")), vendetta_target, vendetta_remaining]
 			)
+		if alert_active:
+			alert_active_labels.append(
+				"%s:%s@%.0fs"
+				% [
+					str(allegiance.get("allegiance_id", "")),
+					alert_cause if alert_cause != "" else "watch",
+					alert_remaining
+				]
+			)
 	allegiance_structure_labels.sort()
 	allegiance_doctrine_labels.sort()
 	allegiance_project_labels.sort()
 	allegiance_vendetta_labels.sort()
+	alert_active_labels.sort()
+	alert_active_count = alert_active_labels.size()
 	for actor_id_variant in _legacy_successor_runtime_by_actor.keys():
 		var actor_id: int = int(actor_id_variant)
 		var runtime: Dictionary = _legacy_successor_runtime_by_actor.get(actor_id, {})
@@ -7127,6 +7488,10 @@ func _build_snapshot() -> Dictionary:
 		"expedition_arrived_total": expedition_arrived_total,
 		"expedition_ended_total": expedition_ended_total,
 		"expedition_interrupted_total": expedition_interrupted_total,
+		"alert_active_count": alert_active_count,
+		"alert_active_labels": alert_active_labels,
+		"alert_started_total": alert_started_total,
+		"alert_ended_total": alert_ended_total,
 		"legacy_triggered_total": legacy_triggered_total,
 		"legacy_successor_chosen_total": legacy_successor_chosen_total,
 		"legacy_relic_inherited_total": legacy_relic_inherited_total,
