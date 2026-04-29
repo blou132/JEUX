@@ -57,6 +57,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var mending_active_labels: Array = snapshot.get("mending_active_labels", [])
     var oath_active_labels: Array = snapshot.get("oath_active_labels", [])
     var echo_active_labels: Array = snapshot.get("echo_active_labels", [])
+    var expedition_active_labels: Array = snapshot.get("expedition_active_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -529,6 +530,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Echo labels: %s"
         % (" | ".join(echo_active_labels) if not echo_active_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Expeditions: active=%d | start=%d arrived=%d end=%d interrupted=%d"
+        % [
+            int(snapshot.get("expedition_active_count", 0)),
+            int(snapshot.get("expedition_started_total", 0)),
+            int(snapshot.get("expedition_arrived_total", 0)),
+            int(snapshot.get("expedition_ended_total", 0)),
+            int(snapshot.get("expedition_interrupted_total", 0))
+        ]
+    )
+    lines.append(
+        "Expedition labels: %s"
+        % (" | ".join(expedition_active_labels) if not expedition_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiance cores: %s"

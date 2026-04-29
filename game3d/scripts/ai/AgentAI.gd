@@ -9,6 +9,7 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
     var rally_pressure_target: Actor = rally_context.get("pressure_target", null)
     var rally_leader_kind: String = str(rally_context.get("leader_kind", "champion"))
     var oath_guidance: Dictionary = actor.get_oath_guidance()
+    var expedition_guidance: Dictionary = actor.get_expedition_guidance()
     var doctrine_modifiers: Dictionary = world.get_allegiance_doctrine_modifiers(actor.allegiance_id)
     var project_modifiers: Dictionary = world.get_allegiance_project_modifiers(actor.allegiance_id)
     var rally_regroup_chance: float = float(rally_context.get("regroup_chance", 0.66))
@@ -64,6 +65,20 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
                         "state": oath_state,
                         "target_position": oath_guidance.get("target_position", actor.global_position),
                         "reason": oath_reason
+                    },
+                    rally_leader,
+                    rally_bonus
+                )
+
+        if not expedition_guidance.is_empty():
+            var expedition_weight: float = clampf(float(expedition_guidance.get("weight", 0.52)), 0.20, 0.80)
+            if randf() <= expedition_weight:
+                var expedition_type: String = str(expedition_guidance.get("type", ""))
+                return _with_rally(
+                    {
+                        "state": "poi",
+                        "target_position": expedition_guidance.get("target_position", actor.global_position),
+                        "reason": "expedition:%s" % expedition_type
                     },
                     rally_leader,
                     rally_bonus

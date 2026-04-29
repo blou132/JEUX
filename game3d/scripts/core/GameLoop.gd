@@ -199,6 +199,18 @@ const ECHO_RADIUS: float = 7.2
 const ECHO_PULSE_INTERVAL: float = 2.8
 const ECHO_RENOWN_PULSE: float = 0.06
 const ECHO_NOTORIETY_PULSE: float = 0.07
+const EXPEDITION_START_DELAY: float = 262.0
+const EXPEDITION_CHECK_INTERVAL: float = 3.1
+const EXPEDITION_GLOBAL_COOLDOWN: float = 22.0
+const EXPEDITION_ACTOR_COOLDOWN: float = 74.0
+const EXPEDITION_DURATION_MIN: float = 11.0
+const EXPEDITION_DURATION_MAX: float = 19.0
+const EXPEDITION_MAX_ACTIVE: int = 3
+const EXPEDITION_MIN_POPULATION: int = 10
+const EXPEDITION_START_CHANCE_BASE: float = 0.18
+const EXPEDITION_ARRIVAL_RADIUS: float = 4.2
+const EXPEDITION_ARRIVAL_HOLD: float = 1.2
+const EXPEDITION_RENOWN_ON_ARRIVAL: float = 0.12
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -354,6 +366,10 @@ var oath_broken_total: int = 0
 var echo_started_total: int = 0
 var echo_ended_total: int = 0
 var echo_faded_total: int = 0
+var expedition_started_total: int = 0
+var expedition_arrived_total: int = 0
+var expedition_ended_total: int = 0
+var expedition_interrupted_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -450,6 +466,10 @@ var _echo_global_cooldown_left: float = ECHO_START_DELAY
 var _echo_runtime_by_id: Dictionary = {}
 var _echo_next_id: int = 1
 var _echo_signals_root: Node3D = null
+var _expedition_check_timer: float = 0.0
+var _expedition_global_cooldown_left: float = EXPEDITION_START_DELAY
+var _expedition_runtime_by_actor: Dictionary = {}
+var _expedition_cooldown_until_by_actor: Dictionary = {}
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -473,6 +493,7 @@ func _ready() -> void:
     _setup_mending_state()
     _setup_oath_state()
     _setup_echo_state()
+    _setup_expedition_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -518,6 +539,7 @@ func _tick(delta: float) -> void:
     _update_destiny_pulls(delta)
     _update_oath_runtime(delta)
     _update_echo_runtime(delta)
+    _update_expeditions(delta)
     _update_convergence_events(delta)
     _update_marked_zones(delta)
     _update_rivalries(delta)
@@ -4667,6 +4689,485 @@ func _echo_type_short(echo_type: String) -> String:
     return "echo"
 
 
+func _setup_expedition_state() -> void:
+    _expedition_check_timer = 0.0
+    _expedition_global_cooldown_left = EXPEDITION_START_DELAY
+    _expedition_runtime_by_actor.clear()
+    _expedition_cooldown_until_by_actor.clear()
+
+
+func _update_expeditions(delta: float) -> void:
+    _expedition_global_cooldown_left = max(0.0, _expedition_global_cooldown_left - delta)
+    _expedition_check_timer += delta
+
+    var cooldown_ids: Array = _expedition_cooldown_until_by_actor.keys()
+    for actor_id_variant in cooldown_ids:
+        var actor_id: int = int(actor_id_variant)
+        var cooldown_until: float = float(_expedition_cooldown_until_by_actor.get(actor_id, 0.0))
+        if elapsed_time >= cooldown_until:
+            _expedition_cooldown_until_by_actor.erase(actor_id)
+
+    if not _expedition_runtime_by_actor.is_empty():
+        var actor_ids: Array = _expedition_runtime_by_actor.keys()
+        for actor_id_variant in actor_ids:
+            var actor_id: int = int(actor_id_variant)
+            var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+            if runtime.is_empty():
+                continue
+
+            var actor: Actor = _find_actor_by_id(actor_id)
+            if actor == null or actor.is_dead:
+                _interrupt_expedition(actor_id, "leader_unavailable")
+                continue
+
+            var target_data: Dictionary = _resolve_expedition_target(runtime)
+            if not bool(target_data.get("valid", false)):
+                _interrupt_expedition(actor_id, str(target_data.get("reason", "destination_lost")))
+                continue
+
+            runtime["target_position"] = target_data.get("target_position", actor.global_position)
+            runtime["target_label"] = str(target_data.get("target_label", "objective"))
+
+            var target_position: Vector3 = runtime.get("target_position", actor.global_position)
+            var near_hold: float = float(runtime.get("near_hold", 0.0))
+            var distance: float = actor.global_position.distance_to(target_position)
+            if distance <= EXPEDITION_ARRIVAL_RADIUS:
+                near_hold += delta
+            else:
+                near_hold = max(0.0, near_hold - delta * 0.40)
+            runtime["near_hold"] = near_hold
+            if near_hold >= EXPEDITION_ARRIVAL_HOLD:
+                _arrive_expedition(actor_id, "destination_reached")
+                continue
+
+            var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+            if elapsed_time >= ends_at:
+                _end_expedition(actor_id, "duration_complete")
+                continue
+
+            _expedition_runtime_by_actor[actor_id] = runtime
+            actor.set_expedition_state(
+                true,
+                str(runtime.get("type", "")),
+                target_position,
+                str(runtime.get("target_label", "objective")),
+                float(runtime.get("guidance_weight", 0.52))
+            )
+
+    if _expedition_check_timer < EXPEDITION_CHECK_INTERVAL:
+        return
+    _expedition_check_timer = 0.0
+
+    if _expedition_global_cooldown_left > 0.0:
+        return
+    if _count_alive_actors() < EXPEDITION_MIN_POPULATION:
+        return
+    if _expedition_runtime_by_actor.size() >= EXPEDITION_MAX_ACTIVE:
+        return
+
+    var candidate: Dictionary = _pick_expedition_candidate()
+    if candidate.is_empty():
+        return
+
+    _try_start_expedition(
+        candidate.get("actor", null) as Actor,
+        candidate.get("destination", {}),
+        str(candidate.get("reason", "notable_wanderlust")),
+        float(candidate.get("chance_bonus", 0.0)),
+        float(candidate.get("duration_bonus", 0.0)),
+        float(candidate.get("guidance_weight", 0.52))
+    )
+
+
+func _is_expedition_candidate(actor: Actor) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if actor.is_champion or actor.is_special_arrival() or actor.has_relic():
+        return true
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        return true
+    if actor.destiny_active or actor.oath_active:
+        return true
+    return actor.renown >= OATH_NOTABLE_RENOWN_TRIGGER
+
+
+func _pick_expedition_candidate() -> Dictionary:
+    var best: Dictionary = {}
+    var best_score: float = -INF
+
+    for actor in actors:
+        if not _is_expedition_candidate(actor):
+            continue
+        if _expedition_runtime_by_actor.has(actor.actor_id):
+            continue
+        var cooldown_until: float = float(_expedition_cooldown_until_by_actor.get(actor.actor_id, 0.0))
+        if elapsed_time < cooldown_until:
+            continue
+
+        var destination: Dictionary = _pick_expedition_destination(actor)
+        if destination.is_empty():
+            continue
+        var context: Dictionary = _build_expedition_signal_context(actor)
+        var score: float = float(destination.get("score", 0.0))
+        score += float(context.get("chance_bonus", 0.0)) * 2.8
+        score += actor.renown * 0.012
+        if actor.is_champion:
+            score += 0.20
+        if actor.is_special_arrival():
+            score += 0.16
+        if actor.has_relic():
+            score += 0.14
+        if score <= best_score:
+            continue
+
+        best_score = score
+        best = {
+            "actor": actor,
+            "destination": destination,
+            "reason": str(context.get("reason", "notable_wanderlust")),
+            "chance_bonus": float(context.get("chance_bonus", 0.0)),
+            "duration_bonus": float(context.get("duration_bonus", 0.0)),
+            "guidance_weight": float(context.get("guidance_weight", 0.52))
+        }
+
+    return best
+
+
+func _build_expedition_signal_context(actor: Actor) -> Dictionary:
+    var reason_parts: Array[String] = []
+    var chance_bonus: float = 0.0
+    var duration_bonus: float = 0.0
+    var guidance_weight: float = 0.52
+
+    if actor.destiny_active:
+        chance_bonus += 0.12
+        guidance_weight += 0.06
+        reason_parts.append("destiny_active")
+    if actor.oath_active:
+        chance_bonus += 0.09
+        guidance_weight += 0.04
+        reason_parts.append("oath_active")
+    if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+        chance_bonus += 0.08
+        duration_bonus += 1.0
+        reason_parts.append("legacy_successor")
+    if actor.has_relic():
+        chance_bonus += 0.06
+        reason_parts.append("relic_carrier")
+    if actor.bond_patron_active:
+        chance_bonus += 0.04
+        reason_parts.append("bond_anchor")
+    if actor.is_special_arrival():
+        chance_bonus += 0.05
+        reason_parts.append("special_arrival")
+    if _is_actor_in_allegiance_recovery(actor):
+        chance_bonus += 0.05
+        duration_bonus += 1.0
+        reason_parts.append("recovery_local")
+    if _has_local_mending_window(actor):
+        chance_bonus += 0.05
+        duration_bonus += 0.8
+        reason_parts.append("mending_window")
+    if _has_nearby_echo(actor, 10.5):
+        chance_bonus += 0.04
+        reason_parts.append("echo_near")
+
+    if reason_parts.is_empty():
+        reason_parts.append("notable_wanderlust")
+
+    return {
+        "reason": ",".join(reason_parts),
+        "chance_bonus": chance_bonus,
+        "duration_bonus": duration_bonus,
+        "guidance_weight": clampf(guidance_weight, 0.22, 0.80)
+    }
+
+
+func _has_local_mending_window(actor: Actor) -> bool:
+    if actor == null or actor.allegiance_id == "":
+        return false
+    for runtime_variant in _mending_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var source_allegiance_id: String = str(runtime.get("source_allegiance_id", ""))
+        var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+        if source_allegiance_id == actor.allegiance_id or target_allegiance_id == actor.allegiance_id:
+            return true
+    return false
+
+
+func _has_nearby_echo(actor: Actor, radius: float) -> bool:
+    if actor == null:
+        return false
+    for runtime_variant in _echo_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var center: Vector3 = runtime.get("center", Vector3.ZERO)
+        var echo_radius: float = float(runtime.get("radius", ECHO_RADIUS))
+        var scan_radius: float = max(radius, echo_radius * 1.05)
+        if actor.global_position.distance_to(center) <= scan_radius:
+            return true
+    return false
+
+
+func _pick_expedition_destination(actor: Actor) -> Dictionary:
+    var options: Array[Dictionary] = _collect_expedition_destination_options(actor)
+    if options.is_empty():
+        return {}
+    var best: Dictionary = {}
+    var best_score: float = -INF
+    for option in options:
+        var score: float = float(option.get("score", 0.0))
+        if score <= best_score:
+            continue
+        best_score = score
+        best = option
+    return best
+
+
+func _collect_expedition_destination_options(actor: Actor) -> Array[Dictionary]:
+    var options: Array[Dictionary] = []
+    if actor == null:
+        return options
+
+    var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+    if bool(gate_runtime.get("active", false)):
+        var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        if gate_position != Vector3.ZERO:
+            var gate_distance: float = actor.global_position.distance_to(gate_position)
+            var gate_score: float = 1.00 + max(0.0, (30.0 - min(gate_distance, 30.0)) * 0.020)
+            if actor.destiny_active:
+                gate_score += 0.30
+            if actor.oath_active and actor.oath_type == "oath_of_seeking":
+                gate_score += 0.20
+            options.append({
+                "type": "expedition_gate",
+                "destination_kind": "rift_gate",
+                "destination_id": 0,
+                "target_position": gate_position,
+                "target_label": gate_name,
+                "score": gate_score
+            })
+
+    for zone_id_variant in _marked_zone_runtime_by_id.keys():
+        var zone_id: int = int(zone_id_variant)
+        var runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+        if runtime.is_empty():
+            continue
+        var center: Vector3 = runtime.get("center", Vector3.ZERO)
+        if center == Vector3.ZERO:
+            continue
+        var zone_distance: float = actor.global_position.distance_to(center)
+        var zone_score: float = 0.90 + max(0.0, (24.0 - min(zone_distance, 24.0)) * 0.018)
+        var zone_type: String = str(runtime.get("zone_type", ""))
+        if actor.oath_active and actor.oath_type == "oath_of_guarding" and zone_type == "sanctified_zone":
+            zone_score += 0.16
+        if actor.destiny_active:
+            zone_score += 0.10
+        options.append({
+            "type": "expedition_zone",
+            "destination_kind": "marked_zone",
+            "destination_id": zone_id,
+            "target_position": center,
+            "target_label": str(runtime.get("label", "marked_zone")),
+            "score": zone_score
+        })
+
+    for site_id_variant in _memorial_scar_runtime.keys():
+        var site_id: int = int(site_id_variant)
+        var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+        if runtime.is_empty():
+            continue
+        var position: Vector3 = runtime.get("position", Vector3.ZERO)
+        if position == Vector3.ZERO:
+            continue
+        var site_distance: float = actor.global_position.distance_to(position)
+        var site_score: float = 0.84 + max(0.0, (22.0 - min(site_distance, 22.0)) * 0.016)
+        var site_type: String = str(runtime.get("type", ""))
+        if _legacy_successor_runtime_by_actor.has(actor.actor_id):
+            site_score += 0.18
+        if actor.faction == "human" and site_type == "memorial_site":
+            site_score += 0.12
+        if actor.faction == "monster" and site_type == "scar_site":
+            site_score += 0.12
+        options.append({
+            "type": "expedition_memorial",
+            "destination_kind": "memorial_scar",
+            "destination_id": site_id,
+            "target_position": position,
+            "target_label": str(runtime.get("label", "site")),
+            "score": site_score
+        })
+
+    return options
+
+
+func _try_start_expedition(
+    actor: Actor,
+    destination: Dictionary,
+    reason: String,
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0,
+    guidance_weight: float = 0.0
+) -> bool:
+    if actor == null or actor.is_dead:
+        return false
+    if destination.is_empty():
+        return false
+    if _count_alive_actors() < EXPEDITION_MIN_POPULATION:
+        return false
+    if _expedition_runtime_by_actor.size() >= EXPEDITION_MAX_ACTIVE:
+        return false
+    if _expedition_global_cooldown_left > 0.0:
+        return false
+    if _expedition_runtime_by_actor.has(actor.actor_id):
+        return false
+    if not _is_expedition_candidate(actor):
+        return false
+
+    var cooldown_until: float = float(_expedition_cooldown_until_by_actor.get(actor.actor_id, 0.0))
+    if elapsed_time < cooldown_until:
+        return false
+
+    var expedition_type: String = str(destination.get("type", ""))
+    if expedition_type not in ["expedition_gate", "expedition_zone", "expedition_memorial"]:
+        return false
+
+    var start_chance: float = clampf(EXPEDITION_START_CHANCE_BASE + chance_bonus, 0.08, 0.62)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(EXPEDITION_DURATION_MIN, EXPEDITION_DURATION_MAX),
+        max(EXPEDITION_DURATION_MIN, EXPEDITION_DURATION_MAX)
+    ) + duration_bonus
+    duration = clampf(duration, 8.0, 28.0)
+
+    var target_position: Vector3 = destination.get("target_position", actor.global_position)
+    if target_position == Vector3.ZERO:
+        target_position = actor.global_position
+    var target_label: String = str(destination.get("target_label", "objective"))
+    var weight: float = guidance_weight if guidance_weight > 0.0 else 0.52
+
+    _expedition_runtime_by_actor[actor.actor_id] = {
+        "type": expedition_type,
+        "destination_kind": str(destination.get("destination_kind", "")),
+        "destination_id": int(destination.get("destination_id", 0)),
+        "target_position": target_position,
+        "target_label": target_label,
+        "reason": reason,
+        "guidance_weight": clampf(weight, 0.22, 0.80),
+        "near_hold": 0.0,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration
+    }
+    actor.set_expedition_state(
+        true,
+        expedition_type,
+        target_position,
+        target_label,
+        weight
+    )
+    expedition_started_total += 1
+    _expedition_global_cooldown_left = EXPEDITION_GLOBAL_COOLDOWN
+    record_event(
+        "Expedition START: %s -> %s (%s, %.0fs)."
+        % [_actor_label(actor), target_label, reason, duration]
+    )
+    return true
+
+
+func _resolve_expedition_target(runtime: Dictionary) -> Dictionary:
+    var destination_kind: String = str(runtime.get("destination_kind", ""))
+    if destination_kind == "rift_gate":
+        var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
+        if not bool(gate_runtime.get("active", false)):
+            return {"valid": false, "reason": "gate_closed"}
+        var gate_name: String = str(gate_runtime.get("poi", "rift_gate"))
+        var gate_position: Vector3 = _get_poi_position_by_name(gate_name)
+        if gate_position == Vector3.ZERO:
+            return {"valid": false, "reason": "gate_missing"}
+        return {
+            "valid": true,
+            "target_position": gate_position,
+            "target_label": gate_name
+        }
+
+    if destination_kind == "marked_zone":
+        var zone_id: int = int(runtime.get("destination_id", 0))
+        var zone_runtime: Dictionary = _marked_zone_runtime_by_id.get(zone_id, {})
+        if zone_runtime.is_empty():
+            return {"valid": false, "reason": "zone_faded"}
+        return {
+            "valid": true,
+            "target_position": zone_runtime.get("center", Vector3.ZERO),
+            "target_label": str(zone_runtime.get("label", "marked_zone"))
+        }
+
+    if destination_kind == "memorial_scar":
+        var site_id: int = int(runtime.get("destination_id", 0))
+        var site_runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
+        if site_runtime.is_empty():
+            return {"valid": false, "reason": "trace_faded"}
+        return {
+            "valid": true,
+            "target_position": site_runtime.get("position", Vector3.ZERO),
+            "target_label": str(site_runtime.get("label", "site"))
+        }
+
+    return {"valid": false, "reason": "unknown_destination"}
+
+
+func _arrive_expedition(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    var target_label: String = str(runtime.get("target_label", "objective"))
+    expedition_arrived_total += 1
+    record_event("Expedition ARRIVED: %s -> %s (%s)." % [label, target_label, reason])
+    if actor != null:
+        _apply_notability_gain(actor, EXPEDITION_RENOWN_ON_ARRIVAL, 0.0, "expedition_arrival")
+    _end_expedition(actor_id, "arrived:%s" % reason)
+
+
+func _interrupt_expedition(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    expedition_interrupted_total += 1
+    record_event("Expedition INTERRUPTED: %s (%s)." % [label, reason])
+    _end_expedition(actor_id, "interrupted:%s" % reason)
+
+
+func _end_expedition(actor_id: int, reason: String) -> void:
+    var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+    if runtime.is_empty():
+        return
+    var actor: Actor = _find_actor_by_id(actor_id)
+    var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+    if actor != null:
+        actor.set_expedition_state(false)
+    _expedition_runtime_by_actor.erase(actor_id)
+    _expedition_cooldown_until_by_actor[actor_id] = elapsed_time + EXPEDITION_ACTOR_COOLDOWN
+    expedition_ended_total += 1
+    record_event("Expedition END: %s (%s)." % [label, reason])
+
+
+func _expedition_type_short(expedition_type: String) -> String:
+    match expedition_type:
+        "expedition_gate":
+            return "gate"
+        "expedition_zone":
+            return "zone"
+        "expedition_memorial":
+            return "trace"
+        _:
+            return "exp"
+
+
 func _echo_center_for_allegiance(allegiance_id: String, fallback: Vector3 = Vector3.ZERO) -> Vector3:
     if allegiance_id == "":
         return fallback
@@ -5991,6 +6492,7 @@ func _cleanup_dead_actors() -> void:
             _clear_actor_rally_tracking(actor.actor_id)
             _clear_actor_destiny_tracking(actor.actor_id)
             _clear_actor_oath_tracking(actor.actor_id)
+            _clear_actor_expedition_tracking(actor.actor_id)
             _clear_actor_rivalry_tracking(actor.actor_id)
             _clear_actor_bond_tracking(actor.actor_id)
             _clear_actor_splinter_tracking(actor.actor_id)
@@ -6220,6 +6722,8 @@ func _build_snapshot() -> Dictionary:
     var oath_active_labels: Array[String] = []
     var echo_active_count: int = 0
     var echo_active_labels: Array[String] = []
+    var expedition_active_count: int = 0
+    var expedition_active_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -6421,6 +6925,19 @@ func _build_snapshot() -> Dictionary:
         echo_active_labels.append("%s:%s(%.0fs)" % [short_type, label, remaining])
     echo_active_labels.sort()
     echo_active_count = echo_active_labels.size()
+    for actor_id_variant in _expedition_runtime_by_actor.keys():
+        var actor_id: int = int(actor_id_variant)
+        var runtime: Dictionary = _expedition_runtime_by_actor.get(actor_id, {})
+        if runtime.is_empty():
+            continue
+        var actor: Actor = _find_actor_by_id(actor_id)
+        var actor_label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
+        var expedition_type: String = _expedition_type_short(str(runtime.get("type", "")))
+        var target_label: String = str(runtime.get("target_label", "objective"))
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        expedition_active_labels.append("%s:%s->%s(%.0fs)" % [expedition_type, actor_label, target_label, remaining])
+    expedition_active_labels.sort()
+    expedition_active_count = expedition_active_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -6604,6 +7121,12 @@ func _build_snapshot() -> Dictionary:
         "echo_started_total": echo_started_total,
         "echo_ended_total": echo_ended_total,
         "echo_faded_total": echo_faded_total,
+        "expedition_active_count": expedition_active_count,
+        "expedition_active_labels": expedition_active_labels,
+        "expedition_started_total": expedition_started_total,
+        "expedition_arrived_total": expedition_arrived_total,
+        "expedition_ended_total": expedition_ended_total,
+        "expedition_interrupted_total": expedition_interrupted_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -7338,6 +7861,12 @@ func _clear_actor_oath_tracking(actor_id: int) -> void:
     _oath_cooldown_until_by_actor.erase(actor_id)
 
 
+func _clear_actor_expedition_tracking(actor_id: int) -> void:
+    if _expedition_runtime_by_actor.has(actor_id):
+        _interrupt_expedition(actor_id, "actor_removed")
+    _expedition_cooldown_until_by_actor.erase(actor_id)
+
+
 func _clear_actor_notability_tracking(actor_id: int) -> void:
     _renown_tier_by_actor.erase(actor_id)
     _notoriety_tier_by_actor.erase(actor_id)
@@ -7490,6 +8019,7 @@ func _actor_label(actor: Actor) -> String:
     var bounty_suffix := actor.bounty_tag()
     var destiny_suffix := actor.destiny_tag()
     var oath_suffix := actor.oath_tag()
+    var expedition_suffix := actor.expedition_tag()
     var rivalry_suffix := actor.rivalry_tag()
     var bond_suffix := actor.bond_tag()
     var splinter_suffix := actor.splinter_tag()
@@ -7497,4 +8027,4 @@ func _actor_label(actor: Actor) -> String:
     var notoriety_suffix := actor.notoriety_tag()
     var allegiance_suffix := actor.allegiance_tag()
     var legacy_suffix := "[HEIR]" if _legacy_successor_runtime_by_actor.has(actor.actor_id) else ""
-    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, oath_suffix, rivalry_suffix, bond_suffix, splinter_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]
+    return "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s#%d" % [actor.actor_kind, role_suffix, level_suffix, champion_suffix, special_suffix, relic_suffix, bounty_suffix, destiny_suffix, oath_suffix, expedition_suffix, rivalry_suffix, bond_suffix, splinter_suffix, renown_suffix, notoriety_suffix, allegiance_suffix, legacy_suffix, actor.actor_id]

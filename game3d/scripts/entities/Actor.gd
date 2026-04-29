@@ -85,6 +85,11 @@ var oath_target_actor_id: int = 0
 var oath_target_position: Vector3 = Vector3.ZERO
 var oath_target_label: String = ""
 var oath_guidance_weight: float = 0.0
+var expedition_active: bool = false
+var expedition_type: String = ""
+var expedition_target_position: Vector3 = Vector3.ZERO
+var expedition_target_label: String = ""
+var expedition_guidance_weight: float = 0.0
 var rivalry_active: bool = false
 var rival_actor_id: int = 0
 var rivalry_label: String = ""
@@ -348,6 +353,20 @@ func oath_tag() -> String:
             return "[OATH]"
 
 
+func expedition_tag() -> String:
+    if not expedition_active:
+        return ""
+    match expedition_type:
+        "expedition_gate":
+            return "[EXP:GATE]"
+        "expedition_zone":
+            return "[EXP:ZONE]"
+        "expedition_memorial":
+            return "[EXP:TRACE]"
+        _:
+            return "[EXP]"
+
+
 func rivalry_tag() -> String:
     if not rivalry_active:
         return ""
@@ -557,6 +576,41 @@ func get_oath_guidance() -> Dictionary:
         "target_actor_id": oath_target_actor_id,
         "target_label": oath_target_label,
         "weight": oath_guidance_weight
+    }
+
+
+func set_expedition_state(
+    active: bool,
+    next_type: String = "",
+    next_target_position: Vector3 = Vector3.ZERO,
+    next_target_label: String = "",
+    guidance_weight: float = 0.0
+) -> void:
+    expedition_active = active
+    if not expedition_active:
+        expedition_type = ""
+        expedition_target_position = Vector3.ZERO
+        expedition_target_label = ""
+        expedition_guidance_weight = 0.0
+        _refresh_control_visual()
+        return
+
+    expedition_type = next_type
+    expedition_target_position = next_target_position
+    expedition_target_label = next_target_label
+    var next_weight: float = guidance_weight if guidance_weight > 0.0 else 0.52
+    expedition_guidance_weight = clampf(next_weight, 0.20, 0.80)
+    _refresh_control_visual()
+
+
+func get_expedition_guidance() -> Dictionary:
+    if not expedition_active or expedition_type == "":
+        return {}
+    return {
+        "type": expedition_type,
+        "target_position": expedition_target_position,
+        "target_label": expedition_target_label,
+        "weight": expedition_guidance_weight
     }
 
 
@@ -988,6 +1042,13 @@ func _refresh_control_visual() -> void:
             else:
                 material.emission_enabled = true
                 material.emission = oath_glow * 0.22
+        if expedition_active:
+            var expedition_glow := _expedition_glow_color()
+            if material.emission_enabled:
+                material.emission = material.emission.lerp(expedition_glow, 0.14)
+            else:
+                material.emission_enabled = true
+                material.emission = expedition_glow * 0.18
         if rivalry_active:
             var rivalry_glow := _rivalry_glow_color()
             var rivalry_mix: float = 0.34 if rivalry_duel_active else 0.17
@@ -1214,6 +1275,18 @@ func _oath_glow_color() -> Color:
             return Color(0.98, 0.82, 0.42)
         _:
             return Color(0.90, 0.90, 0.96)
+
+
+func _expedition_glow_color() -> Color:
+    match expedition_type:
+        "expedition_gate":
+            return Color(0.82, 0.52, 1.0)
+        "expedition_zone":
+            return Color(0.58, 0.92, 0.78)
+        "expedition_memorial":
+            return Color(1.0, 0.80, 0.46)
+        _:
+            return Color(0.88, 0.88, 0.88)
 
 
 func _rivalry_glow_color() -> Color:

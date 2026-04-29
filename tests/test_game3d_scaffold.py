@@ -116,6 +116,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("sworn", content)
         self.assertIn("echo", content)
         self.assertIn("aftershock", content)
+        self.assertIn("expedition", content)
+        self.assertIn("pilgrimage", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -222,6 +224,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Oath labels:", content)
         self.assertIn("Echoes:", content)
         self.assertIn("Echo labels:", content)
+        self.assertIn("Expeditions:", content)
+        self.assertIn("Expedition labels:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
         self.assertIn("Memorial/Scar:", content)
@@ -268,6 +272,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_oath_guidance", content)
         self.assertIn("oath:guarding", content)
         self.assertIn("oath:seeking", content)
+        self.assertIn("get_expedition_guidance", content)
+        self.assertIn("expedition:", content)
         self.assertIn("get_allegiance_defense_guidance", content)
         self.assertIn("actor.allegiance_id", content)
         self.assertIn("notoriety_avoid", content)
@@ -326,6 +332,10 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("set_oath_state", content)
         self.assertIn("get_oath_guidance", content)
         self.assertIn("oath_tag", content)
+        self.assertIn("expedition_active", content)
+        self.assertIn("set_expedition_state", content)
+        self.assertIn("get_expedition_guidance", content)
+        self.assertIn("expedition_tag", content)
         self.assertIn("rivalry_active", content)
         self.assertIn("set_rivalry_state", content)
         self.assertIn("get_rivalry_guidance", content)
@@ -523,6 +533,11 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Echo END", content)
         self.assertIn("Echo FADED", content)
         self.assertIn('"echo_active_count"', content)
+        self.assertIn("Expedition START", content)
+        self.assertIn("Expedition ARRIVED", content)
+        self.assertIn("Expedition END", content)
+        self.assertIn("Expedition INTERRUPTED", content)
+        self.assertIn('"expedition_active_count"', content)
 
 
 if __name__ == "__main__":
