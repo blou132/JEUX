@@ -54,6 +54,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_vendetta_labels: Array = snapshot.get("allegiance_vendetta_labels", [])
     var allegiance_crisis_labels: Array = snapshot.get("allegiance_crisis_labels", [])
     var allegiance_recovery_labels: Array = snapshot.get("allegiance_recovery_labels", [])
+    var mending_active_labels: Array = snapshot.get("mending_active_labels", [])
     var legacy_successor_labels: Array = snapshot.get("legacy_successor_labels", [])
     var memorial_scar_labels: Array = snapshot.get("memorial_scar_labels", [])
     var lines: Array[String] = []
@@ -486,6 +487,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append(
         "Recovery map: %s"
         % (" | ".join(allegiance_recovery_labels) if not allegiance_recovery_labels.is_empty() else "(none)")
+    )
+    lines.append(
+        "Mending: active=%d | start=%d end=%d broken=%d"
+        % [
+            int(snapshot.get("mending_active_count", 0)),
+            int(snapshot.get("mending_started_total", 0)),
+            int(snapshot.get("mending_ended_total", 0)),
+            int(snapshot.get("mending_broken_total", 0))
+        ]
+    )
+    lines.append(
+        "Mending arcs: %s"
+        % (" | ".join(mending_active_labels) if not mending_active_labels.is_empty() else "(none)")
     )
     lines.append(
         "Allegiance cores: %s"

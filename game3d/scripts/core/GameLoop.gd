@@ -168,6 +168,15 @@ const ALLEGIANCE_RECOVERY_START_CHANCE_BASE: float = 0.38
 const ALLEGIANCE_RECOVERY_DEFENSE_WEIGHT_DELTA: float = 0.09
 const ALLEGIANCE_RECOVERY_RALLY_BONUS_BOOST_CHANCE: float = 0.36
 const ALLEGIANCE_RECOVERY_STRUCTURE_RESTABILIZE_WINDOW: float = 28.0
+const MENDING_START_DELAY: float = 196.0
+const MENDING_GLOBAL_COOLDOWN: float = 36.0
+const MENDING_ALLEGIANCE_COOLDOWN: float = 68.0
+const MENDING_DURATION_MIN: float = 11.0
+const MENDING_DURATION_MAX: float = 17.0
+const MENDING_MAX_ACTIVE: int = 2
+const MENDING_START_CHANCE_BASE: float = 0.34
+const MENDING_RAID_WEIGHT_DELTA: float = -0.05
+const MENDING_BOUNTY_WEIGHT_DELTA: float = -0.06
 const NOTABILITY_LOG_THRESHOLDS: Array[float] = [20.0, 45.0, 70.0]
 const RENOWN_GAIN_ON_KILL: float = 1.3
 const RENOWN_GAIN_ON_LEVEL_UP: float = 4.5
@@ -313,6 +322,9 @@ var crisis_expired_total: int = 0
 var recovery_started_total: int = 0
 var recovery_ended_total: int = 0
 var recovery_interrupted_total: int = 0
+var mending_started_total: int = 0
+var mending_ended_total: int = 0
+var mending_broken_total: int = 0
 var doctrine_assigned_total: int = 0
 var project_started_total: int = 0
 var project_ended_total: int = 0
@@ -398,6 +410,10 @@ var _allegiance_crisis_runtime_by_id: Dictionary = {}
 var _allegiance_crisis_cooldown_until_by_id: Dictionary = {}
 var _allegiance_recovery_runtime_by_id: Dictionary = {}
 var _allegiance_recovery_cooldown_until_by_id: Dictionary = {}
+var _mending_global_cooldown_left: float = MENDING_START_DELAY
+var _mending_runtime_by_id: Dictionary = {}
+var _mending_next_id: int = 1
+var _mending_cooldown_until_by_allegiance: Dictionary = {}
 var _recent_structure_loss_until_by_poi: Dictionary = {}
 var _memorial_scar_runtime: Dictionary = {}
 var _memorial_scar_next_id: int = 1
@@ -418,6 +434,7 @@ func _ready() -> void:
     _setup_splinter_state()
     _setup_allegiance_crisis_state()
     _setup_allegiance_recovery_state()
+    _setup_mending_state()
     _setup_memorial_scar_sites_root()
     _apply_world_event_to_world_manager()
     world_manager.set_bounty_state(false)
@@ -455,6 +472,7 @@ func _tick(delta: float) -> void:
     _update_actor_allegiances()
     _update_allegiance_crisis_runtime(delta)
     _update_allegiance_recovery_runtime(delta)
+    _update_mending_runtime(delta)
     _update_gate_responses(delta)
     _update_bounty_system(delta)
     _update_special_arrivals(delta)
@@ -1876,6 +1894,8 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
     if runtime.is_empty():
         return
 
+    var crisis_reason: String = str(runtime.get("reason", "crisis"))
+    var source_label: String = str(runtime.get("source_label", ""))
     var should_seed_recovery: bool = outcome == "resolved"
     if outcome == "resolved":
         crisis_resolved_total += 1
@@ -1891,6 +1911,8 @@ func _end_allegiance_crisis(allegiance_id: String, outcome: String, reason: Stri
     var crisis_signal_window: float = SPLINTER_SIGNAL_WINDOW * (1.10 if outcome == "expired" else 0.88)
     _mark_splinter_signal(_splinter_recent_crisis_until_by_allegiance, allegiance_id, crisis_signal_window)
     _sync_allegiance_crisis_modifiers()
+    if outcome == "resolved" and crisis_reason.begins_with("vendetta:"):
+        _try_start_mending_arc(allegiance_id, source_label, "crisis_resolved", source_label, 0.10, 1.2)
     if should_seed_recovery:
         _try_start_allegiance_recovery(allegiance_id, "crisis_resolved", 0.24, 1.8, reason)
 
@@ -2047,6 +2069,8 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
     if runtime.is_empty():
         return
 
+    var recovery_reason: String = str(runtime.get("reason", "recovery"))
+    var source_label: String = str(runtime.get("source_label", ""))
     var should_seed_bond: bool = not interrupted
     if interrupted:
         recovery_interrupted_total += 1
@@ -2057,6 +2081,15 @@ func _end_allegiance_recovery(allegiance_id: String, reason: String, interrupted
     _allegiance_recovery_runtime_by_id.erase(allegiance_id)
     _allegiance_recovery_cooldown_until_by_id[allegiance_id] = elapsed_time + ALLEGIANCE_RECOVERY_COOLDOWN
     _sync_allegiance_recovery_modifiers()
+    if not interrupted and recovery_reason.begins_with("vendetta_"):
+        _try_start_mending_arc(
+            allegiance_id,
+            source_label,
+            "recovery:%s" % recovery_reason,
+            source_label,
+            0.14,
+            1.6
+        )
     if should_seed_bond:
         _try_start_bond_from_recovery(allegiance_id, reason)
 
@@ -2067,6 +2100,235 @@ func _is_actor_in_allegiance_recovery(actor: Actor) -> bool:
     if actor.allegiance_id == "":
         return false
     return _allegiance_recovery_runtime_by_id.has(actor.allegiance_id)
+
+
+func _setup_mending_state() -> void:
+    _mending_global_cooldown_left = MENDING_START_DELAY
+    _mending_runtime_by_id.clear()
+    _mending_next_id = 1
+    _mending_cooldown_until_by_allegiance.clear()
+    _sync_mending_modifiers()
+
+
+func _update_mending_runtime(delta: float) -> void:
+    _mending_global_cooldown_left = max(0.0, _mending_global_cooldown_left - delta)
+
+    var cooldown_ids: Array = _mending_cooldown_until_by_allegiance.keys()
+    for allegiance_variant in cooldown_ids:
+        var allegiance_id: String = str(allegiance_variant)
+        var cooldown_until: float = float(_mending_cooldown_until_by_allegiance.get(allegiance_id, 0.0))
+        if elapsed_time >= cooldown_until:
+            _mending_cooldown_until_by_allegiance.erase(allegiance_id)
+
+    if _mending_runtime_by_id.is_empty():
+        _sync_mending_modifiers()
+        return
+
+    var to_end: Array[Dictionary] = []
+    for mending_id_variant in _mending_runtime_by_id.keys():
+        var mending_id: int = int(mending_id_variant)
+        var runtime: Dictionary = _mending_runtime_by_id.get(mending_id, {})
+        if runtime.is_empty():
+            continue
+
+        var source_allegiance_id: String = str(runtime.get("source_allegiance_id", ""))
+        var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+        if not _is_allegiance_anchor_active(source_allegiance_id) or not _is_allegiance_anchor_active(target_allegiance_id):
+            to_end.append({"id": mending_id, "reason": "anchor_lost", "broken": true})
+            continue
+        if _is_mending_pair_escalated(source_allegiance_id, target_allegiance_id):
+            to_end.append({"id": mending_id, "reason": "escalation", "broken": true})
+            continue
+
+        var ends_at: float = float(runtime.get("ends_at", elapsed_time))
+        if elapsed_time >= ends_at:
+            to_end.append({"id": mending_id, "reason": "duration_complete", "broken": false})
+
+    for entry in to_end:
+        var mending_id: int = int(entry.get("id", 0))
+        var reason: String = str(entry.get("reason", "ended"))
+        var broken: bool = bool(entry.get("broken", false))
+        if mending_id == 0 or not _mending_runtime_by_id.has(mending_id):
+            continue
+        if broken:
+            _break_mending_arc(mending_id, reason)
+        else:
+            _end_mending_arc(mending_id, reason)
+
+    _sync_mending_modifiers()
+
+
+func _try_start_mending_arc(
+    source_allegiance_id: String,
+    target_allegiance_id: String,
+    reason: String,
+    source_label: String = "",
+    chance_bonus: float = 0.0,
+    duration_bonus: float = 0.0
+) -> bool:
+    if source_allegiance_id == "" or target_allegiance_id == "":
+        return false
+    if source_allegiance_id == target_allegiance_id:
+        return false
+    if _mending_runtime_by_id.size() >= MENDING_MAX_ACTIVE:
+        return false
+    if _mending_global_cooldown_left > 0.0:
+        return false
+    if _has_active_mending_for_allegiance(source_allegiance_id):
+        return false
+    if _has_active_mending_for_allegiance(target_allegiance_id):
+        return false
+    if _has_active_mending_pair(source_allegiance_id, target_allegiance_id):
+        return false
+    if not _is_allegiance_anchor_active(source_allegiance_id) or not _is_allegiance_anchor_active(target_allegiance_id):
+        return false
+    if _allegiance_crisis_runtime_by_id.has(source_allegiance_id) or _allegiance_crisis_runtime_by_id.has(target_allegiance_id):
+        return false
+    if _is_mending_pair_escalated(source_allegiance_id, target_allegiance_id):
+        return false
+
+    var source_cooldown_until: float = float(_mending_cooldown_until_by_allegiance.get(source_allegiance_id, 0.0))
+    if elapsed_time < source_cooldown_until:
+        return false
+    var target_cooldown_until: float = float(_mending_cooldown_until_by_allegiance.get(target_allegiance_id, 0.0))
+    if elapsed_time < target_cooldown_until:
+        return false
+
+    var start_chance: float = clampf(MENDING_START_CHANCE_BASE + chance_bonus, 0.10, 0.72)
+    if randf() > start_chance:
+        return false
+
+    var duration: float = randf_range(
+        min(MENDING_DURATION_MIN, MENDING_DURATION_MAX),
+        max(MENDING_DURATION_MIN, MENDING_DURATION_MAX)
+    ) + duration_bonus
+    duration = clampf(duration, 8.0, 24.0)
+
+    var mending_id: int = _mending_next_id
+    _mending_next_id += 1
+    var label: String = "%s~%s" % [source_allegiance_id, target_allegiance_id]
+    _mending_runtime_by_id[mending_id] = {
+        "id": mending_id,
+        "source_allegiance_id": source_allegiance_id,
+        "target_allegiance_id": target_allegiance_id,
+        "label": label,
+        "reason": reason,
+        "source_label": source_label,
+        "started_at": elapsed_time,
+        "ends_at": elapsed_time + duration
+    }
+    mending_started_total += 1
+    _mending_global_cooldown_left = MENDING_GLOBAL_COOLDOWN
+    _sync_mending_modifiers()
+    record_event(
+        "Mending START: %s (%s, %.0fs)."
+        % [label, reason, duration]
+    )
+    return true
+
+
+func _end_mending_arc(mending_id: int, reason: String) -> void:
+    var runtime: Dictionary = _mending_runtime_by_id.get(mending_id, {})
+    if runtime.is_empty():
+        return
+
+    var source_allegiance_id: String = str(runtime.get("source_allegiance_id", ""))
+    var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+    var label: String = str(runtime.get("label", "mending"))
+    _mending_runtime_by_id.erase(mending_id)
+    if source_allegiance_id != "":
+        _mending_cooldown_until_by_allegiance[source_allegiance_id] = elapsed_time + MENDING_ALLEGIANCE_COOLDOWN
+    if target_allegiance_id != "":
+        _mending_cooldown_until_by_allegiance[target_allegiance_id] = elapsed_time + MENDING_ALLEGIANCE_COOLDOWN
+    mending_ended_total += 1
+    record_event("Mending END: %s (%s)." % [label, reason])
+    _sync_mending_modifiers()
+
+
+func _break_mending_arc(mending_id: int, reason: String) -> void:
+    var runtime: Dictionary = _mending_runtime_by_id.get(mending_id, {})
+    if runtime.is_empty():
+        return
+    var label: String = str(runtime.get("label", "mending"))
+    mending_broken_total += 1
+    record_event("Mending BROKEN: %s (%s)." % [label, reason])
+    _end_mending_arc(mending_id, "broken:%s" % reason)
+
+
+func _sync_mending_modifiers() -> void:
+    var modifiers_by_allegiance: Dictionary = {}
+    var suppressed_pairs: Array[Dictionary] = []
+    for runtime_variant in _mending_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var source_allegiance_id: String = str(runtime.get("source_allegiance_id", ""))
+        var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+        if source_allegiance_id == "" or target_allegiance_id == "":
+            continue
+
+        suppressed_pairs.append({
+            "source_allegiance_id": source_allegiance_id,
+            "target_allegiance_id": target_allegiance_id
+        })
+
+        modifiers_by_allegiance[source_allegiance_id] = {
+            "target_allegiance_id": target_allegiance_id,
+            "raid_weight_delta": MENDING_RAID_WEIGHT_DELTA,
+            "bounty_weight_delta": MENDING_BOUNTY_WEIGHT_DELTA
+        }
+        modifiers_by_allegiance[target_allegiance_id] = {
+            "target_allegiance_id": source_allegiance_id,
+            "raid_weight_delta": MENDING_RAID_WEIGHT_DELTA,
+            "bounty_weight_delta": MENDING_BOUNTY_WEIGHT_DELTA
+        }
+    world_manager.set_mending_state(modifiers_by_allegiance, suppressed_pairs)
+
+
+func _has_active_mending_pair(source_allegiance_id: String, target_allegiance_id: String) -> bool:
+    var first: String = source_allegiance_id
+    var second: String = target_allegiance_id
+    if first > second:
+        var swapped := first
+        first = second
+        second = swapped
+    var pair_key: String = "%s|%s" % [first, second]
+    for runtime_variant in _mending_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var runtime_source: String = str(runtime.get("source_allegiance_id", ""))
+        var runtime_target: String = str(runtime.get("target_allegiance_id", ""))
+        if runtime_source == "" or runtime_target == "":
+            continue
+        var runtime_first: String = runtime_source
+        var runtime_second: String = runtime_target
+        if runtime_first > runtime_second:
+            var runtime_swapped := runtime_first
+            runtime_first = runtime_second
+            runtime_second = runtime_swapped
+        var runtime_pair_key: String = "%s|%s" % [runtime_first, runtime_second]
+        if runtime_pair_key == pair_key:
+            return true
+    return false
+
+
+func _has_active_mending_for_allegiance(allegiance_id: String) -> bool:
+    if allegiance_id == "":
+        return false
+    for runtime_variant in _mending_runtime_by_id.values():
+        var runtime: Dictionary = runtime_variant
+        var source_allegiance_id: String = str(runtime.get("source_allegiance_id", ""))
+        var target_allegiance_id: String = str(runtime.get("target_allegiance_id", ""))
+        if source_allegiance_id == allegiance_id or target_allegiance_id == allegiance_id:
+            return true
+    return false
+
+
+func _is_mending_pair_escalated(source_allegiance_id: String, target_allegiance_id: String) -> bool:
+    if source_allegiance_id == "" or target_allegiance_id == "":
+        return false
+    if world_manager.get_allegiance_vendetta_target(source_allegiance_id) == target_allegiance_id:
+        return true
+    if world_manager.get_allegiance_vendetta_target(target_allegiance_id) == source_allegiance_id:
+        return true
+    return false
 
 
 func _setup_memorial_scar_sites_root() -> void:
@@ -4056,6 +4318,18 @@ func _end_rivalry(rivalry_id: int, outcome: String, reason: String) -> void:
 
     rivalry_ended_total += 1
     record_event("Rivalry END: %s (%s)." % [label, reason])
+    if outcome == "resolved" or outcome == "expired":
+        var source_allegiance_id: String = actor_a.allegiance_id if actor_a != null else ""
+        var target_allegiance_id: String = actor_b.allegiance_id if actor_b != null else ""
+        var chance_bonus: float = 0.10 if outcome == "resolved" else 0.04
+        _try_start_mending_arc(
+            source_allegiance_id,
+            target_allegiance_id,
+            "rivalry_%s" % outcome,
+            label,
+            chance_bonus,
+            0.8
+        )
 
     if actor_a != null:
         actor_a.set_rivalry_state(false)
@@ -5110,6 +5384,8 @@ func _build_snapshot() -> Dictionary:
     var allegiance_crisis_labels: Array[String] = []
     var allegiance_recovery_active_count: int = 0
     var allegiance_recovery_labels: Array[String] = []
+    var mending_active_count: int = 0
+    var mending_active_labels: Array[String] = []
     var memorial_scar_active_total: int = 0
     var memorial_site_active_count: int = 0
     var scar_site_active_count: int = 0
@@ -5276,6 +5552,17 @@ func _build_snapshot() -> Dictionary:
         allegiance_recovery_labels.append("%s:%s@%.0fs" % [allegiance_id, reason, remaining])
     allegiance_recovery_labels.sort()
     allegiance_recovery_active_count = allegiance_recovery_labels.size()
+    for mending_id_variant in _mending_runtime_by_id.keys():
+        var mending_id: int = int(mending_id_variant)
+        var runtime: Dictionary = _mending_runtime_by_id.get(mending_id, {})
+        if runtime.is_empty():
+            continue
+        var remaining: float = max(0.0, float(runtime.get("ends_at", elapsed_time)) - elapsed_time)
+        var label: String = str(runtime.get("label", "mending"))
+        var reason: String = str(runtime.get("reason", "mending"))
+        mending_active_labels.append("%s:%s@%.0fs" % [label, reason, remaining])
+    mending_active_labels.sort()
+    mending_active_count = mending_active_labels.size()
     for site_id_variant in _memorial_scar_runtime.keys():
         var site_id: int = int(site_id_variant)
         var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
@@ -5443,6 +5730,11 @@ func _build_snapshot() -> Dictionary:
         "recovery_started_total": recovery_started_total,
         "recovery_ended_total": recovery_ended_total,
         "recovery_interrupted_total": recovery_interrupted_total,
+        "mending_active_count": mending_active_count,
+        "mending_active_labels": mending_active_labels,
+        "mending_started_total": mending_started_total,
+        "mending_ended_total": mending_ended_total,
+        "mending_broken_total": mending_broken_total,
         "legacy_triggered_total": legacy_triggered_total,
         "legacy_successor_chosen_total": legacy_successor_chosen_total,
         "legacy_relic_inherited_total": legacy_relic_inherited_total,
@@ -5821,6 +6113,14 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         vendetta_ended_total += 1
         record_event("Vendetta RESOLVED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
         record_event("Vendetta END: %s -> %s (resolved)." % [source_allegiance_id, target_allegiance_id])
+        _try_start_mending_arc(
+            source_allegiance_id,
+            target_allegiance_id,
+            "vendetta_resolved",
+            reason,
+            0.18,
+            1.4
+        )
         _try_start_allegiance_recovery(source_allegiance_id, "vendetta_resolved", 0.16, 0.9, target_allegiance_id)
         return
 
@@ -5829,6 +6129,14 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
         vendetta_ended_total += 1
         record_event("Vendetta EXPIRED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
         record_event("Vendetta END: %s -> %s (expired)." % [source_allegiance_id, target_allegiance_id])
+        _try_start_mending_arc(
+            source_allegiance_id,
+            target_allegiance_id,
+            "vendetta_expired",
+            reason,
+            0.08,
+            0.6
+        )
         _try_start_allegiance_recovery(source_allegiance_id, "vendetta_expired", 0.08, 0.4, target_allegiance_id)
 
 

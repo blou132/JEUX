@@ -33,6 +33,7 @@ The active direction is a minimal but playable sandbox loop:
 - lightweight rift gate responses layer (bounded allegiance reactions around open gate)
 - lightweight allegiance crisis layer (bounded temporary instability after major shocks)
 - lightweight recovery pulse layer (bounded post-shock allegiance rebound)
+- lightweight mending/reconciliation arcs layer (rare bounded local de-escalation windows)
 - lightweight destiny pulls layer (rare temporary heroic aspirations toward local world stakes)
 - lightweight crossroads/convergence events layer (rare short local signal overlap moments)
 - lightweight sanctified/corrupted zone layer (rare temporary local world traces)
@@ -190,6 +191,15 @@ The active direction is a minimal but playable sandbox loop:
     - local defense uplift: home defense guidance weight gets a small temporary boost for recovering allegiance
   - interruption is explicit and safe: pulse ends early if anchor falls again (or if crisis restarts)
   - observability: dedicated `Recovery START/END/INTERRUPTED` logs and HUD recovery counters/map
+- Mending / reconciliation arcs layer (MVP):
+  - rare short local de-escalation arcs can form between two active opposing allegiances after stabilizing moments
+  - trigger signals reuse safe existing transitions: vendetta end (`resolved/expired`), rivalry end, and recovery-after-vendetta stabilization
+  - bounded scope only: one active mending max per allegiance, tiny global cap, global + per-allegiance cooldowns, and short duration
+  - lightweight effects only:
+    - temporary vendetta suppression for the paired allegiances (prevents immediate re-escalation loops)
+    - slight local raid/bounty pressure reduction for the pair while arc is active
+  - escalation handling is explicit: `Mending BROKEN` on renewed hostility, then clean `Mending END`
+  - observability: dedicated `Mending START/END/BROKEN` logs and HUD mending counters/map
 - Destiny pulls layer (MVP):
   - no quest system: only rare short-lived pull states for notable/promising actors, with one active destiny max per actor
   - candidate signals reuse existing notability markers (champion, special arrival, relic carrier, active successor, very high renown), with simple cooldown gates
@@ -287,6 +297,7 @@ The debug overlay shows:
 - gate response counters (`human active`, `monster active`, `starts`, `ends`, `success`, `interrupted`)
 - allegiance crisis counters (`active`, `start/end/resolved/expired`) + crisis map per allegiance
 - recovery pulse counters (`active`, `start/end/interrupted`) + recovery map per allegiance
+- mending arc counters (`active`, `start/end/broken`) + active mending pair labels
 - destiny pull counters (`active`, `start/end/fulfilled/interrupted`) + active pull labels
 - convergence counters (`active`, `start/end/interrupted`) + active zone labels
 - sanctified/corrupted marked zone counters (`active`, type split, `start/fade`) + active labels
@@ -323,6 +334,7 @@ The debug overlay shows:
 - gate response logs (`Gate Response START` / `SUCCESS` / `INTERRUPTED` / `END`) for bounded faction reaction around gate
 - crisis logs (`Crisis START` / `Crisis RESOLVED` / `Crisis EXPIRED` / `Crisis END`) for temporary proto-faction instability
 - recovery logs (`Recovery START` / `Recovery INTERRUPTED` / `Recovery END`) for temporary post-shock rebound windows
+- mending logs (`Mending START` / `Mending BROKEN` / `Mending END`) for short local reconciliation windows
 - destiny logs (`Destiny START` / `Destiny FULFILLED` / `Destiny INTERRUPTED` / `Destiny END`) for bounded heroic convergence moments
 - convergence logs (`Convergence START` / `Convergence INTERRUPTED` / `Convergence END`) for short local crossroads moments
 - marked zone logs (`Zone SANCTIFIED` / `Zone CORRUPTED` / `Zone FADED`) for temporary local world traces
@@ -361,6 +373,7 @@ Current scaffold checks for the 3D pivot:
 - [test_game3d_gate_responses_behavior.py](tests/test_game3d_gate_responses_behavior.py) (rift response contracts: gate-open gating, bounded start/end lifecycle, lightweight gate duration/breach effects)
 - [test_game3d_allegiance_crisis_behavior.py](tests/test_game3d_allegiance_crisis_behavior.py) (allegiance crisis contracts: bounded triggers, one-active-per-allegiance, clean resolve/expire lifecycle, lightweight rally/raid bias)
 - [test_game3d_recovery_behavior.py](tests/test_game3d_recovery_behavior.py) (recovery pulse contracts: bounded trigger/uniqueness, clean end/interruption, lightweight rally/defense uplift)
+- [test_game3d_mending_behavior.py](tests/test_game3d_mending_behavior.py) (mending/reconciliation contracts: bounded trigger/uniqueness/cap, clean end/broken lifecycle, lightweight local de-escalation effects)
 - [test_game3d_destiny_behavior.py](tests/test_game3d_destiny_behavior.py) (destiny contracts: notable trigger gating, one-active-per-actor uniqueness, clean fulfilled/interrupted/timeout lifecycle, light guidance bias)
 - [test_game3d_convergence_behavior.py](tests/test_game3d_convergence_behavior.py) (convergence contracts: bounded trigger rarity, no-start on insufficient local signals, clean end/interruption lifecycle, light local effects)
 - [test_game3d_marked_zones_behavior.py](tests/test_game3d_marked_zones_behavior.py) (marked-zone contracts: bounded trigger/classification/cap, clean fade lifecycle, and lightweight local effects)
@@ -387,6 +400,7 @@ py -m unittest tests.test_game3d_memorials_behavior -v
 py -m unittest tests.test_game3d_gate_responses_behavior -v
 py -m unittest tests.test_game3d_allegiance_crisis_behavior -v
 py -m unittest tests.test_game3d_recovery_behavior -v
+py -m unittest tests.test_game3d_mending_behavior -v
 py -m unittest tests.test_game3d_destiny_behavior -v
 py -m unittest tests.test_game3d_convergence_behavior -v
 py -m unittest tests.test_game3d_marked_zones_behavior -v
@@ -435,6 +449,7 @@ py -m unittest discover -s tests -v
 - Add lightweight `rift_gate` response MVP (`gate_seal` / `gate_exploit`) with one-active-per-faction cap, cooldown, and bounded gate/breach effects
 - Add lightweight allegiance crisis MVP with one-active-per-allegiance cap, cooldown, bounded rally/raid penalties, and clean resolve/expire lifecycle
 - Add lightweight recovery pulse MVP with one-active-per-allegiance cap, cooldown, bounded rally/defense uplift, and clean interruption on renewed shocks
+- Add lightweight mending/reconciliation arcs MVP with pair-local cooldown/cap, clean start/end/broken lifecycle, and bounded vendetta/pressure de-escalation
 - Add lightweight destiny pull MVP (`rift_call` / `relic_call` / `vendetta_call`) with one-active-per-actor cap, short duration/cooldown, clean fulfilled/interrupted lifecycle, and bounded guidance bias
 - Add lightweight crossroads/convergence events MVP (rare local overlap near open `rift_gate`) with one-active cap, short duration/cooldown, clean interrupted/end lifecycle, and bounded local pull/notability pulses
 - Add lightweight sanctified/corrupted zone MVP with tiny active cap, short fade lifecycle, and bounded local sustain/pressure pulses
@@ -464,6 +479,7 @@ py -m unittest discover -s tests -v
 - Tune gate response trigger chance/cooldown/duration and gate duration deltas so reactions stay visible without destabilizing gate cadence
 - Tune crisis trigger chance/cooldown/duration and rally/raid penalty strength so instability stays readable without suppressing normal faction loops
 - Tune recovery pulse trigger chance/cooldown/duration and uplift strength so rebounds stay readable without creating new snowball loops
+- Tune mending trigger rarity/cooldowns/duration and small de-escalation deltas so reconciliation windows stay readable without suppressing baseline rivalry/vendetta loops
 - Tune destiny trigger rarity/duration/cooldown and pull weights so heroic convergence stays readable without overriding baseline raid/rally/gate behavior
 - Tune convergence trigger rarity/cooldown/duration and local pulse/pull weights so crossroads moments stay visible without overriding baseline destiny/raid/gate flows
 - Tune marked-zone trigger rarity/duration/cooldown and local pulse values so traces stay readable without creating persistent regional snowball

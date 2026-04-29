@@ -110,6 +110,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("patron", content)
         self.assertIn("splinter", content)
         self.assertIn("breakaway", content)
+        self.assertIn("mending", content)
+        self.assertIn("reconciliation", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -169,6 +171,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("vendetta_expired", content)
         self.assertIn("set_allegiance_recovery_defense_modifiers", content)
         self.assertIn("get_allegiance_recovery_defense_delta", content)
+        self.assertIn("set_mending_state", content)
+        self.assertIn("get_allegiance_mending_modifiers", content)
 
     def test_debug_overlay_has_poi_status_labels(self):
         content = (GAME3D / "scripts" / "ui" / "DebugOverlay.gd").read_text(encoding="utf-8")
@@ -208,6 +212,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Crisis map:", content)
         self.assertIn("Recovery:", content)
         self.assertIn("Recovery map:", content)
+        self.assertIn("Mending:", content)
+        self.assertIn("Mending arcs:", content)
         self.assertIn("Legacy:", content)
         self.assertIn("Legacy successors:", content)
         self.assertIn("Memorial/Scar:", content)

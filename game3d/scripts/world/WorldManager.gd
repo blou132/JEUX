@@ -63,6 +63,8 @@ var neutral_gate_response_pull_human_mult: float = 1.0
 var neutral_gate_response_pull_monster_mult: float = 1.0
 var allegiance_crisis_raid_mult_by_id: Dictionary = {}
 var allegiance_recovery_defense_delta_by_id: Dictionary = {}
+var allegiance_mending_modifiers_by_id: Dictionary = {}
+var vendetta_suppressed_pair_keys: Dictionary = {}
 var allegiance_doctrine_by_id: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
@@ -125,6 +127,67 @@ func get_allegiance_recovery_defense_delta(allegiance_id: String) -> float:
     if allegiance_id == "":
         return 0.0
     return clampf(float(allegiance_recovery_defense_delta_by_id.get(allegiance_id, 0.0)), 0.0, 0.24)
+
+
+func set_mending_state(modifiers_by_allegiance: Dictionary = {}, suppressed_pairs: Array = []) -> void:
+    allegiance_mending_modifiers_by_id.clear()
+    for allegiance_variant in modifiers_by_allegiance.keys():
+        var allegiance_id: String = str(allegiance_variant)
+        if allegiance_id == "":
+            continue
+        var raw_modifiers: Dictionary = modifiers_by_allegiance.get(allegiance_variant, {})
+        var target_allegiance_id: String = str(raw_modifiers.get("target_allegiance_id", ""))
+        allegiance_mending_modifiers_by_id[allegiance_id] = {
+            "target_allegiance_id": target_allegiance_id,
+            "raid_weight_delta": clampf(float(raw_modifiers.get("raid_weight_delta", 0.0)), -0.18, 0.0),
+            "bounty_weight_delta": clampf(float(raw_modifiers.get("bounty_weight_delta", 0.0)), -0.20, 0.0)
+        }
+
+    vendetta_suppressed_pair_keys.clear()
+    for pair_variant in suppressed_pairs:
+        var pair: Dictionary = pair_variant
+        var source_allegiance_id: String = str(pair.get("source_allegiance_id", ""))
+        var target_allegiance_id: String = str(pair.get("target_allegiance_id", ""))
+        if source_allegiance_id == "" or target_allegiance_id == "":
+            continue
+        vendetta_suppressed_pair_keys[_mending_pair_key(source_allegiance_id, target_allegiance_id)] = true
+
+
+func get_allegiance_mending_modifiers(
+    source_allegiance_id: String,
+    target_allegiance_id: String = ""
+) -> Dictionary:
+    if source_allegiance_id == "":
+        return {
+            "active": false,
+            "target_allegiance_id": "",
+            "raid_weight_delta": 0.0,
+            "bounty_weight_delta": 0.0
+        }
+    var modifiers: Dictionary = allegiance_mending_modifiers_by_id.get(source_allegiance_id, {})
+    if modifiers.is_empty():
+        return {
+            "active": false,
+            "target_allegiance_id": "",
+            "raid_weight_delta": 0.0,
+            "bounty_weight_delta": 0.0
+        }
+
+    var linked_target: String = str(modifiers.get("target_allegiance_id", ""))
+    if target_allegiance_id != "" and linked_target != "" and linked_target != target_allegiance_id:
+        return {
+            "active": false,
+            "target_allegiance_id": linked_target,
+            "raid_weight_delta": 0.0,
+            "bounty_weight_delta": 0.0
+        }
+
+    return {
+        "active": true,
+        "target_allegiance_id": linked_target,
+        "raid_weight_delta": float(modifiers.get("raid_weight_delta", 0.0)),
+        "bounty_weight_delta": float(modifiers.get("bounty_weight_delta", 0.0))
+    }
 
 
 func set_neutral_gate_response_pull_modifiers(
@@ -423,6 +486,8 @@ func get_raid_guidance(
         weight += float(project_modifiers.get("raid_weight_delta", 0.0))
         var vendetta_modifiers: Dictionary = get_allegiance_vendetta_modifiers(allegiance_id, target_allegiance_id)
         weight += float(vendetta_modifiers.get("raid_weight_delta", 0.0))
+        var mending_modifiers: Dictionary = get_allegiance_mending_modifiers(allegiance_id, target_allegiance_id)
+        weight += float(mending_modifiers.get("raid_weight_delta", 0.0))
         weight *= get_allegiance_crisis_raid_multiplier(allegiance_id)
     weight *= raid_pressure_global_multiplier
     if faction == "human":
@@ -471,6 +536,8 @@ func get_bounty_guidance(
     if allegiance_id != "":
         var vendetta_modifiers: Dictionary = get_allegiance_vendetta_modifiers(allegiance_id, target_allegiance_id)
         weight += float(vendetta_modifiers.get("bounty_weight_delta", 0.0))
+        var mending_modifiers: Dictionary = get_allegiance_mending_modifiers(allegiance_id, target_allegiance_id)
+        weight += float(mending_modifiers.get("bounty_weight_delta", 0.0))
 
     var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
     return {
@@ -1184,6 +1251,8 @@ func _build_pois() -> void:
     neutral_gate_response_pull_monster_mult = 1.0
     allegiance_crisis_raid_mult_by_id.clear()
     allegiance_recovery_defense_delta_by_id.clear()
+    allegiance_mending_modifiers_by_id.clear()
+    vendetta_suppressed_pair_keys.clear()
 
     _refresh_poi_markers()
 
@@ -1840,6 +1909,8 @@ func _try_start_vendetta(
         return {}
     if source_allegiance_id == target_allegiance_id:
         return {}
+    if _is_vendetta_pair_suppressed(source_allegiance_id, target_allegiance_id):
+        return {}
     if not _is_allegiance_anchor_active(source_allegiance_id):
         return {}
     if not _is_allegiance_anchor_active(target_allegiance_id):
@@ -1881,6 +1952,23 @@ func _try_start_vendetta(
         "reason": reason,
         "duration": duration
     }
+
+
+func _mending_pair_key(source_allegiance_id: String, target_allegiance_id: String) -> String:
+    var first_id: String = source_allegiance_id
+    var second_id: String = target_allegiance_id
+    if first_id > second_id:
+        var swapped: String = first_id
+        first_id = second_id
+        second_id = swapped
+    return "%s|%s" % [first_id, second_id]
+
+
+func _is_vendetta_pair_suppressed(source_allegiance_id: String, target_allegiance_id: String) -> bool:
+    if source_allegiance_id == "" or target_allegiance_id == "":
+        return false
+    var pair_key: String = _mending_pair_key(source_allegiance_id, target_allegiance_id)
+    return bool(vendetta_suppressed_pair_keys.get(pair_key, false))
 
 
 func _is_allegiance_anchor_active(allegiance_id: String) -> bool:
