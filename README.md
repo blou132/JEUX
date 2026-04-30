@@ -345,6 +345,20 @@ Passerelles runtime (ordre de chargement) :
 - `observe_dominance` reste l'objectif par defaut au lancement.
 - Le changement enregistre un evenement timeline `objective_selected`, puis relance proprement l'objectif choisi.
 
+## Help panel
+- v143 ajoute un panneau d'aide compact dans `DebugOverlay`, sans menu complet.
+- Affichage/masquage:
+  - `H` ou `F2`: toggle du help panel.
+- Commandes rappelees:
+  - `F1` / `Tab`: bascule HUD `player <-> debug`.
+  - `R`: restart run (si run terminee).
+  - `O` / `PageDown`: objectif suivant (si run terminee).
+  - `H` / `F2`: afficher/masquer aide.
+- Rappel modes HUD:
+  - `player`
+  - `debug`
+  - `off`
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.

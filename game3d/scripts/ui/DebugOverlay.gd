@@ -7,6 +7,7 @@ const OVERLAY_MODE_OFF: String = "off"
 
 var _text: RichTextLabel
 var _overlay_mode: String = OVERLAY_MODE_DEBUG
+var _help_panel_visible: bool = false
 
 
 func _ready() -> void:
@@ -72,6 +73,13 @@ func _unhandled_input(event: InputEvent) -> void:
             if key_event.keycode == KEY_F1 or key_event.keycode == KEY_TAB:
                 _toggle_overlay_player_debug_mode()
                 get_viewport().set_input_as_handled()
+            elif key_event.keycode == KEY_H or key_event.keycode == KEY_F2:
+                toggle_help_panel()
+                get_viewport().set_input_as_handled()
+
+
+func toggle_help_panel() -> void:
+    _help_panel_visible = not _help_panel_visible
 
 
 func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
@@ -179,6 +187,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
     for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
         lines.append(help_line)
+    if _help_panel_visible:
+        for panel_line in _build_help_panel_lines(snapshot):
+            lines.append(panel_line)
     lines.append("")
     if world_event_id != "":
         lines.append(
@@ -904,24 +915,46 @@ func _build_controls_help_lines(
     if normalized_mode == OVERLAY_MODE_PLAYER:
         if can_restart:
             if run_result_visible:
-                return ["F1/Tab: HUD debug/player | mode=player"]
+                return [
+                    "F1/Tab: HUD debug/player | mode=player",
+                    "H/F2: help"
+                ]
             return [
                 "F1/Tab: HUD debug/player | mode=player",
                 "O/PageDown: next objective",
-                "R: restart run"
+                "R: restart run",
+                "H/F2: help"
             ]
-        return ["F1/Tab: HUD debug/player | mode=player"]
+        return [
+            "F1/Tab: HUD debug/player | mode=player",
+            "H/F2: help"
+        ]
 
     var lines: Array[String] = [
         "HUD: F1/Tab toggle player-debug | mode=%s" % normalized_mode,
         "Debug HUD is for development.",
-        "O/PageDown: next objective (after run end)"
+        "O/PageDown: next objective (after run end)",
+        "H/F2: help panel"
     ]
     if can_restart:
         lines.append("R: restart run")
     else:
         lines.append("R: restart run (after run end)")
     return lines
+
+
+func _build_help_panel_lines(snapshot: Dictionary) -> Array[String]:
+    var run_status: String = str(snapshot.get("run_status", "running"))
+    var run_state_label: String = "run terminee" if run_status in ["completed", "failed"] else "run en cours"
+    return [
+        "==================== HELP ====================",
+        "F1/Tab: toggle HUD player/debug",
+        "R: restart run (si run terminee)",
+        "O/PageDown: next objective (si run terminee)",
+        "H/F2: afficher/masquer aide",
+        "HUD modes: player/debug/off | %s" % run_state_label,
+        "================================================"
+    ]
 
 
 func _build_run_result_panel_lines(
@@ -986,6 +1019,10 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     for panel_line in _build_run_result_panel_lines(snapshot, 4):
         lines.append(panel_line)
     if run_result_visible:
+        lines.append("")
+    if _help_panel_visible:
+        for help_panel_line in _build_help_panel_lines(snapshot):
+            lines.append(help_panel_line)
         lines.append("")
 
     lines.append("HUD player | tick=%d t=%.0fs" % [tick, sim_time])
