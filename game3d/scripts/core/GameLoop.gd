@@ -4106,6 +4106,97 @@ func _trim_major_event_timeline() -> void:
 		major_event_timeline.remove_at(0)
 
 
+func get_run_narrative_summary(
+	poi_runtime_snapshot: Dictionary,
+	doctrine_runtime_snapshot: Dictionary,
+	humans_alive: int,
+	monsters_alive: int
+) -> Dictionary:
+	var human_dominant_poi: int = 0
+	var monster_dominant_poi: int = 0
+	var poi_total: int = 0
+	for poi_name in poi_runtime_snapshot.keys():
+		var details_variant: Variant = poi_runtime_snapshot.get(poi_name, {})
+		if typeof(details_variant) != TYPE_DICTIONARY:
+			continue
+		poi_total += 1
+		var details: Dictionary = details_variant
+		var status: String = str(details.get("status", "calm"))
+		if status == "human_dominant":
+			human_dominant_poi += 1
+		elif status == "monster_dominant":
+			monster_dominant_poi += 1
+
+	var dominant_faction: String = "neutral"
+	if human_dominant_poi > monster_dominant_poi:
+		dominant_faction = "human"
+	elif monster_dominant_poi > human_dominant_poi:
+		dominant_faction = "monster"
+	elif humans_alive > monsters_alive:
+		dominant_faction = "human"
+	elif monsters_alive > humans_alive:
+		dominant_faction = "monster"
+
+	var dominant_faction_label: String = "No faction"
+	var dominant_poi_count: int = max(human_dominant_poi, monster_dominant_poi)
+	if dominant_faction == "human":
+		dominant_faction_label = "Humans"
+		dominant_poi_count = human_dominant_poi
+	elif dominant_faction == "monster":
+		dominant_faction_label = "Monsters"
+		dominant_poi_count = monster_dominant_poi
+
+	var dominant_doctrine: String = str(doctrine_runtime_snapshot.get("dominant_doctrine", ""))
+	var dominant_doctrine_count: int = int(doctrine_runtime_snapshot.get("dominant_count", 0))
+	var major_event_count: int = major_event_timeline.size()
+	var project_count: int = project_started_total
+	var vendetta_count: int = vendetta_started_total
+	var champion_count: int = champion_promotions_total
+	var relic_count: int = relic_acquired_total
+	var legacy_count: int = legacy_successor_chosen_total
+	var last_major_event: String = "(none)"
+	if major_event_count > 0:
+		var last_event_variant: Variant = major_event_timeline[major_event_count - 1]
+		if typeof(last_event_variant) == TYPE_DICTIONARY:
+			last_major_event = _format_major_event_label(Dictionary(last_event_variant))
+
+	var run_summary_lines: Array[String] = []
+	if poi_total > 0:
+		run_summary_lines.append(
+			"%s dominated key POIs (%d/%d)." % [dominant_faction_label, dominant_poi_count, poi_total]
+		)
+	else:
+		run_summary_lines.append("%s remained ahead in the field." % dominant_faction_label)
+	if dominant_doctrine != "":
+		run_summary_lines.append(
+			"Doctrine %s guided %d allegiances." % [dominant_doctrine, dominant_doctrine_count]
+		)
+	else:
+		run_summary_lines.append("No clear doctrine dominance yet.")
+	run_summary_lines.append(
+		"%d projects launched; vendettas started=%d (resolved=%d)."
+		% [project_count, vendetta_count, vendetta_resolved_total]
+	)
+	run_summary_lines.append(
+		"Figures: champions promoted=%d, relics acquired=%d, successors chosen=%d."
+		% [champion_count, relic_count, legacy_count]
+	)
+	run_summary_lines.append("Major events tracked=%d. Last: %s." % [major_event_count, last_major_event])
+
+	return {
+		"run_summary_title": "Run Summary",
+		"run_summary_lines": run_summary_lines,
+		"dominant_faction": dominant_faction,
+		"dominant_doctrine": dominant_doctrine,
+		"major_event_count": major_event_count,
+		"project_count": project_count,
+		"vendetta_count": vendetta_count,
+		"champion_count": champion_count,
+		"relic_count": relic_count,
+		"legacy_count": legacy_count
+	}
+
+
 func _get_relic_template(relic_id: String) -> Dictionary:
 	if relic_id == "":
 		return {}
@@ -8938,6 +9029,12 @@ func _build_snapshot() -> Dictionary:
 	var last_major_event_label: String = "(none)"
 	if narrative_timeline_count > 0:
 		last_major_event_label = str(narrative_timeline_labels[narrative_timeline_count - 1])
+	var run_summary: Dictionary = get_run_narrative_summary(
+		poi_runtime_snapshot,
+		doctrine_runtime_snapshot,
+		humans_alive,
+		monsters_alive
+	)
 
 	return {
 		"tick": tick_index,
@@ -8968,6 +9065,16 @@ func _build_snapshot() -> Dictionary:
 		"narrative_timeline_labels": narrative_timeline_labels,
 		"narrative_timeline_count": narrative_timeline_count,
 		"last_major_event_label": last_major_event_label,
+		"run_summary_title": str(run_summary.get("run_summary_title", "Run Summary")),
+		"run_summary_lines": run_summary.get("run_summary_lines", []),
+		"dominant_faction": str(run_summary.get("dominant_faction", "neutral")),
+		"dominant_doctrine": str(run_summary.get("dominant_doctrine", "")),
+		"major_event_count": int(run_summary.get("major_event_count", 0)),
+		"project_count": int(run_summary.get("project_count", 0)),
+		"vendetta_count": int(run_summary.get("vendetta_count", 0)),
+		"champion_count": int(run_summary.get("champion_count", 0)),
+		"relic_count": int(run_summary.get("relic_count", 0)),
+		"legacy_count": int(run_summary.get("legacy_count", 0)),
 		"champion_alive_total": champion_alive_total,
 		"human_champions_alive": human_champions_alive,
 		"monster_champions_alive": monster_champions_alive,

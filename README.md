@@ -224,6 +224,23 @@ Passerelles runtime (ordre de chargement) :
   - `last_major_event_label`.
 - Cette timeline sert a lire les histoires emergentes de la simulation (dominance faction, doctrines dominantes, escalades et ruptures).
 
+## Run narrative summary
+- Le run narrative summary est **observation-only** et memoire-session uniquement pour cette version.
+- `GameLoop` expose un bilan compact de la simulation via:
+  - `run_summary_title`,
+  - `run_summary_lines`,
+  - `dominant_faction`,
+  - `dominant_doctrine`,
+  - `major_event_count`,
+  - `project_count`,
+  - `vendetta_count`,
+  - `champion_count`,
+  - `relic_count`,
+  - `legacy_count`.
+- Difference timeline vs resume:
+  - la **timeline** liste les evenements majeurs recents dans l'ordre temporel,
+  - le **resume** condense l'etat global de la run en 3 a 6 lignes lisibles.
+
 Commande :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json
