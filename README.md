@@ -429,6 +429,7 @@ python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history
   - `--format json` (resume machine-readable)
   - `--format markdown` ou `--format md` (rapport Markdown lisible/archivable)
   - `--output reports/run_metrics_report.md` (ecrit le resultat dans un fichier au lieu de stdout)
+  - `--compare-input after.jsonl` (compare `--input` baseline vs historique candidat)
 - le script ignore les lignes vides, signale/compte les lignes invalides, et reste robuste si des champs manquent.
 - les tests CLI utilisent l'interpreteur Python courant (`sys.executable`) pour rester portables.
 - section `Recommendations` (texte + JSON):
@@ -440,6 +441,16 @@ python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history
 py tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl --format markdown --output reports/run_metrics_report.md
 ```
 - ce mode est pratique pour archiver les playtests et comparer les runs dans un dossier `reports/`.
+- comparaison simple avant/apres tuning:
+```bash
+py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input after.jsonl --format markdown --output reports/compare.md
+```
+- le mode comparaison ajoute une section `Comparison` (texte/Markdown) et un champ `comparison` (JSON) avec deltas `support_gate`:
+  - avg success rate
+  - avg available ratio
+  - objective success rate
+  - avg attempts
+  - avg success
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

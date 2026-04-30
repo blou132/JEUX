@@ -377,6 +377,127 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             content = output_path.read_text(encoding="utf-8")
             self.assertIn("# Run Metrics History Analysis", content)
 
+    def test_comparison_json_contains_deltas(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "before.jsonl"
+            candidate_path = Path(tmpdir) / "after.jsonl"
+
+            baseline_rows = [
+                json.dumps(
+                    {
+                        "export_id": "before_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 6,
+                        "support_gate_run_success": 3,
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.60,
+                    }
+                )
+            ]
+            candidate_rows = [
+                json.dumps(
+                    {
+                        "export_id": "after_1",
+                        "objective_id": "support_gate",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "support_gate_run_attempts": 5,
+                        "support_gate_run_success": 3,
+                        "support_gate_run_success_rate": 0.70,
+                        "support_gate_run_available_ratio": 0.40,
+                    }
+                )
+            ]
+            _write_jsonl(baseline_path, baseline_rows)
+            _write_jsonl(candidate_path, candidate_rows)
+
+            summary = _run_summary_json(
+                baseline_path,
+                ["--compare-input", str(candidate_path)],
+            )
+            comparison = summary["comparison"]
+            support_gate_comparison = comparison["support_gate"]
+            delta = support_gate_comparison["delta"]
+
+            self.assertAlmostEqual(float(delta["avg_support_gate_run_success_rate"]), 0.20, places=4)
+            self.assertAlmostEqual(float(delta["avg_support_gate_run_available_ratio"]), -0.20, places=4)
+            self.assertAlmostEqual(float(delta["avg_support_gate_run_attempts"]), -1.0, places=4)
+            self.assertAlmostEqual(float(delta["avg_support_gate_run_success"]), 0.0, places=4)
+            self.assertAlmostEqual(float(delta["objective_success_rate"]), -1.0, places=4)
+
+    def test_comparison_markdown_contains_comparison_section(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "before.jsonl"
+            candidate_path = Path(tmpdir) / "after.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "before_md_1",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_success_rate": 0.55,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    )
+                ],
+            )
+            _write_jsonl(
+                candidate_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "after_md_1",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_success_rate": 0.65,
+                            "support_gate_run_available_ratio": 0.45,
+                        }
+                    )
+                ],
+            )
+
+            result = _run_cli(
+                [
+                    "--input",
+                    str(baseline_path),
+                    "--compare-input",
+                    str(candidate_path),
+                    "--format",
+                    "markdown",
+                ]
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("## Comparison", result.stdout)
+            self.assertIn("| Metric | Baseline | Candidate | Delta | Change |", result.stdout)
+
+    def test_compare_input_missing_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "before.jsonl"
+            missing_candidate_path = Path(tmpdir) / "missing_after.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [json.dumps({"export_id": "before_missing", "objective_id": "support_gate"})],
+            )
+
+            result = _run_cli(
+                [
+                    "--input",
+                    str(baseline_path),
+                    "--compare-input",
+                    str(missing_candidate_path),
+                    "--format",
+                    "json",
+                ]
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("ERROR: compare input file not found", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

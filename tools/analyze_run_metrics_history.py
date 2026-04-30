@@ -7,6 +7,18 @@ from typing import Any
 
 
 DEFAULT_HISTORY_PATH = Path("run_metrics_history.jsonl")
+COMPARISON_SUPPORT_GATE_METRICS = (
+    "avg_support_gate_run_success_rate",
+    "avg_support_gate_run_available_ratio",
+    "objective_success_rate",
+    "avg_support_gate_run_attempts",
+    "avg_support_gate_run_success",
+)
+COMPARISON_RATE_METRICS = {
+    "avg_support_gate_run_success_rate",
+    "avg_support_gate_run_available_ratio",
+    "objective_success_rate",
+}
 
 
 def _as_float(value: Any) -> float | None:
@@ -223,6 +235,71 @@ def build_summary(
     return summary
 
 
+def _compute_delta_and_percent(baseline: float | None, candidate: float | None) -> tuple[float | None, float | None]:
+    if baseline is None or candidate is None:
+        return None, None
+    delta = candidate - baseline
+    if abs(baseline) < 1e-9:
+        return delta, None
+    return delta, (delta / abs(baseline)) * 100.0
+
+
+def _format_number(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.2f}"
+
+
+def _format_ratio(value: float | None) -> str:
+    return _pct(value)
+
+
+def _format_delta(value: float | None, is_rate: bool) -> str:
+    if value is None:
+        return "n/a"
+    if is_rate:
+        return f"{value * 100.0:+.1f}pp"
+    return f"{value:+.2f}"
+
+
+def _format_percent_change(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:+.1f}%"
+
+
+def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary: dict[str, Any]) -> dict[str, Any]:
+    baseline_support_gate = baseline_summary.get("support_gate", {})
+    candidate_support_gate = candidate_summary.get("support_gate", {})
+
+    baseline_metrics: dict[str, float | None] = {}
+    candidate_metrics: dict[str, float | None] = {}
+    delta_metrics: dict[str, float | None] = {}
+    delta_percent_metrics: dict[str, float | None] = {}
+
+    for metric_name in COMPARISON_SUPPORT_GATE_METRICS:
+        baseline_value = _as_float(baseline_support_gate.get(metric_name))
+        candidate_value = _as_float(candidate_support_gate.get(metric_name))
+        delta_value, delta_percent_value = _compute_delta_and_percent(baseline_value, candidate_value)
+        baseline_metrics[metric_name] = baseline_value
+        candidate_metrics[metric_name] = candidate_value
+        delta_metrics[metric_name] = delta_value
+        delta_percent_metrics[metric_name] = delta_percent_value
+
+    return {
+        "baseline_exports_read": int(baseline_summary.get("exports_read", 0)),
+        "candidate_exports_read": int(candidate_summary.get("exports_read", 0)),
+        "baseline_invalid_lines": int(baseline_summary.get("invalid_lines", 0)),
+        "candidate_invalid_lines": int(candidate_summary.get("invalid_lines", 0)),
+        "support_gate": {
+            "baseline": baseline_metrics,
+            "candidate": candidate_metrics,
+            "delta": delta_metrics,
+            "delta_percent": delta_percent_metrics,
+        },
+    }
+
+
 def _pct(value: float | None) -> str:
     if value is None:
         return "n/a"
@@ -290,6 +367,38 @@ def format_summary_text(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
+
+    comparison = summary.get("comparison")
+    if isinstance(comparison, dict):
+        support_gate_comparison = comparison.get("support_gate", {})
+        baseline_metrics = support_gate_comparison.get("baseline", {})
+        candidate_metrics = support_gate_comparison.get("candidate", {})
+        delta_metrics = support_gate_comparison.get("delta", {})
+        delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
+
+        lines.append("")
+        lines.append("Comparison:")
+        lines.append(
+            "Baseline exports=%d Candidate exports=%d"
+            % (
+                int(comparison.get("baseline_exports_read", 0)),
+                int(comparison.get("candidate_exports_read", 0)),
+            )
+        )
+        for metric_name in COMPARISON_SUPPORT_GATE_METRICS:
+            is_rate_metric = metric_name in COMPARISON_RATE_METRICS
+            baseline_value = _as_float(baseline_metrics.get(metric_name))
+            candidate_value = _as_float(candidate_metrics.get(metric_name))
+            delta_value = _as_float(delta_metrics.get(metric_name))
+            delta_percent_value = _as_float(delta_percent_metrics.get(metric_name))
+            baseline_label = _format_ratio(baseline_value) if is_rate_metric else _format_number(baseline_value)
+            candidate_label = _format_ratio(candidate_value) if is_rate_metric else _format_number(candidate_value)
+            delta_label = _format_delta(delta_value, is_rate_metric)
+            change_label = _format_percent_change(delta_percent_value)
+            lines.append(
+                "- %s: baseline=%s candidate=%s delta=%s (change=%s)"
+                % (metric_name, baseline_label, candidate_label, delta_label, change_label)
+            )
     return "\n".join(lines)
 
 
@@ -382,6 +491,42 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
+
+    comparison = summary.get("comparison")
+    if isinstance(comparison, dict):
+        support_gate_comparison = comparison.get("support_gate", {})
+        baseline_metrics = support_gate_comparison.get("baseline", {})
+        candidate_metrics = support_gate_comparison.get("candidate", {})
+        delta_metrics = support_gate_comparison.get("delta", {})
+        delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
+
+        lines.append("")
+        lines.append("## Comparison")
+        lines.append("")
+        lines.append(
+            "- Baseline exports read: %d"
+            % int(comparison.get("baseline_exports_read", 0))
+        )
+        lines.append(
+            "- Candidate exports read: %d"
+            % int(comparison.get("candidate_exports_read", 0))
+        )
+        lines.append("| Metric | Baseline | Candidate | Delta | Change |")
+        lines.append("|---|---|---|---|---|")
+        for metric_name in COMPARISON_SUPPORT_GATE_METRICS:
+            is_rate_metric = metric_name in COMPARISON_RATE_METRICS
+            baseline_value = _as_float(baseline_metrics.get(metric_name))
+            candidate_value = _as_float(candidate_metrics.get(metric_name))
+            delta_value = _as_float(delta_metrics.get(metric_name))
+            delta_percent_value = _as_float(delta_percent_metrics.get(metric_name))
+            baseline_label = _format_ratio(baseline_value) if is_rate_metric else _format_number(baseline_value)
+            candidate_label = _format_ratio(candidate_value) if is_rate_metric else _format_number(candidate_value)
+            delta_label = _format_delta(delta_value, is_rate_metric)
+            change_label = _format_percent_change(delta_percent_value)
+            lines.append(
+                "| %s | %s | %s | %s | %s |"
+                % (metric_name, baseline_label, candidate_label, delta_label, change_label)
+            )
     return "\n".join(lines)
 
 
@@ -417,6 +562,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional output file path. If provided, writes result to file instead of stdout.",
     )
+    parser.add_argument(
+        "--compare-input",
+        type=Path,
+        default=None,
+        help="Optional second JSONL file to compare against --input (treated as candidate).",
+    )
     return parser
 
 
@@ -431,6 +582,10 @@ def main() -> int:
     if not input_path.exists():
         print("ERROR: input file not found: %s" % input_path)
         return 1
+    compare_input_path: Path | None = args.compare_input
+    if compare_input_path is not None and not compare_input_path.exists():
+        print("ERROR: compare input file not found: %s" % compare_input_path)
+        return 1
 
     records, invalid_lines = read_jsonl_records(input_path)
     summary = build_summary(
@@ -439,6 +594,15 @@ def main() -> int:
         objective_filter=objective if objective else None,
         limit=limit if limit > 0 else None,
     )
+    if compare_input_path is not None:
+        compare_records, compare_invalid_lines = read_jsonl_records(compare_input_path)
+        candidate_summary = build_summary(
+            compare_records,
+            compare_invalid_lines,
+            objective_filter=objective if objective else None,
+            limit=limit if limit > 0 else None,
+        )
+        summary["comparison"] = build_comparison_summary(summary, candidate_summary)
 
     output_format = str(args.format).strip().lower()
     if output_format == "md":
