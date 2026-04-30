@@ -482,6 +482,42 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.
 
+## Support gate playtest protocol
+- Objectif: comparer proprement un reglable baseline et un reglable candidate pour `support_gate`.
+- Etape 1 (baseline):
+  - garder un reglage baseline fixe.
+  - executer 10 a 30 runs `support_gate` dans des conditions aussi constantes que possible.
+  - exporter l'historique puis sauvegarder le fichier en `reports/before_support_gate.jsonl`.
+- Etape 2 (candidate):
+  - appliquer un seul changement de tuning.
+  - executer 10 a 30 runs `support_gate` dans les memes conditions.
+  - exporter l'historique puis sauvegarder le fichier en `reports/after_support_gate.jsonl`.
+- Etape 3 (analyse simple):
+```bash
+py tools/analyze_run_metrics_history.py --input reports/after_support_gate.jsonl --format markdown --output reports/after_support_gate_report.md
+```
+- Etape 4 (comparaison before/after):
+```bash
+py tools/analyze_run_metrics_history.py --input reports/before_support_gate.jsonl --compare-input reports/after_support_gate.jsonl --format markdown --output reports/support_gate_compare.md
+```
+- Etape 5 (sortie JSON machine-readable):
+```bash
+py tools/analyze_run_metrics_history.py --input reports/before_support_gate.jsonl --compare-input reports/after_support_gate.jsonl --format json --output reports/support_gate_compare.json
+```
+- Grille d'interpretation rapide:
+  - `confidence=low`: ne pas decider, collecter plus de runs.
+  - `stability=unstable`: refaire plus de runs avant d'ajuster.
+  - `candidate better` + `confidence` medium/high: garder le tuning pour tests suivants.
+  - `candidate worse`: revert ou rejet du tuning.
+  - `mixed`: arbitrer selon l'objectif design.
+- Champs utiles a lire dans le JSON:
+  - `comparison.confidence`
+  - `support_gate.support_gate_stability_label` (`stability`)
+  - `final_decision`
+- Note de methode:
+  - les runs sont des runs logiques et pas toujours un reboot complet monde/acteurs.
+  - garder la configuration de test aussi constante que possible entre baseline et candidate.
+
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
   - `run_status`: `running` / `completed` / `failed`
