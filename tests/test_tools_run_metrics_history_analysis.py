@@ -52,6 +52,34 @@ def _run_comparison_summary_json(baseline_rows: list[str], candidate_rows: list[
         )
 
 
+def _build_support_gate_rows(
+    prefix: str,
+    count: int,
+    success_rate: float = 0.60,
+    available_ratio: float = 0.50,
+    run_status: str = "completed",
+    objective_status: str = "completed",
+) -> list[str]:
+    rows: list[str] = []
+    run_success = max(0, min(6, int(round(6 * success_rate))))
+    for index in range(count):
+        rows.append(
+            json.dumps(
+                {
+                    "export_id": f"{prefix}_{index + 1}",
+                    "objective_id": "support_gate",
+                    "run_status": run_status,
+                    "objective_status": objective_status,
+                    "support_gate_run_attempts": 6,
+                    "support_gate_run_success": run_success,
+                    "support_gate_run_success_rate": success_rate,
+                    "support_gate_run_available_ratio": available_ratio,
+                }
+            )
+        )
+    return rows
+
+
 class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
     def test_valid_history_summary_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -433,11 +461,33 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             support_gate_comparison = comparison["support_gate"]
             delta = support_gate_comparison["delta"]
 
+            self.assertIn("confidence", comparison)
             self.assertAlmostEqual(float(delta["avg_support_gate_run_success_rate"]), 0.20, places=4)
             self.assertAlmostEqual(float(delta["avg_support_gate_run_available_ratio"]), -0.20, places=4)
             self.assertAlmostEqual(float(delta["avg_support_gate_run_attempts"]), -1.0, places=4)
             self.assertAlmostEqual(float(delta["avg_support_gate_run_success"]), 0.0, places=4)
             self.assertAlmostEqual(float(delta["objective_success_rate"]), -1.0, places=4)
+
+    def test_comparison_confidence_low(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_low", 2),
+            candidate_rows=_build_support_gate_rows("cand_low", 5),
+        )
+        self.assertEqual(summary["comparison"]["confidence"], "low")
+
+    def test_comparison_confidence_medium(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_med", 3),
+            candidate_rows=_build_support_gate_rows("cand_med", 9),
+        )
+        self.assertEqual(summary["comparison"]["confidence"], "medium")
+
+    def test_comparison_confidence_high(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_high", 10),
+            candidate_rows=_build_support_gate_rows("cand_high", 12),
+        )
+        self.assertEqual(summary["comparison"]["confidence"], "high")
 
     def test_comparison_markdown_contains_comparison_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -683,6 +733,8 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertIn("## Comparison", result.stdout)
+            self.assertIn("- Confidence: low", result.stdout)
+            self.assertIn("- Use more runs before trusting this comparison.", result.stdout)
             self.assertIn("- Recommendation: Candidate looks better for support_gate.", result.stdout)
 
 

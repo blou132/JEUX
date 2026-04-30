@@ -456,6 +456,12 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - `Candidate looks worse for support_gate.`
   - `Mixed result: success improved but availability got worse.`
   - `Insufficient support_gate data for comparison.`
+- le mode comparaison ajoute un indicateur `confidence` (`low` / `medium` / `high`) base uniquement sur le nombre de runs `support_gate`:
+  - `low`: un des deux historiques a moins de 3 runs `support_gate`.
+  - `medium`: les deux historiques ont entre 3 et 9 runs.
+  - `high`: les deux historiques ont 10 runs ou plus.
+- quand `confidence=low`, le rapport ajoute la note:
+  - `Use more runs before trusting this comparison.`
 - cette conclusion reste **heuristique** (aide pratique de tuning), pas une analyse statistique formelle.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.

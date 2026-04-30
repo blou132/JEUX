@@ -302,8 +302,19 @@ def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary
             "delta_percent": delta_percent_metrics,
         },
     }
+    comparison["confidence"] = build_comparison_confidence(comparison)
     comparison["recommendation"] = build_comparison_recommendation(comparison)
     return comparison
+
+
+def build_comparison_confidence(comparison: dict[str, Any]) -> str:
+    baseline_records = int(comparison.get("baseline_support_gate_records", 0))
+    candidate_records = int(comparison.get("candidate_support_gate_records", 0))
+    if baseline_records < 3 or candidate_records < 3:
+        return "low"
+    if baseline_records >= 10 and candidate_records >= 10:
+        return "high"
+    return "medium"
 
 
 def build_comparison_recommendation(comparison: dict[str, Any]) -> str:
@@ -410,6 +421,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
         delta_metrics = support_gate_comparison.get("delta", {})
         delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
         comparison_recommendation = str(comparison.get("recommendation", "")).strip()
+        comparison_confidence = str(comparison.get("confidence", "")).strip().lower()
 
         lines.append("")
         lines.append("Comparison:")
@@ -420,6 +432,10 @@ def format_summary_text(summary: dict[str, Any]) -> str:
                 int(comparison.get("candidate_exports_read", 0)),
             )
         )
+        if comparison_confidence:
+            lines.append("Comparison confidence: %s" % comparison_confidence)
+            if comparison_confidence == "low":
+                lines.append("Use more runs before trusting this comparison.")
         if comparison_recommendation:
             lines.append("Comparison recommendation: %s" % comparison_recommendation)
         for metric_name in COMPARISON_SUPPORT_GATE_METRICS:
@@ -537,6 +553,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
         delta_metrics = support_gate_comparison.get("delta", {})
         delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
         comparison_recommendation = str(comparison.get("recommendation", "")).strip()
+        comparison_confidence = str(comparison.get("confidence", "")).strip().lower()
 
         lines.append("")
         lines.append("## Comparison")
@@ -549,6 +566,10 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             "- Candidate exports read: %d"
             % int(comparison.get("candidate_exports_read", 0))
         )
+        if comparison_confidence:
+            lines.append("- Confidence: %s" % comparison_confidence)
+            if comparison_confidence == "low":
+                lines.append("- Use more runs before trusting this comparison.")
         if comparison_recommendation:
             lines.append("- Recommendation: %s" % comparison_recommendation)
         lines.append("| Metric | Baseline | Candidate | Delta | Change |")
