@@ -299,6 +299,21 @@ Passerelles runtime (ordre de chargement) :
   - `run_completed`
   - `run_failed`
 
+## Run restart
+- `GameLoop` expose `restart_run()` pour relancer une run apres `completed` ou `failed`.
+- Reset v138 (couche run/objective, sans refonte globale):
+  - `run_status`, `run_result_title`, `run_result_lines`, `run_result_visible`
+  - champs objectif (`objective_status`, progression, fail reason, dominant faction, switches)
+  - `major_event_timeline` (timeline narrative)
+  - baseline des compteurs utilises par le run summary (resume relance par run)
+- Timeline narrative:
+  - `run_restarted`
+  - `objective_started` (nouvelle run)
+- Input rapide:
+  - `R` : restart run uniquement si `run_status` est `completed` ou `failed`.
+- Portee:
+  - v138 ne relance pas un reboot complet monde/acteurs; la simulation physique continue et seule la couche run/objective est reinitialisee proprement.
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.
@@ -308,6 +323,7 @@ Passerelles runtime (ordre de chargement) :
 - Commandes HUD:
   - `F1` : bascule HUD `player <-> debug`.
   - `Tab` : bascule HUD `player <-> debug` (si conservee).
+  - `R` : `restart run` (affiche seulement quand la run est terminee).
   - `set_overlay_mode("player" | "debug" | "off")` : selection explicite du mode.
   - `cycle_overlay_mode()` : cycle `player -> debug -> off -> player`.
 - API publique:

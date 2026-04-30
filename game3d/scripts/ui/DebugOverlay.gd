@@ -170,7 +170,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
-    for help_line in _build_controls_help_lines(_overlay_mode):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status):
         lines.append(help_line)
     lines.append("")
     if world_event_id != "":
@@ -885,17 +885,26 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     _text.text = "\n".join(lines)
 
 
-func _build_controls_help_lines(mode: String) -> Array[String]:
+func _build_controls_help_lines(mode: String, run_status: String = "running") -> Array[String]:
     var normalized_mode: String = mode.strip_edges().to_lower()
+    var can_restart: bool = run_status in ["completed", "failed"]
     if normalized_mode == OVERLAY_MODE_OFF:
         return []
     if normalized_mode == OVERLAY_MODE_PLAYER:
+        if can_restart:
+            return [
+                "F1/Tab: HUD debug/player | mode=player",
+                "R: restart run"
+            ]
         return ["F1/Tab: HUD debug/player | mode=player"]
 
-    return [
+    var lines: Array[String] = [
         "HUD: F1/Tab toggle player-debug | mode=%s" % normalized_mode,
         "Debug HUD is for development."
     ]
+    if can_restart:
+        lines.append("R: restart run")
+    return lines
 
 
 func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
@@ -943,7 +952,7 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         faction_label = "monsters"
     var doctrine_label: String = dominant_doctrine if dominant_doctrine != "" else "(none)"
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
-    for help_line in _build_controls_help_lines(_overlay_mode):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status):
         lines.append(help_line)
     lines.append("Objective: %s (%s)" % [objective_title, objective_status])
     lines.append("Progress: %s" % objective_progress_label)

@@ -580,6 +580,12 @@ var run_status: String = "running"
 var run_result_title: String = ""
 var run_result_lines: Array[String] = []
 var run_result_visible: bool = false
+var run_project_started_baseline: int = 0
+var run_vendetta_started_baseline: int = 0
+var run_vendetta_resolved_baseline: int = 0
+var run_champion_promotions_baseline: int = 0
+var run_relic_acquired_baseline: int = 0
+var run_legacy_successor_baseline: int = 0
 
 
 func _ready() -> void:
@@ -709,6 +715,39 @@ func _load_location_templates_data() -> void:
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
+func _capture_run_metrics_baseline() -> void:
+	run_project_started_baseline = project_started_total
+	run_vendetta_started_baseline = vendetta_started_total
+	run_vendetta_resolved_baseline = vendetta_resolved_total
+	run_champion_promotions_baseline = champion_promotions_total
+	run_relic_acquired_baseline = relic_acquired_total
+	run_legacy_successor_baseline = legacy_successor_chosen_total
+
+
+func restart_run() -> void:
+	if not (run_status in ["completed", "failed"]):
+		return
+
+	var previous_status: String = run_status
+	event_log.clear()
+	major_event_timeline.clear()
+	record_event("Run RESTARTED: previous status=%s." % previous_status)
+	_record_major_event(
+		"run_restarted",
+		"Run RESTARTED: %s -> running" % previous_status
+	)
+	_setup_world_objective()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_R:
+			if run_status in ["completed", "failed"]:
+				restart_run()
+				get_viewport().set_input_as_handled()
+
+
 func _process(delta: float) -> void:
 	tick_accumulator += delta
 	var tick_dt: float = 1.0 / TICK_RATE
@@ -783,6 +822,7 @@ func _setup_world_objective() -> void:
 	run_result_title = ""
 	run_result_lines = []
 	run_result_visible = false
+	_capture_run_metrics_baseline()
 	record_event(
 		"Objective START: %s (hold a faction dominance for %.0fs)."
 		% [world_objective_id, world_objective_required]
@@ -4404,11 +4444,12 @@ func get_run_narrative_summary(
 	var dominant_doctrine: String = str(doctrine_runtime_snapshot.get("dominant_doctrine", ""))
 	var dominant_doctrine_count: int = int(doctrine_runtime_snapshot.get("dominant_count", 0))
 	var major_event_count: int = major_event_timeline.size()
-	var project_count: int = project_started_total
-	var vendetta_count: int = vendetta_started_total
-	var champion_count: int = champion_promotions_total
-	var relic_count: int = relic_acquired_total
-	var legacy_count: int = legacy_successor_chosen_total
+	var project_count: int = max(0, project_started_total - run_project_started_baseline)
+	var vendetta_count: int = max(0, vendetta_started_total - run_vendetta_started_baseline)
+	var vendetta_resolved_count: int = max(0, vendetta_resolved_total - run_vendetta_resolved_baseline)
+	var champion_count: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
+	var relic_count: int = max(0, relic_acquired_total - run_relic_acquired_baseline)
+	var legacy_count: int = max(0, legacy_successor_chosen_total - run_legacy_successor_baseline)
 	var last_major_event: String = "(none)"
 	if major_event_count > 0:
 		var last_event_variant: Variant = major_event_timeline[major_event_count - 1]
@@ -4430,7 +4471,7 @@ func get_run_narrative_summary(
 		run_summary_lines.append("No clear doctrine dominance yet.")
 	run_summary_lines.append(
 		"%d projects launched; vendettas started=%d (resolved=%d)."
-		% [project_count, vendetta_count, vendetta_resolved_total]
+		% [project_count, vendetta_count, vendetta_resolved_count]
 	)
 	run_summary_lines.append(
 		"Figures: champions promoted=%d, relics acquired=%d, successors chosen=%d."
