@@ -576,6 +576,10 @@ var world_objective_required: float = OBJECTIVE_DOMINANCE_REQUIRED_TIME
 var world_objective_dominance_hold_seconds: float = 0.0
 var world_objective_dominance_switches: int = 0
 var world_objective_start_deaths_total: int = 0
+var run_status: String = "running"
+var run_result_title: String = ""
+var run_result_lines: Array[String] = []
+var run_result_visible: bool = false
 
 
 func _ready() -> void:
@@ -775,6 +779,10 @@ func _setup_world_objective() -> void:
 	world_objective_dominance_hold_seconds = 0.0
 	world_objective_dominance_switches = 0
 	world_objective_start_deaths_total = deaths_total
+	run_status = "running"
+	run_result_title = ""
+	run_result_lines = []
+	run_result_visible = false
 	record_event(
 		"Objective START: %s (hold a faction dominance for %.0fs)."
 		% [world_objective_id, world_objective_required]
@@ -804,6 +812,87 @@ func _compute_objective_dominant_faction(poi_runtime_snapshot: Dictionary) -> St
 	if monster_dominant_poi > human_dominant_poi:
 		return "monster"
 	return ""
+
+
+func _set_run_result_from_objective(status: String) -> void:
+	if not (status in ["completed", "failed"]):
+		return
+	if run_status in ["completed", "failed"]:
+		return
+
+	var humans_alive: int = 0
+	var monsters_alive: int = 0
+	for actor in actors:
+		if actor == null or actor.is_dead:
+			continue
+		if actor.faction == "human":
+			humans_alive += 1
+		elif actor.faction == "monster":
+			monsters_alive += 1
+
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
+	var doctrine_runtime_snapshot: Dictionary = world_manager.get_allegiance_doctrine_snapshot()
+	var run_summary: Dictionary = get_run_narrative_summary(
+		poi_runtime_snapshot,
+		doctrine_runtime_snapshot,
+		humans_alive,
+		monsters_alive
+	)
+	var summary_lines_variant: Variant = run_summary.get("run_summary_lines", [])
+	var summary_lines: Array[String] = []
+	if typeof(summary_lines_variant) == TYPE_ARRAY:
+		for line_variant in summary_lines_variant:
+			summary_lines.append(str(line_variant))
+
+	run_status = status
+	run_result_visible = true
+	run_result_lines = []
+
+	var dominant_faction_id: String = world_objective_dominant_faction
+	if dominant_faction_id == "":
+		dominant_faction_id = str(run_summary.get("dominant_faction", "neutral"))
+	var dominant_faction_label: String = "Neutral"
+	if dominant_faction_id == "human":
+		dominant_faction_label = "Humans"
+	elif dominant_faction_id == "monster":
+		dominant_faction_label = "Monsters"
+
+	if status == "completed":
+		run_result_title = "Run completed"
+		if world_objective_result_label != "":
+			run_result_lines.append(world_objective_result_label)
+		run_result_lines.append("Dominant faction: %s." % dominant_faction_label)
+		if not summary_lines.is_empty():
+			run_result_lines.append(summary_lines[0])
+			if summary_lines.size() > 1:
+				run_result_lines.append(summary_lines[1])
+		record_event("Run COMPLETED: objective=%s faction=%s." % [world_objective_id, dominant_faction_id])
+		_record_major_event(
+			"run_completed",
+			"Run COMPLETED: faction=%s" % dominant_faction_id,
+			dominant_faction_id
+		)
+		return
+
+	run_result_title = "Run failed"
+	if world_objective_fail_reason != "":
+		run_result_lines.append("Reason: %s." % world_objective_fail_reason)
+	var deaths_since_start: int = max(0, deaths_total - world_objective_start_deaths_total)
+	run_result_lines.append("Deaths since objective start: %d." % deaths_since_start)
+	run_result_lines.append("Dominance switches: %d." % world_objective_dominance_switches)
+	if not summary_lines.is_empty():
+		run_result_lines.append(summary_lines[0])
+	record_event(
+		"Run FAILED: objective=%s reason=%s."
+		% [world_objective_id, world_objective_fail_reason if world_objective_fail_reason != "" else "unknown"]
+	)
+	_record_major_event(
+		"run_failed",
+		"Run FAILED: reason=%s" % (
+			world_objective_fail_reason if world_objective_fail_reason != "" else "unknown"
+		),
+		dominant_faction_id
+	)
 
 
 func _update_world_objective(delta: float) -> void:
@@ -859,6 +948,7 @@ func _update_world_objective(delta: float) -> void:
 			"Objective FAILED: %s" % world_objective_fail_reason,
 			world_objective_dominant_faction
 		)
+		_set_run_result_from_objective("failed")
 		return
 
 	if world_objective_dominance_switches >= OBJECTIVE_FAIL_SWITCH_THRESHOLD:
@@ -875,6 +965,7 @@ func _update_world_objective(delta: float) -> void:
 			"Objective FAILED: %s" % world_objective_fail_reason,
 			world_objective_dominant_faction
 		)
+		_set_run_result_from_objective("failed")
 		return
 
 	if world_objective_dominance_hold_seconds >= world_objective_required:
@@ -901,6 +992,7 @@ func _update_world_objective(delta: float) -> void:
 			"Objective COMPLETE: faction=%s" % world_objective_dominant_faction,
 			world_objective_dominant_faction
 		)
+		_set_run_result_from_objective("completed")
 
 
 func register_spawn(actor: Actor) -> void:
@@ -9232,6 +9324,10 @@ func _build_snapshot() -> Dictionary:
 		"run_summary_lines": run_summary.get("run_summary_lines", []),
 		"dominant_faction": str(run_summary.get("dominant_faction", "neutral")),
 		"dominant_doctrine": str(run_summary.get("dominant_doctrine", "")),
+		"run_status": run_status,
+		"run_result_title": run_result_title,
+		"run_result_lines": run_result_lines,
+		"run_result_visible": run_result_visible,
 		"objective_active": world_objective_active,
 		"objective_id": world_objective_id,
 		"objective_title": world_objective_title,

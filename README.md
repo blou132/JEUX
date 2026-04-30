@@ -282,6 +282,23 @@ Passerelles runtime (ordre de chargement) :
   - `objective_failed`
 - Ce world objective est un repere lisible pour le joueur et **ne remplace pas** le sandbox emergent.
 
+## Run result
+- Un etat global de run est expose en plus de l'objectif:
+  - `run_status`: `running` / `completed` / `failed`
+  - `run_result_title`
+  - `run_result_lines`
+  - `run_result_visible`
+- Difference:
+  - `objective_status` = etat du world objective (`observe_dominance`).
+  - `run_status` = etat global de la run pour l'affichage de fin.
+- Quand l'objectif se termine:
+  - succes: `run_status=completed` et bloc resultat type `Run completed`.
+  - echec: `run_status=failed` et bloc resultat type `Run failed`.
+- Le resultat est **observation-only**: la simulation peut continuer apres affichage selon le mode sandbox retenu.
+- Timeline narrative:
+  - `run_completed`
+  - `run_failed`
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.

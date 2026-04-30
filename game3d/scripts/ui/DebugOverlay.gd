@@ -118,6 +118,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var last_major_event_label: String = str(snapshot.get("last_major_event_label", "(none)"))
     var run_summary_title: String = str(snapshot.get("run_summary_title", "Run Summary"))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
+    var run_status: String = str(snapshot.get("run_status", "running"))
+    var run_result_title: String = str(snapshot.get("run_result_title", ""))
+    var run_result_lines: Array = snapshot.get("run_result_lines", [])
+    var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var objective_active: bool = bool(snapshot.get("objective_active", false))
     var objective_id: String = str(snapshot.get("objective_id", ""))
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
@@ -589,6 +593,26 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         lines.append("Objective fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
         lines.append("Objective result: %s" % objective_result_label)
+    lines.append(
+        "Run status: %s | result_visible=%s"
+        % [run_status, "yes" if run_result_visible else "no"]
+    )
+    if run_result_visible:
+        var result_title: String = run_result_title
+        if result_title == "":
+            if run_status == "completed":
+                result_title = "Run completed"
+            elif run_status == "failed":
+                result_title = "Run failed"
+            else:
+                result_title = "Run result"
+        lines.append("%s:" % result_title)
+        if run_result_lines.is_empty():
+            lines.append("- (none)")
+        else:
+            var run_result_visible_count: int = min(4, run_result_lines.size())
+            for index in range(run_result_visible_count):
+                lines.append("- %s" % str(run_result_lines[index]))
     lines.append("%s:" % run_summary_title)
     if run_summary_lines.is_empty():
         lines.append("- (none)")
@@ -888,6 +912,10 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var dominant_faction: String = str(snapshot.get("dominant_faction", "neutral"))
     var dominant_doctrine: String = str(snapshot.get("dominant_doctrine", "")).strip_edges()
+    var run_status: String = str(snapshot.get("run_status", "running"))
+    var run_result_title: String = str(snapshot.get("run_result_title", ""))
+    var run_result_lines: Array = snapshot.get("run_result_lines", [])
+    var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
@@ -923,6 +951,22 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         lines.append("Fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
         lines.append("Result: %s" % objective_result_label)
+    if run_result_visible:
+        var player_run_title: String = run_result_title
+        if player_run_title == "":
+            if run_status == "completed":
+                player_run_title = "Run completed"
+            elif run_status == "failed":
+                player_run_title = "Run failed"
+            else:
+                player_run_title = "Run result"
+        lines.append(player_run_title)
+        if run_result_lines.is_empty():
+            lines.append("- (none)")
+        else:
+            var run_result_visible_count: int = min(3, run_result_lines.size())
+            for index in range(run_result_visible_count):
+                lines.append("- %s" % str(run_result_lines[index]))
 
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():
