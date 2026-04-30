@@ -247,6 +247,7 @@ Passerelles runtime (ordre de chargement) :
   - `observe_dominance` (categorie `dominance`): garder une faction dominante sur les POI pendant une duree cible.
   - `survive_calamity` (categorie `survival`): survivre X secondes avec moins de Y morts sur la run.
   - `watch_champion_rise` (categorie `champion`): observer au moins une promotion champion dans la fenetre de temps.
+  - `rally_champion` (categorie `champion_support`): soutenir un champion en vie via interaction clavier legere.
   - `support_gate` (categorie `gate_support`): stabiliser la rift gate via interaction clavier legere.
 - Par defaut, **observe_dominance reste l'objectif actif** au lancement.
 - v139 prepare une extension vers **plusieurs objectifs** via une definition interne legere:
@@ -307,19 +308,22 @@ Passerelles runtime (ordre de chargement) :
   - `objective_completed`
   - `objective_failed`
 - Les world objectives restent un repere lisible pour le joueur et **ne remplacent pas** le sandbox emergent.
-- Les objectifs historiques restent majoritairement **observation-only**; `support_gate` ajoute une interaction clavier legere et bornee.
+- Les objectifs historiques restent majoritairement **observation-only**; `support_gate` et `rally_champion` ajoutent une interaction clavier legere et bornee.
 
-## Objectif interactif (v146)
-- v146 ajoute un premier objectif avec interaction clavier legere, sans avatar joueur physique:
+## Objectif interactif (v146 + v163)
+- Les objectifs interactifs clavier legers, sans avatar joueur physique:
   - `support_gate` (`gate_support`)
+  - `rally_champion` (`champion_support`)
 - Principe:
-  - quand la rift gate est ouverte et que l'objectif est actif, `E` applique un support abstrait.
+  - `support_gate`: quand la rift gate est ouverte et que l'objectif est actif, `E` applique un support abstrait.
+  - `rally_champion`: quand au moins un champion est en vie et que l'objectif est actif, `E` applique un soutien abstrait.
   - chaque interaction valide incremente un compteur borne (`objective_interaction_count`).
   - un cooldown court evite le spam (`objective_interaction_cooldown`).
 - Feedback v147 (HUD):
   - succes: `Gate support accepted`.
+  - succes champion: `Champion support accepted`.
   - refus `cooldown`: `cooldown 0.xs`.
-  - refus `unavailable`: `gate unavailable` / `objective non-interactive`.
+  - refus `unavailable`: `gate unavailable` / `champion unavailable` / `objective non-interactive`.
   - refus `blocked`: `objective not active` / `run already finished`.
   - type + timer exposes dans le snapshot via `objective_interaction_feedback_*`.
 - Feedback visuel gate v148 (runtime):
@@ -333,8 +337,10 @@ Passerelles runtime (ordre de chargement) :
 - Echec:
   - `too_many_deaths`, `interaction_timeout` ou `gate_unstable_too_long`.
 - HUD:
-  - mode `player`: ligne compacte `E: stabilize gate` + compteur `X/N`.
+  - mode `player`: ligne compacte `E: stabilize gate` ou `E: support champion` + compteur `X/N`.
   - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
+- Metriques/export avances:
+  - restent centres sur `support_gate` pour l'instant (v149-v152), afin de garder un tuning borne.
 
 ## Support gate tuning (v149)
 - v149 ajoute des metriques runtime pour equilibrer `support_gate` sans refonte gameplay.
@@ -561,7 +567,7 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
   - `O` ou `PageDown`: objectif suivant (uniquement si la run est `completed` ou `failed`).
   - `R`: restart de la run courante.
 - L'ordre de cycle suit `objective_available_ids`:
-  - `observe_dominance` -> `survive_calamity` -> `watch_champion_rise` -> `support_gate`.
+  - `observe_dominance` -> `survive_calamity` -> `watch_champion_rise` -> `rally_champion` -> `support_gate`.
 - `observe_dominance` reste l'objectif par defaut au lancement.
 - Le changement enregistre un evenement timeline `objective_selected`, puis relance proprement l'objectif choisi.
 

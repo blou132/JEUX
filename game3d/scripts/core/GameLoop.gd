@@ -7,6 +7,7 @@ const MAX_MAJOR_EVENT_TIMELINE: int = 30
 const WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE: String = "observe_dominance"
 const WORLD_OBJECTIVE_ID_SURVIVE_CALAMITY: String = "survive_calamity"
 const WORLD_OBJECTIVE_ID_WATCH_CHAMPION_RISE: String = "watch_champion_rise"
+const WORLD_OBJECTIVE_ID_RALLY_CHAMPION: String = "rally_champion"
 const WORLD_OBJECTIVE_ID_SUPPORT_GATE: String = "support_gate"
 const RUN_METRICS_LATEST_EXPORT_PATH: String = "user://run_metrics_latest.json"
 const RUN_METRICS_HISTORY_EXPORT_PATH: String = "user://run_metrics_history.jsonl"
@@ -18,6 +19,10 @@ const OBJECTIVE_GATE_SUPPORT_REQUIRED_ACTIONS: int = 6
 const OBJECTIVE_GATE_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 64
 const OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD: float = 18.0
 const OBJECTIVE_GATE_SUPPORT_INTERACTION_COOLDOWN: float = 1.10
+const OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_TIME: float = 44.0
+const OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS: int = 4
+const OBJECTIVE_CHAMPION_SUPPORT_INTERACTION_COOLDOWN: float = 1.20
+const OBJECTIVE_CHAMPION_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 70
 const OBJECTIVE_GATE_SUPPORT_STABILIZE_SECONDS: float = 1.40
 const OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const XP_ON_HIT: float = 1.5
@@ -622,6 +627,7 @@ var support_gate_available_time_total: float = 0.0
 var support_gate_unavailable_time_total: float = 0.0
 var world_objective_gate_bad_state_elapsed: float = 0.0
 var world_objective_gate_bad_state_threshold: float = OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD
+var world_objective_champion_available_seen: bool = false
 var run_status: String = "running"
 var run_result_title: String = ""
 var run_result_lines: Array[String] = []
@@ -867,6 +873,25 @@ func _update_objective_interaction_feedback(delta: float) -> void:
 		return
 	world_objective_interaction_feedback_label = ""
 	world_objective_interaction_feedback_type = ""
+
+
+func _get_alive_champion_counts() -> Dictionary:
+	var alive_total: int = 0
+	var human_total: int = 0
+	var monster_total: int = 0
+	for actor in actors:
+		if actor == null or actor.is_dead or not actor.is_champion:
+			continue
+		alive_total += 1
+		if actor.faction == "human":
+			human_total += 1
+		elif actor.faction == "monster":
+			monster_total += 1
+	return {
+		"alive_total": alive_total,
+		"human_total": human_total,
+		"monster_total": monster_total
+	}
 
 
 func _resolve_support_gate_visual_state() -> Dictionary:
@@ -1149,8 +1174,6 @@ func export_run_metrics() -> bool:
 
 
 func trigger_world_objective_interaction() -> bool:
-	_register_support_gate_interaction_attempt()
-
 	if run_status in ["completed", "failed"]:
 		_register_support_gate_interaction_blocked("blocked")
 		_set_objective_interaction_feedback("run already finished", "blocked", 1.8)
@@ -1159,7 +1182,7 @@ func trigger_world_objective_interaction() -> bool:
 		_register_support_gate_interaction_blocked("blocked")
 		_set_objective_interaction_feedback("objective not active", "blocked", 1.8)
 		return false
-	if not (world_objective_category in ["interaction", "gate_support"]):
+	if not (world_objective_category in ["interaction", "gate_support", "champion_support"]):
 		_register_support_gate_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("objective non-interactive", "unavailable", 1.8)
 		return false
@@ -1167,6 +1190,18 @@ func trigger_world_objective_interaction() -> bool:
 		_register_support_gate_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("objective unavailable", "unavailable", 1.8)
 		return false
+
+	if world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE:
+		return _trigger_support_gate_objective_interaction()
+	if world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		return _trigger_champion_support_objective_interaction()
+
+	_set_objective_interaction_feedback("objective non-interactive", "unavailable", 1.8)
+	return false
+
+
+func _trigger_support_gate_objective_interaction() -> bool:
+	_register_support_gate_interaction_attempt()
 
 	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
 	var gate_active: bool = bool(gate_runtime.get("active", false))
@@ -1209,6 +1244,41 @@ func trigger_world_objective_interaction() -> bool:
 			before_remaining,
 			after_remaining
 		]
+	)
+	_record_major_event(
+		"objective_interaction",
+		"Objective INTERACTION: %s %d/%d"
+		% [world_objective_id, world_objective_interaction_count, world_objective_interaction_required],
+		world_objective_dominant_faction
+	)
+	return true
+
+
+func _trigger_champion_support_objective_interaction() -> bool:
+	var champion_counts: Dictionary = _get_alive_champion_counts()
+	var champion_alive_total: int = int(champion_counts.get("alive_total", 0))
+	if champion_alive_total <= 0:
+		world_objective_interaction_available = false
+		_set_objective_interaction_feedback("champion unavailable", "unavailable", 1.8)
+		return false
+	if elapsed_time < world_objective_interaction_next_allowed_time:
+		world_objective_interaction_available = false
+		var cooldown_remaining: float = max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+		_set_objective_interaction_feedback("cooldown %.1fs" % cooldown_remaining, "cooldown", 1.1)
+		return false
+
+	world_objective_champion_available_seen = true
+	world_objective_interaction_count = min(
+		world_objective_interaction_required,
+		world_objective_interaction_count + 1
+	)
+	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
+	world_objective_interaction_available = false
+	_set_objective_interaction_feedback("Champion support accepted", "success", 2.0)
+
+	record_event(
+		"Objective INTERACTION: %s %d/%d."
+		% [world_objective_id, world_objective_interaction_count, world_objective_interaction_required]
 	)
 	_record_major_event(
 		"objective_interaction",
@@ -1303,6 +1373,7 @@ func _get_available_world_objective_ids() -> Array[String]:
 		WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE,
 		WORLD_OBJECTIVE_ID_SURVIVE_CALAMITY,
 		WORLD_OBJECTIVE_ID_WATCH_CHAMPION_RISE,
+		WORLD_OBJECTIVE_ID_RALLY_CHAMPION,
 		WORLD_OBJECTIVE_ID_SUPPORT_GATE
 	]
 
@@ -1352,6 +1423,31 @@ func _get_world_objective_definition(objective_id: String) -> Dictionary:
 			"completion_target_label": "See >=1 champion before 48.0s with population above 6.",
 			"status_labels": default_status_labels,
 			"config_label": "champion>=1 timeout=48.0s pop>6"
+		},
+		WORLD_OBJECTIVE_ID_RALLY_CHAMPION: {
+			"id": WORLD_OBJECTIVE_ID_RALLY_CHAMPION,
+			"title": "Rally a champion",
+			"description": "Press E while a champion is alive to provide support.",
+			"category": "champion_support",
+			"required_time": OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_TIME,
+			"fail_deaths_threshold": OBJECTIVE_CHAMPION_SUPPORT_FAIL_DEATHS_THRESHOLD,
+			"fail_switch_threshold": 999,
+			"interaction_required": OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS,
+			"interaction_cooldown": OBJECTIVE_CHAMPION_SUPPORT_INTERACTION_COOLDOWN,
+			"interaction_label": "E: support champion",
+			"completion_target_label": (
+				"Apply %d champion supports in %.1fs while keeping deaths low."
+				% [OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS, OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_TIME]
+			),
+			"status_labels": default_status_labels,
+			"config_label": (
+				"supports=%d timeout=%.1fs deaths<%d"
+				% [
+					OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS,
+					OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_TIME,
+					OBJECTIVE_CHAMPION_SUPPORT_FAIL_DEATHS_THRESHOLD
+				]
+			)
 		},
 		WORLD_OBJECTIVE_ID_SUPPORT_GATE: {
 			"id": WORLD_OBJECTIVE_ID_SUPPORT_GATE,
@@ -1453,6 +1549,7 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 		0.1,
 		float(definition.get("bad_state_threshold", OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD))
 	)
+	world_objective_champion_available_seen = false
 	run_status = "running"
 	run_result_title = ""
 	run_result_lines = []
@@ -1560,6 +1657,13 @@ func _set_run_result_from_objective(status: String) -> void:
 	elif world_objective_category == "champion":
 		var champion_delta: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
 		run_result_lines.append("Champion promotions during objective: +%d." % champion_delta)
+	elif world_objective_category == "champion_support":
+		var champion_support_delta: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
+		run_result_lines.append(
+			"Champion support actions: %d/%d."
+			% [world_objective_interaction_count, world_objective_interaction_required]
+		)
+		run_result_lines.append("Champion promotions during objective: +%d." % champion_support_delta)
 	elif world_objective_category in ["interaction", "gate_support"]:
 		run_result_lines.append(
 			"Objective support actions: %d/%d."
@@ -1601,6 +1705,8 @@ func _update_world_objective(delta: float) -> void:
 			_update_objective_survival(delta)
 		"champion":
 			_update_objective_champion(delta)
+		"champion_support":
+			_update_objective_champion_support(delta)
 		"interaction", "gate_support":
 			_update_objective_gate_support(delta)
 		_:
@@ -1980,6 +2086,119 @@ func _update_objective_gate_support(delta: float) -> void:
 			"Failed: not enough supports before timeout (%d/%d)."
 			% [world_objective_interaction_count, world_objective_interaction_required]
 		)
+		record_event("Objective FAILED: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_failed",
+			"Objective FAILED: %s (%s)" % [world_objective_id, world_objective_fail_reason],
+			world_objective_dominant_faction
+		)
+		_set_run_result_from_objective("failed")
+
+
+func _update_objective_champion_support(delta: float) -> void:
+	world_objective_elapsed += max(delta, 0.0)
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
+	world_objective_dominant_faction = _compute_objective_dominant_faction(poi_runtime_snapshot)
+
+	var champion_counts: Dictionary = _get_alive_champion_counts()
+	var champion_alive_total: int = int(champion_counts.get("alive_total", 0))
+	var champion_human_total: int = int(champion_counts.get("human_total", 0))
+	var champion_monster_total: int = int(champion_counts.get("monster_total", 0))
+	if champion_human_total > champion_monster_total:
+		world_objective_dominant_faction = "human"
+	elif champion_monster_total > champion_human_total:
+		world_objective_dominant_faction = "monster"
+	if champion_alive_total > 0:
+		world_objective_champion_available_seen = true
+
+	var interaction_ratio: float = 0.0
+	if world_objective_interaction_required > 0:
+		interaction_ratio = (
+			float(world_objective_interaction_count) / float(world_objective_interaction_required)
+		)
+	world_objective_progress = clampf(interaction_ratio, 0.0, 1.0)
+	var progress_percent: int = int(round(world_objective_progress * 100.0))
+	world_objective_progress_label = (
+		"%d/%d supports | %.1fs / %.1fs (%d%%)"
+		% [
+			world_objective_interaction_count,
+			max(1, world_objective_interaction_required),
+			world_objective_elapsed,
+			world_objective_required,
+			progress_percent
+		]
+	)
+	world_objective_interaction_available = (
+		champion_alive_total > 0
+		and world_objective_interaction_count < world_objective_interaction_required
+		and elapsed_time >= world_objective_interaction_next_allowed_time
+	)
+
+	var deaths_since_run: int = max(0, deaths_total - run_deaths_baseline)
+	if deaths_since_run >= world_objective_fail_deaths_threshold:
+		world_objective_active = false
+		world_objective_status = "failed"
+		world_objective_interaction_available = false
+		world_objective_fail_reason = "too_many_deaths"
+		world_objective_result_label = (
+			"Failed: run deaths threshold reached (%d/%d)."
+			% [deaths_since_run, world_objective_fail_deaths_threshold]
+		)
+		record_event("Objective FAILED: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_failed",
+			"Objective FAILED: %s (%s)" % [world_objective_id, world_objective_fail_reason],
+			world_objective_dominant_faction
+		)
+		_set_run_result_from_objective("failed")
+		return
+
+	if world_objective_interaction_count >= world_objective_interaction_required:
+		world_objective_active = false
+		world_objective_status = "completed"
+		world_objective_progress = 1.0
+		world_objective_interaction_available = false
+		world_objective_fail_reason = ""
+		world_objective_progress_label = (
+			"%d/%d supports | %.1fs / %.1fs (100%%)"
+			% [
+				world_objective_interaction_required,
+				world_objective_interaction_required,
+				world_objective_elapsed,
+				world_objective_required
+			]
+		)
+		world_objective_result_label = (
+			"Completed: champion support reached (%d/%d)."
+			% [world_objective_interaction_required, world_objective_interaction_required]
+		)
+		record_event("Objective COMPLETE: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_completed",
+			"Objective COMPLETE: %s (%d supports)"
+			% [world_objective_id, world_objective_interaction_required],
+			world_objective_dominant_faction
+		)
+		_set_run_result_from_objective("completed")
+		return
+
+	if world_objective_elapsed >= world_objective_required:
+		world_objective_active = false
+		world_objective_status = "failed"
+		world_objective_interaction_available = false
+		var champion_delta: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
+		if not world_objective_champion_available_seen and champion_delta <= 0:
+			world_objective_fail_reason = "no_champion_in_time"
+			world_objective_result_label = (
+				"Failed: no champion appeared before timeout (%.1fs)."
+				% world_objective_required
+			)
+		else:
+			world_objective_fail_reason = "interaction_timeout"
+			world_objective_result_label = (
+				"Failed: champion supports below target (%d/%d)."
+				% [world_objective_interaction_count, world_objective_interaction_required]
+			)
 		record_event("Objective FAILED: %s" % world_objective_result_label)
 		_record_major_event(
 			"objective_failed",
