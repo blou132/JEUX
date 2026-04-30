@@ -302,6 +302,7 @@ var actors: Array = []
 var creature_profiles_by_id: Dictionary = {}
 var world_event_profiles_by_id: Dictionary = {}
 var faction_templates_by_id: Dictionary = {}
+var doctrine_templates_by_id: Dictionary = {}
 var relic_templates_by_id: Dictionary = {}
 var location_templates_by_id: Dictionary = {}
 var world_event_ids: Array[String] = []
@@ -597,6 +598,7 @@ func _load_creature_profiles_data() -> void:
 
 	_load_world_events_data()
 	_load_faction_templates_data()
+	_load_doctrine_templates_data()
 	_load_location_templates_data()
 	_load_relic_templates_data()
 
@@ -631,6 +633,21 @@ func _load_faction_templates_data() -> void:
 
 	faction_templates_by_id.clear()
 	world_manager.set_faction_templates({})
+	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+
+
+func _load_doctrine_templates_data() -> void:
+	if _data_loader == null:
+		_data_loader = DataLoaderScript.new()
+
+	if _data_loader.load_doctrine_templates():
+		doctrine_templates_by_id = _data_loader.get_doctrine_templates()
+		world_manager.set_doctrine_templates(doctrine_templates_by_id)
+		record_event("DataLoader OK: doctrine templates=%d." % doctrine_templates_by_id.size())
+		return
+
+	doctrine_templates_by_id.clear()
+	world_manager.set_doctrine_templates({})
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
@@ -9236,7 +9253,8 @@ func _update_poi_runtime() -> void:
 			var doctrine: String = str(transition.get("doctrine", ""))
 			if doctrine != "":
 				doctrine_assigned_total += 1
-				record_event("Doctrine assigned: %s -> %s." % [allegiance_id, doctrine])
+				var doctrine_label: String = world_manager.get_doctrine_label(doctrine, doctrine)
+				record_event("Doctrine assigned: %s -> %s." % [allegiance_id, doctrine_label])
 			var recent_loss_until: float = float(_recent_structure_loss_until_by_poi.get(poi_name, 0.0))
 			if recent_loss_until > elapsed_time:
 				_try_start_allegiance_recovery(allegiance_id, "anchor_restabilized", 0.20, 1.4, poi_name)

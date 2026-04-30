@@ -72,6 +72,7 @@ var allegiance_doctrine_by_id: Dictionary = {}
 var faction_template_by_id: Dictionary = {}
 var faction_template_by_kind: Dictionary = {}
 var faction_template_id_by_allegiance: Dictionary = {}
+var doctrine_template_by_id: Dictionary = {}
 var location_template_by_id: Dictionary = {}
 var location_template_by_kind: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
@@ -133,6 +134,21 @@ func set_faction_templates(templates_by_id: Dictionary = {}) -> void:
 		var template_id: String = _resolve_faction_template_id_for_faction(faction)
 		if template_id != "":
 			faction_template_id_by_allegiance[allegiance_id] = template_id
+
+
+func set_doctrine_templates(templates_by_id: Dictionary = {}) -> void:
+	doctrine_template_by_id.clear()
+
+	for template_variant in templates_by_id.values():
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			continue
+		var sanitized: Dictionary = _sanitize_doctrine_template_entry(template_variant)
+		if sanitized.is_empty():
+			continue
+		var template_id: String = str(sanitized.get("id", ""))
+		if template_id == "":
+			continue
+		doctrine_template_by_id[template_id] = sanitized
 
 
 func set_location_templates(templates_by_id: Dictionary = {}) -> void:
@@ -939,6 +955,7 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 		if typeof(poi_tags_variant) == TYPE_ARRAY:
 			poi_tags = poi_tags_variant
 			poi_tags = poi_tags.duplicate(true)
+		var doctrine_id: String = get_allegiance_doctrine(allegiance_id)
 		active.append({
 			"allegiance_id": allegiance_id,
 			"faction": str(poi_structure_faction.get(poi_name, "")),
@@ -947,7 +964,9 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 			"home_poi_tags": poi_tags,
 			"position": poi.get("position", Vector3.ZERO),
 			"structure_state": structure_state,
-			"doctrine": get_allegiance_doctrine(allegiance_id),
+			"doctrine": doctrine_id,
+			"doctrine_label": get_doctrine_label(doctrine_id, doctrine_id),
+			"doctrine_tags": get_doctrine_tags(doctrine_id),
 			"project": get_allegiance_project(allegiance_id),
 			"project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
 			"vendetta_target": get_allegiance_vendetta_target(allegiance_id),
@@ -1369,6 +1388,51 @@ func _sanitize_faction_template_entry(template_data: Dictionary) -> Dictionary:
 	}
 
 
+func _sanitize_doctrine_template_entry(template_data: Dictionary) -> Dictionary:
+	var template_id: String = str(template_data.get("id", "")).strip_edges()
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	var kind: String = str(template_data.get("kind", "")).strip_edges()
+	if template_id == "" or label == "" or kind == "":
+		return {}
+	if not (template_id in ALLEGIANCE_DOCTRINES):
+		return {}
+	if kind not in ["offense", "defense", "arcane"]:
+		return {}
+
+	for numeric_field in ["raid_bias", "defense_bias", "rally_bias", "magic_bias"]:
+		var numeric_value: Variant = template_data.get(numeric_field, null)
+		if typeof(numeric_value) != TYPE_INT and typeof(numeric_value) != TYPE_FLOAT:
+			return {}
+
+	var raid_bias: float = clampf(float(template_data.get("raid_bias", 0.0)), -0.25, 0.25)
+	var defense_bias: float = clampf(float(template_data.get("defense_bias", 0.0)), -0.25, 0.25)
+	var rally_bias: float = clampf(float(template_data.get("rally_bias", 0.0)), -0.25, 0.25)
+	var magic_bias: float = clampf(float(template_data.get("magic_bias", 0.0)), -0.12, 0.12)
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	var tags: Array[String] = []
+	if typeof(tags_variant) == TYPE_ARRAY:
+		var tags_array: Array = tags_variant
+		for tag_variant in tags_array:
+			if typeof(tag_variant) != TYPE_STRING:
+				continue
+			var tag: String = str(tag_variant).strip_edges()
+			if tag == "":
+				continue
+			tags.append(tag)
+
+	return {
+		"id": template_id,
+		"label": label,
+		"kind": kind,
+		"raid_bias": raid_bias,
+		"defense_bias": defense_bias,
+		"rally_bias": rally_bias,
+		"magic_bias": magic_bias,
+		"tags": tags
+	}
+
+
 func _sanitize_location_template_entry(template_data: Dictionary) -> Dictionary:
 	var template_id: String = str(template_data.get("id", "")).strip_edges()
 	var label: String = str(template_data.get("label", "")).strip_edges()
@@ -1483,12 +1547,62 @@ func get_allegiance_doctrine(allegiance_id: String) -> String:
 	return ""
 
 
+func get_doctrine_template(doctrine_id: String) -> Dictionary:
+	if doctrine_id == "":
+		return {}
+	if not doctrine_template_by_id.has(doctrine_id):
+		return {}
+	return Dictionary(doctrine_template_by_id[doctrine_id]).duplicate(true)
+
+
+func get_doctrine_label(doctrine_id: String, fallback_label: String = "") -> String:
+	var template: Dictionary = get_doctrine_template(doctrine_id)
+	if not template.is_empty():
+		var label: String = str(template.get("label", "")).strip_edges()
+		if label != "":
+			return label
+	return fallback_label if fallback_label != "" else doctrine_id
+
+
+func get_doctrine_tags(doctrine_id: String) -> Array:
+	var template: Dictionary = get_doctrine_template(doctrine_id)
+	if template.is_empty():
+		return []
+	var tags_variant: Variant = template.get("tags", [])
+	if typeof(tags_variant) != TYPE_ARRAY:
+		return []
+	var tags: Array = tags_variant
+	return tags.duplicate(true)
+
+
 func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 	var doctrine: String = get_allegiance_doctrine(allegiance_id)
+	var modifiers: Dictionary = _default_doctrine_modifiers(doctrine)
+	if doctrine == "":
+		return modifiers
+
+	var template: Dictionary = get_doctrine_template(doctrine)
+	if template.is_empty():
+		return modifiers
+
+	modifiers["doctrine_label"] = get_doctrine_label(doctrine, doctrine)
+	modifiers["doctrine_tags"] = get_doctrine_tags(doctrine)
+	modifiers["raid_weight_delta"] = clampf(float(template.get("raid_bias", modifiers.get("raid_weight_delta", 0.0))), -0.25, 0.25)
+	modifiers["defense_weight_delta"] = clampf(float(template.get("defense_bias", modifiers.get("defense_weight_delta", 0.0))), -0.25, 0.25)
+	modifiers["rally_regroup_delta"] = clampf(float(template.get("rally_bias", modifiers.get("rally_regroup_delta", 0.0))), -0.25, 0.25)
+	var magic_bias: float = clampf(float(template.get("magic_bias", 0.0)), -0.12, 0.12)
+	modifiers["magic_damage_mult"] = max(0.88, 1.0 + magic_bias)
+	modifiers["magic_energy_cost_mult"] = max(0.88, 1.0 - magic_bias)
+	return modifiers
+
+
+func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
 	match doctrine:
 		"warlike":
 			return {
 				"doctrine": doctrine,
+				"doctrine_label": doctrine,
+				"doctrine_tags": [],
 				"raid_weight_delta": 0.11,
 				"defense_weight_delta": -0.05,
 				"rally_regroup_delta": -0.05,
@@ -1499,6 +1613,8 @@ func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 		"steadfast":
 			return {
 				"doctrine": doctrine,
+				"doctrine_label": doctrine,
+				"doctrine_tags": [],
 				"raid_weight_delta": -0.08,
 				"defense_weight_delta": 0.12,
 				"rally_regroup_delta": 0.08,
@@ -1509,6 +1625,8 @@ func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 		"arcane":
 			return {
 				"doctrine": doctrine,
+				"doctrine_label": doctrine,
+				"doctrine_tags": [],
 				"raid_weight_delta": 0.02,
 				"defense_weight_delta": 0.04,
 				"rally_regroup_delta": 0.03,
@@ -1519,6 +1637,8 @@ func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 		_:
 			return {
 				"doctrine": "",
+				"doctrine_label": "",
+				"doctrine_tags": [],
 				"raid_weight_delta": 0.0,
 				"defense_weight_delta": 0.0,
 				"rally_regroup_delta": 0.0,

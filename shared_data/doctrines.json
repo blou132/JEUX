@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "schema": "doctrine_templates_v1",
+  "doctrines": [
+    {
+      "id": "warlike",
+      "label": "Warlike Doctrine",
+      "kind": "offense",
+      "raid_bias": 0.11,
+      "defense_bias": -0.05,
+      "rally_bias": -0.05,
+      "magic_bias": 0.0,
+      "tags": [
+        "doctrine",
+        "offense",
+        "warband"
+      ]
+    },
+    {
+      "id": "steadfast",
+      "label": "Steadfast Doctrine",
+      "kind": "defense",
+      "raid_bias": -0.08,
+      "defense_bias": 0.12,
+      "rally_bias": 0.08,
+      "magic_bias": 0.0,
+      "tags": [
+        "doctrine",
+        "defense",
+        "fortify"
+      ]
+    },
+    {
+      "id": "arcane",
+      "label": "Arcane Doctrine",
+      "kind": "arcane",
+      "raid_bias": 0.02,
+      "defense_bias": 0.04,
+      "rally_bias": 0.03,
+      "magic_bias": 0.06,
+      "tags": [
+        "doctrine",
+        "arcane",
+        "ritual"
+      ]
+    }
+  ]
+}

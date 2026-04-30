@@ -4,6 +4,7 @@ class_name DataLoader
 const CREATURES_PATH: String = "res://data/creatures.json"
 const EVENTS_PATH: String = "res://data/events.json"
 const FACTIONS_PATH: String = "res://data/factions.json"
+const DOCTRINES_PATH: String = "res://data/doctrines.json"
 const RELICS_PATH: String = "res://data/relics.json"
 const LOCATIONS_PATH: String = "res://data/locations.json"
 const REQUIRED_PROFILE_FIELDS: Array[String] = [
@@ -36,6 +37,18 @@ const REQUIRED_FACTION_TEMPLATE_FIELDS: Array[String] = [
 const VALID_FACTION_TEMPLATE_KINDS: Array[String] = ["human", "monster"]
 const VALID_FACTION_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
 const VALID_FACTION_PROJECT_BIASES: Array[String] = ["fortify", "warband_muster", "ritual_focus"]
+const REQUIRED_DOCTRINE_TEMPLATE_FIELDS: Array[String] = [
+	"id",
+	"label",
+	"kind",
+	"raid_bias",
+	"defense_bias",
+	"rally_bias",
+	"magic_bias",
+	"tags",
+]
+const VALID_DOCTRINE_IDS: Array[String] = ["warlike", "steadfast", "arcane"]
+const VALID_DOCTRINE_KINDS: Array[String] = ["offense", "defense", "arcane"]
 const REQUIRED_RELIC_TEMPLATE_FIELDS: Array[String] = [
 	"id",
 	"label",
@@ -71,6 +84,7 @@ const VALID_LOCATION_UPGRADE_TARGETS: Array[String] = ["", "human_outpost", "mon
 var _profiles_by_id: Dictionary = {}
 var _world_events_by_id: Dictionary = {}
 var _faction_templates_by_id: Dictionary = {}
+var _doctrine_templates_by_id: Dictionary = {}
 var _relic_templates_by_id: Dictionary = {}
 var _location_templates_by_id: Dictionary = {}
 var _last_error: String = ""
@@ -259,6 +273,73 @@ func get_faction_template(template_id: String) -> Dictionary:
 	if not _faction_templates_by_id.has(template_id):
 		return {}
 	return Dictionary(_faction_templates_by_id[template_id]).duplicate(true)
+
+
+func load_doctrine_templates(path: String = DOCTRINES_PATH) -> bool:
+	_doctrine_templates_by_id.clear()
+	_last_error = ""
+
+	if not FileAccess.file_exists(path):
+		return _set_error("missing file: %s" % path)
+
+	var raw_text: String = FileAccess.get_file_as_string(path)
+	var parser := JSON.new()
+	var parse_result: int = parser.parse(raw_text)
+	if parse_result != OK:
+		return _set_error("invalid JSON (%s) at line %d" % [parser.get_error_message(), parser.get_error_line()])
+
+	if typeof(parser.data) != TYPE_DICTIONARY:
+		return _set_error("root payload must be an object")
+	var payload: Dictionary = parser.data
+
+	var doctrines_variant: Variant = payload.get("doctrines", [])
+	if typeof(doctrines_variant) != TYPE_ARRAY:
+		return _set_error("payload.doctrines must be an array")
+
+	var doctrine_templates: Array = doctrines_variant
+	var ignored_templates: int = 0
+	for template_variant in doctrine_templates:
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			ignored_templates += 1
+			push_warning("DataLoader: ignored non-object doctrine template entry.")
+			continue
+
+		var template_data: Dictionary = template_variant
+		var validation_error: String = _validate_doctrine_template(template_data)
+		if validation_error != "":
+			ignored_templates += 1
+			push_warning("DataLoader: ignored doctrine template (%s)." % validation_error)
+			continue
+
+		var template_id: String = str(template_data.get("id", ""))
+		if _doctrine_templates_by_id.has(template_id):
+			ignored_templates += 1
+			push_warning("DataLoader: ignored duplicate doctrine template id '%s'." % template_id)
+			continue
+
+		_doctrine_templates_by_id[template_id] = template_data.duplicate(true)
+
+	if _doctrine_templates_by_id.is_empty():
+		return _set_error("no valid doctrine templates found")
+
+	if ignored_templates > 0:
+		print(
+			"DataLoader: loaded %d doctrine templates, ignored %d invalid entries."
+			% [_doctrine_templates_by_id.size(), ignored_templates]
+		)
+	else:
+		print("DataLoader: loaded %d doctrine templates." % _doctrine_templates_by_id.size())
+	return true
+
+
+func get_doctrine_templates() -> Dictionary:
+	return _doctrine_templates_by_id.duplicate(true)
+
+
+func get_doctrine_template(template_id: String) -> Dictionary:
+	if not _doctrine_templates_by_id.has(template_id):
+		return {}
+	return Dictionary(_doctrine_templates_by_id[template_id]).duplicate(true)
 
 
 func load_relic_templates(path: String = RELICS_PATH) -> bool:
@@ -534,6 +615,53 @@ func _validate_faction_template(template_data: Dictionary) -> String:
 		var as_float: float = float(numeric_value)
 		if as_float < -0.25 or as_float > 0.25:
 			return "%s.%s must be between -0.25 and 0.25" % [template_id, numeric_field]
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	if typeof(tags_variant) != TYPE_ARRAY:
+		return "%s.tags must be an array" % template_id
+	var tags: Array = tags_variant
+	for tag in tags:
+		if typeof(tag) != TYPE_STRING:
+			return "%s.tags entries must be strings" % template_id
+		if str(tag).strip_edges() == "":
+			return "%s.tags entries must be non-empty strings" % template_id
+
+	return ""
+
+
+func _validate_doctrine_template(template_data: Dictionary) -> String:
+	for field in REQUIRED_DOCTRINE_TEMPLATE_FIELDS:
+		if not template_data.has(field):
+			return "missing field '%s'" % field
+
+	var template_id: String = str(template_data.get("id", ""))
+	if template_id == "":
+		return "empty doctrine template id"
+	if not (template_id in VALID_DOCTRINE_IDS):
+		return "%s.id must be one of %s" % [template_id, str(VALID_DOCTRINE_IDS)]
+
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	if label == "":
+		return "%s.label must be a non-empty string" % template_id
+
+	var kind: String = str(template_data.get("kind", ""))
+	if not (kind in VALID_DOCTRINE_KINDS):
+		return "%s.kind must be one of %s" % [template_id, str(VALID_DOCTRINE_KINDS)]
+
+	for numeric_field in ["raid_bias", "defense_bias", "rally_bias"]:
+		var numeric_value: Variant = template_data.get(numeric_field, null)
+		if typeof(numeric_value) != TYPE_INT and typeof(numeric_value) != TYPE_FLOAT:
+			return "%s.%s must be numeric" % [template_id, numeric_field]
+		var as_float: float = float(numeric_value)
+		if as_float < -0.25 or as_float > 0.25:
+			return "%s.%s must be between -0.25 and 0.25" % [template_id, numeric_field]
+
+	var magic_bias_value: Variant = template_data.get("magic_bias", null)
+	if typeof(magic_bias_value) != TYPE_INT and typeof(magic_bias_value) != TYPE_FLOAT:
+		return "%s.magic_bias must be numeric" % template_id
+	var magic_bias: float = float(magic_bias_value)
+	if magic_bias < -0.12 or magic_bias > 0.12:
+		return "%s.magic_bias must be between -0.12 and 0.12" % template_id
 
 	var tags_variant: Variant = template_data.get("tags", [])
 	if typeof(tags_variant) != TYPE_ARRAY:

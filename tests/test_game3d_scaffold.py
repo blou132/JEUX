@@ -79,6 +79,20 @@ class TestGame3DScaffold(unittest.TestCase):
         expected_ids = {"human_core", "monster_core"}
         self.assertTrue(expected_ids.issubset(ids))
 
+    def test_doctrine_templates_json_exists_and_has_expected_ids(self):
+        shared_path = ROOT / "shared_data" / "doctrines.json"
+        godot_path = GAME3D / "data" / "doctrines.json"
+        self.assertTrue(shared_path.exists(), f"Missing file: {shared_path}")
+        self.assertTrue(godot_path.exists(), f"Missing file: {godot_path}")
+
+        payload = json.loads(godot_path.read_text(encoding="utf-8"))
+        doctrines = payload.get("doctrines", [])
+        self.assertIsInstance(doctrines, list)
+
+        ids = {entry.get("id") for entry in doctrines if isinstance(entry, dict)}
+        expected_ids = {"warlike", "steadfast", "arcane"}
+        self.assertTrue(expected_ids.issubset(ids))
+
     def test_relic_templates_json_exists_and_has_expected_ids(self):
         shared_path = ROOT / "shared_data" / "relics.json"
         godot_path = GAME3D / "data" / "relics.json"
@@ -113,11 +127,13 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("_load_creature_profiles_data", game_loop)
         self.assertIn("_load_world_events_data", game_loop)
         self.assertIn("_load_faction_templates_data", game_loop)
+        self.assertIn("_load_doctrine_templates_data", game_loop)
         self.assertIn("_load_location_templates_data", game_loop)
         self.assertIn("_load_relic_templates_data", game_loop)
         self.assertIn("DataLoader OK", game_loop)
         self.assertIn("DataLoader OK: world events", game_loop)
         self.assertIn("DataLoader OK: faction templates", game_loop)
+        self.assertIn("DataLoader OK: doctrine templates", game_loop)
         self.assertIn("DataLoader OK: location templates", game_loop)
         self.assertIn("DataLoader OK: relic templates", game_loop)
 
@@ -130,6 +146,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_world_events", data_loader)
         self.assertIn("load_faction_templates", data_loader)
         self.assertIn("get_faction_templates", data_loader)
+        self.assertIn("load_doctrine_templates", data_loader)
+        self.assertIn("get_doctrine_templates", data_loader)
         self.assertIn("load_location_templates", data_loader)
         self.assertIn("get_location_templates", data_loader)
         self.assertIn("load_relic_templates", data_loader)
@@ -280,6 +298,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("ALLEGIANCE_DOCTRINES", content)
         self.assertIn("get_allegiance_doctrine", content)
         self.assertIn("get_allegiance_doctrine_modifiers", content)
+        self.assertIn("set_doctrine_templates", content)
         self.assertIn("ALLEGIANCE_PROJECT_TYPES", content)
         self.assertIn("get_allegiance_project", content)
         self.assertIn("get_allegiance_project_modifiers", content)
