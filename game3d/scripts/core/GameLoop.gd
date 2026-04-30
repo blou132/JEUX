@@ -624,6 +624,7 @@ var run_status: String = "running"
 var run_result_title: String = ""
 var run_result_lines: Array[String] = []
 var run_result_visible: bool = false
+var run_metrics_export_label: String = "not exported"
 var run_project_started_baseline: int = 0
 var run_vendetta_started_baseline: int = 0
 var run_vendetta_resolved_baseline: int = 0
@@ -1040,6 +1041,62 @@ func _build_support_gate_tuning_metrics() -> Dictionary:
 	}
 
 
+func _is_debug_overlay_mode_active() -> bool:
+	if debug_overlay == null:
+		return false
+	if not debug_overlay.has_method("get_overlay_mode"):
+		return false
+	return str(debug_overlay.get_overlay_mode()) == "debug"
+
+
+func get_run_metrics_export_payload() -> Dictionary:
+	var snapshot: Dictionary = _build_snapshot()
+	var payload: Dictionary = {
+		"run_status": str(snapshot.get("run_status", run_status)),
+		"objective_id": str(snapshot.get("objective_id", world_objective_id)),
+		"objective_status": str(snapshot.get("objective_status", world_objective_status)),
+		"objective_result_label": str(snapshot.get("objective_result_label", world_objective_result_label)),
+		"objective_elapsed": float(snapshot.get("objective_elapsed", world_objective_elapsed)),
+		"objective_progress": float(snapshot.get("objective_progress", world_objective_progress)),
+		"run_summary_lines": snapshot.get("run_summary_lines", []),
+		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
+		"support_gate_run_attempts": int(snapshot.get("support_gate_run_attempts", 0)),
+		"support_gate_run_success": int(snapshot.get("support_gate_run_success", 0)),
+		"support_gate_run_success_rate": float(snapshot.get("support_gate_run_success_rate", 0.0)),
+		"support_gate_run_available_ratio": float(snapshot.get("support_gate_run_available_ratio", 0.0)),
+		"support_gate_attempts_total": int(snapshot.get("support_gate_attempts_total", 0)),
+		"support_gate_success_total": int(snapshot.get("support_gate_success_total", 0)),
+		"support_gate_success_rate": float(snapshot.get("support_gate_success_rate", 0.0)),
+		"support_gate_available_ratio": float(snapshot.get("support_gate_available_ratio", 0.0)),
+		"tick": int(snapshot.get("tick", tick_index)),
+		"time": float(snapshot.get("time", elapsed_time))
+	}
+	return payload
+
+
+func export_run_metrics() -> bool:
+	var payload: Dictionary = get_run_metrics_export_payload()
+	var export_path: String = "user://run_metrics_latest.json"
+	var file := FileAccess.open(export_path, FileAccess.WRITE)
+	if file == null:
+		run_metrics_export_label = "error opening %s (code=%d)" % [export_path, FileAccess.get_open_error()]
+		record_event("Metrics export FAILED: %s." % run_metrics_export_label)
+		return false
+	file.store_string(JSON.stringify(payload, "  "))
+	file.flush()
+	file.close()
+	run_metrics_export_label = (
+		"ok %s status=%s objective=%s"
+		% [
+			export_path,
+			str(payload.get("run_status", "running")),
+			str(payload.get("objective_id", ""))
+		]
+	)
+	record_event("Metrics export OK: %s." % export_path)
+	return true
+
+
 func trigger_world_objective_interaction() -> bool:
 	_register_support_gate_interaction_attempt()
 
@@ -1127,6 +1184,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif key_event.keycode == KEY_E:
 				if trigger_world_objective_interaction():
 					get_viewport().set_input_as_handled()
+			elif key_event.keycode == KEY_F4 and _is_debug_overlay_mode_active():
+				export_run_metrics()
+				get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
@@ -1437,6 +1497,7 @@ func _set_run_result_from_objective(status: String) -> void:
 			"Run COMPLETED: faction=%s" % dominant_faction_id,
 			dominant_faction_id
 		)
+		export_run_metrics()
 		return
 
 	run_result_title = "Run failed"
@@ -1474,6 +1535,7 @@ func _set_run_result_from_objective(status: String) -> void:
 		),
 		dominant_faction_id
 	)
+	export_run_metrics()
 
 
 func _update_world_objective(delta: float) -> void:
@@ -10231,6 +10293,7 @@ func _build_snapshot() -> Dictionary:
 		"run_result_title": run_result_title,
 		"run_result_lines": run_result_lines,
 		"run_result_visible": run_result_visible,
+		"run_metrics_export_label": run_metrics_export_label,
 		"objective_active": world_objective_active,
 		"objective_id": world_objective_id,
 		"objective_title": world_objective_title,

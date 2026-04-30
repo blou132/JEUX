@@ -370,6 +370,29 @@ Passerelles runtime (ordre de chargement) :
   - ligne session detail: `Support gate tuning session: attempts=... blocked=...`
 - ces metriques servent uniquement au playtest/tuning (observability), sans changer l'equilibrage coeur.
 
+## Run metrics export (v151)
+- v151 ajoute un export JSON local leger pour analyser les runs/objectifs sans toucher au gameplay.
+- payload exporte (helper `get_run_metrics_export_payload()`):
+  - `run_status`
+  - `objective_id`
+  - `objective_status`
+  - `objective_result_label`
+  - `objective_elapsed`
+  - `objective_progress`
+  - `run_summary_lines`
+  - `last_major_event_label`
+  - metriques `support_gate` run-only et session (`support_gate_run_*`, `support_gate_*_total`, ratios)
+- ecriture fichier:
+  - methode publique `export_run_metrics()`
+  - cible locale: `user://run_metrics_latest.json`
+- declenchement:
+  - automatique quand la run passe `completed` ou `failed`
+  - manuel en debug via `F4` (mode HUD `debug` uniquement)
+- observabilite HUD debug:
+  - champ snapshot `run_metrics_export_label`
+  - ligne `Metrics export: ...` en debug/full/compact
+- cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
+
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
   - `run_status`: `running` / `completed` / `failed`
@@ -473,6 +496,7 @@ Passerelles runtime (ordre de chargement) :
   - `F1` : bascule HUD `player <-> debug`.
   - `Tab` : bascule HUD `player <-> debug` (si conservee).
   - `F3` : bascule detail debug `debug_full <-> debug_compact` (mode `debug` uniquement).
+  - `F4` : export des metriques run/objectifs en `user://run_metrics_latest.json` (mode `debug` uniquement).
   - `E` : interaction objectif (uniquement quand l'objectif actif est interactif et disponible).
   - `R` : `restart run` (affiche seulement quand la run est terminee).
   - `O` / `PageDown` : `next objective` (affiche seulement quand la run est terminee).

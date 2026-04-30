@@ -143,6 +143,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
+    var run_metrics_export_label: String = str(snapshot.get("run_metrics_export_label", "not exported")).strip_edges()
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -632,6 +633,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         "Run status: %s | result_visible=%s"
         % [run_status, "yes" if run_result_visible else "no"]
     )
+    lines.append(
+        "Metrics export: %s"
+        % [run_metrics_export_label if run_metrics_export_label != "" else "not exported"]
+    )
     if run_result_visible:
         lines.append("--- Run Result Panel ---")
         for panel_line in _build_run_result_panel_lines(snapshot, 4):
@@ -946,6 +951,7 @@ func _build_controls_help_lines(
         "HUD: F1/Tab toggle player-debug | mode=%s" % normalized_mode,
         "Debug HUD is for development.",
         "O/PageDown: next objective (after run end)",
+        "F4: export run metrics",
         "H/F2: help panel"
     ]
     lines.append(
@@ -968,6 +974,7 @@ func _build_help_panel_lines(snapshot: Dictionary) -> Array[String]:
         "E: support objective (si objectif interactif actif)",
         "R: restart run (si run terminee)",
         "O/PageDown: next objective (si run terminee)",
+        "F4: export run metrics (mode debug)",
         "H/F2: afficher/masquer aide",
         "HUD modes: player/debug/off | %s" % run_state_label,
         "================================================"
@@ -1176,6 +1183,7 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var sim_time: float = float(snapshot.get("time", 0.0))
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
+    var run_metrics_export_label: String = str(snapshot.get("run_metrics_export_label", "not exported")).strip_edges()
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
@@ -1256,6 +1264,10 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             support_gate_run_success_rate,
             support_gate_run_available_ratio
         ]
+    )
+    lines.append(
+        "Metrics export: %s"
+        % [run_metrics_export_label if run_metrics_export_label != "" else "not exported"]
     )
 
     lines.append(
