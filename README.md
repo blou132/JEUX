@@ -17,6 +17,7 @@ Flux de donnees cible :
 - Les templates de doctrines peuvent etre pilotes par `game3d/data/doctrines.json` (`warlike`, `steadfast`, `arcane`).
 - Les templates de relics peuvent etre pilotes par `game3d/data/relics.json` (`arcane_sigil`, `oath_standard`).
 - Les templates de lieux/POI peuvent etre pilotes par `game3d/data/locations.json` (`camp`, `ruins`, `rift_gate`).
+- Les fichiers `game3d/.godot/` (cache editeur/import/shader) sont generes localement et ne doivent pas etre commites.
 
 La priorite est le gameplay 3D observable, pas l'ajout de micro-traits dans l'ancien simulateur.
 

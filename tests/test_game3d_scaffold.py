@@ -8,6 +8,14 @@ GAME3D = ROOT / "game3d"
 
 
 class TestGame3DScaffold(unittest.TestCase):
+    def test_gitignore_has_generated_file_rules(self):
+        gitignore = ROOT / ".gitignore"
+        self.assertTrue(gitignore.exists(), "Missing file: .gitignore")
+        content = gitignore.read_text(encoding="utf-8")
+        self.assertIn("game3d/.godot/", content)
+        self.assertIn("__pycache__/", content)
+        self.assertIn("*.pyc", content)
+
     def test_required_files_exist(self):
         required = [
             GAME3D / "project.godot",

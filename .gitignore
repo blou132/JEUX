@@ -1,0 +1,20 @@
+﻿# --- Godot generated cache/editor state ---
+game3d/.godot/
+game3d/.import/
+
+# --- Python cache/bytecode ---
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- OS/editor temporary files ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.swp
+*~
+.vscode/
+.idea/
