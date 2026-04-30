@@ -304,6 +304,12 @@ Passerelles runtime (ordre de chargement) :
   - `run_result_title`
   - `run_result_lines`
   - `run_result_visible`
+- HUD v142:
+  - un **result panel texte compact** est affiche quand `run_result_visible=true`.
+  - il est borne (lignes de resultat limitees) et separe visuellement (`====================`).
+  - commandes de relance/selection rappelees dans le panneau:
+    - `R`: restart run
+    - `O` / `PageDown`: next objective
 - Difference:
   - `objective_status` = etat du world objective (`observe_dominance`).
   - `run_status` = etat global de la run pour l'affichage de fin.

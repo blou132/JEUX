@@ -119,8 +119,6 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var run_summary_title: String = str(snapshot.get("run_summary_title", "Run Summary"))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var run_status: String = str(snapshot.get("run_status", "running"))
-    var run_result_title: String = str(snapshot.get("run_result_title", ""))
-    var run_result_lines: Array = snapshot.get("run_result_lines", [])
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var objective_active: bool = bool(snapshot.get("objective_active", false))
     var objective_id: String = str(snapshot.get("objective_id", ""))
@@ -179,7 +177,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
-    for help_line in _build_controls_help_lines(_overlay_mode, run_status):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
         lines.append(help_line)
     lines.append("")
     if world_event_id != "":
@@ -618,21 +616,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % [run_status, "yes" if run_result_visible else "no"]
     )
     if run_result_visible:
-        var result_title: String = run_result_title
-        if result_title == "":
-            if run_status == "completed":
-                result_title = "Run completed"
-            elif run_status == "failed":
-                result_title = "Run failed"
-            else:
-                result_title = "Run result"
-        lines.append("%s:" % result_title)
-        if run_result_lines.is_empty():
-            lines.append("- (none)")
-        else:
-            var run_result_visible_count: int = min(4, run_result_lines.size())
-            for index in range(run_result_visible_count):
-                lines.append("- %s" % str(run_result_lines[index]))
+        lines.append("--- Run Result Panel ---")
+        for panel_line in _build_run_result_panel_lines(snapshot, 4):
+            lines.append(panel_line)
+        lines.append("--- End Run Result Panel ---")
     lines.append("%s:" % run_summary_title)
     if run_summary_lines.is_empty():
         lines.append("- (none)")
@@ -905,13 +892,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     _text.text = "\n".join(lines)
 
 
-func _build_controls_help_lines(mode: String, run_status: String = "running") -> Array[String]:
+func _build_controls_help_lines(
+    mode: String,
+    run_status: String = "running",
+    run_result_visible: bool = false
+) -> Array[String]:
     var normalized_mode: String = mode.strip_edges().to_lower()
     var can_restart: bool = run_status in ["completed", "failed"]
     if normalized_mode == OVERLAY_MODE_OFF:
         return []
     if normalized_mode == OVERLAY_MODE_PLAYER:
         if can_restart:
+            if run_result_visible:
+                return ["F1/Tab: HUD debug/player | mode=player"]
             return [
                 "F1/Tab: HUD debug/player | mode=player",
                 "O/PageDown: next objective",
@@ -931,6 +924,40 @@ func _build_controls_help_lines(mode: String, run_status: String = "running") ->
     return lines
 
 
+func _build_run_result_panel_lines(
+    snapshot: Dictionary,
+    max_result_lines: int = 4
+) -> Array[String]:
+    var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
+    if not run_result_visible:
+        return []
+
+    var run_status: String = str(snapshot.get("run_status", "running"))
+    var run_result_title: String = str(snapshot.get("run_result_title", ""))
+    var run_result_lines: Array = snapshot.get("run_result_lines", [])
+    var lines: Array[String] = ["===================="]
+    var panel_title: String = "RUN RESULT"
+    if run_status == "completed":
+        panel_title = "RUN COMPLETED"
+    elif run_status == "failed":
+        panel_title = "RUN FAILED"
+    elif run_result_title != "":
+        panel_title = run_result_title.to_upper()
+    lines.append(panel_title)
+
+    if run_result_lines.is_empty():
+        lines.append("- (none)")
+    else:
+        var result_lines_limit: int = max(1, max_result_lines)
+        var run_result_visible_count: int = min(result_lines_limit, run_result_lines.size())
+        for index in range(run_result_visible_count):
+            lines.append("- %s" % str(run_result_lines[index]))
+
+    lines.append("R: restart run | O/PageDown: next objective")
+    lines.append("====================")
+    return lines
+
+
 func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var lines: Array[String] = []
     var tick: int = int(snapshot.get("tick", 0))
@@ -946,8 +973,6 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var dominant_faction: String = str(snapshot.get("dominant_faction", "neutral"))
     var dominant_doctrine: String = str(snapshot.get("dominant_doctrine", "")).strip_edges()
     var run_status: String = str(snapshot.get("run_status", "running"))
-    var run_result_title: String = str(snapshot.get("run_result_title", ""))
-    var run_result_lines: Array = snapshot.get("run_result_lines", [])
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
     var objective_description: String = str(snapshot.get("objective_description", ""))
@@ -957,6 +982,11 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
+
+    for panel_line in _build_run_result_panel_lines(snapshot, 4):
+        lines.append(panel_line)
+    if run_result_visible:
+        lines.append("")
 
     lines.append("HUD player | tick=%d t=%.0fs" % [tick, sim_time])
     lines.append("Population: H:%d M:%d" % [humans_alive, monsters_alive])
@@ -977,7 +1007,7 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         faction_label = "monsters"
     var doctrine_label: String = dominant_doctrine if dominant_doctrine != "" else "(none)"
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
-    for help_line in _build_controls_help_lines(_overlay_mode, run_status):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
         lines.append(help_line)
     lines.append("Objective: %s (%s)" % [objective_title, objective_status])
     if objective_description != "":
@@ -987,23 +1017,6 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         lines.append("Fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
         lines.append("Result: %s" % objective_result_label)
-    if run_result_visible:
-        var player_run_title: String = run_result_title
-        if player_run_title == "":
-            if run_status == "completed":
-                player_run_title = "Run completed"
-            elif run_status == "failed":
-                player_run_title = "Run failed"
-            else:
-                player_run_title = "Run result"
-        lines.append(player_run_title)
-        if run_result_lines.is_empty():
-            lines.append("- (none)")
-        else:
-            var run_result_visible_count: int = min(3, run_result_lines.size())
-            for index in range(run_result_visible_count):
-                lines.append("- %s" % str(run_result_lines[index]))
-
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():
         lines.append("- (none)")
