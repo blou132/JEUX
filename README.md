@@ -471,6 +471,13 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
 - quand `confidence=low`, le rapport ajoute la note:
   - `Use more runs before trusting this comparison.`
 - cette conclusion et la confidence restent **heuristiques** (aide pratique de tuning), sans test statistique avance.
+- le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
+  - `Collect support_gate runs first.`
+  - `Collect more runs before deciding.`
+  - `Candidate tuning can be kept for further testing.`
+  - `Reject candidate tuning or revert.`
+  - `Review tradeoff before changing tuning.`
+- cette decision finale est une aide heuristique de lecture rapide, pas une preuve statistique.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

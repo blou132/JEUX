@@ -377,6 +377,47 @@ def build_comparison_recommendation(comparison: dict[str, Any]) -> str:
     return "Comparison is inconclusive."
 
 
+def build_final_decision(summary: dict[str, Any]) -> str:
+    comparison = summary.get("comparison")
+    support_gate = summary.get("support_gate", {})
+    recommendations = summary.get("recommendations", [])
+    support_gate_records = int(support_gate.get("records", 0))
+    stability_label = str(support_gate.get("support_gate_stability_label", "")).strip().lower()
+
+    if isinstance(comparison, dict):
+        confidence = str(comparison.get("confidence", "")).strip().lower()
+        recommendation = str(comparison.get("recommendation", "")).strip().lower()
+        if confidence == "low":
+            return "Collect more runs before deciding."
+        if (
+            recommendation == "candidate looks better for support_gate."
+            and confidence in {"medium", "high"}
+            and stability_label != "unstable"
+        ):
+            return "Candidate tuning can be kept for further testing."
+        if recommendation == "candidate looks worse for support_gate.":
+            return "Reject candidate tuning or revert."
+        if recommendation.startswith("mixed result"):
+            return "Review tradeoff before changing tuning."
+        return "No clear tuning decision."
+
+    if support_gate_records <= 0:
+        return "Collect support_gate runs first."
+    if stability_label == "unstable":
+        return "Run more tests before tuning."
+
+    recommendation_lines = [str(item).lower() for item in recommendations] if isinstance(recommendations, list) else []
+    if any("too easy" in item for item in recommendation_lines):
+        return "Consider making support_gate slightly harder."
+    if any("availability looks low" in item for item in recommendation_lines):
+        return "Consider increasing gate availability."
+    if any("success rate is low" in item for item in recommendation_lines):
+        return "Consider improving feedback or easing interaction."
+    if stability_label == "stable":
+        return "Current support_gate tuning looks acceptable."
+    return "No clear tuning decision."
+
+
 def _pct(value: float | None) -> str:
     if value is None:
         return "n/a"
@@ -388,6 +429,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
     recommendations = summary.get("recommendations", [])
+    final_decision = str(summary.get("final_decision", "")).strip()
 
     lines: list[str] = []
     lines.append("Run Metrics History Analysis")
@@ -448,6 +490,8 @@ def format_summary_text(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
+    if final_decision:
+        lines.append("Final decision: %s" % final_decision)
 
     comparison = summary.get("comparison")
     if isinstance(comparison, dict):
@@ -496,6 +540,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
     recommendations = summary.get("recommendations", [])
+    final_decision = str(summary.get("final_decision", "")).strip()
 
     lines: list[str] = []
     lines.append("# Run Metrics History Analysis")
@@ -592,6 +637,10 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
+    if final_decision:
+        lines.append("")
+        lines.append("## Final decision")
+        lines.append("- %s" % final_decision)
 
     comparison = summary.get("comparison")
     if isinstance(comparison, dict):
@@ -712,6 +761,7 @@ def main() -> int:
             limit=limit if limit > 0 else None,
         )
         summary["comparison"] = build_comparison_summary(summary, candidate_summary)
+    summary["final_decision"] = build_final_decision(summary)
 
     output_format = str(args.format).strip().lower()
     if output_format == "md":

@@ -146,6 +146,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(support_gate["best_run"], "exp_001")
             self.assertEqual(support_gate["worst_run"], "exp_002")
             self.assertAlmostEqual(float(support_gate["objective_success_rate"]), 0.5, places=4)
+            self.assertIn("final_decision", summary)
 
     def test_invalid_lines_are_ignored_and_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -239,6 +240,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
             summary = _run_summary_json(input_path)
             self.assertIn("Not enough support_gate data.", summary["recommendations"])
+            self.assertEqual(summary["final_decision"], "Collect support_gate runs first.")
 
     def test_recommendations_low_available_ratio(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -338,6 +340,43 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
             summary = _run_summary_json(input_path)
             self.assertIn("Support gate tuning looks stable.", summary["recommendations"])
+
+    def test_final_decision_stable_no_comparison(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "stable_decision_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.45,
+                        "support_gate_run_available_ratio": 0.55,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stable_decision_2",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stable_decision_3",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.55,
+                        "support_gate_run_available_ratio": 0.45,
+                    }
+                ),
+            ]
+        )
+        self.assertEqual(summary["final_decision"], "Current support_gate tuning looks acceptable.")
 
     def test_support_gate_stability_unknown(self) -> None:
         summary = _run_summary_from_rows(
@@ -501,6 +540,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("Recommendations:", result.stdout)
             self.assertIn("Support gate tuning looks stable.", result.stdout)
             self.assertIn("Support gate stability:", result.stdout)
+            self.assertIn("Final decision:", result.stdout)
 
     def test_markdown_output_contains_expected_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -527,6 +567,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("## Support gate", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
             self.assertIn("| support gate stability |", result.stdout)
+            self.assertIn("## Final decision", result.stdout)
 
     def test_output_option_writes_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -619,6 +660,14 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         )
         self.assertEqual(summary["comparison"]["confidence"], "low")
 
+    def test_final_decision_comparison_low_confidence(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_low_decision", 2, success_rate=0.50),
+            candidate_rows=_build_support_gate_rows("cand_low_decision", 2, success_rate=0.80),
+        )
+        self.assertEqual(summary["comparison"]["confidence"], "low")
+        self.assertEqual(summary["final_decision"], "Collect more runs before deciding.")
+
     def test_comparison_confidence_medium(self) -> None:
         summary = _run_comparison_summary_json(
             baseline_rows=_build_support_gate_rows("base_med", 3),
@@ -632,6 +681,23 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             candidate_rows=_build_support_gate_rows("cand_high", 12),
         )
         self.assertEqual(summary["comparison"]["confidence"], "high")
+
+    def test_final_decision_comparison_better_with_medium_confidence(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_better_decision", 3, success_rate=0.50, available_ratio=0.50),
+            candidate_rows=_build_support_gate_rows("cand_better_decision", 3, success_rate=0.70, available_ratio=0.48),
+        )
+        self.assertEqual(summary["comparison"]["confidence"], "medium")
+        self.assertEqual(summary["comparison"]["recommendation"], "Candidate looks better for support_gate.")
+        self.assertEqual(summary["final_decision"], "Candidate tuning can be kept for further testing.")
+
+    def test_final_decision_comparison_worse(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=_build_support_gate_rows("base_worse_decision", 3, success_rate=0.70, available_ratio=0.50, run_status="completed", objective_status="completed"),
+            candidate_rows=_build_support_gate_rows("cand_worse_decision", 3, success_rate=0.40, available_ratio=0.45, run_status="failed", objective_status="failed"),
+        )
+        self.assertEqual(summary["comparison"]["recommendation"], "Candidate looks worse for support_gate.")
+        self.assertEqual(summary["final_decision"], "Reject candidate tuning or revert.")
 
     def test_comparison_markdown_contains_comparison_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
