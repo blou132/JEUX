@@ -415,15 +415,20 @@ Passerelles runtime (ordre de chargement) :
 ## Analyze run metrics history (v153)
 - un outil Python simple lit l'historique JSONL et produit un resume utile pour le tuning:
   - `tools/analyze_run_metrics_history.py`
-- usage de base:
+- usage de base (Windows):
 ```bash
 py tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl
+```
+- usage de base (Linux/macOS):
+```bash
+python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl
 ```
 - options:
   - `--objective support_gate` (filtre par objectif)
   - `--limit N` (limite aux N derniers exports filtres)
   - `--format json` (resume machine-readable)
 - le script ignore les lignes vides, signale/compte les lignes invalides, et reste robuste si des champs manquent.
+- les tests CLI utilisent l'interpreteur Python courant (`sys.executable`) pour rester portables.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

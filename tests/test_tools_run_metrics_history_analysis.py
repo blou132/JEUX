@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -56,7 +57,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
 
             result = subprocess.run(
-                ["py", str(SCRIPT), "--input", str(input_path), "--format", "json"],
+                [sys.executable, str(SCRIPT), "--input", str(input_path), "--format", "json"],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
@@ -95,7 +96,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
 
             result = subprocess.run(
-                ["py", str(SCRIPT), "--input", str(input_path), "--format", "json"],
+                [sys.executable, str(SCRIPT), "--input", str(input_path), "--format", "json"],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
@@ -115,7 +116,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
 
             result = subprocess.run(
-                ["py", str(SCRIPT), "--input", str(input_path), "--format", "json"],
+                [sys.executable, str(SCRIPT), "--input", str(input_path), "--format", "json"],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
@@ -169,7 +170,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
 
             result = subprocess.run(
                 [
-                    "py",
+                    sys.executable,
                     str(SCRIPT),
                     "--input",
                     str(input_path),
