@@ -451,6 +451,12 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - objective success rate
   - avg attempts
   - avg success
+- le mode comparaison ajoute aussi une conclusion automatique:
+  - `Candidate looks better for support_gate.`
+  - `Candidate looks worse for support_gate.`
+  - `Mixed result: success improved but availability got worse.`
+  - `Insufficient support_gate data for comparison.`
+- cette conclusion reste **heuristique** (aide pratique de tuning), pas une analyse statistique formelle.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

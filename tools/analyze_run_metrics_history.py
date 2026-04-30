@@ -19,6 +19,8 @@ COMPARISON_RATE_METRICS = {
     "avg_support_gate_run_available_ratio",
     "objective_success_rate",
 }
+COMPARISON_AVAILABLE_DROP_TOLERANCE = -0.05
+COMPARISON_STRONG_DROP_THRESHOLD = -0.10
 
 
 def _as_float(value: Any) -> float | None:
@@ -286,11 +288,13 @@ def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary
         delta_metrics[metric_name] = delta_value
         delta_percent_metrics[metric_name] = delta_percent_value
 
-    return {
+    comparison = {
         "baseline_exports_read": int(baseline_summary.get("exports_read", 0)),
         "candidate_exports_read": int(candidate_summary.get("exports_read", 0)),
         "baseline_invalid_lines": int(baseline_summary.get("invalid_lines", 0)),
         "candidate_invalid_lines": int(candidate_summary.get("invalid_lines", 0)),
+        "baseline_support_gate_records": int(baseline_support_gate.get("records", 0)),
+        "candidate_support_gate_records": int(candidate_support_gate.get("records", 0)),
         "support_gate": {
             "baseline": baseline_metrics,
             "candidate": candidate_metrics,
@@ -298,6 +302,36 @@ def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary
             "delta_percent": delta_percent_metrics,
         },
     }
+    comparison["recommendation"] = build_comparison_recommendation(comparison)
+    return comparison
+
+
+def build_comparison_recommendation(comparison: dict[str, Any]) -> str:
+    baseline_records = int(comparison.get("baseline_support_gate_records", 0))
+    candidate_records = int(comparison.get("candidate_support_gate_records", 0))
+    if baseline_records <= 0 or candidate_records <= 0:
+        return "Insufficient support_gate data for comparison."
+
+    support_gate_comparison = comparison.get("support_gate", {})
+    delta_metrics = support_gate_comparison.get("delta", {})
+    success_rate_delta = _as_float(delta_metrics.get("avg_support_gate_run_success_rate"))
+    available_ratio_delta = _as_float(delta_metrics.get("avg_support_gate_run_available_ratio"))
+    objective_success_delta = _as_float(delta_metrics.get("objective_success_rate"))
+
+    if success_rate_delta is None or available_ratio_delta is None or objective_success_delta is None:
+        return "Insufficient support_gate data for comparison."
+
+    if success_rate_delta > 0.0 and available_ratio_delta <= COMPARISON_STRONG_DROP_THRESHOLD:
+        return "Mixed result: success improved but availability got worse."
+    if success_rate_delta <= COMPARISON_STRONG_DROP_THRESHOLD or objective_success_delta <= COMPARISON_STRONG_DROP_THRESHOLD:
+        return "Candidate looks worse for support_gate."
+    if (
+        success_rate_delta > 0.0
+        and objective_success_delta >= 0.0
+        and available_ratio_delta >= COMPARISON_AVAILABLE_DROP_TOLERANCE
+    ):
+        return "Candidate looks better for support_gate."
+    return "Comparison is inconclusive."
 
 
 def _pct(value: float | None) -> str:
@@ -375,6 +409,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
         candidate_metrics = support_gate_comparison.get("candidate", {})
         delta_metrics = support_gate_comparison.get("delta", {})
         delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
+        comparison_recommendation = str(comparison.get("recommendation", "")).strip()
 
         lines.append("")
         lines.append("Comparison:")
@@ -385,6 +420,8 @@ def format_summary_text(summary: dict[str, Any]) -> str:
                 int(comparison.get("candidate_exports_read", 0)),
             )
         )
+        if comparison_recommendation:
+            lines.append("Comparison recommendation: %s" % comparison_recommendation)
         for metric_name in COMPARISON_SUPPORT_GATE_METRICS:
             is_rate_metric = metric_name in COMPARISON_RATE_METRICS
             baseline_value = _as_float(baseline_metrics.get(metric_name))
@@ -499,6 +536,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
         candidate_metrics = support_gate_comparison.get("candidate", {})
         delta_metrics = support_gate_comparison.get("delta", {})
         delta_percent_metrics = support_gate_comparison.get("delta_percent", {})
+        comparison_recommendation = str(comparison.get("recommendation", "")).strip()
 
         lines.append("")
         lines.append("## Comparison")
@@ -511,6 +549,8 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             "- Candidate exports read: %d"
             % int(comparison.get("candidate_exports_read", 0))
         )
+        if comparison_recommendation:
+            lines.append("- Recommendation: %s" % comparison_recommendation)
         lines.append("| Metric | Baseline | Candidate | Delta | Change |")
         lines.append("|---|---|---|---|---|")
         for metric_name in COMPARISON_SUPPORT_GATE_METRICS:

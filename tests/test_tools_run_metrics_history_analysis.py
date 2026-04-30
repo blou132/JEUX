@@ -40,6 +40,18 @@ def _run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _run_comparison_summary_json(baseline_rows: list[str], candidate_rows: list[str]) -> dict:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        baseline_path = Path(tmpdir) / "before.jsonl"
+        candidate_path = Path(tmpdir) / "after.jsonl"
+        _write_jsonl(baseline_path, baseline_rows)
+        _write_jsonl(candidate_path, candidate_rows)
+        return _run_summary_json(
+            baseline_path,
+            ["--compare-input", str(candidate_path)],
+        )
+
+
 class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
     def test_valid_history_summary_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -497,6 +509,181 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1)
             self.assertIn("ERROR: compare input file not found", result.stdout)
+
+    def test_comparison_recommendation_better(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=[
+                json.dumps(
+                    {
+                        "export_id": "before_better",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ],
+            candidate_rows=[
+                json.dumps(
+                    {
+                        "export_id": "after_better",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.70,
+                        "support_gate_run_available_ratio": 0.48,
+                    }
+                )
+            ],
+        )
+        self.assertEqual(
+            summary["comparison"]["recommendation"],
+            "Candidate looks better for support_gate.",
+        )
+
+    def test_comparison_recommendation_worse(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=[
+                json.dumps(
+                    {
+                        "export_id": "before_worse",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.70,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ],
+            candidate_rows=[
+                json.dumps(
+                    {
+                        "export_id": "after_worse",
+                        "objective_id": "support_gate",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.45,
+                    }
+                )
+            ],
+        )
+        self.assertEqual(
+            summary["comparison"]["recommendation"],
+            "Candidate looks worse for support_gate.",
+        )
+
+    def test_comparison_recommendation_mixed(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=[
+                json.dumps(
+                    {
+                        "export_id": "before_mixed",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.60,
+                    }
+                )
+            ],
+            candidate_rows=[
+                json.dumps(
+                    {
+                        "export_id": "after_mixed",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.70,
+                        "support_gate_run_available_ratio": 0.45,
+                    }
+                )
+            ],
+        )
+        self.assertEqual(
+            summary["comparison"]["recommendation"],
+            "Mixed result: success improved but availability got worse.",
+        )
+
+    def test_comparison_recommendation_insufficient_data(self) -> None:
+        summary = _run_comparison_summary_json(
+            baseline_rows=[
+                json.dumps(
+                    {
+                        "export_id": "before_insufficient",
+                        "objective_id": "observe_dominance",
+                        "run_status": "running",
+                        "objective_status": "active",
+                    }
+                )
+            ],
+            candidate_rows=[
+                json.dumps(
+                    {
+                        "export_id": "after_insufficient",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.65,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ],
+        )
+        self.assertEqual(
+            summary["comparison"]["recommendation"],
+            "Insufficient support_gate data for comparison.",
+        )
+
+    def test_comparison_markdown_contains_recommendation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "before_rec.jsonl"
+            candidate_path = Path(tmpdir) / "after_rec.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "before_rec",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_success_rate": 0.50,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    )
+                ],
+            )
+            _write_jsonl(
+                candidate_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "after_rec",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_success_rate": 0.70,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    )
+                ],
+            )
+
+            result = _run_cli(
+                [
+                    "--input",
+                    str(baseline_path),
+                    "--compare-input",
+                    str(candidate_path),
+                    "--format",
+                    "markdown",
+                ]
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("## Comparison", result.stdout)
+            self.assertIn("- Recommendation: Candidate looks better for support_gate.", result.stdout)
 
 
 if __name__ == "__main__":
