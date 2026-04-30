@@ -8969,6 +8969,15 @@ func _build_snapshot() -> Dictionary:
 				"magic_bias": 0.0
 			}
 		),
+		"doctrine_project_bias_counts": doctrine_runtime_snapshot.get(
+			"project_bias_counts",
+			{
+				"fortify": 0,
+				"warband_muster": 0,
+				"ritual_focus": 0
+			}
+		),
+		"doctrine_vendetta_bias_avg": float(doctrine_runtime_snapshot.get("vendetta_bias_avg", 0.0)),
 		"allegiance_doctrine_dominant_id": str(doctrine_runtime_snapshot.get("dominant_doctrine", "")),
 		"allegiance_doctrine_dominant_count": int(doctrine_runtime_snapshot.get("dominant_count", 0)),
 		"doctrine_templates_source": doctrine_templates_source,
@@ -9305,6 +9314,16 @@ func _update_poi_runtime() -> void:
 			var project_id: String = str(transition.get("project_id", "project"))
 			var duration: float = float(transition.get("duration", 0.0))
 			record_event("Project START: %s -> %s at %s (%.0fs)." % [allegiance_id, project_id, poi_name, duration])
+			var doctrine_project_influenced: bool = bool(transition.get("doctrine_project_influenced", false))
+			if doctrine_project_influenced:
+				var doctrine_id: String = str(transition.get("doctrine_id", ""))
+				var doctrine_source: String = str(transition.get("doctrine_source", "fallback"))
+				var base_project_id: String = str(transition.get("base_project_id", project_id))
+				var doctrine_project_bias: String = str(transition.get("doctrine_project_bias", ""))
+				record_event(
+					"Project doctrine bias: %s %s->%s (%s, source=%s, bias=%s)."
+					% [allegiance_id, base_project_id, project_id, doctrine_id, doctrine_source, doctrine_project_bias]
+				)
 			_try_resolve_allegiance_crisis(allegiance_id, "project_restarted:%s" % project_id)
 		elif kind == "allegiance_project_ended":
 			project_ended_total += 1
@@ -9421,6 +9440,15 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
             "Vendetta START: %s -> %s (%s, %.0fs)."
 			% [source_allegiance_id, target_allegiance_id, reason, duration]
 		)
+		var doctrine_id: String = str(transition.get("doctrine_id", ""))
+		if doctrine_id != "":
+			var doctrine_source: String = str(transition.get("doctrine_source", "fallback"))
+			var doctrine_label: String = str(transition.get("doctrine_label", doctrine_id))
+			var doctrine_vendetta_bias: float = float(transition.get("doctrine_vendetta_bias", 0.0))
+			record_event(
+				"Vendetta doctrine: %s (%s, source=%s, bias=%.2f)."
+				% [doctrine_id, doctrine_label, doctrine_source, doctrine_vendetta_bias]
+			)
 		_mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, source_allegiance_id, SPLINTER_SIGNAL_WINDOW)
 		_mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, target_allegiance_id, SPLINTER_SIGNAL_WINDOW * 0.82)
 		_try_start_crisis_from_vendetta(source_allegiance_id, target_allegiance_id, reason)

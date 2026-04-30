@@ -203,6 +203,8 @@ Passerelles runtime (ordre de chargement) :
   - `defense_bias` : pression defensive appliquee au poids de defense.
   - `rally_bias` : impact sur regroupement rally.
   - `magic_bias` : ajuste les multiplicateurs magie (degats/cout).
+  - `project bias` : preference legere sur le choix de projet (`warlike` -> `warband_muster`, `steadfast` -> `fortify`, `arcane` -> `ritual_focus`).
+  - `vendetta bias` : delta leger sur la tendance de depart vendetta (warlike +, steadfast -, arcane neutre/leger en contexte magique).
 - Runtime et fallback :
   - `GameLoop` charge via `DataLoader` puis injecte dans `WorldManager`.
   - Si `doctrines.json` manque/est invalide/incomplet, fallback historique conserve (`source=fallback`).

@@ -55,6 +55,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     )
     var allegiance_doctrine_source_counts: Dictionary = snapshot.get("allegiance_doctrine_source_counts", {})
     var allegiance_doctrine_average_biases: Dictionary = snapshot.get("allegiance_doctrine_average_biases", {})
+    var doctrine_project_bias_counts: Dictionary = snapshot.get("doctrine_project_bias_counts", {})
+    var doctrine_vendetta_bias_avg: float = float(snapshot.get("doctrine_vendetta_bias_avg", 0.0))
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -465,6 +467,15 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             float(allegiance_doctrine_average_biases.get("defense_bias", 0.0)),
             float(allegiance_doctrine_average_biases.get("rally_bias", 0.0)),
             float(allegiance_doctrine_average_biases.get("magic_bias", 0.0))
+        ]
+    )
+    lines.append(
+        "Doctrine effects: project_bias=fortify:%d warband:%d ritual:%d vendetta_avg=%.2f"
+        % [
+            int(doctrine_project_bias_counts.get("fortify", 0)),
+            int(doctrine_project_bias_counts.get("warband_muster", 0)),
+            int(doctrine_project_bias_counts.get("ritual_focus", 0)),
+            doctrine_vendetta_bias_avg
         ]
     )
     lines.append(

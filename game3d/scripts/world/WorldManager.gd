@@ -1603,6 +1603,80 @@ func get_allegiance_doctrine_tags(allegiance_id: String) -> Array:
 	return get_doctrine_tags(doctrine)
 
 
+func get_doctrine_project_bias(doctrine_id: String, doctrine_source: String = "fallback") -> Dictionary:
+	var normalized_source: String = doctrine_source if doctrine_source in ["json", "fallback"] else "fallback"
+	var preferred_project: String = ""
+	var influence_strength: float = 0.0
+	match doctrine_id:
+		"warlike":
+			preferred_project = "warband_muster"
+			influence_strength = 0.18
+		"steadfast":
+			preferred_project = "fortify"
+			influence_strength = 0.18
+		"arcane":
+			preferred_project = "ritual_focus"
+			influence_strength = 0.16
+			if world_event_visual_id == "mana_surge":
+				influence_strength += 0.04
+		_:
+			pass
+
+	if normalized_source != "json":
+		influence_strength = 0.0
+
+	return {
+		"doctrine": doctrine_id,
+		"preferred_project": preferred_project,
+		"influence_strength": clampf(influence_strength, 0.0, 0.32),
+		"source": normalized_source
+	}
+
+
+func get_allegiance_doctrine_project_bias(allegiance_id: String) -> Dictionary:
+	var doctrine_id: String = get_allegiance_doctrine(allegiance_id)
+	var doctrine_source: String = get_allegiance_doctrine_source(allegiance_id)
+	var project_bias: Dictionary = get_doctrine_project_bias(doctrine_id, doctrine_source)
+	project_bias["allegiance_id"] = allegiance_id
+	project_bias["label"] = get_allegiance_doctrine_label(allegiance_id, doctrine_id)
+	return project_bias
+
+
+func get_doctrine_vendetta_bias(doctrine_id: String, doctrine_source: String = "fallback") -> Dictionary:
+	var normalized_source: String = doctrine_source if doctrine_source in ["json", "fallback"] else "fallback"
+	var vendetta_start_delta: float = 0.0
+	match doctrine_id:
+		"warlike":
+			vendetta_start_delta = 0.03
+		"steadfast":
+			vendetta_start_delta = -0.03
+		"arcane":
+			if world_event_visual_id == "mana_surge":
+				vendetta_start_delta = 0.01
+			else:
+				vendetta_start_delta = 0.0
+		_:
+			pass
+
+	if normalized_source != "json":
+		vendetta_start_delta = 0.0
+
+	return {
+		"doctrine": doctrine_id,
+		"vendetta_start_delta": clampf(vendetta_start_delta, -0.10, 0.10),
+		"source": normalized_source
+	}
+
+
+func get_allegiance_doctrine_vendetta_bias(allegiance_id: String) -> Dictionary:
+	var doctrine_id: String = get_allegiance_doctrine(allegiance_id)
+	var doctrine_source: String = get_allegiance_doctrine_source(allegiance_id)
+	var vendetta_bias: Dictionary = get_doctrine_vendetta_bias(doctrine_id, doctrine_source)
+	vendetta_bias["allegiance_id"] = allegiance_id
+	vendetta_bias["label"] = get_allegiance_doctrine_label(allegiance_id, doctrine_id)
+	return vendetta_bias
+
+
 func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 	var doctrine: String = get_allegiance_doctrine(allegiance_id)
 	var modifiers: Dictionary = _default_doctrine_modifiers(doctrine)
@@ -1662,6 +1736,11 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		"json": 0,
 		"fallback": 0
 	}
+	var project_bias_counts := {
+		"fortify": 0,
+		"warband_muster": 0,
+		"ritual_focus": 0
+	}
 	var missing_template_doctrines: Array[String] = []
 	var fallback_allegiances: Array[String] = []
 	var bias_totals := {
@@ -1670,6 +1749,7 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		"rally_bias": 0.0,
 		"magic_bias": 0.0
 	}
+	var vendetta_bias_total: float = 0.0
 	var doctrine_total: int = 0
 
 	for allegiance_variant in allegiances:
@@ -1687,6 +1767,8 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		var doctrine_label: String = get_allegiance_doctrine_label(allegiance_id, doctrine_id)
 		var doctrine_tags: Array = get_allegiance_doctrine_tags(allegiance_id)
 		var biases: Dictionary = get_allegiance_doctrine_biases(allegiance_id)
+		var doctrine_project_bias: Dictionary = get_allegiance_doctrine_project_bias(allegiance_id)
+		var doctrine_vendetta_bias: Dictionary = get_allegiance_doctrine_vendetta_bias(allegiance_id)
 		doctrine_total += 1
 		doctrine_labels.append("%s=%s[%s]" % [allegiance_id, doctrine_id, source])
 		if doctrine_counts.has(doctrine_id):
@@ -1702,12 +1784,18 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		bias_totals["defense_bias"] += float(biases.get("defense_bias", 0.0))
 		bias_totals["rally_bias"] += float(biases.get("rally_bias", 0.0))
 		bias_totals["magic_bias"] += float(biases.get("magic_bias", 0.0))
+		vendetta_bias_total += float(doctrine_vendetta_bias.get("vendetta_start_delta", 0.0))
+		var preferred_project: String = str(doctrine_project_bias.get("preferred_project", ""))
+		if project_bias_counts.has(preferred_project):
+			project_bias_counts[preferred_project] += 1
 		doctrine_by_allegiance[allegiance_id] = {
 			"doctrine": doctrine_id,
 			"label": doctrine_label,
 			"tags": doctrine_tags,
 			"source": source,
-			"biases": biases
+			"biases": biases,
+			"project_bias": doctrine_project_bias,
+			"vendetta_bias": doctrine_vendetta_bias
 		}
 
 	doctrine_labels.sort()
@@ -1720,6 +1808,7 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		"rally_bias": float(bias_totals.get("rally_bias", 0.0)) / avg_divisor,
 		"magic_bias": float(bias_totals.get("magic_bias", 0.0)) / avg_divisor
 	}
+	var vendetta_bias_avg: float = vendetta_bias_total / avg_divisor
 
 	var dominant_doctrine: String = ""
 	var dominant_count: int = 0
@@ -1734,6 +1823,8 @@ func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -
 		"labels": doctrine_labels,
 		"counts": doctrine_counts,
 		"sources": source_counts,
+		"project_bias_counts": project_bias_counts,
+		"vendetta_bias_avg": vendetta_bias_avg,
 		"fallback_used_count": int(source_counts.get("fallback", 0)),
 		"fallback_allegiances": fallback_allegiances,
 		"missing_template_doctrines": missing_template_doctrines,
@@ -2649,22 +2740,21 @@ func _pick_project_for_allegiance(
 	structure_state: String,
 	doctrine: String
 ) -> String:
-	if bool(poi_raid_state.get("active", false)):
-		if str(poi_raid_state.get("target_poi", "")) == home_poi:
-			return "fortify"
-		if str(poi_raid_state.get("source_poi", "")) == home_poi:
-			return "warband_muster"
+	var choice: Dictionary = _pick_project_choice_for_allegiance(
+		allegiance_id,
+		faction,
+		home_poi,
+		structure_state,
+		doctrine
+	)
+	return str(choice.get("project_id", ""))
 
-	if doctrine == "arcane" and world_event_visual_id == "mana_surge":
-		return "ritual_focus"
 
-	if doctrine == "steadfast":
-		return "fortify"
-	if doctrine == "warlike":
-		return "warband_muster"
-	if doctrine == "arcane":
-		return "ritual_focus"
-
+func _base_project_for_allegiance(
+	allegiance_id: String,
+	faction: String,
+	structure_state: String
+) -> String:
 	var faction_template: Dictionary = get_allegiance_faction_template(allegiance_id)
 	var project_bias: String = str(faction_template.get("project_bias", ""))
 	if project_bias in ALLEGIANCE_PROJECT_TYPES:
@@ -2679,6 +2769,100 @@ func _pick_project_for_allegiance(
 	if allegiance_id == "":
 		return ""
 	return "fortify"
+
+
+func _pick_project_choice_for_allegiance(
+	allegiance_id: String,
+	faction: String,
+	home_poi: String,
+	structure_state: String,
+	doctrine: String
+) -> Dictionary:
+	var doctrine_project_bias: Dictionary = get_allegiance_doctrine_project_bias(allegiance_id)
+	var doctrine_source: String = str(doctrine_project_bias.get("source", "fallback"))
+	var preferred_project: String = str(doctrine_project_bias.get("preferred_project", ""))
+	var influence_strength: float = clampf(float(doctrine_project_bias.get("influence_strength", 0.0)), 0.0, 0.32)
+
+	if bool(poi_raid_state.get("active", false)):
+		if str(poi_raid_state.get("target_poi", "")) == home_poi:
+			return {
+				"project_id": "fortify",
+				"base_project_id": "fortify",
+				"doctrine_id": doctrine,
+				"doctrine_source": doctrine_source,
+				"doctrine_preferred_project": preferred_project,
+				"doctrine_influence_strength": influence_strength,
+				"doctrine_influenced": false
+			}
+		if str(poi_raid_state.get("source_poi", "")) == home_poi:
+			return {
+				"project_id": "warband_muster",
+				"base_project_id": "warband_muster",
+				"doctrine_id": doctrine,
+				"doctrine_source": doctrine_source,
+				"doctrine_preferred_project": preferred_project,
+				"doctrine_influence_strength": influence_strength,
+				"doctrine_influenced": false
+			}
+
+	if doctrine == "arcane" and world_event_visual_id == "mana_surge":
+		return {
+			"project_id": "ritual_focus",
+			"base_project_id": "ritual_focus",
+			"doctrine_id": doctrine,
+			"doctrine_source": doctrine_source,
+			"doctrine_preferred_project": "ritual_focus",
+			"doctrine_influence_strength": influence_strength,
+			"doctrine_influenced": true
+		}
+
+	if doctrine_source != "json":
+		var legacy_project_id: String = ""
+		if doctrine == "steadfast":
+			legacy_project_id = "fortify"
+		elif doctrine == "warlike":
+			legacy_project_id = "warband_muster"
+		elif doctrine == "arcane":
+			legacy_project_id = "ritual_focus"
+		if legacy_project_id in ALLEGIANCE_PROJECT_TYPES:
+			return {
+				"project_id": legacy_project_id,
+				"base_project_id": legacy_project_id,
+				"doctrine_id": doctrine,
+				"doctrine_source": doctrine_source,
+				"doctrine_preferred_project": preferred_project,
+				"doctrine_influence_strength": 0.0,
+				"doctrine_influenced": false
+			}
+
+	var base_project_id: String = _base_project_for_allegiance(allegiance_id, faction, structure_state)
+	if not (base_project_id in ALLEGIANCE_PROJECT_TYPES):
+		return {
+			"project_id": base_project_id,
+			"base_project_id": base_project_id,
+			"doctrine_id": doctrine,
+			"doctrine_source": doctrine_source,
+			"doctrine_preferred_project": preferred_project,
+			"doctrine_influence_strength": influence_strength,
+			"doctrine_influenced": false
+		}
+
+	var selected_project: String = base_project_id
+	var doctrine_influenced: bool = false
+	if preferred_project in ALLEGIANCE_PROJECT_TYPES and preferred_project != base_project_id:
+		if randf() <= influence_strength:
+			selected_project = preferred_project
+			doctrine_influenced = true
+
+	return {
+		"project_id": selected_project,
+		"base_project_id": base_project_id,
+		"doctrine_id": doctrine,
+		"doctrine_source": doctrine_source,
+		"doctrine_preferred_project": preferred_project,
+		"doctrine_influence_strength": influence_strength,
+		"doctrine_influenced": doctrine_influenced
+	}
 
 
 func _interrupt_allegiance_project(allegiance_id: String, time_seconds: float) -> String:
@@ -2771,13 +2955,14 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 		if randf() > clampf(allegiance_project_start_chance, 0.05, 0.80):
 			continue
 
-		var project_id: String = _pick_project_for_allegiance(
+		var project_choice: Dictionary = _pick_project_choice_for_allegiance(
 			allegiance_id,
 			str(context.get("faction", "")),
 			home_poi,
 			str(context.get("structure_state", "")),
 			str(context.get("doctrine", ""))
 		)
+		var project_id: String = str(project_choice.get("project_id", ""))
 		if not (project_id in ALLEGIANCE_PROJECT_TYPES):
 			continue
 
@@ -2797,7 +2982,13 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 			"poi": home_poi,
 			"allegiance_id": allegiance_id,
 			"project_id": project_id,
-			"duration": duration
+			"duration": duration,
+			"base_project_id": str(project_choice.get("base_project_id", project_id)),
+			"doctrine_id": str(project_choice.get("doctrine_id", "")),
+			"doctrine_source": str(project_choice.get("doctrine_source", "fallback")),
+			"doctrine_project_bias": str(project_choice.get("doctrine_preferred_project", "")),
+			"doctrine_project_bias_strength": float(project_choice.get("doctrine_influence_strength", 0.0)),
+			"doctrine_project_influenced": bool(project_choice.get("doctrine_influenced", false))
 		})
 
 	return {
@@ -2841,10 +3032,21 @@ func _try_start_vendetta(
 	if time_seconds < cooldown_until:
 		return {}
 
+	var vendetta_bias: Dictionary = get_allegiance_doctrine_vendetta_bias(source_allegiance_id)
+	var vendetta_delta: float = clampf(float(vendetta_bias.get("vendetta_start_delta", 0.0)), -0.10, 0.10)
+	var doctrine_source: String = str(vendetta_bias.get("source", "fallback"))
+	var vendetta_start_chance: float = 1.0
+	if doctrine_source == "json":
+		vendetta_start_chance = clampf(0.95 + vendetta_delta, 0.82, 1.0)
+	if randf() > vendetta_start_chance:
+		return {}
+
 	var duration: float = randf_range(
 		min(allegiance_vendetta_duration_min, allegiance_vendetta_duration_max),
 		max(allegiance_vendetta_duration_min, allegiance_vendetta_duration_max)
 	)
+	var doctrine_id: String = str(vendetta_bias.get("doctrine", ""))
+	var doctrine_label: String = get_allegiance_doctrine_label(source_allegiance_id, doctrine_id)
 	allegiance_vendetta_runtime_by_id[source_allegiance_id] = {
 		"target_allegiance_id": target_allegiance_id,
 		"reason": reason,
@@ -2856,7 +3058,12 @@ func _try_start_vendetta(
 		"source_allegiance_id": source_allegiance_id,
 		"target_allegiance_id": target_allegiance_id,
 		"reason": reason,
-		"duration": duration
+		"duration": duration,
+		"doctrine_id": doctrine_id,
+		"doctrine_label": doctrine_label,
+		"doctrine_source": doctrine_source,
+		"doctrine_vendetta_bias": vendetta_delta,
+		"doctrine_vendetta_start_chance": vendetta_start_chance
 	}
 
 

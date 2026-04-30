@@ -83,6 +83,26 @@ def doctrine_source_contract(*, doctrine_id: str, available_templates: set[str])
     return "fallback"
 
 
+def doctrine_project_bias_contract(doctrine_id: str) -> str:
+    if doctrine_id == "warlike":
+        return "warband_muster"
+    if doctrine_id == "steadfast":
+        return "fortify"
+    if doctrine_id == "arcane":
+        return "ritual_focus"
+    return ""
+
+
+def doctrine_vendetta_bias_contract(doctrine_id: str, *, mana_surge: bool = False) -> float:
+    if doctrine_id == "warlike":
+        return 0.03
+    if doctrine_id == "steadfast":
+        return -0.03
+    if doctrine_id == "arcane":
+        return 0.01 if mana_surge else 0.0
+    return 0.0
+
+
 def cleanup_doctrine_contract(mapping: dict[str, str], allegiance_id: str) -> tuple[dict[str, str], str]:
     next_mapping = dict(mapping)
     doctrine = str(next_mapping.get(allegiance_id, ""))
@@ -165,14 +185,21 @@ class TestGame3DDoctrinesBehavior(unittest.TestCase):
         self.assertIn("get_allegiance_doctrine_label", self.world_content)
         self.assertIn("get_allegiance_doctrine_tags", self.world_content)
         self.assertIn("get_allegiance_doctrine_biases", self.world_content)
+        self.assertIn("get_allegiance_doctrine_project_bias", self.world_content)
+        self.assertIn("get_doctrine_project_bias", self.world_content)
+        self.assertIn("get_allegiance_doctrine_vendetta_bias", self.world_content)
+        self.assertIn("get_doctrine_vendetta_bias", self.world_content)
         self.assertIn("get_doctrine_runtime_snapshot", self.world_content)
         self.assertIn("Doctrine bridge: doctrines.json source=json.", self.loop_content)
         self.assertIn("Doctrine bridge: doctrines.json source=fallback.", self.loop_content)
         self.assertIn('"allegiance_doctrine_source_counts"', self.loop_content)
         self.assertIn('"allegiance_doctrine_average_biases"', self.loop_content)
+        self.assertIn('"doctrine_project_bias_counts"', self.loop_content)
+        self.assertIn('"doctrine_vendetta_bias_avg"', self.loop_content)
         self.assertIn("fallback=%d", self.overlay_content)
         self.assertIn("Doctrine dominant:", self.overlay_content)
         self.assertIn("Doctrine bias avg:", self.overlay_content)
+        self.assertIn("Doctrine effects:", self.overlay_content)
 
     def test_source_contract_is_json_or_fallback(self):
         self.assertEqual(
@@ -187,6 +214,24 @@ class TestGame3DDoctrinesBehavior(unittest.TestCase):
             doctrine_source_contract(doctrine_id="", available_templates={"warlike", "arcane"}),
             "fallback",
         )
+
+    def test_project_bias_contract_favors_expected_project_for_each_doctrine(self):
+        self.assertEqual(doctrine_project_bias_contract("warlike"), "warband_muster")
+        self.assertEqual(doctrine_project_bias_contract("steadfast"), "fortify")
+        self.assertEqual(doctrine_project_bias_contract("arcane"), "ritual_focus")
+
+    def test_vendetta_bias_contract_is_light_and_bounded(self):
+        warlike = doctrine_vendetta_bias_contract("warlike")
+        steadfast = doctrine_vendetta_bias_contract("steadfast")
+        arcane = doctrine_vendetta_bias_contract("arcane")
+        arcane_surge = doctrine_vendetta_bias_contract("arcane", mana_surge=True)
+        self.assertGreater(warlike, 0.0)
+        self.assertLess(steadfast, 0.0)
+        self.assertGreaterEqual(arcane, 0.0)
+        self.assertGreaterEqual(arcane_surge, arcane)
+        for value in [warlike, steadfast, arcane, arcane_surge]:
+            self.assertGreaterEqual(value, -0.10)
+            self.assertLessEqual(value, 0.10)
 
     def test_unknown_doctrine_is_ignored_with_logs(self):
         self.assertIn("ignored invalid doctrine", self.world_content)
