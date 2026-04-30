@@ -295,6 +295,9 @@ Passerelles runtime (ordre de chargement) :
   - `objective_interaction_label`
   - `objective_interaction_available`
   - `objective_interaction_cooldown`
+  - `objective_interaction_feedback_label`
+  - `objective_interaction_feedback_type`
+  - `objective_interaction_feedback_timer`
 - HUD:
   - mode `player`: `Objective: ...` + `Goal: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
   - mode `debug`: details `objective_id`, `objective_category`, `objective_config_label`, status/faction/switch/fail reason.
@@ -313,6 +316,12 @@ Passerelles runtime (ordre de chargement) :
   - quand la rift gate est ouverte et que l'objectif est actif, `E` applique un support abstrait.
   - chaque interaction valide incremente un compteur borne (`objective_interaction_count`).
   - un cooldown court evite le spam (`objective_interaction_cooldown`).
+- Feedback v147 (HUD):
+  - succes: `Gate support accepted`.
+  - refus `cooldown`: `cooldown 0.xs`.
+  - refus `unavailable`: `gate unavailable` / `objective non-interactive`.
+  - refus `blocked`: `objective not active` / `run already finished`.
+  - type + timer exposes dans le snapshot via `objective_interaction_feedback_*`.
 - Succès:
   - objectif `completed` quand le nombre requis d'actions est atteint avant timeout.
 - Echec:
