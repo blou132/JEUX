@@ -330,6 +330,15 @@ Passerelles runtime (ordre de chargement) :
 - Portee:
   - v138 ne relance pas un reboot complet monde/acteurs; la simulation physique continue et seule la couche run/objective est reinitialisee proprement.
 
+## Objective selection
+- v141 ajoute une selection simple d'objectif monde en jeu, sans menu complet:
+  - `O` ou `PageDown`: objectif suivant (uniquement si la run est `completed` ou `failed`).
+  - `R`: restart de la run courante.
+- L'ordre de cycle suit `objective_available_ids`:
+  - `observe_dominance` -> `survive_calamity` -> `watch_champion_rise`.
+- `observe_dominance` reste l'objectif par defaut au lancement.
+- Le changement enregistre un evenement timeline `objective_selected`, puis relance proprement l'objectif choisi.
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.
@@ -340,6 +349,7 @@ Passerelles runtime (ordre de chargement) :
   - `F1` : bascule HUD `player <-> debug`.
   - `Tab` : bascule HUD `player <-> debug` (si conservee).
   - `R` : `restart run` (affiche seulement quand la run est terminee).
+  - `O` / `PageDown` : `next objective` (affiche seulement quand la run est terminee).
   - `set_overlay_mode("player" | "debug" | "off")` : selection explicite du mode.
   - `cycle_overlay_mode()` : cycle `player -> debug -> off -> player`.
 - API publique:

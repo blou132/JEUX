@@ -745,6 +745,34 @@ func set_world_objective(objective_id: String) -> void:
 	_setup_world_objective(resolved_objective_id)
 
 
+func cycle_world_objective() -> void:
+	if not (run_status in ["completed", "failed"]):
+		return
+
+	var available_ids: Array[String] = world_objective_available_ids
+	if available_ids.is_empty():
+		available_ids = _get_available_world_objective_ids()
+	if available_ids.is_empty():
+		return
+
+	var current_index: int = available_ids.find(world_objective_id)
+	var next_index: int = 0
+	if current_index >= 0:
+		next_index = (current_index + 1) % available_ids.size()
+
+	var previous_objective_id: String = world_objective_id if world_objective_id != "" else "none"
+	var next_objective_id: String = str(available_ids[next_index]).strip_edges()
+	if next_objective_id == "":
+		next_objective_id = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE
+
+	record_event("Objective SELECTED: %s -> %s." % [previous_objective_id, next_objective_id])
+	_record_major_event(
+		"objective_selected",
+		"Objective SELECTED: %s -> %s" % [previous_objective_id, next_objective_id]
+	)
+	set_world_objective(next_objective_id)
+
+
 func restart_run() -> void:
 	if not (run_status in ["completed", "failed"]):
 		return
@@ -766,9 +794,15 @@ func restart_run() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_R:
-			if run_status in ["completed", "failed"]:
+		if key_event.pressed and not key_event.echo:
+			if key_event.keycode == KEY_R and run_status in ["completed", "failed"]:
 				restart_run()
+				get_viewport().set_input_as_handled()
+			elif (
+				key_event.keycode == KEY_O
+				or key_event.keycode == KEY_PAGEDOWN
+			) and run_status in ["completed", "failed"]:
+				cycle_world_objective()
 				get_viewport().set_input_as_handled()
 
 
@@ -9621,6 +9655,8 @@ func _build_snapshot() -> Dictionary:
 		humans_alive,
 		monsters_alive
 	)
+	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
+	var objective_available_count: int = world_objective_available_ids.size()
 
 	return {
 		"tick": tick_index,
@@ -9667,6 +9703,8 @@ func _build_snapshot() -> Dictionary:
 		"objective_type": world_objective_category,
 		"objective_config_label": world_objective_config_label,
 		"objective_available_ids": world_objective_available_ids,
+		"objective_selected_index": objective_selected_index,
+		"objective_available_count": objective_available_count,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

@@ -129,6 +129,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var objective_category: String = str(snapshot.get("objective_category", ""))
     var objective_config_label: String = str(snapshot.get("objective_config_label", ""))
     var objective_available_ids: Array = snapshot.get("objective_available_ids", [])
+    var objective_selected_index: int = int(snapshot.get("objective_selected_index", -1))
+    var objective_available_count: int = int(
+        snapshot.get("objective_available_count", objective_available_ids.size())
+    )
     var objective_completion_target_label: String = str(snapshot.get("objective_completion_target_label", ""))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
@@ -599,6 +603,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         lines.append("Objective target: %s" % objective_completion_target_label)
     if not objective_available_ids.is_empty():
         lines.append("Objective available: %s" % ", ".join(objective_available_ids))
+    if objective_available_count > 0 and objective_selected_index >= 0:
+        lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
     lines.append(
         "Objective progress: %.2f | %.1fs/%.1fs | %s"
         % [objective_progress, objective_elapsed, objective_required, objective_progress_label]
@@ -908,16 +914,20 @@ func _build_controls_help_lines(mode: String, run_status: String = "running") ->
         if can_restart:
             return [
                 "F1/Tab: HUD debug/player | mode=player",
+                "O/PageDown: next objective",
                 "R: restart run"
             ]
         return ["F1/Tab: HUD debug/player | mode=player"]
 
     var lines: Array[String] = [
         "HUD: F1/Tab toggle player-debug | mode=%s" % normalized_mode,
-        "Debug HUD is for development."
+        "Debug HUD is for development.",
+        "O/PageDown: next objective (after run end)"
     ]
     if can_restart:
         lines.append("R: restart run")
+    else:
+        lines.append("R: restart run (after run end)")
     return lines
 
 
