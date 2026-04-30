@@ -241,6 +241,17 @@ Passerelles runtime (ordre de chargement) :
   - la **timeline** liste les evenements majeurs recents dans l'ordre temporel,
   - le **resume** condense l'etat global de la run en 3 a 6 lignes lisibles.
 
+## HUD modes
+- `DebugOverlay` supporte trois modes:
+  - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.
+  - `player` : affichage compact lisible joueur (temps/tick, population H/M, world event, neutral gate active, dominance faction/doctrine, run summary compact, 3 derniers evenements narratifs).
+  - `off` : masque le HUD.
+- Basculer rapidement `debug <-> player` en jeu avec `F1` ou `Tab`.
+- API publique:
+  - `set_overlay_mode(mode: String)`
+  - `get_overlay_mode()`
+- Le filtrage est fait uniquement dans `DebugOverlay`; le snapshot `GameLoop` reste inchange.
+
 Commande :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json

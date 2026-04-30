@@ -1,7 +1,12 @@
 extends CanvasLayer
 class_name DebugOverlay
 
+const OVERLAY_MODE_PLAYER: String = "player"
+const OVERLAY_MODE_DEBUG: String = "debug"
+const OVERLAY_MODE_OFF: String = "off"
+
 var _text: RichTextLabel
+var _overlay_mode: String = OVERLAY_MODE_DEBUG
 
 
 func _ready() -> void:
@@ -26,9 +31,50 @@ func _ready() -> void:
     _text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _text.scroll_active = false
     margin.add_child(_text)
+    set_overlay_mode(_overlay_mode)
+
+
+func set_overlay_mode(mode: String) -> void:
+    var normalized: String = mode.strip_edges().to_lower()
+    if not (normalized in [OVERLAY_MODE_PLAYER, OVERLAY_MODE_DEBUG, OVERLAY_MODE_OFF]):
+        return
+    _overlay_mode = normalized
+    visible = _overlay_mode != OVERLAY_MODE_OFF
+    if _overlay_mode == OVERLAY_MODE_OFF and _text != null:
+        _text.text = ""
+
+
+func get_overlay_mode() -> String:
+    return _overlay_mode
+
+
+func _toggle_overlay_player_debug_mode() -> void:
+    if _overlay_mode == OVERLAY_MODE_DEBUG:
+        set_overlay_mode(OVERLAY_MODE_PLAYER)
+        return
+    set_overlay_mode(OVERLAY_MODE_DEBUG)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventKey:
+        var key_event := event as InputEventKey
+        if key_event.pressed and not key_event.echo:
+            if key_event.keycode == KEY_F1 or key_event.keycode == KEY_TAB:
+                _toggle_overlay_player_debug_mode()
+                get_viewport().set_input_as_handled()
 
 
 func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
+    if _overlay_mode == OVERLAY_MODE_OFF:
+        visible = false
+        _text.text = ""
+        return
+
+    visible = true
+    if _overlay_mode == OVERLAY_MODE_PLAYER:
+        _text.text = "\n".join(_build_player_overlay_lines(snapshot))
+        return
+
     var state_counts: Dictionary = snapshot.get("state_counts", {})
     var poi_population: Dictionary = snapshot.get("poi_population", {})
     var poi_snapshot: Dictionary = snapshot.get("poi_snapshot", {})
@@ -769,6 +815,63 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             lines.append("- %s" % item)
 
     _text.text = "\n".join(lines)
+
+
+func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
+    var lines: Array[String] = []
+    var tick: int = int(snapshot.get("tick", 0))
+    var sim_time: float = float(snapshot.get("time", 0.0))
+    var humans_alive: int = int(snapshot.get("humans_alive", 0))
+    var monsters_alive: int = int(snapshot.get("monsters_alive", 0))
+    var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
+    var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
+    var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
+    var neutral_gate_active: bool = bool(snapshot.get("neutral_gate_active", false))
+    var neutral_gate_poi: String = str(snapshot.get("neutral_gate_poi", "rift_gate"))
+    var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
+    var dominant_faction: String = str(snapshot.get("dominant_faction", "neutral"))
+    var dominant_doctrine: String = str(snapshot.get("dominant_doctrine", "")).strip_edges()
+    var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
+    var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
+
+    lines.append("HUD player | tick=%d t=%.0fs" % [tick, sim_time])
+    lines.append("Population: H:%d M:%d" % [humans_alive, monsters_alive])
+    if world_event_id != "":
+        lines.append("World Event: %s (%.0fs)" % [world_event_name, world_event_remaining])
+    else:
+        lines.append("World Event: none")
+    if neutral_gate_active:
+        lines.append(
+            "Neutral Gate: OPEN at %s (%.0fs)"
+            % [neutral_gate_poi if neutral_gate_poi != "" else "rift_gate", neutral_gate_remaining]
+        )
+
+    var faction_label: String = "neutral"
+    if dominant_faction == "human":
+        faction_label = "humans"
+    elif dominant_faction == "monster":
+        faction_label = "monsters"
+    var doctrine_label: String = dominant_doctrine if dominant_doctrine != "" else "(none)"
+    lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
+
+    lines.append("Run Summary:")
+    if run_summary_lines.is_empty():
+        lines.append("- (none)")
+    else:
+        var run_summary_visible_count: int = min(2, run_summary_lines.size())
+        for index in range(run_summary_visible_count):
+            lines.append("- %s" % str(run_summary_lines[index]))
+
+    lines.append("Timeline:")
+    if narrative_timeline_labels.is_empty():
+        lines.append("- (none)")
+    else:
+        var timeline_tail_count: int = min(3, narrative_timeline_labels.size())
+        var timeline_start: int = narrative_timeline_labels.size() - timeline_tail_count
+        for index in range(narrative_timeline_labels.size() - 1, timeline_start - 1, -1):
+            lines.append("- %s" % str(narrative_timeline_labels[index]))
+
+    return lines
 
 
 func _format_poi_population(poi_population: Dictionary, poi_snapshot: Dictionary) -> String:
