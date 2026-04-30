@@ -11,11 +11,11 @@ const WORLD_OBJECTIVE_ID_SUPPORT_GATE: String = "support_gate"
 const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
 const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
 const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
-const OBJECTIVE_GATE_SUPPORT_REQUIRED_TIME: float = 42.0
+const OBJECTIVE_GATE_SUPPORT_REQUIRED_TIME: float = 46.0
 const OBJECTIVE_GATE_SUPPORT_REQUIRED_ACTIONS: int = 6
-const OBJECTIVE_GATE_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 58
-const OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD: float = 16.0
-const OBJECTIVE_GATE_SUPPORT_INTERACTION_COOLDOWN: float = 1.25
+const OBJECTIVE_GATE_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 64
+const OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD: float = 18.0
+const OBJECTIVE_GATE_SUPPORT_INTERACTION_COOLDOWN: float = 1.10
 const OBJECTIVE_GATE_SUPPORT_STABILIZE_SECONDS: float = 1.40
 const OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const XP_ON_HIT: float = 1.5
@@ -631,6 +631,13 @@ var run_champion_promotions_baseline: int = 0
 var run_relic_acquired_baseline: int = 0
 var run_legacy_successor_baseline: int = 0
 var run_deaths_baseline: int = 0
+var support_gate_run_attempts_baseline: int = 0
+var support_gate_run_success_baseline: int = 0
+var support_gate_run_blocked_baseline: int = 0
+var support_gate_run_cooldown_blocked_baseline: int = 0
+var support_gate_run_unavailable_baseline: int = 0
+var support_gate_run_available_time_baseline: float = 0.0
+var support_gate_run_unavailable_time_baseline: float = 0.0
 
 
 func _ready() -> void:
@@ -768,6 +775,13 @@ func _capture_run_metrics_baseline() -> void:
 	run_champion_promotions_baseline = champion_promotions_total
 	run_relic_acquired_baseline = relic_acquired_total
 	run_legacy_successor_baseline = legacy_successor_chosen_total
+	support_gate_run_attempts_baseline = support_gate_attempts_total
+	support_gate_run_success_baseline = support_gate_success_total
+	support_gate_run_blocked_baseline = support_gate_blocked_total
+	support_gate_run_cooldown_blocked_baseline = support_gate_cooldown_blocked_total
+	support_gate_run_unavailable_baseline = support_gate_unavailable_total
+	support_gate_run_available_time_baseline = support_gate_available_time_total
+	support_gate_run_unavailable_time_baseline = support_gate_unavailable_time_total
 
 
 func set_world_objective(objective_id: String) -> void:
@@ -904,14 +918,22 @@ func _is_support_gate_objective_context() -> bool:
 	return world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
 
 
+func _is_support_gate_objective_tuning_active() -> bool:
+	return (
+		_is_support_gate_objective_context()
+		and world_objective_status == "active"
+		and run_status == "running"
+	)
+
+
 func _register_support_gate_interaction_attempt() -> void:
-	if not _is_support_gate_objective_context():
+	if not _is_support_gate_objective_tuning_active():
 		return
 	support_gate_attempts_total += 1
 
 
 func _register_support_gate_interaction_blocked(feedback_type: String) -> void:
-	if not _is_support_gate_objective_context():
+	if not _is_support_gate_objective_tuning_active():
 		return
 	support_gate_blocked_total += 1
 	var normalized_type: String = feedback_type.strip_edges().to_lower()
@@ -922,7 +944,7 @@ func _register_support_gate_interaction_blocked(feedback_type: String) -> void:
 
 
 func _register_support_gate_interaction_success() -> void:
-	if not _is_support_gate_objective_context():
+	if not _is_support_gate_objective_tuning_active():
 		return
 	support_gate_success_total += 1
 	if support_gate_first_success_time < 0.0:
@@ -933,6 +955,9 @@ func _register_support_gate_interaction_success() -> void:
 func _build_support_gate_tuning_metrics() -> Dictionary:
 	var attempts_total: int = max(0, support_gate_attempts_total)
 	var success_total: int = max(0, support_gate_success_total)
+	var blocked_total: int = max(0, support_gate_blocked_total)
+	var cooldown_blocked_total: int = max(0, support_gate_cooldown_blocked_total)
+	var unavailable_total: int = max(0, support_gate_unavailable_total)
 	var success_rate: float = 0.0
 	if attempts_total > 0:
 		success_rate = float(success_total) / float(attempts_total)
@@ -945,22 +970,73 @@ func _build_support_gate_tuning_metrics() -> Dictionary:
 	if availability_total > 0.0:
 		available_ratio = support_gate_available_time_total / availability_total
 
+	var run_attempts: int = max(0, attempts_total - support_gate_run_attempts_baseline)
+	var run_success: int = max(0, success_total - support_gate_run_success_baseline)
+	var run_blocked: int = max(0, blocked_total - support_gate_run_blocked_baseline)
+	var run_cooldown_blocked: int = max(
+		0,
+		cooldown_blocked_total - support_gate_run_cooldown_blocked_baseline
+	)
+	var run_unavailable: int = max(0, unavailable_total - support_gate_run_unavailable_baseline)
+	var run_success_rate: float = 0.0
+	if run_attempts > 0:
+		run_success_rate = float(run_success) / float(run_attempts)
+
+	var run_available_time: float = max(
+		0.0,
+		support_gate_available_time_total - support_gate_run_available_time_baseline
+	)
+	var run_unavailable_time: float = max(
+		0.0,
+		support_gate_unavailable_time_total - support_gate_run_unavailable_time_baseline
+	)
+	var run_availability_total: float = max(0.0, run_available_time + run_unavailable_time)
+	var run_available_ratio: float = 0.0
+	if run_availability_total > 0.0:
+		run_available_ratio = run_available_time / run_availability_total
+
 	var tuning_label: String = (
-		"attempts=%d success=%d rate=%d%% available=%d%%"
+		"attempts=%d success=%d rate=%d%% available=%d%% blocked=%d(cooldown=%d unavailable=%d)"
 		% [
 			attempts_total,
 			success_total,
 			int(round(clampf(success_rate, 0.0, 1.0) * 100.0)),
-			int(round(clampf(available_ratio, 0.0, 1.0) * 100.0))
+			int(round(clampf(available_ratio, 0.0, 1.0) * 100.0)),
+			blocked_total,
+			cooldown_blocked_total,
+			unavailable_total
+		]
+	)
+	var run_tuning_label: String = (
+		"run attempts=%d success=%d rate=%d%% available=%d%% blocked=%d(cooldown=%d unavailable=%d)"
+		% [
+			run_attempts,
+			run_success,
+			int(round(clampf(run_success_rate, 0.0, 1.0) * 100.0)),
+			int(round(clampf(run_available_ratio, 0.0, 1.0) * 100.0)),
+			run_blocked,
+			run_cooldown_blocked,
+			run_unavailable
 		]
 	)
 
 	return {
 		"support_gate_attempts_total": attempts_total,
 		"support_gate_success_total": success_total,
+		"support_gate_blocked_total": blocked_total,
+		"support_gate_cooldown_blocked_total": cooldown_blocked_total,
+		"support_gate_unavailable_total": unavailable_total,
+		"support_gate_run_attempts": run_attempts,
+		"support_gate_run_success": run_success,
+		"support_gate_run_blocked": run_blocked,
+		"support_gate_run_cooldown_blocked": run_cooldown_blocked,
+		"support_gate_run_unavailable": run_unavailable,
 		"support_gate_success_rate": success_rate,
 		"support_gate_available_ratio": available_ratio,
-		"support_gate_tuning_label": tuning_label
+		"support_gate_run_success_rate": run_success_rate,
+		"support_gate_run_available_ratio": run_available_ratio,
+		"support_gate_tuning_label": tuning_label,
+		"support_gate_run_tuning_label": run_tuning_label
 	}
 
 
@@ -5215,6 +5291,7 @@ func get_run_narrative_summary(
 	var champion_count: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
 	var relic_count: int = max(0, relic_acquired_total - run_relic_acquired_baseline)
 	var legacy_count: int = max(0, legacy_successor_chosen_total - run_legacy_successor_baseline)
+	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
 	var last_major_event: String = "(none)"
 	if major_event_count > 0:
 		var last_event_variant: Variant = major_event_timeline[major_event_count - 1]
@@ -5235,9 +5312,21 @@ func get_run_narrative_summary(
 	else:
 		run_summary_lines.append("No clear doctrine dominance yet.")
 	if world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE:
+		var support_gate_run_success: int = int(support_gate_tuning.get("support_gate_run_success", 0))
+		var support_gate_run_success_rate: int = int(
+			round(clampf(float(support_gate_tuning.get("support_gate_run_success_rate", 0.0)), 0.0, 1.0) * 100.0)
+		)
+		var support_gate_run_available_ratio: int = int(
+			round(clampf(float(support_gate_tuning.get("support_gate_run_available_ratio", 0.0)), 0.0, 1.0) * 100.0)
+		)
 		run_summary_lines.append(
-			"Gate support: %d/%d actions completed."
-			% [world_objective_interaction_count, max(1, world_objective_interaction_required)]
+			"Gate support: %d/%d actions, rate=%d%%, available=%d%%."
+			% [
+				support_gate_run_success,
+				max(1, world_objective_interaction_required),
+				support_gate_run_success_rate,
+				support_gate_run_available_ratio
+			]
 		)
 	run_summary_lines.append(
 		"%d projects launched; vendettas started=%d (resolved=%d)."
@@ -10174,18 +10263,36 @@ func _build_snapshot() -> Dictionary:
 		"support_gate_visual_label": support_gate_visual_label,
 		"support_gate_attempts_total": int(support_gate_tuning.get("support_gate_attempts_total", 0)),
 		"support_gate_success_total": int(support_gate_tuning.get("support_gate_success_total", 0)),
-		"support_gate_blocked_total": support_gate_blocked_total,
-		"support_gate_cooldown_blocked_total": support_gate_cooldown_blocked_total,
-		"support_gate_unavailable_total": support_gate_unavailable_total,
+		"support_gate_blocked_total": int(support_gate_tuning.get("support_gate_blocked_total", 0)),
+		"support_gate_cooldown_blocked_total": int(support_gate_tuning.get("support_gate_cooldown_blocked_total", 0)),
+		"support_gate_unavailable_total": int(support_gate_tuning.get("support_gate_unavailable_total", 0)),
 		"support_gate_completed_total": support_gate_completed_total,
 		"support_gate_failed_total": support_gate_failed_total,
 		"support_gate_first_success_time": support_gate_first_success_time,
 		"support_gate_last_success_time": support_gate_last_success_time,
 		"support_gate_available_time_total": support_gate_available_time_total,
 		"support_gate_unavailable_time_total": support_gate_unavailable_time_total,
+		"support_gate_run_attempts": int(support_gate_tuning.get("support_gate_run_attempts", 0)),
+		"support_gate_run_success": int(support_gate_tuning.get("support_gate_run_success", 0)),
+		"support_gate_run_blocked": int(support_gate_tuning.get("support_gate_run_blocked", 0)),
+		"support_gate_run_cooldown_blocked": int(support_gate_tuning.get("support_gate_run_cooldown_blocked", 0)),
+		"support_gate_run_unavailable": int(support_gate_tuning.get("support_gate_run_unavailable", 0)),
 		"support_gate_success_rate": float(support_gate_tuning.get("support_gate_success_rate", 0.0)),
 		"support_gate_available_ratio": float(support_gate_tuning.get("support_gate_available_ratio", 0.0)),
-		"support_gate_tuning_label": str(support_gate_tuning.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")),
+		"support_gate_run_success_rate": float(support_gate_tuning.get("support_gate_run_success_rate", 0.0)),
+		"support_gate_run_available_ratio": float(support_gate_tuning.get("support_gate_run_available_ratio", 0.0)),
+		"support_gate_tuning_label": str(
+			support_gate_tuning.get(
+				"support_gate_tuning_label",
+				"attempts=0 success=0 rate=0% available=0% blocked=0(cooldown=0 unavailable=0)"
+			)
+		),
+		"support_gate_run_tuning_label": str(
+			support_gate_tuning.get(
+				"support_gate_run_tuning_label",
+				"run attempts=0 success=0 rate=0% available=0% blocked=0(cooldown=0 unavailable=0)"
+			)
+		),
 		"major_event_count": int(run_summary.get("major_event_count", 0)),
 		"project_count": int(run_summary.get("project_count", 0)),
 		"vendetta_count": int(run_summary.get("vendetta_count", 0)),

@@ -178,8 +178,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var support_gate_visual_label: String = str(
         snapshot.get("support_gate_visual_label", support_gate_visual_state)
     ).strip_edges()
+    var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
+    var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
+    var support_gate_run_success_rate: int = int(
+        round(clampf(float(snapshot.get("support_gate_run_success_rate", 0.0)), 0.0, 1.0) * 100.0)
+    )
+    var support_gate_run_available_ratio: int = int(
+        round(clampf(float(snapshot.get("support_gate_run_available_ratio", 0.0)), 0.0, 1.0) * 100.0)
+    )
     var support_gate_tuning_label: String = str(
-        snapshot.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")
+        snapshot.get(
+            "support_gate_tuning_label",
+            "attempts=0 success=0 rate=0% available=0% blocked=0(cooldown=0 unavailable=0)"
+        )
     ).strip_edges()
     var gate_response_human_label: String = str(snapshot.get("gate_response_human_label", "none"))
     var gate_response_monster_label: String = str(snapshot.get("gate_response_monster_label", "none"))
@@ -253,11 +264,20 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
-        "Support gate tuning: %s"
+        "Support gate tuning: run attempts=%d success=%d rate=%d%% available=%d%%"
+        % [
+            support_gate_run_attempts,
+            support_gate_run_success,
+            support_gate_run_success_rate,
+            support_gate_run_available_ratio
+        ]
+    )
+    lines.append(
+        "Support gate tuning session: %s"
         % [
             support_gate_tuning_label
             if support_gate_tuning_label != ""
-            else "attempts=0 success=0 rate=0% available=0%"
+            else "attempts=0 success=0 rate=0% available=0% blocked=0(cooldown=0 unavailable=0)"
         ]
     )
     lines.append("")
@@ -1166,9 +1186,14 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
     var support_gate_visual_state: String = str(snapshot.get("support_gate_visual_state", "inactive")).strip_edges()
-    var support_gate_tuning_label: String = str(
-        snapshot.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")
-    ).strip_edges()
+    var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
+    var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
+    var support_gate_run_success_rate: int = int(
+        round(clampf(float(snapshot.get("support_gate_run_success_rate", 0.0)), 0.0, 1.0) * 100.0)
+    )
+    var support_gate_run_available_ratio: int = int(
+        round(clampf(float(snapshot.get("support_gate_run_available_ratio", 0.0)), 0.0, 1.0) * 100.0)
+    )
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
     var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
@@ -1224,11 +1249,12 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
         % [support_gate_visual_state if support_gate_visual_state != "" else "inactive"]
     )
     lines.append(
-        "Support gate tuning: %s"
+        "Support gate tuning: run attempts=%d success=%d rate=%d%% available=%d%%"
         % [
-            support_gate_tuning_label
-            if support_gate_tuning_label != ""
-            else "attempts=0 success=0 rate=0% available=0%"
+            support_gate_run_attempts,
+            support_gate_run_success,
+            support_gate_run_success_rate,
+            support_gate_run_available_ratio
         ]
     )
 

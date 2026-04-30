@@ -338,6 +338,12 @@ Passerelles runtime (ordre de chargement) :
 
 ## Support gate tuning (v149)
 - v149 ajoute des metriques runtime pour equilibrer `support_gate` sans refonte gameplay.
+- seuils actuels (v150, ajustement leger):
+  - `OBJECTIVE_GATE_SUPPORT_REQUIRED_ACTIONS=6`
+  - `OBJECTIVE_GATE_SUPPORT_REQUIRED_TIME=46.0s`
+  - `OBJECTIVE_GATE_SUPPORT_INTERACTION_COOLDOWN=1.10s`
+  - `OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD=18.0s`
+  - `OBJECTIVE_GATE_SUPPORT_FAIL_DEATHS_THRESHOLD=64`
 - compteurs cumulés session:
   - `support_gate_attempts_total`
   - `support_gate_success_total`
@@ -352,10 +358,16 @@ Passerelles runtime (ordre de chargement) :
   - `support_gate_available_time_total`
   - `support_gate_unavailable_time_total`
 - snapshot/hud debug:
+  - run-only:
+    - `support_gate_run_attempts`
+    - `support_gate_run_success`
+    - `support_gate_run_success_rate`
+    - `support_gate_run_available_ratio`
   - `support_gate_success_rate`
   - `support_gate_available_ratio`
   - `support_gate_tuning_label`
-  - ligne compacte: `Support gate tuning: attempts=X success=Y rate=Z% available=A%`
+  - ligne compacte run: `Support gate tuning: run attempts=X success=Y rate=Z% available=A%`
+  - ligne session detail: `Support gate tuning session: attempts=... blocked=...`
 - ces metriques servent uniquement au playtest/tuning (observability), sans changer l'equilibrage coeur.
 
 ## Run result
