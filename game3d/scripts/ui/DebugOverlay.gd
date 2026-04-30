@@ -144,6 +144,13 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var run_metrics_export_label: String = str(snapshot.get("run_metrics_export_label", "not exported")).strip_edges()
+    var run_metrics_export_count: int = int(snapshot.get("run_metrics_export_count", 0))
+    var run_metrics_last_export_path: String = str(
+        snapshot.get("run_metrics_last_export_path", "user://run_metrics_latest.json")
+    ).strip_edges()
+    var run_metrics_history_export_path: String = str(
+        snapshot.get("run_metrics_history_export_path", "user://run_metrics_history.jsonl")
+    ).strip_edges()
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -634,7 +641,15 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % [run_status, "yes" if run_result_visible else "no"]
     )
     lines.append(
-        "Metrics export: %s"
+        "Metrics export: count=%d latest=%s history=%s"
+        % [
+            run_metrics_export_count,
+            run_metrics_last_export_path if run_metrics_last_export_path != "" else "user://run_metrics_latest.json",
+            run_metrics_history_export_path if run_metrics_history_export_path != "" else "user://run_metrics_history.jsonl"
+        ]
+    )
+    lines.append(
+        "Metrics export status: %s"
         % [run_metrics_export_label if run_metrics_export_label != "" else "not exported"]
     )
     if run_result_visible:
@@ -1183,7 +1198,13 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var sim_time: float = float(snapshot.get("time", 0.0))
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
-    var run_metrics_export_label: String = str(snapshot.get("run_metrics_export_label", "not exported")).strip_edges()
+    var run_metrics_export_count: int = int(snapshot.get("run_metrics_export_count", 0))
+    var run_metrics_last_export_path: String = str(
+        snapshot.get("run_metrics_last_export_path", "user://run_metrics_latest.json")
+    ).strip_edges()
+    var run_metrics_history_export_path: String = str(
+        snapshot.get("run_metrics_history_export_path", "user://run_metrics_history.jsonl")
+    ).strip_edges()
     var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
     var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
     var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
@@ -1266,8 +1287,12 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
         ]
     )
     lines.append(
-        "Metrics export: %s"
-        % [run_metrics_export_label if run_metrics_export_label != "" else "not exported"]
+        "Metrics export: count=%d latest=%s history=%s"
+        % [
+            run_metrics_export_count,
+            run_metrics_last_export_path if run_metrics_last_export_path != "" else "user://run_metrics_latest.json",
+            run_metrics_history_export_path if run_metrics_history_export_path != "" else "user://run_metrics_history.jsonl"
+        ]
     )
 
     lines.append(

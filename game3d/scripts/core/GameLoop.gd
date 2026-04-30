@@ -8,6 +8,8 @@ const WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE: String = "observe_dominance"
 const WORLD_OBJECTIVE_ID_SURVIVE_CALAMITY: String = "survive_calamity"
 const WORLD_OBJECTIVE_ID_WATCH_CHAMPION_RISE: String = "watch_champion_rise"
 const WORLD_OBJECTIVE_ID_SUPPORT_GATE: String = "support_gate"
+const RUN_METRICS_LATEST_EXPORT_PATH: String = "user://run_metrics_latest.json"
+const RUN_METRICS_HISTORY_EXPORT_PATH: String = "user://run_metrics_history.jsonl"
 const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
 const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
 const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
@@ -625,6 +627,9 @@ var run_result_title: String = ""
 var run_result_lines: Array[String] = []
 var run_result_visible: bool = false
 var run_metrics_export_label: String = "not exported"
+var run_metrics_export_count: int = 0
+var run_metrics_last_export_path: String = ""
+var run_metrics_history_export_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
 var run_project_started_baseline: int = 0
 var run_vendetta_started_baseline: int = 0
 var run_vendetta_resolved_baseline: int = 0
@@ -643,6 +648,8 @@ var support_gate_run_unavailable_time_baseline: float = 0.0
 
 func _ready() -> void:
 	randomize()
+	run_metrics_last_export_path = RUN_METRICS_LATEST_EXPORT_PATH
+	run_metrics_history_export_path = RUN_METRICS_HISTORY_EXPORT_PATH
 	world_event_modifiers = _default_world_event_modifiers()
 	world_manager.setup_world()
 	_setup_gate_response_state()
@@ -1049,9 +1056,19 @@ func _is_debug_overlay_mode_active() -> bool:
 	return str(debug_overlay.get_overlay_mode()) == "debug"
 
 
+func _build_run_metrics_export_id(next_count: int, tick_value: int) -> String:
+	return "export_%05d_t%07d" % [max(1, next_count), max(0, tick_value)]
+
+
 func get_run_metrics_export_payload() -> Dictionary:
 	var snapshot: Dictionary = _build_snapshot()
+	var tick_value: int = int(snapshot.get("tick", tick_index))
+	var elapsed_value: float = float(snapshot.get("time", elapsed_time))
+	var next_export_count: int = run_metrics_export_count + 1
+	var export_id: String = _build_run_metrics_export_id(next_export_count, tick_value)
 	var payload: Dictionary = {
+		"export_id": export_id,
+		"exported_at_time": elapsed_value,
 		"run_status": str(snapshot.get("run_status", run_status)),
 		"objective_id": str(snapshot.get("objective_id", world_objective_id)),
 		"objective_status": str(snapshot.get("objective_status", world_objective_status)),
@@ -1068,32 +1085,66 @@ func get_run_metrics_export_payload() -> Dictionary:
 		"support_gate_success_total": int(snapshot.get("support_gate_success_total", 0)),
 		"support_gate_success_rate": float(snapshot.get("support_gate_success_rate", 0.0)),
 		"support_gate_available_ratio": float(snapshot.get("support_gate_available_ratio", 0.0)),
-		"tick": int(snapshot.get("tick", tick_index)),
-		"time": float(snapshot.get("time", elapsed_time))
+		"tick": tick_value,
+		"time": elapsed_value,
+		"elapsed_time": elapsed_value
 	}
 	return payload
 
 
 func export_run_metrics() -> bool:
 	var payload: Dictionary = get_run_metrics_export_payload()
-	var export_path: String = "user://run_metrics_latest.json"
-	var file := FileAccess.open(export_path, FileAccess.WRITE)
+	var latest_path: String = RUN_METRICS_LATEST_EXPORT_PATH
+	var history_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
+	var file := FileAccess.open(latest_path, FileAccess.WRITE)
 	if file == null:
-		run_metrics_export_label = "error opening %s (code=%d)" % [export_path, FileAccess.get_open_error()]
+		run_metrics_export_label = "error opening %s (code=%d)" % [latest_path, FileAccess.get_open_error()]
 		record_event("Metrics export FAILED: %s." % run_metrics_export_label)
 		return false
 	file.store_string(JSON.stringify(payload, "  "))
 	file.flush()
 	file.close()
+
+	var history_file: FileAccess = null
+	if FileAccess.file_exists(history_path):
+		history_file = FileAccess.open(history_path, FileAccess.READ_WRITE)
+		if history_file != null:
+			history_file.seek_end()
+	else:
+		history_file = FileAccess.open(history_path, FileAccess.WRITE)
+
+	if history_file == null:
+		run_metrics_last_export_path = latest_path
+		run_metrics_history_export_path = history_path
+		run_metrics_export_label = (
+			"latest ok, history error %s (code=%d)"
+			% [history_path, FileAccess.get_open_error()]
+		)
+		record_event("Metrics export FAILED: %s." % run_metrics_export_label)
+		return false
+
+	history_file.store_string(JSON.stringify(payload) + "\n")
+	history_file.flush()
+	history_file.close()
+
+	run_metrics_export_count += 1
+	run_metrics_last_export_path = latest_path
+	run_metrics_history_export_path = history_path
 	run_metrics_export_label = (
-		"ok %s status=%s objective=%s"
+		"ok id=%s count=%d"
 		% [
-			export_path,
-			str(payload.get("run_status", "running")),
-			str(payload.get("objective_id", ""))
+			str(payload.get("export_id", "n/a")),
+			run_metrics_export_count
 		]
 	)
-	record_event("Metrics export OK: %s." % export_path)
+	record_event(
+		"Metrics export OK: latest=%s history=%s id=%s."
+		% [
+			latest_path,
+			history_path,
+			str(payload.get("export_id", "n/a"))
+		]
+	)
 	return true
 
 
@@ -10294,6 +10345,9 @@ func _build_snapshot() -> Dictionary:
 		"run_result_lines": run_result_lines,
 		"run_result_visible": run_result_visible,
 		"run_metrics_export_label": run_metrics_export_label,
+		"run_metrics_export_count": run_metrics_export_count,
+		"run_metrics_last_export_path": run_metrics_last_export_path,
+		"run_metrics_history_export_path": run_metrics_history_export_path,
 		"objective_active": world_objective_active,
 		"objective_id": world_objective_id,
 		"objective_title": world_objective_title,

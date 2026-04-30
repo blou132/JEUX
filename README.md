@@ -373,6 +373,10 @@ Passerelles runtime (ordre de chargement) :
 ## Run metrics export (v151)
 - v151 ajoute un export JSON local leger pour analyser les runs/objectifs sans toucher au gameplay.
 - payload exporte (helper `get_run_metrics_export_payload()`):
+  - `export_id`
+  - `exported_at_time`
+  - `tick`
+  - `elapsed_time`
   - `run_status`
   - `objective_id`
   - `objective_status`
@@ -392,6 +396,21 @@ Passerelles runtime (ordre de chargement) :
   - champ snapshot `run_metrics_export_label`
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
+
+## Run metrics export history (v152)
+- v152 conserve `latest` et ajoute un historique local append-only pour comparer plusieurs runs.
+- fichiers:
+  - `user://run_metrics_latest.json`: dernier export ecrase a chaque export.
+  - `user://run_metrics_history.jsonl`: historique JSONL (une ligne JSON par export).
+- `export_run_metrics()` ecrit maintenant `latest` puis append dans `history`.
+- snapshot expose:
+  - `run_metrics_export_count`
+  - `run_metrics_last_export_path`
+  - `run_metrics_history_export_path`
+  - `run_metrics_export_label`
+- HUD debug/full/compact:
+  - `Metrics export: count=X latest=... history=...`
+- JSONL est choisi pour simplifier l'append local et la comparaison de runs en playtest/tuning.
 
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
