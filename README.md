@@ -412,6 +412,22 @@ Passerelles runtime (ordre de chargement) :
   - `Metrics export: count=X latest=... history=...`
 - JSONL est choisi pour simplifier l'append local et la comparaison de runs en playtest/tuning.
 
+## Analyze run metrics history (v153)
+- un outil Python simple lit l'historique JSONL et produit un resume utile pour le tuning:
+  - `tools/analyze_run_metrics_history.py`
+- usage de base:
+```bash
+py tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl
+```
+- options:
+  - `--objective support_gate` (filtre par objectif)
+  - `--limit N` (limite aux N derniers exports filtres)
+  - `--format json` (resume machine-readable)
+- le script ignore les lignes vides, signale/compte les lignes invalides, et reste robuste si des champs manquent.
+- note `user://` Godot:
+  - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
+  - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.
+
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
   - `run_status`: `running` / `completed` / `failed`

@@ -1,0 +1,302 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_HISTORY_PATH = Path("run_metrics_history.jsonl")
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def read_jsonl_records(input_path: Path) -> tuple[list[dict[str, Any]], int]:
+    records: list[dict[str, Any]] = []
+    invalid_lines = 0
+
+    for line_number, raw_line in enumerate(input_path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            invalid_lines += 1
+            continue
+        if not isinstance(parsed, dict):
+            invalid_lines += 1
+            continue
+        parsed["_line_number"] = line_number
+        records.append(parsed)
+
+    return records, invalid_lines
+
+
+def _pick_best_run(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    best_record: dict[str, Any] | None = None
+    best_key: tuple[float, float, float] | None = None
+    for record in records:
+        rate = _as_float(record.get("support_gate_run_success_rate"))
+        available = _as_float(record.get("support_gate_run_available_ratio"))
+        success = _as_float(record.get("support_gate_run_success"))
+        if rate is None:
+            continue
+        key = (
+            rate,
+            available if available is not None else -1.0,
+            success if success is not None else -1.0,
+        )
+        if best_key is None or key > best_key:
+            best_key = key
+            best_record = record
+    return best_record
+
+
+def _pick_worst_run(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    worst_record: dict[str, Any] | None = None
+    worst_key: tuple[float, float, float] | None = None
+    for record in records:
+        rate = _as_float(record.get("support_gate_run_success_rate"))
+        available = _as_float(record.get("support_gate_run_available_ratio"))
+        success = _as_float(record.get("support_gate_run_success"))
+        if rate is None:
+            continue
+        key = (
+            rate,
+            available if available is not None else 2.0,
+            success if success is not None else 2.0,
+        )
+        if worst_key is None or key < worst_key:
+            worst_key = key
+            worst_record = record
+    return worst_record
+
+
+def _run_label(record: dict[str, Any] | None) -> str:
+    if record is None:
+        return "n/a"
+    export_id = str(record.get("export_id", "")).strip()
+    if export_id:
+        return export_id
+    line_number = _as_int(record.get("_line_number"))
+    if line_number is not None:
+        return "line_%d" % line_number
+    return "unknown"
+
+
+def _average(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return float(sum(values) / len(values))
+
+
+def build_summary(
+    all_records: list[dict[str, Any]],
+    invalid_lines: int,
+    objective_filter: str | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    filtered_records = list(all_records)
+    if objective_filter:
+        objective_id = objective_filter.strip()
+        filtered_records = [record for record in filtered_records if str(record.get("objective_id", "")) == objective_id]
+
+    if limit is not None and limit > 0 and len(filtered_records) > limit:
+        filtered_records = filtered_records[-limit:]
+
+    status_counts: dict[str, int] = {"completed": 0, "failed": 0, "running": 0}
+    objective_counts: dict[str, int] = {}
+    for record in filtered_records:
+        status = str(record.get("run_status", "running")).strip().lower()
+        if status in status_counts:
+            status_counts[status] += 1
+        else:
+            status_counts[status] = status_counts.get(status, 0) + 1
+        objective_id = str(record.get("objective_id", "unknown")).strip() or "unknown"
+        objective_counts[objective_id] = objective_counts.get(objective_id, 0) + 1
+
+    support_gate_records = [record for record in filtered_records if str(record.get("objective_id", "")) == "support_gate"]
+    attempts_values = [_as_float(record.get("support_gate_run_attempts")) for record in support_gate_records]
+    success_values = [_as_float(record.get("support_gate_run_success")) for record in support_gate_records]
+    success_rate_values = [_as_float(record.get("support_gate_run_success_rate")) for record in support_gate_records]
+    available_rate_values = [_as_float(record.get("support_gate_run_available_ratio")) for record in support_gate_records]
+
+    attempts_avg = _average([value for value in attempts_values if value is not None])
+    success_avg = _average([value for value in success_values if value is not None])
+    success_rate_avg = _average([value for value in success_rate_values if value is not None])
+    available_rate_avg = _average([value for value in available_rate_values if value is not None])
+
+    support_gate_completed = 0
+    support_gate_failed = 0
+    for record in support_gate_records:
+        objective_status = str(record.get("objective_status", "")).strip().lower()
+        if objective_status == "completed":
+            support_gate_completed += 1
+        elif objective_status == "failed":
+            support_gate_failed += 1
+
+    objective_success_rate: float | None = None
+    total_resolved = support_gate_completed + support_gate_failed
+    if total_resolved > 0:
+        objective_success_rate = float(support_gate_completed / total_resolved)
+
+    best_run = _pick_best_run(support_gate_records)
+    worst_run = _pick_worst_run(support_gate_records)
+
+    return {
+        "input_total_records": len(all_records),
+        "invalid_lines": invalid_lines,
+        "objective_filter": objective_filter or "",
+        "limit": limit,
+        "exports_read": len(filtered_records),
+        "run_status_counts": status_counts,
+        "objective_counts": objective_counts,
+        "support_gate": {
+            "records": len(support_gate_records),
+            "avg_support_gate_run_attempts": attempts_avg,
+            "avg_support_gate_run_success": success_avg,
+            "avg_support_gate_run_success_rate": success_rate_avg,
+            "avg_support_gate_run_available_ratio": available_rate_avg,
+            "best_run": _run_label(best_run),
+            "worst_run": _run_label(worst_run),
+            "objective_success_rate": objective_success_rate,
+            "objective_completed": support_gate_completed,
+            "objective_failed": support_gate_failed,
+        },
+    }
+
+
+def _pct(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return "%d%%" % int(round(value * 100.0))
+
+
+def format_summary_text(summary: dict[str, Any]) -> str:
+    status_counts = summary.get("run_status_counts", {})
+    objective_counts = summary.get("objective_counts", {})
+    support_gate = summary.get("support_gate", {})
+
+    lines: list[str] = []
+    lines.append("Run Metrics History Analysis")
+    lines.append(
+        "Exports read=%d (total valid=%d, invalid lines=%d)"
+        % [
+            int(summary.get("exports_read", 0)),
+            int(summary.get("input_total_records", 0)),
+            int(summary.get("invalid_lines", 0)),
+        ]
+    )
+    objective_filter = str(summary.get("objective_filter", "")).strip()
+    if objective_filter:
+        lines.append("Filter objective_id=%s" % objective_filter)
+    limit = summary.get("limit")
+    if isinstance(limit, int) and limit > 0:
+        lines.append("Limit=%d (latest records)" % limit)
+    lines.append(
+        "Runs: completed=%d failed=%d running=%d"
+        % [
+            int(status_counts.get("completed", 0)),
+            int(status_counts.get("failed", 0)),
+            int(status_counts.get("running", 0)),
+        ]
+    )
+
+    if objective_counts:
+        objective_parts = [f"{objective_id}={count}" for objective_id, count in sorted(objective_counts.items())]
+        lines.append("Objectives: " + ", ".join(objective_parts))
+    else:
+        lines.append("Objectives: none")
+
+    lines.append("Support gate records=%d" % int(support_gate.get("records", 0)))
+    lines.append(
+        "Support gate avg: attempts=%s success=%s rate=%s available=%s"
+        % [
+            "n/a" if support_gate.get("avg_support_gate_run_attempts") is None else f"{float(support_gate.get('avg_support_gate_run_attempts')):.2f}",
+            "n/a" if support_gate.get("avg_support_gate_run_success") is None else f"{float(support_gate.get('avg_support_gate_run_success')):.2f}",
+            _pct(_as_float(support_gate.get("avg_support_gate_run_success_rate"))),
+            _pct(_as_float(support_gate.get("avg_support_gate_run_available_ratio"))),
+        ]
+    )
+    lines.append(
+        "Support gate best=%s worst=%s objective_success=%s"
+        % [
+            str(support_gate.get("best_run", "n/a")),
+            str(support_gate.get("worst_run", "n/a")),
+            _pct(_as_float(support_gate.get("objective_success_rate"))),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Analyze run metrics history JSONL exports.")
+    parser.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Path to run_metrics_history.jsonl file.",
+    )
+    parser.add_argument(
+        "--objective",
+        type=str,
+        default="",
+        help="Optional objective_id filter (example: support_gate).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Optional limit on the number of latest filtered records.",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format. Default is text.",
+    )
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    input_path: Path = args.input
+    objective = args.objective.strip()
+    limit = int(args.limit)
+    if limit < 0:
+        print("ERROR: --limit must be >= 0")
+        return 1
+    if not input_path.exists():
+        print("ERROR: input file not found: %s" % input_path)
+        return 1
+
+    records, invalid_lines = read_jsonl_records(input_path)
+    summary = build_summary(
+        records,
+        invalid_lines,
+        objective_filter=objective if objective else None,
+        limit=limit if limit > 0 else None,
+    )
+
+    if args.format == "json":
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+    else:
+        print(format_summary_text(summary))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

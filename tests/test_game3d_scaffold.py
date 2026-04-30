@@ -33,6 +33,7 @@ class TestGame3DScaffold(unittest.TestCase):
             GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd",
             GAME3D / "scripts" / "data" / "DataLoader.gd",
             GAME3D / "scripts" / "ui" / "DebugOverlay.gd",
+            ROOT / "tools" / "analyze_run_metrics_history.py",
         ]
 
         for path in required:
@@ -262,6 +263,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("run result", content)
         self.assertIn("run metrics export", content)
         self.assertIn("run metrics export history", content)
+        self.assertIn("analyze run metrics history", content)
+        self.assertIn("analyze_run_metrics_history.py", content)
         self.assertIn("run restart", content)
         self.assertIn("plusieurs objectifs", content)
         self.assertIn("objectif actif par defaut", content)
