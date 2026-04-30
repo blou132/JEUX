@@ -103,6 +103,48 @@ def _average(values: list[float]) -> float | None:
     return float(sum(values) / len(values))
 
 
+def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
+    support_gate = summary.get("support_gate", {})
+    records = int(support_gate.get("records", 0))
+    avg_available_ratio = _as_float(support_gate.get("avg_support_gate_run_available_ratio"))
+    avg_success_rate = _as_float(support_gate.get("avg_support_gate_run_success_rate"))
+    objective_success_rate = _as_float(support_gate.get("objective_success_rate"))
+    invalid_lines = int(summary.get("invalid_lines", 0))
+
+    recommendations: list[str] = []
+    if records <= 0:
+        recommendations.append("Not enough support_gate data.")
+    elif avg_available_ratio is not None and avg_available_ratio < 0.25:
+        recommendations.append(
+            "Support gate availability looks low: consider increasing gate availability window."
+        )
+    elif (
+        avg_success_rate is not None
+        and avg_success_rate < 0.40
+        and avg_available_ratio is not None
+        and avg_available_ratio >= 0.25
+    ):
+        recommendations.append(
+            "Support gate success rate is low: improve interaction feedback or reduce cooldown/actions required."
+        )
+    elif (
+        avg_success_rate is not None
+        and objective_success_rate is not None
+        and avg_success_rate > 0.85
+        and objective_success_rate > 0.80
+    ):
+        recommendations.append(
+            "Support gate objective may be too easy: consider a slight increase in required actions/time."
+        )
+    else:
+        recommendations.append("Support gate tuning looks stable.")
+
+    if invalid_lines > 0:
+        recommendations.append("Some input lines were ignored because they were invalid JSON records.")
+
+    return recommendations
+
+
 def build_summary(
     all_records: list[dict[str, Any]],
     invalid_lines: int,
@@ -156,7 +198,7 @@ def build_summary(
     best_run = _pick_best_run(support_gate_records)
     worst_run = _pick_worst_run(support_gate_records)
 
-    return {
+    summary = {
         "input_total_records": len(all_records),
         "invalid_lines": invalid_lines,
         "objective_filter": objective_filter or "",
@@ -177,6 +219,8 @@ def build_summary(
             "objective_failed": support_gate_failed,
         },
     }
+    summary["recommendations"] = build_support_gate_recommendations(summary)
+    return summary
 
 
 def _pct(value: float | None) -> str:
@@ -189,16 +233,17 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     status_counts = summary.get("run_status_counts", {})
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
+    recommendations = summary.get("recommendations", [])
 
     lines: list[str] = []
     lines.append("Run Metrics History Analysis")
     lines.append(
         "Exports read=%d (total valid=%d, invalid lines=%d)"
-        % [
+        % (
             int(summary.get("exports_read", 0)),
             int(summary.get("input_total_records", 0)),
             int(summary.get("invalid_lines", 0)),
-        ]
+        )
     )
     objective_filter = str(summary.get("objective_filter", "")).strip()
     if objective_filter:
@@ -208,11 +253,11 @@ def format_summary_text(summary: dict[str, Any]) -> str:
         lines.append("Limit=%d (latest records)" % limit)
     lines.append(
         "Runs: completed=%d failed=%d running=%d"
-        % [
+        % (
             int(status_counts.get("completed", 0)),
             int(status_counts.get("failed", 0)),
             int(status_counts.get("running", 0)),
-        ]
+        )
     )
 
     if objective_counts:
@@ -224,21 +269,27 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     lines.append("Support gate records=%d" % int(support_gate.get("records", 0)))
     lines.append(
         "Support gate avg: attempts=%s success=%s rate=%s available=%s"
-        % [
+        % (
             "n/a" if support_gate.get("avg_support_gate_run_attempts") is None else f"{float(support_gate.get('avg_support_gate_run_attempts')):.2f}",
             "n/a" if support_gate.get("avg_support_gate_run_success") is None else f"{float(support_gate.get('avg_support_gate_run_success')):.2f}",
             _pct(_as_float(support_gate.get("avg_support_gate_run_success_rate"))),
             _pct(_as_float(support_gate.get("avg_support_gate_run_available_ratio"))),
-        ]
+        )
     )
     lines.append(
         "Support gate best=%s worst=%s objective_success=%s"
-        % [
+        % (
             str(support_gate.get("best_run", "n/a")),
             str(support_gate.get("worst_run", "n/a")),
             _pct(_as_float(support_gate.get("objective_success_rate"))),
-        ]
+        )
     )
+    lines.append("Recommendations:")
+    if isinstance(recommendations, list):
+        for recommendation in recommendations:
+            lines.append("- %s" % str(recommendation))
+    else:
+        lines.append("- Support gate tuning looks stable.")
     return "\n".join(lines)
 
 
