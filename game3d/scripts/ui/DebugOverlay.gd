@@ -48,6 +48,16 @@ func get_overlay_mode() -> String:
     return _overlay_mode
 
 
+func cycle_overlay_mode() -> void:
+    if _overlay_mode == OVERLAY_MODE_PLAYER:
+        set_overlay_mode(OVERLAY_MODE_DEBUG)
+        return
+    if _overlay_mode == OVERLAY_MODE_DEBUG:
+        set_overlay_mode(OVERLAY_MODE_OFF)
+        return
+    set_overlay_mode(OVERLAY_MODE_PLAYER)
+
+
 func _toggle_overlay_player_debug_mode() -> void:
     if _overlay_mode == OVERLAY_MODE_DEBUG:
         set_overlay_mode(OVERLAY_MODE_PLAYER)
@@ -144,6 +154,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
+    for help_line in _build_controls_help_lines(_overlay_mode):
+        lines.append(help_line)
+    lines.append("")
     if world_event_id != "":
         lines.append(
             "World Event: %s (%.1fs left) | starts=%d ends=%d"
@@ -817,6 +830,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     _text.text = "\n".join(lines)
 
 
+func _build_controls_help_lines(mode: String) -> Array[String]:
+    var normalized_mode: String = mode.strip_edges().to_lower()
+    if normalized_mode == OVERLAY_MODE_OFF:
+        return []
+    if normalized_mode == OVERLAY_MODE_PLAYER:
+        return ["F1/Tab: HUD debug/player | mode=player"]
+
+    return [
+        "HUD: F1/Tab toggle player-debug | mode=%s" % normalized_mode,
+        "Debug HUD is for development."
+    ]
+
+
 func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var lines: Array[String] = []
     var tick: int = int(snapshot.get("tick", 0))
@@ -853,6 +879,8 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         faction_label = "monsters"
     var doctrine_label: String = dominant_doctrine if dominant_doctrine != "" else "(none)"
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
+    for help_line in _build_controls_help_lines(_overlay_mode):
+        lines.append(help_line)
 
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():

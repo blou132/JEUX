@@ -260,6 +260,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("cursed_warning", content)
         self.assertIn("run narrative summary", content)
         self.assertIn("hud modes", content)
+        self.assertIn("f1", content)
+        self.assertIn("tab", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -371,7 +373,13 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("const OVERLAY_MODE_OFF", content)
         self.assertIn("func set_overlay_mode", content)
         self.assertIn("func get_overlay_mode", content)
+        self.assertIn("func cycle_overlay_mode", content)
         self.assertIn("_build_player_overlay_lines", content)
+        self.assertIn("func _build_controls_help_lines", content)
+        self.assertIn("KEY_F1", content)
+        self.assertIn("KEY_TAB", content)
+        self.assertIn("HUD: F1/Tab toggle player-debug", content)
+        self.assertIn("F1/Tab: HUD debug/player", content)
         self.assertIn("HUD player", content)
         self.assertIn('"player"', content)
         self.assertIn('"debug"', content)

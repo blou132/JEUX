@@ -248,6 +248,11 @@ Passerelles runtime (ordre de chargement) :
   - `player` : affichage compact lisible joueur (temps/tick, population H/M, world event, neutral gate active, dominance faction/doctrine, run summary compact, 3 derniers evenements narratifs).
   - `off` : masque le HUD.
 - Basculer rapidement `debug <-> player` en jeu avec `F1` ou `Tab`.
+- Commandes HUD:
+  - `F1` : bascule HUD `player <-> debug`.
+  - `Tab` : bascule HUD `player <-> debug` (si conservee).
+  - `set_overlay_mode("player" | "debug" | "off")` : selection explicite du mode.
+  - `cycle_overlay_mode()` : cycle `player -> debug -> off -> player`.
 - API publique:
   - `set_overlay_mode(mode: String)`
   - `get_overlay_mode()`
