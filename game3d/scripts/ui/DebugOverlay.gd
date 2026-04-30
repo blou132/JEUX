@@ -597,6 +597,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         lines.append("--- End Run Result Panel ---")
     for objective_panel_line in _build_objective_panel_lines(snapshot, OVERLAY_MODE_DEBUG):
         lines.append(objective_panel_line)
+    var objective_interaction_feedback_debug: String = _build_objective_interaction_feedback_line(snapshot, true)
+    if objective_interaction_feedback_debug != "":
+        lines.append(objective_interaction_feedback_debug)
     lines.append("%s:" % run_summary_title)
     if run_summary_lines.is_empty():
         lines.append("- (none)")
@@ -1073,6 +1076,24 @@ func _build_objective_panel_lines(
     return lines
 
 
+func _build_objective_interaction_feedback_line(
+    snapshot: Dictionary,
+    include_details: bool = false
+) -> String:
+    var feedback_label: String = str(snapshot.get("objective_interaction_feedback_label", "")).strip_edges()
+    var feedback_type: String = str(snapshot.get("objective_interaction_feedback_type", "")).strip_edges().to_lower()
+    var feedback_timer: float = float(snapshot.get("objective_interaction_feedback_timer", 0.0))
+    if feedback_label == "" or feedback_timer <= 0.0:
+        return ""
+    if include_details:
+        var resolved_type: String = feedback_type if feedback_type != "" else "info"
+        return (
+            "Interaction: type=%s timer=%.1fs label=%s"
+            % [resolved_type, feedback_timer, feedback_label]
+        )
+    return "Interaction: %s" % feedback_label
+
+
 func _build_run_result_panel_lines(
     snapshot: Dictionary,
     max_result_lines: int = 4
@@ -1148,6 +1169,9 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             lines.append(run_result_line)
     for objective_panel_line in _build_objective_panel_lines(snapshot, OVERLAY_MODE_PLAYER):
         lines.append(objective_panel_line)
+    var objective_interaction_feedback_debug: String = _build_objective_interaction_feedback_line(snapshot, true)
+    if objective_interaction_feedback_debug != "":
+        lines.append(objective_interaction_feedback_debug)
 
     lines.append(
         "Population: alive=%d H:%d M:%d deaths=%d"
@@ -1237,6 +1261,10 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     if not objective_panel_lines.is_empty():
         for objective_panel_line in objective_panel_lines:
             lines.append(objective_panel_line)
+        lines.append("")
+    var objective_interaction_feedback_player: String = _build_objective_interaction_feedback_line(snapshot, false)
+    if objective_interaction_feedback_player != "":
+        lines.append(objective_interaction_feedback_player)
         lines.append("")
 
     lines.append("HUD player | tick=%d t=%.0fs" % [tick, sim_time])

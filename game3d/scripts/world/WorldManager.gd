@@ -3447,3 +3447,5 @@ func _apply_world_event_visual_bias(
 		"sanctuary_calm":
 			var calm_mix := 0.20 + 0.04 * sin(time_seconds * 3.4)
 			_set_mesh_color(ring, status_color.lerp(Color(0.52, 0.82, 1.0), calm_mix), intensity + 0.10)
+func get_poi_runtime_snapshot() -> Dictionary:
+	return {}

@@ -600,6 +600,9 @@ var world_objective_interaction_label: String = ""
 var world_objective_interaction_available: bool = false
 var world_objective_interaction_cooldown: float = 0.0
 var world_objective_interaction_next_allowed_time: float = 0.0
+var world_objective_interaction_feedback_label: String = ""
+var world_objective_interaction_feedback_type: String = ""
+var world_objective_interaction_feedback_timer: float = 0.0
 var world_objective_gate_bad_state_elapsed: float = 0.0
 var world_objective_gate_bad_state_threshold: float = OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD
 var run_status: String = "running"
@@ -806,21 +809,53 @@ func restart_run() -> void:
 	_setup_world_objective(restart_objective_id)
 
 
+func _set_objective_interaction_feedback(
+	label: String,
+	feedback_type: String,
+	duration: float = 2.0
+) -> void:
+	world_objective_interaction_feedback_label = label.strip_edges()
+	world_objective_interaction_feedback_type = feedback_type.strip_edges().to_lower()
+	world_objective_interaction_feedback_timer = max(0.0, duration)
+
+
+func _update_objective_interaction_feedback(delta: float) -> void:
+	if world_objective_interaction_feedback_timer <= 0.0:
+		return
+	world_objective_interaction_feedback_timer = max(
+		0.0,
+		world_objective_interaction_feedback_timer - max(delta, 0.0)
+	)
+	if world_objective_interaction_feedback_timer > 0.0:
+		return
+	world_objective_interaction_feedback_label = ""
+	world_objective_interaction_feedback_type = ""
+
+
 func trigger_world_objective_interaction() -> bool:
+	if run_status in ["completed", "failed"]:
+		_set_objective_interaction_feedback("run already finished", "blocked", 1.8)
+		return false
 	if world_objective_status != "active":
+		_set_objective_interaction_feedback("objective not active", "blocked", 1.8)
 		return false
 	if not (world_objective_category in ["interaction", "gate_support"]):
+		_set_objective_interaction_feedback("objective non-interactive", "unavailable", 1.8)
 		return false
 	if world_objective_interaction_required <= 0:
+		_set_objective_interaction_feedback("objective unavailable", "unavailable", 1.8)
 		return false
 
 	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
 	var gate_active: bool = bool(gate_runtime.get("active", false))
 	if not gate_active:
 		world_objective_interaction_available = false
+		_set_objective_interaction_feedback("gate unavailable", "unavailable", 1.8)
 		return false
 	if elapsed_time < world_objective_interaction_next_allowed_time:
 		world_objective_interaction_available = false
+		var cooldown_remaining: float = max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+		_set_objective_interaction_feedback("cooldown %.1fs" % cooldown_remaining, "cooldown", 1.1)
 		return false
 
 	var before_remaining: float = float(gate_runtime.get("remaining", 0.0))
@@ -837,6 +872,7 @@ func trigger_world_objective_interaction() -> bool:
 	)
 	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
 	world_objective_interaction_available = false
+	_set_objective_interaction_feedback("Gate support accepted", "success", 2.0)
 
 	record_event(
 		"Objective INTERACTION: %s %d/%d (gate %.1fs->%.1fs)."
@@ -902,6 +938,7 @@ func _tick(delta: float) -> void:
 	magic_system.tick_projectiles(delta, actors, self)
 	_update_poi_runtime()
 	_update_world_objective(delta)
+	_update_objective_interaction_feedback(delta)
 	_update_actor_allegiances()
 	_update_allegiance_crisis_runtime(delta)
 	_update_allegiance_recovery_runtime(delta)
@@ -1074,6 +1111,9 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	)
 	world_objective_interaction_next_allowed_time = elapsed_time
 	world_objective_interaction_available = false
+	world_objective_interaction_feedback_label = ""
+	world_objective_interaction_feedback_type = ""
+	world_objective_interaction_feedback_timer = 0.0
 	world_objective_gate_bad_state_elapsed = 0.0
 	world_objective_gate_bad_state_threshold = max(
 		0.1,
@@ -1131,7 +1171,7 @@ func _set_run_result_from_objective(status: String) -> void:
 		elif actor.faction == "monster":
 			monsters_alive += 1
 
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	var doctrine_runtime_snapshot: Dictionary = world_manager.get_allegiance_doctrine_snapshot()
 	var run_summary: Dictionary = get_run_narrative_summary(
 		poi_runtime_snapshot,
@@ -1241,7 +1281,7 @@ func _update_world_objective(delta: float) -> void:
 
 func _update_objective_dominance(delta: float) -> void:
 
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	var dominant_faction: String = _compute_objective_dominant_faction(poi_runtime_snapshot)
 	if dominant_faction != "":
 		if world_objective_dominant_faction != "" and dominant_faction != world_objective_dominant_faction:
@@ -1485,7 +1525,7 @@ func _update_objective_champion(delta: float) -> void:
 
 func _update_objective_gate_support(delta: float) -> void:
 	world_objective_elapsed += max(delta, 0.0)
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	world_objective_dominant_faction = _compute_objective_dominant_faction(poi_runtime_snapshot)
 
 	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
@@ -9963,6 +10003,9 @@ func _build_snapshot() -> Dictionary:
 		"objective_interaction_label": world_objective_interaction_label,
 		"objective_interaction_available": world_objective_interaction_available,
 		"objective_interaction_cooldown": world_objective_interaction_cooldown,
+		"objective_interaction_feedback_label": world_objective_interaction_feedback_label,
+		"objective_interaction_feedback_type": world_objective_interaction_feedback_type,
+		"objective_interaction_feedback_timer": world_objective_interaction_feedback_timer,
 		"major_event_count": int(run_summary.get("major_event_count", 0)),
 		"project_count": int(run_summary.get("project_count", 0)),
 		"vendetta_count": int(run_summary.get("vendetta_count", 0)),
