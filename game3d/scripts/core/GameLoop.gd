@@ -570,9 +570,15 @@ var world_objective_progress: float = 0.0
 var world_objective_progress_label: String = "0%"
 var world_objective_result_label: String = ""
 var world_objective_fail_reason: String = ""
+var world_objective_description: String = ""
+var world_objective_category: String = "dominance"
+var world_objective_config_label: String = ""
+var world_objective_status_labels: Dictionary = {}
 var world_objective_dominant_faction: String = ""
 var world_objective_elapsed: float = 0.0
 var world_objective_required: float = OBJECTIVE_DOMINANCE_REQUIRED_TIME
+var world_objective_fail_deaths_threshold: int = OBJECTIVE_FAIL_DEATHS_THRESHOLD
+var world_objective_fail_switch_threshold: int = OBJECTIVE_FAIL_SWITCH_THRESHOLD
 var world_objective_dominance_hold_seconds: float = 0.0
 var world_objective_dominance_switches: int = 0
 var world_objective_start_deaths_total: int = 0
@@ -729,6 +735,9 @@ func restart_run() -> void:
 		return
 
 	var previous_status: String = run_status
+	var restart_objective_id: String = world_objective_id
+	if restart_objective_id == "":
+		restart_objective_id = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE
 	event_log.clear()
 	major_event_timeline.clear()
 	record_event("Run RESTARTED: previous status=%s." % previous_status)
@@ -736,7 +745,7 @@ func restart_run() -> void:
 		"run_restarted",
 		"Run RESTARTED: %s -> running" % previous_status
 	)
-	_setup_world_objective()
+	_setup_world_objective(restart_objective_id)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -803,14 +812,73 @@ func _tick(delta: float) -> void:
 	debug_overlay.update_overlay(_build_snapshot(), event_log)
 
 
-func _setup_world_objective() -> void:
+func _get_world_objective_definition(objective_id: String) -> Dictionary:
+	var observe_dominance: Dictionary = {
+		"id": WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE,
+		"title": "Observe map dominance",
+		"description": "Keep one faction dominant on POIs long enough.",
+		"category": "dominance",
+		"required_time": OBJECTIVE_DOMINANCE_REQUIRED_TIME,
+		"fail_deaths_threshold": OBJECTIVE_FAIL_DEATHS_THRESHOLD,
+		"fail_switch_threshold": OBJECTIVE_FAIL_SWITCH_THRESHOLD,
+		"status_labels": {
+			"inactive": "Inactive",
+			"active": "Active",
+			"completed": "Completed",
+			"failed": "Failed"
+		}
+	}
+
+	var objective_definitions: Dictionary = {
+		WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE: observe_dominance
+	}
+	var definition: Dictionary = observe_dominance
+	if objective_definitions.has(objective_id):
+		definition = objective_definitions[objective_id]
+	var resolved_definition: Dictionary = definition.duplicate(true)
+	if not resolved_definition.has("config_label"):
+		resolved_definition["config_label"] = (
+			"hold=%.1fs deaths<=%d switches<%d"
+			% [
+				float(resolved_definition.get("required_time", OBJECTIVE_DOMINANCE_REQUIRED_TIME)),
+				int(resolved_definition.get("fail_deaths_threshold", OBJECTIVE_FAIL_DEATHS_THRESHOLD)),
+				int(resolved_definition.get("fail_switch_threshold", OBJECTIVE_FAIL_SWITCH_THRESHOLD))
+			]
+		)
+	return resolved_definition
+
+
+func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE) -> void:
+	var definition: Dictionary = _get_world_objective_definition(objective_id)
+	var resolved_objective_id: String = str(definition.get("id", WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE))
+	if resolved_objective_id == "":
+		resolved_objective_id = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE
+	var status_labels_variant: Variant = definition.get("status_labels", {})
+	var resolved_status_labels: Dictionary = {}
+	if typeof(status_labels_variant) == TYPE_DICTIONARY:
+		resolved_status_labels = Dictionary(status_labels_variant).duplicate(true)
+
 	world_objective_active = true
-	world_objective_id = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE
-	world_objective_title = "Observe map dominance"
+	world_objective_id = resolved_objective_id
+	world_objective_title = str(definition.get("title", "Observe map dominance"))
+	world_objective_description = str(
+		definition.get("description", "Keep one faction dominant on POIs long enough.")
+	)
+	world_objective_category = str(definition.get("category", "dominance"))
 	world_objective_status = "active"
 	world_objective_progress = 0.0
 	world_objective_elapsed = 0.0
-	world_objective_required = OBJECTIVE_DOMINANCE_REQUIRED_TIME
+	world_objective_required = max(0.1, float(definition.get("required_time", OBJECTIVE_DOMINANCE_REQUIRED_TIME)))
+	world_objective_fail_deaths_threshold = max(
+		1,
+		int(definition.get("fail_deaths_threshold", OBJECTIVE_FAIL_DEATHS_THRESHOLD))
+	)
+	world_objective_fail_switch_threshold = max(
+		1,
+		int(definition.get("fail_switch_threshold", OBJECTIVE_FAIL_SWITCH_THRESHOLD))
+	)
+	world_objective_config_label = str(definition.get("config_label", ""))
+	world_objective_status_labels = resolved_status_labels
 	world_objective_progress_label = "0.0s / %.1fs (0%%)" % world_objective_required
 	world_objective_result_label = ""
 	world_objective_fail_reason = ""
@@ -936,11 +1004,11 @@ func _set_run_result_from_objective(status: String) -> void:
 
 
 func _update_world_objective(delta: float) -> void:
-	if world_objective_id != WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE:
-		return
 	if not world_objective_active:
 		return
 	if world_objective_status != "active":
+		return
+	if world_objective_category != "dominance":
 		return
 
 	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
@@ -974,13 +1042,13 @@ func _update_world_objective(delta: float) -> void:
 	)
 
 	var deaths_since_start: int = max(0, deaths_total - world_objective_start_deaths_total)
-	if deaths_since_start >= OBJECTIVE_FAIL_DEATHS_THRESHOLD:
+	if deaths_since_start >= world_objective_fail_deaths_threshold:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_fail_reason = "too_many_deaths"
 		world_objective_result_label = (
 			"Failed: deaths threshold reached (%d/%d)."
-			% [deaths_since_start, OBJECTIVE_FAIL_DEATHS_THRESHOLD]
+			% [deaths_since_start, world_objective_fail_deaths_threshold]
 		)
 		record_event("Objective FAILED: %s" % world_objective_result_label)
 		_record_major_event(
@@ -991,13 +1059,13 @@ func _update_world_objective(delta: float) -> void:
 		_set_run_result_from_objective("failed")
 		return
 
-	if world_objective_dominance_switches >= OBJECTIVE_FAIL_SWITCH_THRESHOLD:
+	if world_objective_dominance_switches >= world_objective_fail_switch_threshold:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_fail_reason = "dominance_too_unstable"
 		world_objective_result_label = (
 			"Failed: dominance switched too often (%d/%d)."
-			% [world_objective_dominance_switches, OBJECTIVE_FAIL_SWITCH_THRESHOLD]
+			% [world_objective_dominance_switches, world_objective_fail_switch_threshold]
 		)
 		record_event("Objective FAILED: %s" % world_objective_result_label)
 		_record_major_event(
@@ -9372,6 +9440,10 @@ func _build_snapshot() -> Dictionary:
 		"objective_active": world_objective_active,
 		"objective_id": world_objective_id,
 		"objective_title": world_objective_title,
+		"objective_description": world_objective_description,
+		"objective_category": world_objective_category,
+		"objective_type": world_objective_category,
+		"objective_config_label": world_objective_config_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,
 		"objective_elapsed": world_objective_elapsed,

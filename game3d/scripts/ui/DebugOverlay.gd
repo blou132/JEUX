@@ -125,6 +125,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var objective_active: bool = bool(snapshot.get("objective_active", false))
     var objective_id: String = str(snapshot.get("objective_id", ""))
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
+    var objective_description: String = str(snapshot.get("objective_description", ""))
+    var objective_category: String = str(snapshot.get("objective_category", ""))
+    var objective_config_label: String = str(snapshot.get("objective_config_label", ""))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
     var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
@@ -575,16 +578,21 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         )
     )
     lines.append(
-        "Objective: %s | id=%s | active=%s | status=%s | faction=%s | switches=%d"
+        "Objective: %s | id=%s | type=%s | active=%s | status=%s | faction=%s | switches=%d"
         % [
             objective_title,
             objective_id if objective_id != "" else "(none)",
+            objective_category if objective_category != "" else "(none)",
             "yes" if objective_active else "no",
             objective_status,
             objective_dominant_faction if objective_dominant_faction != "" else "none",
             objective_switch_count
         ]
     )
+    if objective_description != "":
+        lines.append("Objective description: %s" % objective_description)
+    if objective_config_label != "":
+        lines.append("Objective config: %s" % objective_config_label)
     lines.append(
         "Objective progress: %.2f | %.1fs/%.1fs | %s"
         % [objective_progress, objective_elapsed, objective_required, objective_progress_label]
@@ -926,6 +934,7 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var run_result_lines: Array = snapshot.get("run_result_lines", [])
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
+    var objective_description: String = str(snapshot.get("objective_description", ""))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
     var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", ""))
@@ -955,6 +964,8 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     for help_line in _build_controls_help_lines(_overlay_mode, run_status):
         lines.append(help_line)
     lines.append("Objective: %s (%s)" % [objective_title, objective_status])
+    if objective_description != "":
+        lines.append("Goal: %s" % objective_description)
     lines.append("Progress: %s" % objective_progress_label)
     if objective_status == "failed" and objective_fail_reason != "":
         lines.append("Fail reason: %s" % objective_fail_reason)

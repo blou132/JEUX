@@ -246,6 +246,14 @@ Passerelles runtime (ordre de chargement) :
 - Un premier objectif monde leger est expose par `GameLoop`:
   - `observe_dominance`
   - objectif: observer quelle faction garde la dominance de la carte pendant une courte duree.
+- v139 prepare une extension vers **plusieurs objectifs** via une definition interne legere:
+  - `id`, `title`, `description`, `category`
+  - `required_time`, `fail_deaths_threshold`, `fail_switch_threshold`
+  - `status_labels` + `config_label`
+- Helpers:
+  - `_get_world_objective_definition(objective_id: String) -> Dictionary`
+  - `_setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE)`
+- Pour cette version, **seul observe_dominance est actif**.
 - Constantes centralisees:
   - `OBJECTIVE_DOMINANCE_REQUIRED_TIME` (duree de dominance requise)
   - `OBJECTIVE_FAIL_DEATHS_THRESHOLD` (echec si trop de morts)
@@ -264,6 +272,9 @@ Passerelles runtime (ordre de chargement) :
   - `objective_active`
   - `objective_id`
   - `objective_title`
+  - `objective_description`
+  - `objective_category` (`objective_type` alias)
+  - `objective_config_label`
   - `objective_status`
   - `objective_progress`
   - `objective_elapsed`
@@ -274,8 +285,8 @@ Passerelles runtime (ordre de chargement) :
   - `objective_progress_label`
   - `objective_result_label`
 - HUD:
-  - mode `player`: `Objective: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
-  - mode `debug`: details status/faction/switch/fail reason, sans changer le gameplay.
+  - mode `player`: `Objective: ...` + `Goal: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
+  - mode `debug`: details `objective_id`, `objective_category`, `objective_config_label`, status/faction/switch/fail reason.
 - Timeline narrative:
   - `objective_started`
   - `objective_completed`
