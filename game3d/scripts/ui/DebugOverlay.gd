@@ -123,6 +123,11 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
+    var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
+    var objective_required: float = float(snapshot.get("objective_required", 0.0))
+    var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", ""))
+    var objective_dominant_faction: String = str(snapshot.get("objective_dominant_faction", ""))
+    var objective_switch_count: int = int(snapshot.get("objective_switch_count", 0))
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
     var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
@@ -566,18 +571,22 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         )
     )
     lines.append(
-        "Objective: %s | id=%s | active=%s | status=%s"
+        "Objective: %s | id=%s | active=%s | status=%s | faction=%s | switches=%d"
         % [
             objective_title,
             objective_id if objective_id != "" else "(none)",
             "yes" if objective_active else "no",
-            objective_status
+            objective_status,
+            objective_dominant_faction if objective_dominant_faction != "" else "none",
+            objective_switch_count
         ]
     )
     lines.append(
-        "Objective progress: %.2f | %s"
-        % [objective_progress, objective_progress_label]
+        "Objective progress: %.2f | %.1fs/%.1fs | %s"
+        % [objective_progress, objective_elapsed, objective_required, objective_progress_label]
     )
+    if objective_fail_reason != "":
+        lines.append("Objective fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
         lines.append("Objective result: %s" % objective_result_label)
     lines.append("%s:" % run_summary_title)
@@ -882,6 +891,7 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var objective_title: String = str(snapshot.get("objective_title", "World objective"))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
+    var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", ""))
     var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
@@ -909,6 +919,8 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         lines.append(help_line)
     lines.append("Objective: %s (%s)" % [objective_title, objective_status])
     lines.append("Progress: %s" % objective_progress_label)
+    if objective_status == "failed" and objective_fail_reason != "":
+        lines.append("Fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
         lines.append("Result: %s" % objective_result_label)
 

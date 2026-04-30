@@ -5,9 +5,9 @@ const TICK_RATE: float = 8.0
 const MAX_EVENT_LOG: int = 14
 const MAX_MAJOR_EVENT_TIMELINE: int = 30
 const WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE: String = "observe_dominance"
-const WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS: float = 30.0
-const WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
-const WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES: int = 7
+const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
+const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
+const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
@@ -569,7 +569,10 @@ var world_objective_status: String = "inactive"
 var world_objective_progress: float = 0.0
 var world_objective_progress_label: String = "0%"
 var world_objective_result_label: String = ""
+var world_objective_fail_reason: String = ""
 var world_objective_dominant_faction: String = ""
+var world_objective_elapsed: float = 0.0
+var world_objective_required: float = OBJECTIVE_DOMINANCE_REQUIRED_TIME
 var world_objective_dominance_hold_seconds: float = 0.0
 var world_objective_dominance_switches: int = 0
 var world_objective_start_deaths_total: int = 0
@@ -763,15 +766,18 @@ func _setup_world_objective() -> void:
 	world_objective_title = "Observe map dominance"
 	world_objective_status = "active"
 	world_objective_progress = 0.0
-	world_objective_progress_label = "0/%.0fs (0%%) faction=none" % WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS
+	world_objective_elapsed = 0.0
+	world_objective_required = OBJECTIVE_DOMINANCE_REQUIRED_TIME
+	world_objective_progress_label = "0.0s / %.1fs (0%%)" % world_objective_required
 	world_objective_result_label = ""
+	world_objective_fail_reason = ""
 	world_objective_dominant_faction = ""
 	world_objective_dominance_hold_seconds = 0.0
 	world_objective_dominance_switches = 0
 	world_objective_start_deaths_total = deaths_total
 	record_event(
 		"Objective START: %s (hold a faction dominance for %.0fs)."
-		% [world_objective_id, WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS]
+		% [world_objective_id, world_objective_required]
 	)
 	_record_major_event(
 		"objective_started",
@@ -823,72 +829,76 @@ func _update_world_objective(delta: float) -> void:
 		world_objective_dominance_hold_seconds = max(0.0, world_objective_dominance_hold_seconds - delta * 0.55)
 
 	world_objective_progress = clampf(
-		world_objective_dominance_hold_seconds / WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
+		world_objective_dominance_hold_seconds / max(0.001, world_objective_required),
 		0.0,
 		1.0
 	)
+	world_objective_elapsed = world_objective_dominance_hold_seconds
 	var progress_percent: int = int(round(world_objective_progress * 100.0))
-	var faction_label: String = world_objective_dominant_faction if world_objective_dominant_faction != "" else "none"
 	world_objective_progress_label = (
-		"%.0f/%.0fs (%d%%) faction=%s"
+		"%.1fs / %.1fs (%d%%)"
 		% [
-			world_objective_dominance_hold_seconds,
-			WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
-			progress_percent,
-			faction_label
+			world_objective_elapsed,
+			world_objective_required,
+			progress_percent
 		]
 	)
 
 	var deaths_since_start: int = max(0, deaths_total - world_objective_start_deaths_total)
-	if deaths_since_start >= WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD:
+	if deaths_since_start >= OBJECTIVE_FAIL_DEATHS_THRESHOLD:
 		world_objective_active = false
 		world_objective_status = "failed"
+		world_objective_fail_reason = "too_many_deaths"
 		world_objective_result_label = (
-			"Failed: too many deaths (%d/%d)."
-			% [deaths_since_start, WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD]
+			"Failed: deaths threshold reached (%d/%d)."
+			% [deaths_since_start, OBJECTIVE_FAIL_DEATHS_THRESHOLD]
 		)
 		record_event("Objective FAILED: %s" % world_objective_result_label)
 		_record_major_event(
 			"objective_failed",
-			"Objective FAILED: deaths overload"
+			"Objective FAILED: %s" % world_objective_fail_reason,
+			world_objective_dominant_faction
 		)
 		return
 
-	if world_objective_dominance_switches >= WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES:
+	if world_objective_dominance_switches >= OBJECTIVE_FAIL_SWITCH_THRESHOLD:
 		world_objective_active = false
 		world_objective_status = "failed"
+		world_objective_fail_reason = "dominance_too_unstable"
 		world_objective_result_label = (
-			"Failed: unstable dominance (switches %d/%d)."
-			% [world_objective_dominance_switches, WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES]
+			"Failed: dominance switched too often (%d/%d)."
+			% [world_objective_dominance_switches, OBJECTIVE_FAIL_SWITCH_THRESHOLD]
 		)
 		record_event("Objective FAILED: %s" % world_objective_result_label)
 		_record_major_event(
 			"objective_failed",
-			"Objective FAILED: unstable dominance"
+			"Objective FAILED: %s" % world_objective_fail_reason,
+			world_objective_dominant_faction
 		)
 		return
 
-	if world_objective_dominance_hold_seconds >= WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS:
+	if world_objective_dominance_hold_seconds >= world_objective_required:
 		world_objective_active = false
 		world_objective_status = "completed"
 		world_objective_progress = 1.0
+		world_objective_elapsed = world_objective_required
+		world_objective_fail_reason = ""
 		world_objective_progress_label = (
-			"%.0f/%.0fs (100%%) faction=%s"
+			"%.1fs / %.1fs (100%%)"
 			% [
-				WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
-				WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
-				world_objective_dominant_faction
+				world_objective_required,
+				world_objective_required
 			]
 		)
 		var completed_label: String = "Humans" if world_objective_dominant_faction == "human" else "Monsters"
 		world_objective_result_label = (
-			"Completed: %s held dominance for %.0fs."
-			% [completed_label, WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS]
+			"Completed: %s held map dominance for %.1fs."
+			% [completed_label, world_objective_required]
 		)
 		record_event("Objective COMPLETE: %s" % world_objective_result_label)
 		_record_major_event(
 			"objective_completed",
-			"Objective COMPLETE: %s dominance" % world_objective_dominant_faction,
+			"Objective COMPLETE: faction=%s" % world_objective_dominant_faction,
 			world_objective_dominant_faction
 		)
 
@@ -9227,6 +9237,11 @@ func _build_snapshot() -> Dictionary:
 		"objective_title": world_objective_title,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,
+		"objective_elapsed": world_objective_elapsed,
+		"objective_required": world_objective_required,
+		"objective_fail_reason": world_objective_fail_reason,
+		"objective_dominant_faction": world_objective_dominant_faction,
+		"objective_switch_count": world_objective_dominance_switches,
 		"objective_progress_label": world_objective_progress_label,
 		"objective_result_label": world_objective_result_label,
 		"major_event_count": int(run_summary.get("major_event_count", 0)),

@@ -246,19 +246,36 @@ Passerelles runtime (ordre de chargement) :
 - Un premier objectif monde leger est expose par `GameLoop`:
   - `observe_dominance`
   - objectif: observer quelle faction garde la dominance de la carte pendant une courte duree.
+- Constantes centralisees:
+  - `OBJECTIVE_DOMINANCE_REQUIRED_TIME` (duree de dominance requise)
+  - `OBJECTIVE_FAIL_DEATHS_THRESHOLD` (echec si trop de morts)
+  - `OBJECTIVE_FAIL_SWITCH_THRESHOLD` (echec si dominance trop instable)
 - Etats exposes:
   - `inactive`
   - `active`
   - `completed`
   - `failed`
+- Regle de succes:
+  - l'objectif est `completed` si une faction garde la dominance pendant `OBJECTIVE_DOMINANCE_REQUIRED_TIME`.
+- Regles d'echec:
+  - `too_many_deaths` si les morts depassent `OBJECTIVE_FAIL_DEATHS_THRESHOLD`.
+  - `dominance_too_unstable` si les switches depassent `OBJECTIVE_FAIL_SWITCH_THRESHOLD`.
 - Champs snapshot:
   - `objective_active`
   - `objective_id`
   - `objective_title`
   - `objective_status`
   - `objective_progress`
+  - `objective_elapsed`
+  - `objective_required`
+  - `objective_fail_reason`
+  - `objective_dominant_faction`
+  - `objective_switch_count`
   - `objective_progress_label`
   - `objective_result_label`
+- HUD:
+  - mode `player`: `Objective: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
+  - mode `debug`: details status/faction/switch/fail reason, sans changer le gameplay.
 - Timeline narrative:
   - `objective_started`
   - `objective_completed`
