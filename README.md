@@ -373,6 +373,22 @@ Passerelles runtime (ordre de chargement) :
   - `debug`
   - `off`
 
+## Debug compact mode
+- v145 ajoute un niveau de detail debug leger sans refonte UI:
+  - `debug_full` (affichage complet actuel).
+  - `debug_compact` (affichage condense).
+- Input:
+  - `F3`: bascule `debug_full <-> debug_compact` (actif seulement en mode `debug`).
+- `debug_compact` garde uniquement les blocs essentiels:
+  - tick/time + controls help,
+  - help panel (si visible),
+  - result panel (si visible),
+  - objective panel,
+  - population / world event / neutral gate,
+  - resumes doctrines + projects/vendettas,
+  - run summary + timeline.
+- `debug_full` conserve l'affichage detaille complet.
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.
@@ -382,6 +398,7 @@ Passerelles runtime (ordre de chargement) :
 - Commandes HUD:
   - `F1` : bascule HUD `player <-> debug`.
   - `Tab` : bascule HUD `player <-> debug` (si conservee).
+  - `F3` : bascule detail debug `debug_full <-> debug_compact` (mode `debug` uniquement).
   - `R` : `restart run` (affiche seulement quand la run est terminee).
   - `O` / `PageDown` : `next objective` (affiche seulement quand la run est terminee).
   - `set_overlay_mode("player" | "debug" | "off")` : selection explicite du mode.

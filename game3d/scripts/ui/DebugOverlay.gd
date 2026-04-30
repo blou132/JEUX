@@ -8,6 +8,7 @@ const OVERLAY_MODE_OFF: String = "off"
 var _text: RichTextLabel
 var _overlay_mode: String = OVERLAY_MODE_DEBUG
 var _help_panel_visible: bool = false
+var _debug_compact_mode: bool = false
 
 
 func _ready() -> void:
@@ -49,6 +50,14 @@ func get_overlay_mode() -> String:
     return _overlay_mode
 
 
+func toggle_debug_compact_mode() -> void:
+    _debug_compact_mode = not _debug_compact_mode
+
+
+func get_debug_compact_mode() -> bool:
+    return _debug_compact_mode
+
+
 func cycle_overlay_mode() -> void:
     if _overlay_mode == OVERLAY_MODE_PLAYER:
         set_overlay_mode(OVERLAY_MODE_DEBUG)
@@ -76,6 +85,9 @@ func _unhandled_input(event: InputEvent) -> void:
             elif key_event.keycode == KEY_H or key_event.keycode == KEY_F2:
                 toggle_help_panel()
                 get_viewport().set_input_as_handled()
+            elif key_event.keycode == KEY_F3 and _overlay_mode == OVERLAY_MODE_DEBUG:
+                toggle_debug_compact_mode()
+                get_viewport().set_input_as_handled()
 
 
 func toggle_help_panel() -> void:
@@ -91,6 +103,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     visible = true
     if _overlay_mode == OVERLAY_MODE_PLAYER:
         _text.text = "\n".join(_build_player_overlay_lines(snapshot))
+        return
+    if _debug_compact_mode:
+        _text.text = "\n".join(_build_debug_compact_overlay_lines(snapshot))
         return
 
     var state_counts: Dictionary = snapshot.get("state_counts", {})
@@ -164,7 +179,7 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
 
     lines.append("SANDBOX FANTASY 3D MVP")
     lines.append("Tick %d | Time %.1fs" % [int(snapshot.get("tick", 0)), float(snapshot.get("time", 0.0))])
-    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible, false):
         lines.append(help_line)
     if _help_panel_visible:
         for panel_line in _build_help_panel_lines(snapshot):
@@ -857,7 +872,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
 func _build_controls_help_lines(
     mode: String,
     run_status: String = "running",
-    run_result_visible: bool = false
+    run_result_visible: bool = false,
+    debug_compact_mode: bool = false
 ) -> Array[String]:
     var normalized_mode: String = mode.strip_edges().to_lower()
     var can_restart: bool = run_status in ["completed", "failed"]
@@ -887,6 +903,10 @@ func _build_controls_help_lines(
         "O/PageDown: next objective (after run end)",
         "H/F2: help panel"
     ]
+    lines.append(
+        "Debug detail: %s (F3 toggle)"
+        % ("debug_compact" if debug_compact_mode else "debug_full")
+    )
     if can_restart:
         lines.append("R: restart run")
     else:
@@ -1052,6 +1072,105 @@ func _build_run_result_panel_lines(
     return lines
 
 
+func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
+    var lines: Array[String] = []
+    var tick: int = int(snapshot.get("tick", 0))
+    var sim_time: float = float(snapshot.get("time", 0.0))
+    var run_status: String = str(snapshot.get("run_status", "running"))
+    var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
+    var world_event_id: String = str(snapshot.get("world_event_active_id", ""))
+    var world_event_name: String = str(snapshot.get("world_event_active_name", "None"))
+    var world_event_remaining: float = float(snapshot.get("world_event_remaining", 0.0))
+    var world_event_next_in: float = float(snapshot.get("world_event_next_in", 0.0))
+    var neutral_gate_active: bool = bool(snapshot.get("neutral_gate_active", false))
+    var neutral_gate_status: String = str(snapshot.get("neutral_gate_status", "dormant"))
+    var neutral_gate_poi: String = str(snapshot.get("neutral_gate_poi", "rift_gate"))
+    var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
+    var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
+    var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
+    var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
+    var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
+    var last_major_event_label: String = str(snapshot.get("last_major_event_label", "(none)"))
+    var doctrine_counts: Dictionary = snapshot.get("allegiance_doctrine_counts", {})
+    var doctrine_dominant: String = str(snapshot.get("allegiance_doctrine_dominant_id", ""))
+    var project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
+    var vendetta_active_count: int = int(snapshot.get("allegiance_vendetta_active_count", 0))
+
+    lines.append("SANDBOX FANTASY 3D MVP")
+    lines.append("Tick %d | Time %.1fs | mode=debug_compact" % [tick, sim_time])
+    for help_line in _build_controls_help_lines(
+        OVERLAY_MODE_DEBUG,
+        run_status,
+        run_result_visible,
+        true
+    ):
+        lines.append(help_line)
+    if _help_panel_visible:
+        for help_panel_line in _build_help_panel_lines(snapshot):
+            lines.append(help_panel_line)
+    if run_result_visible:
+        for run_result_line in _build_run_result_panel_lines(snapshot, 4):
+            lines.append(run_result_line)
+    for objective_panel_line in _build_objective_panel_lines(snapshot, OVERLAY_MODE_PLAYER):
+        lines.append(objective_panel_line)
+
+    lines.append(
+        "Population: alive=%d H:%d M:%d deaths=%d"
+        % [
+            int(snapshot.get("alive_total", 0)),
+            int(snapshot.get("humans_alive", 0)),
+            int(snapshot.get("monsters_alive", 0)),
+            int(snapshot.get("deaths_total", 0))
+        ]
+    )
+    if world_event_id != "":
+        lines.append("World Event: %s (%.1fs)" % [world_event_name, world_event_remaining])
+    else:
+        lines.append("World Event: none (next %.1fs)" % world_event_next_in)
+    if neutral_gate_active:
+        lines.append("Neutral Gate: OPEN at %s (%.1fs)" % [neutral_gate_poi, neutral_gate_remaining])
+    else:
+        lines.append(
+            "Neutral Gate: %s at %s (cooldown %.1fs)"
+            % [neutral_gate_status, neutral_gate_poi, neutral_gate_cooldown]
+        )
+
+    lines.append(
+        "Doctrines: warlike=%d steadfast=%d arcane=%d dominant=%s"
+        % [
+            int(doctrine_counts.get("warlike", 0)),
+            int(doctrine_counts.get("steadfast", 0)),
+            int(doctrine_counts.get("arcane", 0)),
+            doctrine_dominant if doctrine_dominant != "" else "none"
+        ]
+    )
+    lines.append(
+        "Projects/Vendettas: fortify=%d warband=%d ritual=%d vendettas=%d"
+        % [
+            int(project_counts.get("fortify", 0)),
+            int(project_counts.get("warband_muster", 0)),
+            int(project_counts.get("ritual_focus", 0)),
+            vendetta_active_count
+        ]
+    )
+    lines.append("Run Summary:")
+    if run_summary_lines.is_empty():
+        lines.append("- (none)")
+    else:
+        var summary_count: int = min(3, run_summary_lines.size())
+        for index in range(summary_count):
+            lines.append("- %s" % str(run_summary_lines[index]))
+    lines.append("Timeline: recent=%d | last=%s" % [narrative_timeline_count, last_major_event_label])
+    if narrative_timeline_labels.is_empty():
+        lines.append("- (none)")
+    else:
+        var timeline_tail_count: int = min(3, narrative_timeline_labels.size())
+        var timeline_start: int = narrative_timeline_labels.size() - timeline_tail_count
+        for index in range(narrative_timeline_labels.size() - 1, timeline_start - 1, -1):
+            lines.append("- %s" % str(narrative_timeline_labels[index]))
+    return lines
+
+
 func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var lines: Array[String] = []
     var tick: int = int(snapshot.get("tick", 0))
@@ -1104,7 +1223,7 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
         faction_label = "monsters"
     var doctrine_label: String = dominant_doctrine if dominant_doctrine != "" else "(none)"
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
-    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
+    for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible, false):
         lines.append(help_line)
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():
