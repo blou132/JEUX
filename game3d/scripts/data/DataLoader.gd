@@ -4,6 +4,7 @@ class_name DataLoader
 const CREATURES_PATH: String = "res://data/creatures.json"
 const EVENTS_PATH: String = "res://data/events.json"
 const FACTIONS_PATH: String = "res://data/factions.json"
+const RELICS_PATH: String = "res://data/relics.json"
 const REQUIRED_PROFILE_FIELDS: Array[String] = [
 	"id",
 	"kind",
@@ -34,10 +35,29 @@ const REQUIRED_FACTION_TEMPLATE_FIELDS: Array[String] = [
 const VALID_FACTION_TEMPLATE_KINDS: Array[String] = ["human", "monster"]
 const VALID_FACTION_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
 const VALID_FACTION_PROJECT_BIASES: Array[String] = ["fortify", "warband_muster", "ritual_focus"]
+const REQUIRED_RELIC_TEMPLATE_FIELDS: Array[String] = [
+	"id",
+	"label",
+	"kind",
+	"rarity",
+	"modifiers",
+	"eligible_profiles",
+	"tags",
+]
+const REQUIRED_RELIC_ELIGIBILITY_FIELDS: Array[String] = [
+	"required_world_event_id",
+	"required_structure_state",
+	"faction",
+	"prefer_special_arrival",
+	"require_magic",
+]
+const VALID_RELIC_RARITIES: Array[String] = ["common", "uncommon", "rare", "epic"]
+const VALID_RELIC_FACTIONS: Array[String] = ["human", "monster"]
 
 var _profiles_by_id: Dictionary = {}
 var _world_events_by_id: Dictionary = {}
 var _faction_templates_by_id: Dictionary = {}
+var _relic_templates_by_id: Dictionary = {}
 var _last_error: String = ""
 
 
@@ -226,6 +246,73 @@ func get_faction_template(template_id: String) -> Dictionary:
 	return Dictionary(_faction_templates_by_id[template_id]).duplicate(true)
 
 
+func load_relic_templates(path: String = RELICS_PATH) -> bool:
+	_relic_templates_by_id.clear()
+	_last_error = ""
+
+	if not FileAccess.file_exists(path):
+		return _set_error("missing file: %s" % path)
+
+	var raw_text: String = FileAccess.get_file_as_string(path)
+	var parser := JSON.new()
+	var parse_result: int = parser.parse(raw_text)
+	if parse_result != OK:
+		return _set_error("invalid JSON (%s) at line %d" % [parser.get_error_message(), parser.get_error_line()])
+
+	if typeof(parser.data) != TYPE_DICTIONARY:
+		return _set_error("root payload must be an object")
+	var payload: Dictionary = parser.data
+
+	var relics_variant: Variant = payload.get("relics", [])
+	if typeof(relics_variant) != TYPE_ARRAY:
+		return _set_error("payload.relics must be an array")
+
+	var relic_templates: Array = relics_variant
+	var ignored_templates: int = 0
+	for template_variant in relic_templates:
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			ignored_templates += 1
+			push_warning("DataLoader: ignored non-object relic template entry.")
+			continue
+
+		var template_data: Dictionary = template_variant
+		var validation_error: String = _validate_relic_template(template_data)
+		if validation_error != "":
+			ignored_templates += 1
+			push_warning("DataLoader: ignored relic template (%s)." % validation_error)
+			continue
+
+		var template_id: String = str(template_data.get("id", ""))
+		if _relic_templates_by_id.has(template_id):
+			ignored_templates += 1
+			push_warning("DataLoader: ignored duplicate relic template id '%s'." % template_id)
+			continue
+
+		_relic_templates_by_id[template_id] = template_data.duplicate(true)
+
+	if _relic_templates_by_id.is_empty():
+		return _set_error("no valid relic templates found")
+
+	if ignored_templates > 0:
+		print(
+			"DataLoader: loaded %d relic templates, ignored %d invalid entries."
+			% [_relic_templates_by_id.size(), ignored_templates]
+		)
+	else:
+		print("DataLoader: loaded %d relic templates." % _relic_templates_by_id.size())
+	return true
+
+
+func get_relic_templates() -> Dictionary:
+	return _relic_templates_by_id.duplicate(true)
+
+
+func get_relic_template(template_id: String) -> Dictionary:
+	if not _relic_templates_by_id.has(template_id):
+		return {}
+	return Dictionary(_relic_templates_by_id[template_id]).duplicate(true)
+
+
 func get_last_error() -> String:
 	return _last_error
 
@@ -365,6 +452,82 @@ func _validate_faction_template(template_data: Dictionary) -> String:
 		var as_float: float = float(numeric_value)
 		if as_float < -0.25 or as_float > 0.25:
 			return "%s.%s must be between -0.25 and 0.25" % [template_id, numeric_field]
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	if typeof(tags_variant) != TYPE_ARRAY:
+		return "%s.tags must be an array" % template_id
+	var tags: Array = tags_variant
+	for tag in tags:
+		if typeof(tag) != TYPE_STRING:
+			return "%s.tags entries must be strings" % template_id
+		if str(tag).strip_edges() == "":
+			return "%s.tags entries must be non-empty strings" % template_id
+
+	return ""
+
+
+func _validate_relic_template(template_data: Dictionary) -> String:
+	for field in REQUIRED_RELIC_TEMPLATE_FIELDS:
+		if not template_data.has(field):
+			return "missing field '%s'" % field
+
+	var template_id: String = str(template_data.get("id", ""))
+	if template_id == "":
+		return "empty relic template id"
+
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	if label == "":
+		return "%s.label must be a non-empty string" % template_id
+
+	var kind: String = str(template_data.get("kind", "")).strip_edges()
+	if kind == "":
+		return "%s.kind must be a non-empty string" % template_id
+
+	var rarity: String = str(template_data.get("rarity", ""))
+	if not (rarity in VALID_RELIC_RARITIES):
+		return "%s.rarity must be one of %s" % [template_id, str(VALID_RELIC_RARITIES)]
+
+	var modifiers_variant: Variant = template_data.get("modifiers", {})
+	if typeof(modifiers_variant) != TYPE_DICTIONARY:
+		return "%s.modifiers must be an object" % template_id
+	var modifiers: Dictionary = modifiers_variant
+	if modifiers.is_empty():
+		return "%s.modifiers must not be empty" % template_id
+	for key in modifiers.keys():
+		var key_text: String = str(key)
+		var value: Variant = modifiers[key]
+		if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+			return "%s.modifiers.%s must be numeric" % [template_id, key_text]
+		var as_float: float = float(value)
+		if key_text.ends_with("_mult") and as_float <= 0.0:
+			return "%s.modifiers.%s must be > 0" % [template_id, key_text]
+		if key_text.ends_with("_bonus") and as_float < 0.0:
+			return "%s.modifiers.%s must be >= 0" % [template_id, key_text]
+
+	var eligibility_variant: Variant = template_data.get("eligible_profiles", {})
+	if typeof(eligibility_variant) != TYPE_DICTIONARY:
+		return "%s.eligible_profiles must be an object" % template_id
+	var eligibility: Dictionary = eligibility_variant
+	for field in REQUIRED_RELIC_ELIGIBILITY_FIELDS:
+		if not eligibility.has(field):
+			return "%s.eligible_profiles.%s is required" % [template_id, field]
+
+	var required_world_event_id: String = str(eligibility.get("required_world_event_id", ""))
+	if required_world_event_id == "":
+		return "%s.eligible_profiles.required_world_event_id must be a non-empty string" % template_id
+
+	var required_structure_state: String = str(eligibility.get("required_structure_state", ""))
+	if required_structure_state == "":
+		return "%s.eligible_profiles.required_structure_state must be a non-empty string" % template_id
+
+	var faction: String = str(eligibility.get("faction", ""))
+	if not (faction in VALID_RELIC_FACTIONS):
+		return "%s.eligible_profiles.faction must be one of %s" % [template_id, str(VALID_RELIC_FACTIONS)]
+
+	if typeof(eligibility.get("prefer_special_arrival", null)) != TYPE_BOOL:
+		return "%s.eligible_profiles.prefer_special_arrival must be a boolean" % template_id
+	if typeof(eligibility.get("require_magic", null)) != TYPE_BOOL:
+		return "%s.eligible_profiles.require_magic must be a boolean" % template_id
 
 	var tags_variant: Variant = template_data.get("tags", [])
 	if typeof(tags_variant) != TYPE_ARRAY:

@@ -302,6 +302,7 @@ var actors: Array = []
 var creature_profiles_by_id: Dictionary = {}
 var world_event_profiles_by_id: Dictionary = {}
 var faction_templates_by_id: Dictionary = {}
+var relic_templates_by_id: Dictionary = {}
 var world_event_ids: Array[String] = []
 var _data_loader: DataLoader = null
 
@@ -595,6 +596,7 @@ func _load_creature_profiles_data() -> void:
 
 	_load_world_events_data()
 	_load_faction_templates_data()
+	_load_relic_templates_data()
 
 
 func _load_world_events_data() -> void:
@@ -627,6 +629,19 @@ func _load_faction_templates_data() -> void:
 
 	faction_templates_by_id.clear()
 	world_manager.set_faction_templates({})
+	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+
+
+func _load_relic_templates_data() -> void:
+	if _data_loader == null:
+		_data_loader = DataLoaderScript.new()
+
+	if _data_loader.load_relic_templates():
+		relic_templates_by_id = _data_loader.get_relic_templates()
+		record_event("DataLoader OK: relic templates=%d." % relic_templates_by_id.size())
+		return
+
+	relic_templates_by_id.clear()
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
@@ -3974,6 +3989,41 @@ func record_event(message: String) -> void:
 		event_log.remove_at(0)
 
 
+func _get_relic_template(relic_id: String) -> Dictionary:
+	if relic_id == "":
+		return {}
+	if not relic_templates_by_id.has(relic_id):
+		return {}
+	return Dictionary(relic_templates_by_id[relic_id]).duplicate(true)
+
+
+func _get_relic_label(relic_id: String, fallback_label: String = "Relic") -> String:
+	var template: Dictionary = _get_relic_template(relic_id)
+	var label: String = str(template.get("label", "")).strip_edges()
+	if label != "":
+		return label
+	return fallback_label
+
+
+func _get_relic_modifier(relic_id: String, modifier_key: String, fallback_value: float) -> float:
+	var template: Dictionary = _get_relic_template(relic_id)
+	if template.is_empty():
+		return fallback_value
+	var modifiers_variant: Variant = template.get("modifiers", {})
+	if typeof(modifiers_variant) != TYPE_DICTIONARY:
+		return fallback_value
+	var modifiers: Dictionary = modifiers_variant
+	var value: Variant = modifiers.get(modifier_key, fallback_value)
+	if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+		return fallback_value
+	var as_float: float = float(value)
+	if modifier_key.ends_with("_mult"):
+		return max(as_float, 0.01)
+	if modifier_key.ends_with("_bonus"):
+		return max(as_float, 0.0)
+	return as_float
+
+
 func get_magic_modifiers(_caster: Actor) -> Dictionary:
 	var damage_mult: float = float(world_event_modifiers.get("magic_damage_mult", 1.0))
 	var energy_cost_mult: float = float(world_event_modifiers.get("magic_energy_cost_mult", 1.0))
@@ -3986,8 +4036,8 @@ func get_magic_modifiers(_caster: Actor) -> Dictionary:
 		energy_cost_mult *= float(project_modifiers.get("magic_energy_cost_mult", 1.0))
 	if _caster != null and _caster.has_relic():
 		if _caster.relic_id == "arcane_sigil":
-			damage_mult *= 1.10
-			energy_cost_mult *= 0.90
+			damage_mult *= _get_relic_modifier("arcane_sigil", "magic_damage_mult", 1.10)
+			energy_cost_mult *= _get_relic_modifier("arcane_sigil", "magic_energy_cost_mult", 0.90)
 	return {
 		"damage_mult": damage_mult,
 		"energy_cost_mult": energy_cost_mult
@@ -3998,11 +4048,11 @@ func get_melee_damage_multiplier(attacker: Actor) -> float:
 	var multiplier: float = 1.0
 	if attacker == null or attacker.faction != "monster":
 		if attacker != null and attacker.has_relic() and attacker.relic_id == "oath_standard":
-			multiplier *= 1.08
+			multiplier *= _get_relic_modifier("oath_standard", "melee_damage_mult", 1.08)
 		return multiplier
 	multiplier *= float(world_event_modifiers.get("monster_melee_damage_mult", 1.0))
 	if attacker.has_relic() and attacker.relic_id == "oath_standard":
-		multiplier *= 1.08
+		multiplier *= _get_relic_modifier("oath_standard", "melee_damage_mult", 1.08)
 	return multiplier
 
 
@@ -4019,7 +4069,7 @@ func get_energy_regen_bonus_per_sec(actor: Actor) -> float:
 	if actor.faction == "human":
 		bonus_per_sec += float(world_event_modifiers.get("human_energy_regen_per_sec", 0.0))
 	if actor.has_relic() and actor.relic_id == "oath_standard":
-		bonus_per_sec += 0.22
+		bonus_per_sec += _get_relic_modifier("oath_standard", "energy_regen_per_sec_bonus", 0.22)
 	return bonus_per_sec
 
 
@@ -4395,6 +4445,62 @@ func _update_relic_system(delta: float) -> void:
 	_relic_cooldown_left = RELIC_COOLDOWN
 
 
+func _default_relic_spawn_profile(relic_id: String) -> Dictionary:
+	match relic_id:
+		"arcane_sigil":
+			return {
+				"required_world_event_id": "mana_surge",
+				"required_structure_state": "human_outpost",
+				"faction": "human",
+				"prefer_special_arrival": true,
+				"require_magic": true
+			}
+		"oath_standard":
+			return {
+				"required_world_event_id": "monster_frenzy",
+				"required_structure_state": "monster_lair",
+				"faction": "monster",
+				"prefer_special_arrival": true,
+				"require_magic": false
+			}
+		_:
+			return {}
+
+
+func _get_relic_spawn_profile(relic_id: String) -> Dictionary:
+	var fallback: Dictionary = _default_relic_spawn_profile(relic_id)
+	var template: Dictionary = _get_relic_template(relic_id)
+	if template.is_empty():
+		return fallback
+	var eligibility_variant: Variant = template.get("eligible_profiles", {})
+	if typeof(eligibility_variant) != TYPE_DICTIONARY:
+		return fallback
+
+	var eligibility: Dictionary = eligibility_variant
+	var required_world_event_id: String = str(eligibility.get("required_world_event_id", ""))
+	var required_structure_state: String = str(eligibility.get("required_structure_state", ""))
+	var faction: String = str(eligibility.get("faction", ""))
+	if required_world_event_id == "" or required_structure_state == "":
+		return fallback
+	if faction not in ["human", "monster"]:
+		return fallback
+
+	var prefer_special_arrival_variant: Variant = eligibility.get("prefer_special_arrival", null)
+	var require_magic_variant: Variant = eligibility.get("require_magic", null)
+	if typeof(prefer_special_arrival_variant) != TYPE_BOOL:
+		return fallback
+	if typeof(require_magic_variant) != TYPE_BOOL:
+		return fallback
+
+	return {
+		"required_world_event_id": required_world_event_id,
+		"required_structure_state": required_structure_state,
+		"faction": faction,
+		"prefer_special_arrival": bool(prefer_special_arrival_variant),
+		"require_magic": bool(require_magic_variant)
+	}
+
+
 func _collect_relic_candidates() -> Array[Dictionary]:
 	var candidates: Array[Dictionary] = []
 
@@ -4403,28 +4509,19 @@ func _collect_relic_candidates() -> Array[Dictionary]:
 		if _is_relic_active(next_relic_id):
 			continue
 
-		if next_relic_id == "arcane_sigil":
-			var arcane_candidate: Dictionary = _build_relic_candidate_for(
-				next_relic_id,
-				"mana_surge",
-				"human_outpost",
-				"human",
-				true,
-				true
-			)
-			if not arcane_candidate.is_empty():
-				candidates.append(arcane_candidate)
-		elif next_relic_id == "oath_standard":
-			var oath_candidate: Dictionary = _build_relic_candidate_for(
-				next_relic_id,
-				"monster_frenzy",
-				"monster_lair",
-				"monster",
-				true,
-				false
-			)
-			if not oath_candidate.is_empty():
-				candidates.append(oath_candidate)
+		var profile: Dictionary = _get_relic_spawn_profile(next_relic_id)
+		if profile.is_empty():
+			continue
+		var candidate: Dictionary = _build_relic_candidate_for(
+			next_relic_id,
+			str(profile.get("required_world_event_id", "")),
+			str(profile.get("required_structure_state", "")),
+			str(profile.get("faction", "")),
+			bool(profile.get("prefer_special_arrival", true)),
+			bool(profile.get("require_magic", false))
+		)
+		if not candidate.is_empty():
+			candidates.append(candidate)
 
 	return candidates
 
@@ -4574,11 +4671,11 @@ func _count_alive_relic_carriers(faction_filter: String) -> int:
 func _relic_title(relic_id: String) -> String:
 	match relic_id:
 		"arcane_sigil":
-			return "Arcane Sigil"
+			return _get_relic_label(relic_id, "Arcane Sigil")
 		"oath_standard":
-			return "Oath Standard"
+			return _get_relic_label(relic_id, "Oath Standard")
 		_:
-			return "Relic"
+			return _get_relic_label(relic_id, "Relic")
 
 
 func _spawn_neutral_gate_breach(transition: Dictionary) -> Actor:

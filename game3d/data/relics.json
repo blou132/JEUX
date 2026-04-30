@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "schema": "relic_templates_v1",
+  "relics": [
+    {
+      "id": "arcane_sigil",
+      "label": "Arcane Sigil",
+      "kind": "arcane_focus",
+      "rarity": "rare",
+      "modifiers": {
+        "magic_damage_mult": 1.1,
+        "magic_energy_cost_mult": 0.9
+      },
+      "eligible_profiles": {
+        "required_world_event_id": "mana_surge",
+        "required_structure_state": "human_outpost",
+        "faction": "human",
+        "prefer_special_arrival": true,
+        "require_magic": true
+      },
+      "tags": [
+        "relic",
+        "arcane",
+        "caster",
+        "human"
+      ]
+    },
+    {
+      "id": "oath_standard",
+      "label": "Oath Standard",
+      "kind": "war_banner",
+      "rarity": "rare",
+      "modifiers": {
+        "melee_damage_mult": 1.08,
+        "energy_regen_per_sec_bonus": 0.22
+      },
+      "eligible_profiles": {
+        "required_world_event_id": "monster_frenzy",
+        "required_structure_state": "monster_lair",
+        "faction": "monster",
+        "prefer_special_arrival": true,
+        "require_magic": false
+      },
+      "tags": [
+        "relic",
+        "war",
+        "banner",
+        "monster"
+      ]
+    }
+  ]
+}

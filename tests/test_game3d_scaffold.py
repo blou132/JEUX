@@ -79,15 +79,31 @@ class TestGame3DScaffold(unittest.TestCase):
         expected_ids = {"human_core", "monster_core"}
         self.assertTrue(expected_ids.issubset(ids))
 
+    def test_relic_templates_json_exists_and_has_expected_ids(self):
+        shared_path = ROOT / "shared_data" / "relics.json"
+        godot_path = GAME3D / "data" / "relics.json"
+        self.assertTrue(shared_path.exists(), f"Missing file: {shared_path}")
+        self.assertTrue(godot_path.exists(), f"Missing file: {godot_path}")
+
+        payload = json.loads(godot_path.read_text(encoding="utf-8"))
+        relics = payload.get("relics", [])
+        self.assertIsInstance(relics, list)
+
+        ids = {entry.get("id") for entry in relics if isinstance(entry, dict)}
+        expected_ids = {"arcane_sigil", "oath_standard"}
+        self.assertTrue(expected_ids.issubset(ids))
+
     def test_data_loader_is_hooked_in_game_loop(self):
         game_loop = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
         self.assertIn("DataLoaderScript", game_loop)
         self.assertIn("_load_creature_profiles_data", game_loop)
         self.assertIn("_load_world_events_data", game_loop)
         self.assertIn("_load_faction_templates_data", game_loop)
+        self.assertIn("_load_relic_templates_data", game_loop)
         self.assertIn("DataLoader OK", game_loop)
         self.assertIn("DataLoader OK: world events", game_loop)
         self.assertIn("DataLoader OK: faction templates", game_loop)
+        self.assertIn("DataLoader OK: relic templates", game_loop)
 
         sandbox = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
         self.assertIn("set_creature_profiles", sandbox)
@@ -98,6 +114,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_world_events", data_loader)
         self.assertIn("load_faction_templates", data_loader)
         self.assertIn("get_faction_templates", data_loader)
+        self.assertIn("load_relic_templates", data_loader)
+        self.assertIn("get_relic_templates", data_loader)
 
     def test_project_targets_main_scene(self):
         content = (GAME3D / "project.godot").read_text(encoding="utf-8")
