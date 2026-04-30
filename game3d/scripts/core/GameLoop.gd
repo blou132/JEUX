@@ -3,6 +3,7 @@ class_name GameLoop
 
 const TICK_RATE: float = 8.0
 const MAX_EVENT_LOG: int = 14
+const MAX_MAJOR_EVENT_TIMELINE: int = 30
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
@@ -556,6 +557,7 @@ var _memorial_scar_next_id: int = 1
 var _memorial_scar_sites_root: Node3D = null
 
 var event_log: Array[String] = []
+var major_event_timeline: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -838,6 +840,14 @@ func register_death(victim: Actor, killer: Actor, reason: String) -> void:
 		if not relic_inherited:
 			var lost_title := victim.relic_title if victim.relic_title != "" else _relic_title(victim.relic_id)
 			record_event("Relic LOST: %s from %s." % [lost_title, _actor_label(victim)])
+			_record_major_event(
+				"relic_lost",
+				"Relic lost: %s" % lost_title,
+				victim.faction,
+				victim.allegiance_id,
+				world_manager.get_allegiance_doctrine(victim.allegiance_id),
+				world_manager.get_allegiance_doctrine_source(victim.allegiance_id)
+			)
 			relic_lost_total += 1
 			_relic_cooldown_left = max(_relic_cooldown_left, RELIC_COOLDOWN * 0.34)
 		victim.clear_relic()
@@ -3834,6 +3844,14 @@ func _try_spawn_memorial_scar_site(
         "Memorial/Scar BORN: %s at %s from %s (%s, %.0fs)."
 		% [site_type, _position_label_2d(position), source_label, trigger_kind, duration]
 	)
+	_record_major_event(
+		"memorial_scar_born",
+		"Memorial/Scar born: %s" % site_type,
+		victim.faction,
+		victim.allegiance_id,
+		world_manager.get_allegiance_doctrine(victim.allegiance_id),
+		world_manager.get_allegiance_doctrine_source(victim.allegiance_id)
+	)
 
 
 func _trim_memorial_scar_capacity() -> void:
@@ -4028,6 +4046,66 @@ func record_event(message: String) -> void:
 		event_log.remove_at(0)
 
 
+func _record_major_event(
+	event_type: String,
+	label: String,
+	faction: String = "",
+	allegiance_id: String = "",
+	doctrine_id: String = "",
+	doctrine_source: String = ""
+) -> void:
+	var normalized_source: String = doctrine_source
+	if normalized_source == "" and doctrine_id != "" and allegiance_id != "":
+		normalized_source = world_manager.get_allegiance_doctrine_source(allegiance_id)
+	if not (normalized_source in ["json", "fallback"]):
+		normalized_source = ""
+
+	major_event_timeline.append({
+		"time": elapsed_time,
+		"type": event_type,
+		"label": label,
+		"faction": faction,
+		"allegiance_id": allegiance_id,
+		"doctrine": doctrine_id,
+		"doctrine_source": normalized_source
+	})
+	_trim_major_event_timeline()
+
+
+func _format_major_event_label(event_data: Dictionary) -> String:
+	var event_time: float = float(event_data.get("time", 0.0))
+	var event_type: String = str(event_data.get("type", "event"))
+	var event_label: String = str(event_data.get("label", "")).strip_edges()
+	if event_label == "":
+		event_label = event_type
+
+	var suffix_parts: Array[String] = []
+	var allegiance_id: String = str(event_data.get("allegiance_id", "")).strip_edges()
+	var faction: String = str(event_data.get("faction", "")).strip_edges()
+	var doctrine_id: String = str(event_data.get("doctrine", "")).strip_edges()
+	var doctrine_source: String = str(event_data.get("doctrine_source", "")).strip_edges()
+
+	if allegiance_id != "":
+		suffix_parts.append(allegiance_id)
+	elif faction != "":
+		suffix_parts.append(faction)
+
+	if doctrine_id != "":
+		if doctrine_source != "":
+			suffix_parts.append("%s[%s]" % [doctrine_id, doctrine_source])
+		else:
+			suffix_parts.append(doctrine_id)
+
+	if suffix_parts.is_empty():
+		return "t=%.1f %s" % [event_time, event_label]
+	return "t=%.1f %s (%s)" % [event_time, event_label, ", ".join(suffix_parts)]
+
+
+func _trim_major_event_timeline() -> void:
+	while major_event_timeline.size() > MAX_MAJOR_EVENT_TIMELINE:
+		major_event_timeline.remove_at(0)
+
+
 func _get_relic_template(relic_id: String) -> Dictionary:
 	if relic_id == "":
 		return {}
@@ -4138,6 +4216,10 @@ func _start_world_event(event_id: String) -> void:
         "World Event START: %s (%.0fs)."
 		% [_world_event_label(event_id), world_event_remaining]
 	)
+	_record_major_event(
+		"world_event_start",
+		"World Event START: %s" % _world_event_label(event_id)
+	)
 
 
 func _end_world_event() -> void:
@@ -4155,6 +4237,10 @@ func _end_world_event() -> void:
 	record_event(
         "World Event END: %s (next in ~%.0fs)."
 		% [_world_event_label(finished_id), world_event_next_in]
+	)
+	_record_major_event(
+		"world_event_end",
+		"World Event END: %s" % _world_event_label(finished_id)
 	)
 
 
@@ -4685,6 +4771,14 @@ func _award_relic_to_holder(candidate: Dictionary) -> void:
 	_apply_notability_gain(holder, RENOWN_GAIN_ON_RELIC, NOTORIETY_GAIN_ON_RELIC, "relic:%s" % relic_id)
 	relic_acquired_total += 1
 	record_event("Relic ACQUIRED: %s by %s." % [relic_title, _actor_label(holder)])
+	_record_major_event(
+		"relic_acquired",
+		"Relic acquired: %s" % relic_title,
+		holder.faction,
+		holder.allegiance_id,
+		world_manager.get_allegiance_doctrine(holder.allegiance_id),
+		world_manager.get_allegiance_doctrine_source(holder.allegiance_id)
+	)
 
 
 func _is_relic_active(relic_id: String) -> bool:
@@ -8834,6 +8928,16 @@ func _build_snapshot() -> Dictionary:
 	var neutral_gate_poi: String = str(neutral_gate_runtime.get("poi", ""))
 	var neutral_gate_remaining: float = float(neutral_gate_runtime.get("remaining", 0.0))
 	var neutral_gate_cooldown: float = float(neutral_gate_runtime.get("cooldown", 0.0))
+	var narrative_timeline_labels: Array[String] = []
+	for event_variant in major_event_timeline:
+		if typeof(event_variant) != TYPE_DICTIONARY:
+			continue
+		var event_data: Dictionary = event_variant
+		narrative_timeline_labels.append(_format_major_event_label(event_data))
+	var narrative_timeline_count: int = narrative_timeline_labels.size()
+	var last_major_event_label: String = "(none)"
+	if narrative_timeline_count > 0:
+		last_major_event_label = str(narrative_timeline_labels[narrative_timeline_count - 1])
 
 	return {
 		"tick": tick_index,
@@ -8861,6 +8965,9 @@ func _build_snapshot() -> Dictionary:
 		"notoriety_figures_monsters": notoriety_figures_monsters,
 		"top_renown_labels": top_renown_labels,
 		"top_notoriety_labels": top_notoriety_labels,
+		"narrative_timeline_labels": narrative_timeline_labels,
+		"narrative_timeline_count": narrative_timeline_count,
+		"last_major_event_label": last_major_event_label,
 		"champion_alive_total": champion_alive_total,
 		"human_champions_alive": human_champions_alive,
 		"monster_champions_alive": monster_champions_alive,
@@ -9275,10 +9382,21 @@ func _update_poi_runtime() -> void:
 			var structure_state: String = str(transition.get("structure_state", "structure"))
 			var structure_faction: String = str(transition.get("faction", ""))
 			record_event("POI structure UP: %s -> %s (%s)." % [poi_name, structure_state, structure_faction])
+			_record_major_event(
+				"structure_established",
+				"Structure UP: %s -> %s" % [poi_name, structure_state],
+				structure_faction
+			)
 		elif kind == "structure_lost":
 			poi_structure_lost_total += 1
 			var structure_state: String = str(transition.get("structure_state", "structure"))
+			var structure_faction: String = str(transition.get("faction", ""))
 			record_event("POI structure DOWN: %s lost %s." % [poi_name, structure_state])
+			_record_major_event(
+				"structure_lost",
+				"Structure DOWN: %s lost %s" % [poi_name, structure_state],
+				structure_faction
+			)
 			if poi_name != "":
 				_recent_structure_loss_until_by_poi[poi_name] = elapsed_time + ALLEGIANCE_RECOVERY_STRUCTURE_RESTABILIZE_WINDOW
 		elif kind == "allegiance_created":
@@ -9286,6 +9404,12 @@ func _update_poi_runtime() -> void:
 			var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
 			var allegiance_faction: String = str(transition.get("faction", ""))
 			record_event("Allegiance UP: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
+			_record_major_event(
+				"allegiance_created",
+				"Allegiance UP: %s at %s" % [allegiance_id, poi_name],
+				allegiance_faction,
+				allegiance_id
+			)
 			var doctrine: String = str(transition.get("doctrine", ""))
 			if doctrine != "":
 				doctrine_assigned_total += 1
@@ -9297,6 +9421,14 @@ func _update_poi_runtime() -> void:
 				)
 				if doctrine_source == "fallback":
 					record_event("Doctrine fallback used: %s -> %s." % [allegiance_id, doctrine])
+				_record_major_event(
+					"doctrine_assigned",
+					"Doctrine assigned: %s -> %s" % [allegiance_id, doctrine_label],
+					allegiance_faction,
+					allegiance_id,
+					doctrine,
+					doctrine_source
+				)
 			else:
 				record_event("Doctrine ignored: %s -> invalid." % allegiance_id)
 			var recent_loss_until: float = float(_recent_structure_loss_until_by_poi.get(poi_name, 0.0))
@@ -9307,7 +9439,16 @@ func _update_poi_runtime() -> void:
 			allegiance_removed_total += 1
 			var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
 			var allegiance_faction: String = str(transition.get("faction", ""))
+			var doctrine_lost: String = str(transition.get("doctrine", ""))
 			record_event("Allegiance DOWN: %s at %s (%s)." % [allegiance_id, poi_name, allegiance_faction])
+			_record_major_event(
+				"allegiance_removed",
+				"Allegiance DOWN: %s at %s" % [allegiance_id, poi_name],
+				allegiance_faction,
+				allegiance_id,
+				doctrine_lost,
+				doctrine_templates_source
+			)
 		elif kind == "allegiance_project_started":
 			project_started_total += 1
 			var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
@@ -9324,12 +9465,32 @@ func _update_poi_runtime() -> void:
 					"Project doctrine bias: %s %s->%s (%s, source=%s, bias=%s)."
 					% [allegiance_id, base_project_id, project_id, doctrine_id, doctrine_source, doctrine_project_bias]
 				)
+			var project_doctrine: String = str(transition.get("doctrine_id", world_manager.get_allegiance_doctrine(allegiance_id)))
+			var project_doctrine_source: String = str(
+				transition.get("doctrine_source", world_manager.get_allegiance_doctrine_source(allegiance_id))
+			)
+			_record_major_event(
+				"project_started",
+				"Project START: %s -> %s" % [allegiance_id, project_id],
+				str(transition.get("faction", "")),
+				allegiance_id,
+				project_doctrine,
+				project_doctrine_source
+			)
 			_try_resolve_allegiance_crisis(allegiance_id, "project_restarted:%s" % project_id)
 		elif kind == "allegiance_project_ended":
 			project_ended_total += 1
 			var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
 			var project_id: String = str(transition.get("project_id", "project"))
 			record_event("Project END: %s -> %s at %s." % [allegiance_id, project_id, poi_name])
+			_record_major_event(
+				"project_ended",
+				"Project END: %s -> %s" % [allegiance_id, project_id],
+				"",
+				allegiance_id,
+				world_manager.get_allegiance_doctrine(allegiance_id),
+				world_manager.get_allegiance_doctrine_source(allegiance_id)
+			)
 		elif kind == "allegiance_project_interrupted":
 			project_interrupted_total += 1
 			var allegiance_id: String = str(transition.get("allegiance_id", "allegiance"))
@@ -9337,6 +9498,14 @@ func _update_poi_runtime() -> void:
 			var reason: String = str(transition.get("reason", "interrupted"))
 			var poi_label: String = poi_name if poi_name != "" else "unknown"
 			record_event("Project INTERRUPTED: %s -> %s at %s (%s)." % [allegiance_id, project_id, poi_label, reason])
+			_record_major_event(
+				"project_interrupted",
+				"Project INTERRUPTED: %s -> %s" % [allegiance_id, project_id],
+				"",
+				allegiance_id,
+				world_manager.get_allegiance_doctrine(allegiance_id),
+				world_manager.get_allegiance_doctrine_source(allegiance_id)
+			)
 			_try_start_crisis_from_project_interrupt(allegiance_id, project_id, reason)
 		elif kind == "vendetta_started" or kind == "vendetta_resolved" or kind == "vendetta_expired":
 			_handle_vendetta_transition(transition)
@@ -9449,6 +9618,14 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
 				"Vendetta doctrine: %s (%s, source=%s, bias=%.2f)."
 				% [doctrine_id, doctrine_label, doctrine_source, doctrine_vendetta_bias]
 			)
+		_record_major_event(
+			"vendetta_started",
+			"Vendetta START: %s -> %s" % [source_allegiance_id, target_allegiance_id],
+			"",
+			source_allegiance_id,
+			doctrine_id,
+			str(transition.get("doctrine_source", ""))
+		)
 		_mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, source_allegiance_id, SPLINTER_SIGNAL_WINDOW)
 		_mark_splinter_signal(_splinter_recent_vendetta_until_by_allegiance, target_allegiance_id, SPLINTER_SIGNAL_WINDOW * 0.82)
 		_try_start_crisis_from_vendetta(source_allegiance_id, target_allegiance_id, reason)
@@ -9477,6 +9654,14 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
 		vendetta_ended_total += 1
 		record_event("Vendetta RESOLVED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
 		record_event("Vendetta END: %s -> %s (resolved)." % [source_allegiance_id, target_allegiance_id])
+		_record_major_event(
+			"vendetta_resolved",
+			"Vendetta RESOLVED: %s vs %s" % [source_allegiance_id, target_allegiance_id],
+			"",
+			source_allegiance_id,
+			world_manager.get_allegiance_doctrine(source_allegiance_id),
+			world_manager.get_allegiance_doctrine_source(source_allegiance_id)
+		)
 		_try_start_mending_arc(
 			source_allegiance_id,
 			target_allegiance_id,
@@ -9493,6 +9678,14 @@ func _handle_vendetta_transition(transition: Dictionary) -> void:
 		vendetta_ended_total += 1
 		record_event("Vendetta EXPIRED: %s vs %s (%s)." % [source_allegiance_id, target_allegiance_id, reason])
 		record_event("Vendetta END: %s -> %s (expired)." % [source_allegiance_id, target_allegiance_id])
+		_record_major_event(
+			"vendetta_expired",
+			"Vendetta EXPIRED: %s vs %s" % [source_allegiance_id, target_allegiance_id],
+			"",
+			source_allegiance_id,
+			world_manager.get_allegiance_doctrine(source_allegiance_id),
+			world_manager.get_allegiance_doctrine_source(source_allegiance_id)
+		)
 		_try_start_mending_arc(
 			source_allegiance_id,
 			target_allegiance_id,
@@ -9543,6 +9736,14 @@ func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictio
         "Successor Chosen: %s <= %s (%.0fs)."
 		% [_actor_label(successor), source_label, max(0.0, successor_ends_at - elapsed_time)]
 	)
+	_record_major_event(
+		"legacy_successor_chosen",
+		"Successor chosen: %s <= %s" % [_actor_label(successor), source_label],
+		successor.faction,
+		successor.allegiance_id,
+		world_manager.get_allegiance_doctrine(successor.allegiance_id),
+		world_manager.get_allegiance_doctrine_source(successor.allegiance_id)
+	)
 	_try_start_allegiance_recovery(successor.allegiance_id, "legacy_successor", 0.22, 1.2, source_label)
 	_try_start_bond_from_legacy(successor, source_label)
 	if successor.allegiance_id != "":
@@ -9577,6 +9778,14 @@ func _try_trigger_legacy(victim: Actor, killer: Actor, reason: String) -> Dictio
 		legacy_relic_inherited_total += 1
 		relic_inherited = true
 		record_event("Relic INHERITED: %s by %s." % [inherited_title, _actor_label(successor)])
+		_record_major_event(
+			"relic_acquired",
+			"Relic inherited: %s" % inherited_title,
+			successor.faction,
+			successor.allegiance_id,
+			world_manager.get_allegiance_doctrine(successor.allegiance_id),
+			world_manager.get_allegiance_doctrine_source(successor.allegiance_id)
+		)
 
 	_try_legacy_vendetta_impulse(victim, killer)
 	return {
@@ -9841,6 +10050,14 @@ func _try_promote_champion(actor: Actor, promotion_reason: String) -> void:
 	record_event(
         "Champion promoted: %s (%s, kills=%d, age=%.1fs)."
 		% [_actor_label(actor), promotion_reason, actor.kill_count, actor.age_seconds]
+	)
+	_record_major_event(
+		"champion_promoted",
+		"Champion promoted: %s" % _actor_label(actor),
+		actor.faction,
+		actor.allegiance_id,
+		world_manager.get_allegiance_doctrine(actor.allegiance_id),
+		world_manager.get_allegiance_doctrine_source(actor.allegiance_id)
 	)
 
 

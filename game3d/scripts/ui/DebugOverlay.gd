@@ -57,6 +57,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_doctrine_average_biases: Dictionary = snapshot.get("allegiance_doctrine_average_biases", {})
     var doctrine_project_bias_counts: Dictionary = snapshot.get("doctrine_project_bias_counts", {})
     var doctrine_vendetta_bias_avg: float = float(snapshot.get("doctrine_vendetta_bias_avg", 0.0))
+    var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
+    var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
+    var last_major_event_label: String = str(snapshot.get("last_major_event_label", "(none)"))
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -494,6 +497,12 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             else "(none)"
         )
     )
+    lines.append("Timeline: recent=%d | last=%s" % [narrative_timeline_count, last_major_event_label])
+    if not narrative_timeline_labels.is_empty():
+        var timeline_tail_count: int = min(6, narrative_timeline_labels.size())
+        var timeline_start: int = narrative_timeline_labels.size() - timeline_tail_count
+        for index in range(narrative_timeline_labels.size() - 1, timeline_start - 1, -1):
+            lines.append("  %s" % str(narrative_timeline_labels[index]))
     lines.append(
         "Projects: active=%d fortify=%d warband_muster=%d ritual_focus=%d | start=%d end=%d interrupted=%d"
         % [

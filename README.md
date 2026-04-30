@@ -210,6 +210,20 @@ Passerelles runtime (ordre de chargement) :
   - Si `doctrines.json` manque/est invalide/incomplet, fallback historique conserve (`source=fallback`).
   - Le HUD/debug affiche `Doctrines: warlike=X steadfast=Y arcane=Z fallback=N`, doctrine dominante, sources (`json`/`fallback`) et biais moyens actifs.
 
+## Narrative timeline
+- La timeline narrative est **observation-only**: elle n'ajoute aucun effet gameplay.
+- `GameLoop` conserve un historique compact des evenements majeurs recents (environ 20-30 entrees):
+  - doctrines assignees,
+  - projets d'allegeance (start/end/interrupted),
+  - vendettas (start/resolved/expired),
+  - changements d'allegeance/structures,
+  - world events, relics, promotions champion, legacy successor, memorial/scar.
+- Le HUD/debug expose:
+  - `narrative_timeline_labels`,
+  - `narrative_timeline_count`,
+  - `last_major_event_label`.
+- Cette timeline sert a lire les histoires emergentes de la simulation (dominance faction, doctrines dominantes, escalades et ruptures).
+
 Commande :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json
