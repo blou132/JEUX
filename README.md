@@ -13,6 +13,7 @@ Flux de donnees cible :
 - La copie vers Godot passe par `tools/sync_shared_to_godot.py` (pas d'import Python runtime dans Godot).
 - Le chargement runtime Godot passe par `game3d/scripts/data/DataLoader.gd`.
 - Les world events runtime peuvent etre pilotes par `game3d/data/events.json` (`mana_surge`, `monster_frenzy`, `sanctuary_calm`).
+- Les templates de factions/allegiances peuvent etre pilotes par `game3d/data/factions.json` (`human_core`, `monster_core`).
 
 La priorite est le gameplay 3D observable, pas l'ajout de micro-traits dans l'ancien simulateur.
 
@@ -170,13 +171,21 @@ Vous pouvez encore executer l'ancien simulateur et les scripts d'analyse si nece
 - Export/validation profils : `tools/export_creature_profiles.py`
 - World events : `shared_data/events.json` -> `game3d/data/events.json`
 - Export/validation world events : `tools/export_world_events.py`
+- Templates factions/allegiances : `shared_data/factions.json` -> `game3d/data/factions.json`
+- Export/validation factions : `tools/export_faction_templates.py`
 - Script de sync : `tools/sync_shared_to_godot.py`
 - Chargeur Godot : `game3d/scripts/data/DataLoader.gd`
+
+Passerelles runtime (ordre de chargement) :
+- `creatures.json` : charge par `DataLoader.load_creature_profiles()` puis applique via `SandboxSystems`.
+- `events.json` : charge par `DataLoader.load_world_events()` puis utilise pour la rotation des world events.
+- `factions.json` : charge par `DataLoader.load_faction_templates()` puis injecte dans `WorldManager` (pools de doctrines + metadata template).
 
 Commande :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json
 py tools/export_world_events.py --path shared_data/events.json
+py tools/export_faction_templates.py --path shared_data/factions.json
 py tools/sync_shared_to_godot.py
 ```
 
@@ -184,6 +193,7 @@ Validation seule :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json --validate-only
 py tools/export_world_events.py --path shared_data/events.json --validate-only
+py tools/export_faction_templates.py --path shared_data/factions.json --validate-only
 ```
 
 ## Tests
@@ -220,6 +230,7 @@ Verifications de scaffold actuelles pour le pivot 3D :
 - [test_game3d_splinters_behavior.py](tests/test_game3d_splinters_behavior.py) (contrats splinters : declenchement/unicite/cooldown bornes, cycle resolved/faded/end propre)
 - [test_tools_creature_profiles_export.py](tests/test_tools_creature_profiles_export.py) (contrats export/validation des profils creatures JSON)
 - [test_tools_world_events_export.py](tests/test_tools_world_events_export.py) (contrats export/validation des world events JSON)
+- [test_tools_faction_templates_export.py](tests/test_tools_faction_templates_export.py) (contrats export/validation des templates factions/allegiances JSON)
 
 Executer les tests cibles :
 ```bash

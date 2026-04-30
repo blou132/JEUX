@@ -1,10 +1,10 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1777468974
+::res://::1777471726
 icon.svg::CompressedTexture2D::4962518656111287397::1776885372::1777456022::1::::<><><>0<>0<>5d59f881b74c8663d5326e57f6470075<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
 ::res://data/::1777467897
 balance.json::JSON::-1::1777467894::0::1::::<><><>0<>0<><>::
 creatures.json::JSON::-1::1777468567::0::1::::<><><>0<>0<><>::
-events.json::JSON::-1::1777467894::0::1::::<><><>0<>0<><>::
+events.json::JSON::-1::1777469147::0::1::::<><><>0<>0<><>::
 factions.json::JSON::-1::1777467894::0::1::::<><><>0<>0<><>::
 ::res://scenes/::1777457127
 MainSandbox.tscn::PackedScene::-1::1776885606::0::1::::<><><>0<>0<><>::res://scripts/core/GameLoop.gd<>res://scripts/world/WorldManager.gd<>res://scripts/combat/CombatSystem.gd<>res://scripts/magic/MagicSystem.gd<>res://scripts/sandbox/SandboxSystems.gd<>res://scripts/ui/DebugOverlay.gd<>res://scripts/ui/FreeCamera.gd
@@ -14,9 +14,9 @@ AgentAI.gd::GDScript::995676283483255456::1777467280::0::1::::AgentAI<>RefCounte
 ::res://scripts/combat/::1777456021
 CombatSystem.gd::GDScript::6732112077920610690::1776932531::0::1::::CombatSystem<>Node<><>0<>0<><>::
 ::res://scripts/core/::1777456314
-GameLoop.gd::GDScript::6664745992584560544::1777468630::0::1::::GameLoop<>Node3D<><>0<>0<><>::
-::res://scripts/data/::1777468599
-DataLoader.gd::GDScript::398358407228452227::1777468599::0::1::::DataLoader<>RefCounted<><>0<>0<><>::
+GameLoop.gd::GDScript::6664745992584560544::1777469232::0::1::::GameLoop<>Node3D<><>0<>0<><>::
+::res://scripts/data/::1777468976
+DataLoader.gd::GDScript::398358407228452227::1777469179::0::1::::DataLoader<>RefCounted<><>0<>0<><>::
 ::res://scripts/entities/::1777457432
 Actor.gd::GDScript::2396239062520273541::1777457432::0::1::::Actor<>Node3D<><>0<>0<><>::
 BruteMonster.gd::GDScript::8304210030444113614::1776891211::0::1::::BruteMonster<>Actor<><>0<>0<><>::

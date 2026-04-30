@@ -301,6 +301,7 @@ var ai: AgentAI = AgentAI.new()
 var actors: Array = []
 var creature_profiles_by_id: Dictionary = {}
 var world_event_profiles_by_id: Dictionary = {}
+var faction_templates_by_id: Dictionary = {}
 var world_event_ids: Array[String] = []
 var _data_loader: DataLoader = null
 
@@ -593,6 +594,7 @@ func _load_creature_profiles_data() -> void:
 		record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 	_load_world_events_data()
+	_load_faction_templates_data()
 
 
 func _load_world_events_data() -> void:
@@ -610,6 +612,21 @@ func _load_world_events_data() -> void:
 
 	world_event_profiles_by_id.clear()
 	world_event_ids.clear()
+	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+
+
+func _load_faction_templates_data() -> void:
+	if _data_loader == null:
+		_data_loader = DataLoaderScript.new()
+
+	if _data_loader.load_faction_templates():
+		faction_templates_by_id = _data_loader.get_faction_templates()
+		world_manager.set_faction_templates(faction_templates_by_id)
+		record_event("DataLoader OK: faction templates=%d." % faction_templates_by_id.size())
+		return
+
+	faction_templates_by_id.clear()
+	world_manager.set_faction_templates({})
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 

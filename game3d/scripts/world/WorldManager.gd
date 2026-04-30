@@ -69,6 +69,9 @@ var allegiance_recovery_defense_delta_by_id: Dictionary = {}
 var allegiance_mending_modifiers_by_id: Dictionary = {}
 var vendetta_suppressed_pair_keys: Dictionary = {}
 var allegiance_doctrine_by_id: Dictionary = {}
+var faction_template_by_id: Dictionary = {}
+var faction_template_by_kind: Dictionary = {}
+var faction_template_id_by_allegiance: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
 var allegiance_project_next_attempt_at_by_id: Dictionary = {}
@@ -98,6 +101,36 @@ func set_raid_pressure_modifiers(
 
 func set_world_event_visual(event_id: String) -> void:
 	world_event_visual_id = event_id
+
+
+func set_faction_templates(templates_by_id: Dictionary = {}) -> void:
+	faction_template_by_id.clear()
+	faction_template_by_kind.clear()
+	faction_template_id_by_allegiance.clear()
+
+	for template_variant in templates_by_id.values():
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			continue
+		var sanitized: Dictionary = _sanitize_faction_template_entry(template_variant)
+		if sanitized.is_empty():
+			continue
+		var template_id: String = str(sanitized.get("id", ""))
+		var kind: String = str(sanitized.get("kind", ""))
+		if template_id == "" or kind == "":
+			continue
+		faction_template_by_id[template_id] = sanitized
+		if not faction_template_by_kind.has(kind):
+			faction_template_by_kind[kind] = sanitized
+
+	for poi_name_variant in poi_allegiance_id.keys():
+		var poi_name: String = str(poi_name_variant)
+		var allegiance_id: String = str(poi_allegiance_id.get(poi_name, ""))
+		var faction: String = str(poi_structure_faction.get(poi_name, ""))
+		if allegiance_id == "" or faction == "":
+			continue
+		var template_id: String = _resolve_faction_template_id_for_faction(faction)
+		if template_id != "":
+			faction_template_id_by_allegiance[allegiance_id] = template_id
 
 
 func set_allegiance_crisis_raid_modifiers(modifiers_by_allegiance: Dictionary = {}) -> void:
@@ -876,6 +909,8 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 		var alert_remaining: float = 0.0
 		if time_seconds >= 0.0:
 			alert_remaining = max(0.0, float(alert_runtime.get("ends_at", time_seconds)) - time_seconds)
+		var faction_template: Dictionary = get_allegiance_faction_template(allegiance_id)
+		var template_tags: Array = faction_template.get("tags", [])
 		active.append({
 			"allegiance_id": allegiance_id,
 			"faction": str(poi_structure_faction.get(poi_name, "")),
@@ -887,6 +922,9 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 			"project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
 			"vendetta_target": get_allegiance_vendetta_target(allegiance_id),
 			"vendetta_remaining": get_allegiance_vendetta_remaining(allegiance_id, time_seconds),
+			"faction_template_id": str(faction_template.get("id", "")),
+			"faction_template_label": str(faction_template.get("label", "")),
+			"faction_template_tags": template_tags.duplicate(true),
 			"alert_active": alert_active,
 			"alert_cause": str(alert_runtime.get("cause", "")),
 			"alert_remaining": alert_remaining
@@ -1004,6 +1042,7 @@ func update_poi_runtime(actors: Array, time_seconds: float) -> Dictionary:
 			"structure_active": structure_active,
 			"structure_seconds": structure_seconds,
 			"allegiance_id": allegiance_id,
+			"faction_template_id": _get_faction_template_id_for_allegiance(allegiance_id),
 			"allegiance_doctrine": get_allegiance_doctrine(allegiance_id),
 			"allegiance_project": get_allegiance_project(allegiance_id),
 			"allegiance_project_remaining": get_allegiance_project_remaining(allegiance_id, time_seconds),
@@ -1173,6 +1212,130 @@ func get_neutral_gate_runtime_state(time_seconds: float = 0.0) -> Dictionary:
 		"opened_total": neutral_gate_opened_total,
 		"closed_total": neutral_gate_closed_total,
 		"breaches_total": neutral_gate_breaches_total
+	}
+
+
+func get_allegiance_faction_template(allegiance_id: String) -> Dictionary:
+	var template_id: String = _get_faction_template_id_for_allegiance(allegiance_id)
+	if template_id == "":
+		return {}
+	if not faction_template_by_id.has(template_id):
+		return {}
+	return Dictionary(faction_template_by_id[template_id]).duplicate(true)
+
+
+func _get_faction_template_id_for_allegiance(allegiance_id: String) -> String:
+	if allegiance_id == "":
+		return ""
+	var linked_template_id: String = str(faction_template_id_by_allegiance.get(allegiance_id, ""))
+	if linked_template_id != "" and faction_template_by_id.has(linked_template_id):
+		return linked_template_id
+
+	var allegiance_faction: String = ""
+	for poi_name_variant in poi_allegiance_id.keys():
+		var poi_name: String = str(poi_name_variant)
+		if str(poi_allegiance_id.get(poi_name, "")) != allegiance_id:
+			continue
+		allegiance_faction = str(poi_structure_faction.get(poi_name, ""))
+		if allegiance_faction != "":
+			break
+	if allegiance_faction == "":
+		return ""
+
+	var resolved_template_id: String = _resolve_faction_template_id_for_faction(allegiance_faction)
+	if resolved_template_id != "":
+		faction_template_id_by_allegiance[allegiance_id] = resolved_template_id
+	return resolved_template_id
+
+
+func _resolve_faction_template_id_for_faction(faction: String) -> String:
+	if faction == "":
+		return ""
+	var template: Dictionary = faction_template_by_kind.get(faction, {})
+	if template.is_empty():
+		return ""
+	return str(template.get("id", ""))
+
+
+func _get_faction_doctrine_pool_for_kind(faction: String) -> Array[String]:
+	if faction == "":
+		return []
+	var template: Dictionary = faction_template_by_kind.get(faction, {})
+	if template.is_empty():
+		return []
+	var pool_variant: Variant = template.get("default_doctrine_pool", [])
+	if typeof(pool_variant) != TYPE_ARRAY:
+		return []
+	var pool: Array = pool_variant
+	var sanitized_pool: Array[String] = []
+	for doctrine_variant in pool:
+		if typeof(doctrine_variant) != TYPE_STRING:
+			continue
+		var doctrine: String = str(doctrine_variant)
+		if not (doctrine in ALLEGIANCE_DOCTRINES):
+			continue
+		if doctrine in sanitized_pool:
+			continue
+		sanitized_pool.append(doctrine)
+	return sanitized_pool
+
+
+func _sanitize_faction_template_entry(template_data: Dictionary) -> Dictionary:
+	var template_id: String = str(template_data.get("id", "")).strip_edges()
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	var kind: String = str(template_data.get("kind", "")).strip_edges()
+	if template_id == "" or label == "" or kind == "":
+		return {}
+	if kind not in ["human", "monster"]:
+		return {}
+
+	var doctrine_pool_variant: Variant = template_data.get("default_doctrine_pool", [])
+	if typeof(doctrine_pool_variant) != TYPE_ARRAY:
+		return {}
+	var doctrine_pool_raw: Array = doctrine_pool_variant
+	var doctrine_pool: Array[String] = []
+	for doctrine_variant in doctrine_pool_raw:
+		if typeof(doctrine_variant) != TYPE_STRING:
+			continue
+		var doctrine: String = str(doctrine_variant).strip_edges()
+		if not (doctrine in ALLEGIANCE_DOCTRINES):
+			continue
+		if doctrine in doctrine_pool:
+			continue
+		doctrine_pool.append(doctrine)
+	if doctrine_pool.is_empty():
+		return {}
+
+	var project_bias: String = str(template_data.get("project_bias", "")).strip_edges()
+	if project_bias != "" and not (project_bias in ALLEGIANCE_PROJECT_TYPES):
+		project_bias = ""
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	var tags: Array[String] = []
+	if typeof(tags_variant) == TYPE_ARRAY:
+		var tags_array: Array = tags_variant
+		for tag_variant in tags_array:
+			if typeof(tag_variant) != TYPE_STRING:
+				continue
+			var tag: String = str(tag_variant).strip_edges()
+			if tag == "":
+				continue
+			tags.append(tag)
+
+	var raid_bias: float = clampf(float(template_data.get("raid_bias", 0.0)), -0.25, 0.25)
+	var defense_bias: float = clampf(float(template_data.get("defense_bias", 0.0)), -0.25, 0.25)
+	var rally_bias: float = clampf(float(template_data.get("rally_bias", 0.0)), -0.25, 0.25)
+
+	return {
+		"id": template_id,
+		"label": label,
+		"kind": kind,
+		"default_doctrine_pool": doctrine_pool,
+		"project_bias": project_bias,
+		"raid_bias": raid_bias,
+		"defense_bias": defense_bias,
+		"rally_bias": rally_bias,
+		"tags": tags
 	}
 
 
@@ -1869,6 +2032,11 @@ func _update_structure_runtime(
 		current_state = can_structure_kind
 		current_faction = dominant_faction
 		var allegiance_id: String = _ensure_allegiance_for_poi(poi_name, current_faction)
+		var faction_template_id: String = _resolve_faction_template_id_for_faction(current_faction)
+		if faction_template_id != "":
+			faction_template_id_by_allegiance[allegiance_id] = faction_template_id
+		else:
+			faction_template_id_by_allegiance.erase(allegiance_id)
 		var doctrine: String = _assign_doctrine_for_allegiance(
 			allegiance_id,
 			current_faction,
@@ -1919,6 +2087,7 @@ func _update_structure_runtime(
 							"reason": "anchor_lost"
 						})
 					var doctrine_lost: String = _clear_allegiance_doctrine(previous_allegiance_id)
+					faction_template_id_by_allegiance.erase(previous_allegiance_id)
 					events.append({
 						"kind": "allegiance_removed",
 						"poi": poi_name,
@@ -1969,18 +2138,29 @@ func _pick_doctrine_for_allegiance(
 	dominant_champions: int
 ) -> String:
 	if world_event_visual_id == "mana_surge" and dominant_champions > 0:
-		return "arcane"
+		return _pick_preferred_doctrine_for_faction(faction, "arcane")
 	if structure_state == "human_outpost":
 		if world_event_visual_id == "mana_surge":
-			return "arcane"
-		return "steadfast"
+			return _pick_preferred_doctrine_for_faction(faction, "arcane")
+		return _pick_preferred_doctrine_for_faction(faction, "steadfast")
 	if structure_state == "monster_lair":
-		return "warlike"
+		return _pick_preferred_doctrine_for_faction(faction, "warlike")
 	if faction == "human":
-		return "steadfast"
+		return _pick_preferred_doctrine_for_faction(faction, "steadfast")
 	if faction == "monster":
-		return "warlike"
-	return "steadfast"
+		return _pick_preferred_doctrine_for_faction(faction, "warlike")
+	return _pick_preferred_doctrine_for_faction(faction, "steadfast")
+
+
+func _pick_preferred_doctrine_for_faction(faction: String, preferred: String) -> String:
+	var doctrine_pool: Array[String] = _get_faction_doctrine_pool_for_kind(faction)
+	if doctrine_pool.is_empty():
+		if preferred in ALLEGIANCE_DOCTRINES:
+			return preferred
+		return "steadfast"
+	if preferred in doctrine_pool:
+		return preferred
+	return str(doctrine_pool[0])
 
 
 func _assign_doctrine_for_allegiance(
@@ -2025,6 +2205,11 @@ func _pick_project_for_allegiance(
 		return "warband_muster"
 	if doctrine == "arcane":
 		return "ritual_focus"
+
+	var faction_template: Dictionary = get_allegiance_faction_template(allegiance_id)
+	var project_bias: String = str(faction_template.get("project_bias", ""))
+	if project_bias in ALLEGIANCE_PROJECT_TYPES:
+		return project_bias
 
 	if structure_state == "human_outpost":
 		return "fortify"

@@ -1,4 +1,42 @@
-﻿{
+{
   "version": 1,
-  "factions": []
+  "schema": "faction_templates_v1",
+  "factions": [
+    {
+      "id": "human_core",
+      "label": "Human Coalition",
+      "kind": "human",
+      "default_doctrine_pool": [
+        "steadfast",
+        "arcane"
+      ],
+      "project_bias": "fortify",
+      "raid_bias": 0.0,
+      "defense_bias": 0.0,
+      "rally_bias": 0.0,
+      "tags": [
+        "human",
+        "baseline",
+        "outpost"
+      ]
+    },
+    {
+      "id": "monster_core",
+      "label": "Monster Horde",
+      "kind": "monster",
+      "default_doctrine_pool": [
+        "warlike",
+        "arcane"
+      ],
+      "project_bias": "warband_muster",
+      "raid_bias": 0.0,
+      "defense_bias": 0.0,
+      "rally_bias": 0.0,
+      "tags": [
+        "monster",
+        "baseline",
+        "lair"
+      ]
+    }
+  ]
 }

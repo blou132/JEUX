@@ -3,6 +3,7 @@ class_name DataLoader
 
 const CREATURES_PATH: String = "res://data/creatures.json"
 const EVENTS_PATH: String = "res://data/events.json"
+const FACTIONS_PATH: String = "res://data/factions.json"
 const REQUIRED_PROFILE_FIELDS: Array[String] = [
 	"id",
 	"kind",
@@ -23,9 +24,20 @@ const REQUIRED_WORLD_EVENT_FIELDS: Array[String] = [
 	"modifiers",
 	"tags",
 ]
+const REQUIRED_FACTION_TEMPLATE_FIELDS: Array[String] = [
+	"id",
+	"label",
+	"kind",
+	"default_doctrine_pool",
+	"tags",
+]
+const VALID_FACTION_TEMPLATE_KINDS: Array[String] = ["human", "monster"]
+const VALID_FACTION_DOCTRINES: Array[String] = ["warlike", "steadfast", "arcane"]
+const VALID_FACTION_PROJECT_BIASES: Array[String] = ["fortify", "warband_muster", "ritual_focus"]
 
 var _profiles_by_id: Dictionary = {}
 var _world_events_by_id: Dictionary = {}
+var _faction_templates_by_id: Dictionary = {}
 var _last_error: String = ""
 
 
@@ -147,6 +159,73 @@ func get_world_event(event_id: String) -> Dictionary:
 	return Dictionary(_world_events_by_id[event_id]).duplicate(true)
 
 
+func load_faction_templates(path: String = FACTIONS_PATH) -> bool:
+	_faction_templates_by_id.clear()
+	_last_error = ""
+
+	if not FileAccess.file_exists(path):
+		return _set_error("missing file: %s" % path)
+
+	var raw_text: String = FileAccess.get_file_as_string(path)
+	var parser := JSON.new()
+	var parse_result: int = parser.parse(raw_text)
+	if parse_result != OK:
+		return _set_error("invalid JSON (%s) at line %d" % [parser.get_error_message(), parser.get_error_line()])
+
+	if typeof(parser.data) != TYPE_DICTIONARY:
+		return _set_error("root payload must be an object")
+	var payload: Dictionary = parser.data
+
+	var factions_variant: Variant = payload.get("factions", [])
+	if typeof(factions_variant) != TYPE_ARRAY:
+		return _set_error("payload.factions must be an array")
+
+	var faction_templates: Array = factions_variant
+	var ignored_templates: int = 0
+	for template_variant in faction_templates:
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			ignored_templates += 1
+			push_warning("DataLoader: ignored non-object faction template entry.")
+			continue
+
+		var template_data: Dictionary = template_variant
+		var validation_error: String = _validate_faction_template(template_data)
+		if validation_error != "":
+			ignored_templates += 1
+			push_warning("DataLoader: ignored faction template (%s)." % validation_error)
+			continue
+
+		var template_id: String = str(template_data.get("id", ""))
+		if _faction_templates_by_id.has(template_id):
+			ignored_templates += 1
+			push_warning("DataLoader: ignored duplicate faction template id '%s'." % template_id)
+			continue
+
+		_faction_templates_by_id[template_id] = template_data.duplicate(true)
+
+	if _faction_templates_by_id.is_empty():
+		return _set_error("no valid faction templates found")
+
+	if ignored_templates > 0:
+		print(
+			"DataLoader: loaded %d faction templates, ignored %d invalid entries."
+			% [_faction_templates_by_id.size(), ignored_templates]
+		)
+	else:
+		print("DataLoader: loaded %d faction templates." % _faction_templates_by_id.size())
+	return true
+
+
+func get_faction_templates() -> Dictionary:
+	return _faction_templates_by_id.duplicate(true)
+
+
+func get_faction_template(template_id: String) -> Dictionary:
+	if not _faction_templates_by_id.has(template_id):
+		return {}
+	return Dictionary(_faction_templates_by_id[template_id]).duplicate(true)
+
+
 func get_last_error() -> String:
 	return _last_error
 
@@ -236,5 +315,65 @@ func _validate_world_event(event_data: Dictionary) -> String:
 	for tag in tags:
 		if typeof(tag) != TYPE_STRING:
 			return "%s.tags entries must be strings" % event_id
+
+	return ""
+
+
+func _validate_faction_template(template_data: Dictionary) -> String:
+	for field in REQUIRED_FACTION_TEMPLATE_FIELDS:
+		if not template_data.has(field):
+			return "missing field '%s'" % field
+
+	var template_id: String = str(template_data.get("id", ""))
+	if template_id == "":
+		return "empty template id"
+
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	if label == "":
+		return "%s.label must be a non-empty string" % template_id
+
+	var kind: String = str(template_data.get("kind", ""))
+	if not (kind in VALID_FACTION_TEMPLATE_KINDS):
+		return "%s.kind must be one of %s" % [template_id, str(VALID_FACTION_TEMPLATE_KINDS)]
+
+	var doctrine_pool_variant: Variant = template_data.get("default_doctrine_pool", [])
+	if typeof(doctrine_pool_variant) != TYPE_ARRAY:
+		return "%s.default_doctrine_pool must be an array" % template_id
+	var doctrine_pool: Array = doctrine_pool_variant
+	if doctrine_pool.is_empty():
+		return "%s.default_doctrine_pool must not be empty" % template_id
+	for doctrine in doctrine_pool:
+		if typeof(doctrine) != TYPE_STRING:
+			return "%s.default_doctrine_pool entries must be strings" % template_id
+		if not (str(doctrine) in VALID_FACTION_DOCTRINES):
+			return "%s.default_doctrine_pool contains invalid doctrine '%s'" % [template_id, str(doctrine)]
+
+	if template_data.has("project_bias"):
+		var project_bias_value: Variant = template_data.get("project_bias", "")
+		if typeof(project_bias_value) != TYPE_STRING:
+			return "%s.project_bias must be a string" % template_id
+		var project_bias: String = str(project_bias_value).strip_edges()
+		if project_bias != "" and not (project_bias in VALID_FACTION_PROJECT_BIASES):
+			return "%s.project_bias must be one of %s" % [template_id, str(VALID_FACTION_PROJECT_BIASES)]
+
+	for numeric_field in ["raid_bias", "defense_bias", "rally_bias"]:
+		if not template_data.has(numeric_field):
+			continue
+		var numeric_value: Variant = template_data.get(numeric_field, null)
+		if typeof(numeric_value) != TYPE_INT and typeof(numeric_value) != TYPE_FLOAT:
+			return "%s.%s must be numeric" % [template_id, numeric_field]
+		var as_float: float = float(numeric_value)
+		if as_float < -0.25 or as_float > 0.25:
+			return "%s.%s must be between -0.25 and 0.25" % [template_id, numeric_field]
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	if typeof(tags_variant) != TYPE_ARRAY:
+		return "%s.tags must be an array" % template_id
+	var tags: Array = tags_variant
+	for tag in tags:
+		if typeof(tag) != TYPE_STRING:
+			return "%s.tags entries must be strings" % template_id
+		if str(tag).strip_edges() == "":
+			return "%s.tags entries must be non-empty strings" % template_id
 
 	return ""

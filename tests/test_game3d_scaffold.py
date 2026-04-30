@@ -65,13 +65,29 @@ class TestGame3DScaffold(unittest.TestCase):
         expected_ids = {"mana_surge", "monster_frenzy", "sanctuary_calm"}
         self.assertTrue(expected_ids.issubset(ids))
 
+    def test_faction_templates_json_exists_and_has_expected_ids(self):
+        shared_path = ROOT / "shared_data" / "factions.json"
+        godot_path = GAME3D / "data" / "factions.json"
+        self.assertTrue(shared_path.exists(), f"Missing file: {shared_path}")
+        self.assertTrue(godot_path.exists(), f"Missing file: {godot_path}")
+
+        payload = json.loads(godot_path.read_text(encoding="utf-8"))
+        factions = payload.get("factions", [])
+        self.assertIsInstance(factions, list)
+
+        ids = {entry.get("id") for entry in factions if isinstance(entry, dict)}
+        expected_ids = {"human_core", "monster_core"}
+        self.assertTrue(expected_ids.issubset(ids))
+
     def test_data_loader_is_hooked_in_game_loop(self):
         game_loop = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
         self.assertIn("DataLoaderScript", game_loop)
         self.assertIn("_load_creature_profiles_data", game_loop)
         self.assertIn("_load_world_events_data", game_loop)
+        self.assertIn("_load_faction_templates_data", game_loop)
         self.assertIn("DataLoader OK", game_loop)
         self.assertIn("DataLoader OK: world events", game_loop)
+        self.assertIn("DataLoader OK: faction templates", game_loop)
 
         sandbox = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
         self.assertIn("set_creature_profiles", sandbox)
@@ -80,6 +96,8 @@ class TestGame3DScaffold(unittest.TestCase):
         data_loader = (GAME3D / "scripts" / "data" / "DataLoader.gd").read_text(encoding="utf-8")
         self.assertIn("load_world_events", data_loader)
         self.assertIn("get_world_events", data_loader)
+        self.assertIn("load_faction_templates", data_loader)
+        self.assertIn("get_faction_templates", data_loader)
 
     def test_project_targets_main_scene(self):
         content = (GAME3D / "project.godot").read_text(encoding="utf-8")
