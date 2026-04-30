@@ -293,6 +293,98 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_summary_markdown(summary: dict[str, Any]) -> str:
+    status_counts = summary.get("run_status_counts", {})
+    objective_counts = summary.get("objective_counts", {})
+    support_gate = summary.get("support_gate", {})
+    recommendations = summary.get("recommendations", [])
+
+    lines: list[str] = []
+    lines.append("# Run Metrics History Analysis")
+    lines.append("")
+    lines.append(
+        "- Exports read: %d" % int(summary.get("exports_read", 0))
+    )
+    lines.append(
+        "- Total valid records: %d" % int(summary.get("input_total_records", 0))
+    )
+    lines.append(
+        "- Invalid lines: %d" % int(summary.get("invalid_lines", 0))
+    )
+
+    objective_filter = str(summary.get("objective_filter", "")).strip()
+    if objective_filter:
+        lines.append("- Objective filter: `%s`" % objective_filter)
+    limit = summary.get("limit")
+    if isinstance(limit, int) and limit > 0:
+        lines.append("- Limit: %d latest records" % limit)
+
+    lines.append("")
+    lines.append("## Run status counts")
+    lines.append(
+        "- completed: %d" % int(status_counts.get("completed", 0))
+    )
+    lines.append(
+        "- failed: %d" % int(status_counts.get("failed", 0))
+    )
+    lines.append(
+        "- running: %d" % int(status_counts.get("running", 0))
+    )
+
+    lines.append("")
+    lines.append("## Objective counts")
+    if objective_counts:
+        for objective_id, count in sorted(objective_counts.items()):
+            lines.append("- %s: %d" % (objective_id, int(count)))
+    else:
+        lines.append("- none")
+
+    lines.append("")
+    lines.append("## Support gate")
+    lines.append("| Metric | Value |")
+    lines.append("|---|---|")
+    lines.append("| records | %d |" % int(support_gate.get("records", 0)))
+    lines.append(
+        "| avg attempts | %s |"
+        % (
+            "n/a"
+            if support_gate.get("avg_support_gate_run_attempts") is None
+            else f"{float(support_gate.get('avg_support_gate_run_attempts')):.2f}"
+        )
+    )
+    lines.append(
+        "| avg success | %s |"
+        % (
+            "n/a"
+            if support_gate.get("avg_support_gate_run_success") is None
+            else f"{float(support_gate.get('avg_support_gate_run_success')):.2f}"
+        )
+    )
+    lines.append(
+        "| avg success rate | %s |"
+        % _pct(_as_float(support_gate.get("avg_support_gate_run_success_rate")))
+    )
+    lines.append(
+        "| avg available ratio | %s |"
+        % _pct(_as_float(support_gate.get("avg_support_gate_run_available_ratio")))
+    )
+    lines.append("| best run | %s |" % str(support_gate.get("best_run", "n/a")))
+    lines.append("| worst run | %s |" % str(support_gate.get("worst_run", "n/a")))
+    lines.append(
+        "| objective success rate | %s |"
+        % _pct(_as_float(support_gate.get("objective_success_rate")))
+    )
+
+    lines.append("")
+    lines.append("## Recommendations")
+    if isinstance(recommendations, list):
+        for recommendation in recommendations:
+            lines.append("- %s" % str(recommendation))
+    else:
+        lines.append("- Support gate tuning looks stable.")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Analyze run metrics history JSONL exports.")
     parser.add_argument(
@@ -315,9 +407,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("text", "json"),
+        choices=("text", "json", "markdown", "md"),
         default="text",
         help="Output format. Default is text.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional output file path. If provided, writes result to file instead of stdout.",
     )
     return parser
 
@@ -342,10 +440,24 @@ def main() -> int:
         limit=limit if limit > 0 else None,
     )
 
-    if args.format == "json":
-        print(json.dumps(summary, indent=2, ensure_ascii=False))
+    output_format = str(args.format).strip().lower()
+    if output_format == "md":
+        output_format = "markdown"
+
+    rendered_output = ""
+    if output_format == "json":
+        rendered_output = json.dumps(summary, indent=2, ensure_ascii=False)
+    elif output_format == "markdown":
+        rendered_output = format_summary_markdown(summary)
     else:
-        print(format_summary_text(summary))
+        rendered_output = format_summary_text(summary)
+
+    output_path: Path | None = args.output
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(rendered_output + "\n", encoding="utf-8")
+    else:
+        print(rendered_output)
     return 0
 
 

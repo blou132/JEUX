@@ -31,6 +31,15 @@ def _run_summary_json(input_path: Path, extra_args: list[str] | None = None) -> 
     return json.loads(result.stdout)
 
 
+def _run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)] + args,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
 class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
     def test_valid_history_summary_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -309,6 +318,64 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertIn("Recommendations:", result.stdout)
             self.assertIn("Support gate tuning looks stable.", result.stdout)
+
+    def test_markdown_output_contains_expected_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            rows = [
+                json.dumps(
+                    {
+                        "export_id": "exp_m1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 6,
+                        "support_gate_run_success": 4,
+                        "support_gate_run_success_rate": 0.67,
+                        "support_gate_run_available_ratio": 0.52,
+                    }
+                )
+            ]
+            _write_jsonl(input_path, rows)
+
+            result = _run_cli(["--input", str(input_path), "--format", "markdown"])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("# Run Metrics History Analysis", result.stdout)
+            self.assertIn("## Support gate", result.stdout)
+            self.assertIn("## Recommendations", result.stdout)
+
+    def test_output_option_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            output_path = Path(tmpdir) / "reports" / "run_metrics_report.md"
+            rows = [
+                json.dumps(
+                    {
+                        "export_id": "exp_o1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.80,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ]
+            _write_jsonl(input_path, rows)
+
+            result = _run_cli(
+                [
+                    "--input",
+                    str(input_path),
+                    "--format",
+                    "md",
+                    "--output",
+                    str(output_path),
+                ]
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+            self.assertIn("# Run Metrics History Analysis", content)
 
 
 if __name__ == "__main__":

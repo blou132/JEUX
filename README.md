@@ -427,12 +427,19 @@ python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history
   - `--objective support_gate` (filtre par objectif)
   - `--limit N` (limite aux N derniers exports filtres)
   - `--format json` (resume machine-readable)
+  - `--format markdown` ou `--format md` (rapport Markdown lisible/archivable)
+  - `--output reports/run_metrics_report.md` (ecrit le resultat dans un fichier au lieu de stdout)
 - le script ignore les lignes vides, signale/compte les lignes invalides, et reste robuste si des champs manquent.
 - les tests CLI utilisent l'interpreteur Python courant (`sys.executable`) pour rester portables.
 - section `Recommendations` (texte + JSON):
   - l'outil ajoute des recommandations de tuning simples pour `support_gate` selon `available ratio`, `success rate`, et `objective success rate`.
   - exemples: augmenter la disponibilite gate, alleger cooldown/actions, ou durcir legerement l'objectif si trop facile.
   - ces recommandations sont des **heuristiques pratiques** de playtest, pas une verite absolue d'equilibrage.
+- exemple rapport Markdown archive:
+```bash
+py tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl --format markdown --output reports/run_metrics_report.md
+```
+- ce mode est pratique pour archiver les playtests et comparer les runs dans un dossier `reports/`.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.
