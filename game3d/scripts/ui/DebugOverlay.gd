@@ -49,6 +49,19 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var allegiance_structure_labels: Array = snapshot.get("allegiance_structure_labels", [])
     var allegiance_doctrine_labels: Array = snapshot.get("allegiance_doctrine_labels", [])
     var allegiance_doctrine_counts: Dictionary = snapshot.get("allegiance_doctrine_counts", {})
+    var allegiance_doctrine_snapshot_labels: Array = snapshot.get(
+        "allegiance_doctrine_snapshot_labels",
+        allegiance_doctrine_labels
+    )
+    var allegiance_doctrine_source_counts: Dictionary = snapshot.get("allegiance_doctrine_source_counts", {})
+    var allegiance_doctrine_average_biases: Dictionary = snapshot.get("allegiance_doctrine_average_biases", {})
+    var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
+    var allegiance_doctrine_fallback_used_count: int = int(
+        snapshot.get("allegiance_doctrine_fallback_used_count", 0)
+    )
+    var allegiance_doctrine_dominant_id: String = str(snapshot.get("allegiance_doctrine_dominant_id", ""))
+    var allegiance_doctrine_dominant_count: int = int(snapshot.get("allegiance_doctrine_dominant_count", 0))
+    var doctrine_templates_source: String = str(snapshot.get("doctrine_templates_source", "fallback"))
     var allegiance_project_labels: Array = snapshot.get("allegiance_project_labels", [])
     var allegiance_project_counts: Dictionary = snapshot.get("allegiance_project_counts", {})
     var allegiance_vendetta_labels: Array = snapshot.get("allegiance_vendetta_labels", [])
@@ -425,17 +438,50 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         ]
     )
     lines.append(
-        "Doctrines: warlike=%d steadfast=%d arcane=%d | assigned=%d"
+        "Doctrines: warlike=%d steadfast=%d arcane=%d fallback=%d"
         % [
             int(allegiance_doctrine_counts.get("warlike", 0)),
             int(allegiance_doctrine_counts.get("steadfast", 0)),
             int(allegiance_doctrine_counts.get("arcane", 0)),
-            int(snapshot.get("doctrine_assigned_total", 0))
+            allegiance_doctrine_fallback_used_count
+        ]
+    )
+    var dominant_label: String = "(none)"
+    if allegiance_doctrine_dominant_id != "":
+        dominant_label = "%s(%d)" % [allegiance_doctrine_dominant_id, allegiance_doctrine_dominant_count]
+    lines.append(
+        "Doctrine dominant: %s | source json=%d fallback=%d | load=%s"
+        % [
+            dominant_label,
+            int(allegiance_doctrine_source_counts.get("json", 0)),
+            int(allegiance_doctrine_source_counts.get("fallback", 0)),
+            doctrine_templates_source
+        ]
+    )
+    lines.append(
+        "Doctrine bias avg: raid=%.2f defense=%.2f rally=%.2f magic=%.2f"
+        % [
+            float(allegiance_doctrine_average_biases.get("raid_bias", 0.0)),
+            float(allegiance_doctrine_average_biases.get("defense_bias", 0.0)),
+            float(allegiance_doctrine_average_biases.get("rally_bias", 0.0)),
+            float(allegiance_doctrine_average_biases.get("magic_bias", 0.0))
         ]
     )
     lines.append(
         "Doctrine map: %s"
-        % (" | ".join(allegiance_doctrine_labels) if not allegiance_doctrine_labels.is_empty() else "(none)")
+        % (
+            " | ".join(allegiance_doctrine_snapshot_labels)
+            if not allegiance_doctrine_snapshot_labels.is_empty()
+            else "(none)"
+        )
+    )
+    lines.append(
+        "Doctrine fallback map: %s"
+        % (
+            " | ".join(allegiance_doctrine_fallback_labels)
+            if not allegiance_doctrine_fallback_labels.is_empty()
+            else "(none)"
+        )
     )
     lines.append(
         "Projects: active=%d fortify=%d warband_muster=%d ritual_focus=%d | start=%d end=%d interrupted=%d"

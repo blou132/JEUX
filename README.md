@@ -193,6 +193,21 @@ Passerelles runtime (ordre de chargement) :
 - `relics.json` : charge par `DataLoader.load_relic_templates()` puis utilise par `GameLoop` (labels, eligibilite d'apparition, modificateurs relics avec fallback).
 - `locations.json` : charge par `DataLoader.load_location_templates()` puis injecte dans `WorldManager` (labels/rayons/tags/upgrade target POI avec fallback).
 
+## Doctrine data bridge
+- Regeneration/validation :
+  - `py tools/export_doctrine_templates.py --path shared_data/doctrines.json`
+  - `py tools/export_doctrine_templates.py --path shared_data/doctrines.json --validate-only`
+  - `py tools/sync_shared_to_godot.py` (copie vers `game3d/data/doctrines.json`)
+- Biais doctrines (legers, sans refonte gameplay) :
+  - `raid_bias` : pression offensive appliquee au poids de raid.
+  - `defense_bias` : pression defensive appliquee au poids de defense.
+  - `rally_bias` : impact sur regroupement rally.
+  - `magic_bias` : ajuste les multiplicateurs magie (degats/cout).
+- Runtime et fallback :
+  - `GameLoop` charge via `DataLoader` puis injecte dans `WorldManager`.
+  - Si `doctrines.json` manque/est invalide/incomplet, fallback historique conserve (`source=fallback`).
+  - Le HUD/debug affiche `Doctrines: warlike=X steadfast=Y arcane=Z fallback=N`, doctrine dominante, sources (`json`/`fallback`) et biais moyens actifs.
+
 Commande :
 ```bash
 py tools/export_creature_profiles.py --path shared_data/creatures.json

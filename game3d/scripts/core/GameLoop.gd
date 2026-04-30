@@ -303,6 +303,7 @@ var creature_profiles_by_id: Dictionary = {}
 var world_event_profiles_by_id: Dictionary = {}
 var faction_templates_by_id: Dictionary = {}
 var doctrine_templates_by_id: Dictionary = {}
+var doctrine_templates_source: String = "fallback"
 var relic_templates_by_id: Dictionary = {}
 var location_templates_by_id: Dictionary = {}
 var world_event_ids: Array[String] = []
@@ -643,12 +644,16 @@ func _load_doctrine_templates_data() -> void:
 	if _data_loader.load_doctrine_templates():
 		doctrine_templates_by_id = _data_loader.get_doctrine_templates()
 		world_manager.set_doctrine_templates(doctrine_templates_by_id)
+		doctrine_templates_source = "json"
 		record_event("DataLoader OK: doctrine templates=%d." % doctrine_templates_by_id.size())
+		record_event("Doctrine bridge: doctrines.json source=json.")
 		return
 
 	doctrine_templates_by_id.clear()
 	world_manager.set_doctrine_templates({})
+	doctrine_templates_source = "fallback"
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+	record_event("Doctrine bridge: doctrines.json source=fallback.")
 
 
 func _load_relic_templates_data() -> void:
@@ -8492,6 +8497,7 @@ func _build_snapshot() -> Dictionary:
 	var avg_notoriety: float = notoriety_total / alive_total if alive_total > 0 else 0.0
 	var poi_population := world_manager.get_poi_population_snapshot(actors)
 	var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
+	var doctrine_runtime_snapshot: Dictionary = world_manager.get_doctrine_runtime_snapshot(active_allegiances)
 	var allegiance_structure_labels: Array[String] = []
 	var allegiance_doctrine_labels: Array[String] = []
 	var allegiance_doctrine_counts := {
@@ -8945,6 +8951,27 @@ func _build_snapshot() -> Dictionary:
 		"allegiance_structure_labels": allegiance_structure_labels,
 		"allegiance_doctrine_labels": allegiance_doctrine_labels,
 		"allegiance_doctrine_counts": allegiance_doctrine_counts,
+		"allegiance_doctrine_snapshot_labels": doctrine_runtime_snapshot.get("labels", []),
+		"allegiance_doctrine_details": doctrine_runtime_snapshot.get("by_allegiance", {}),
+		"allegiance_doctrine_source_counts": doctrine_runtime_snapshot.get(
+			"sources",
+			{"json": 0, "fallback": 0}
+		),
+		"allegiance_doctrine_fallback_used_count": int(doctrine_runtime_snapshot.get("fallback_used_count", 0)),
+		"allegiance_doctrine_fallback_labels": doctrine_runtime_snapshot.get("fallback_allegiances", []),
+		"allegiance_doctrine_missing_templates": doctrine_runtime_snapshot.get("missing_template_doctrines", []),
+		"allegiance_doctrine_average_biases": doctrine_runtime_snapshot.get(
+			"average_biases",
+			{
+				"raid_bias": 0.0,
+				"defense_bias": 0.0,
+				"rally_bias": 0.0,
+				"magic_bias": 0.0
+			}
+		),
+		"allegiance_doctrine_dominant_id": str(doctrine_runtime_snapshot.get("dominant_doctrine", "")),
+		"allegiance_doctrine_dominant_count": int(doctrine_runtime_snapshot.get("dominant_count", 0)),
+		"doctrine_templates_source": doctrine_templates_source,
 		"doctrine_assigned_total": doctrine_assigned_total,
 		"allegiance_project_active_count": allegiance_project_active_count,
 		"allegiance_project_labels": allegiance_project_labels,
@@ -9253,8 +9280,16 @@ func _update_poi_runtime() -> void:
 			var doctrine: String = str(transition.get("doctrine", ""))
 			if doctrine != "":
 				doctrine_assigned_total += 1
-				var doctrine_label: String = world_manager.get_doctrine_label(doctrine, doctrine)
-				record_event("Doctrine assigned: %s -> %s." % [allegiance_id, doctrine_label])
+				var doctrine_label: String = world_manager.get_allegiance_doctrine_label(allegiance_id, doctrine)
+				var doctrine_source: String = world_manager.get_allegiance_doctrine_source(allegiance_id)
+				record_event(
+					"Doctrine assigned: %s -> %s (%s, source=%s)."
+					% [allegiance_id, doctrine, doctrine_label, doctrine_source]
+				)
+				if doctrine_source == "fallback":
+					record_event("Doctrine fallback used: %s -> %s." % [allegiance_id, doctrine])
+			else:
+				record_event("Doctrine ignored: %s -> invalid." % allegiance_id)
 			var recent_loss_until: float = float(_recent_structure_loss_until_by_poi.get(poi_name, 0.0))
 			if recent_loss_until > elapsed_time:
 				_try_start_allegiance_recovery(allegiance_id, "anchor_restabilized", 0.20, 1.4, poi_name)

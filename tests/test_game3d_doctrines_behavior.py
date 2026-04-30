@@ -77,6 +77,12 @@ def doctrine_modifier_contract(doctrine: str) -> dict[str, float]:
     }
 
 
+def doctrine_source_contract(*, doctrine_id: str, available_templates: set[str]) -> str:
+    if doctrine_id and doctrine_id in available_templates:
+        return "json"
+    return "fallback"
+
+
 def cleanup_doctrine_contract(mapping: dict[str, str], allegiance_id: str) -> tuple[dict[str, str], str]:
     next_mapping = dict(mapping)
     doctrine = str(next_mapping.get(allegiance_id, ""))
@@ -153,6 +159,45 @@ class TestGame3DDoctrinesBehavior(unittest.TestCase):
         self.assertEqual(removed, "steadfast")
         self.assertNotIn("human:camp", next_mapping)
         self.assertIn("monster:ruins", next_mapping)
+
+    def test_observability_helpers_and_snapshot_hooks_exist(self):
+        self.assertIn("get_allegiance_doctrine_source", self.world_content)
+        self.assertIn("get_allegiance_doctrine_label", self.world_content)
+        self.assertIn("get_allegiance_doctrine_tags", self.world_content)
+        self.assertIn("get_allegiance_doctrine_biases", self.world_content)
+        self.assertIn("get_doctrine_runtime_snapshot", self.world_content)
+        self.assertIn("Doctrine bridge: doctrines.json source=json.", self.loop_content)
+        self.assertIn("Doctrine bridge: doctrines.json source=fallback.", self.loop_content)
+        self.assertIn('"allegiance_doctrine_source_counts"', self.loop_content)
+        self.assertIn('"allegiance_doctrine_average_biases"', self.loop_content)
+        self.assertIn("fallback=%d", self.overlay_content)
+        self.assertIn("Doctrine dominant:", self.overlay_content)
+        self.assertIn("Doctrine bias avg:", self.overlay_content)
+
+    def test_source_contract_is_json_or_fallback(self):
+        self.assertEqual(
+            doctrine_source_contract(doctrine_id="warlike", available_templates={"warlike", "arcane"}),
+            "json",
+        )
+        self.assertEqual(
+            doctrine_source_contract(doctrine_id="steadfast", available_templates={"warlike", "arcane"}),
+            "fallback",
+        )
+        self.assertEqual(
+            doctrine_source_contract(doctrine_id="", available_templates={"warlike", "arcane"}),
+            "fallback",
+        )
+
+    def test_unknown_doctrine_is_ignored_with_logs(self):
+        self.assertIn("ignored invalid doctrine", self.world_content)
+        self.assertIn("Doctrine ignored:", self.loop_content)
+
+    def test_fallback_path_remains_wired_when_doctrines_json_is_invalid_or_missing(self):
+        self.assertIn("if _data_loader.load_doctrine_templates()", self.loop_content)
+        self.assertIn("doctrine_templates_by_id.clear()", self.loop_content)
+        self.assertIn("world_manager.set_doctrine_templates({})", self.loop_content)
+        self.assertIn("DataLoader ERROR:", self.loop_content)
+        self.assertIn("invalid JSON", (GAME3D / "scripts" / "data" / "DataLoader.gd").read_text(encoding="utf-8"))
 
     def test_hooks_exist_in_runtime_ai_hud_and_docs(self):
         self.assertIn("get_allegiance_doctrine", self.world_content)

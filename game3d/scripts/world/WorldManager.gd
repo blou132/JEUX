@@ -69,6 +69,7 @@ var allegiance_recovery_defense_delta_by_id: Dictionary = {}
 var allegiance_mending_modifiers_by_id: Dictionary = {}
 var vendetta_suppressed_pair_keys: Dictionary = {}
 var allegiance_doctrine_by_id: Dictionary = {}
+var doctrine_invalid_by_allegiance: Dictionary = {}
 var faction_template_by_id: Dictionary = {}
 var faction_template_by_kind: Dictionary = {}
 var faction_template_id_by_allegiance: Dictionary = {}
@@ -1543,7 +1544,11 @@ func get_allegiance_doctrine(allegiance_id: String) -> String:
 		return ""
 	var doctrine: String = str(allegiance_doctrine_by_id.get(allegiance_id, ""))
 	if doctrine in ALLEGIANCE_DOCTRINES:
+		doctrine_invalid_by_allegiance.erase(allegiance_id)
 		return doctrine
+	if doctrine != "" and not doctrine_invalid_by_allegiance.has(allegiance_id):
+		push_warning("WorldManager: ignored invalid doctrine '%s' for allegiance '%s'." % [doctrine, allegiance_id])
+		doctrine_invalid_by_allegiance[allegiance_id] = doctrine
 	return ""
 
 
@@ -1575,14 +1580,41 @@ func get_doctrine_tags(doctrine_id: String) -> Array:
 	return tags.duplicate(true)
 
 
+func get_allegiance_doctrine_source(allegiance_id: String) -> String:
+	var doctrine: String = get_allegiance_doctrine(allegiance_id)
+	if doctrine == "":
+		return "fallback"
+	if doctrine_template_by_id.has(doctrine):
+		return "json"
+	return "fallback"
+
+
+func get_allegiance_doctrine_label(allegiance_id: String, fallback_label: String = "") -> String:
+	var doctrine: String = get_allegiance_doctrine(allegiance_id)
+	if doctrine == "":
+		return fallback_label
+	return get_doctrine_label(doctrine, doctrine if fallback_label == "" else fallback_label)
+
+
+func get_allegiance_doctrine_tags(allegiance_id: String) -> Array:
+	var doctrine: String = get_allegiance_doctrine(allegiance_id)
+	if doctrine == "":
+		return []
+	return get_doctrine_tags(doctrine)
+
+
 func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 	var doctrine: String = get_allegiance_doctrine(allegiance_id)
 	var modifiers: Dictionary = _default_doctrine_modifiers(doctrine)
 	if doctrine == "":
+		modifiers["source"] = "fallback"
+		modifiers["uses_fallback"] = true
 		return modifiers
 
 	var template: Dictionary = get_doctrine_template(doctrine)
 	if template.is_empty():
+		modifiers["source"] = "fallback"
+		modifiers["uses_fallback"] = true
 		return modifiers
 
 	modifiers["doctrine_label"] = get_doctrine_label(doctrine, doctrine)
@@ -1593,7 +1625,123 @@ func get_allegiance_doctrine_modifiers(allegiance_id: String) -> Dictionary:
 	var magic_bias: float = clampf(float(template.get("magic_bias", 0.0)), -0.12, 0.12)
 	modifiers["magic_damage_mult"] = max(0.88, 1.0 + magic_bias)
 	modifiers["magic_energy_cost_mult"] = max(0.88, 1.0 - magic_bias)
+	modifiers["source"] = "json"
+	modifiers["uses_fallback"] = false
 	return modifiers
+
+
+func get_allegiance_doctrine_biases(allegiance_id: String) -> Dictionary:
+	var modifiers: Dictionary = get_allegiance_doctrine_modifiers(allegiance_id)
+	var magic_damage_mult: float = float(modifiers.get("magic_damage_mult", 1.0))
+	var magic_energy_cost_mult: float = float(modifiers.get("magic_energy_cost_mult", 1.0))
+	var magic_bias: float = clampf((magic_damage_mult - magic_energy_cost_mult) * 0.5, -0.12, 0.12)
+	return {
+		"raid_bias": float(modifiers.get("raid_weight_delta", 0.0)),
+		"defense_bias": float(modifiers.get("defense_weight_delta", 0.0)),
+		"rally_bias": float(modifiers.get("rally_regroup_delta", 0.0)),
+		"magic_bias": magic_bias,
+		"magic_damage_mult": magic_damage_mult,
+		"magic_energy_cost_mult": magic_energy_cost_mult,
+		"source": str(modifiers.get("source", "fallback"))
+	}
+
+
+func get_doctrine_runtime_snapshot(active_allegiances: Array[Dictionary] = []) -> Dictionary:
+	var allegiances: Array[Dictionary] = active_allegiances
+	if allegiances.is_empty():
+		allegiances = get_active_allegiances()
+
+	var doctrine_by_allegiance: Dictionary = {}
+	var doctrine_labels: Array[String] = []
+	var doctrine_counts := {
+		"warlike": 0,
+		"steadfast": 0,
+		"arcane": 0
+	}
+	var source_counts := {
+		"json": 0,
+		"fallback": 0
+	}
+	var missing_template_doctrines: Array[String] = []
+	var fallback_allegiances: Array[String] = []
+	var bias_totals := {
+		"raid_bias": 0.0,
+		"defense_bias": 0.0,
+		"rally_bias": 0.0,
+		"magic_bias": 0.0
+	}
+	var doctrine_total: int = 0
+
+	for allegiance_variant in allegiances:
+		if typeof(allegiance_variant) != TYPE_DICTIONARY:
+			continue
+		var allegiance: Dictionary = allegiance_variant
+		var allegiance_id: String = str(allegiance.get("allegiance_id", ""))
+		if allegiance_id == "":
+			continue
+		var doctrine_id: String = get_allegiance_doctrine(allegiance_id)
+		if doctrine_id == "":
+			continue
+
+		var source: String = get_allegiance_doctrine_source(allegiance_id)
+		var doctrine_label: String = get_allegiance_doctrine_label(allegiance_id, doctrine_id)
+		var doctrine_tags: Array = get_allegiance_doctrine_tags(allegiance_id)
+		var biases: Dictionary = get_allegiance_doctrine_biases(allegiance_id)
+		doctrine_total += 1
+		doctrine_labels.append("%s=%s[%s]" % [allegiance_id, doctrine_id, source])
+		if doctrine_counts.has(doctrine_id):
+			doctrine_counts[doctrine_id] += 1
+		if source_counts.has(source):
+			source_counts[source] += 1
+		if source == "fallback":
+			fallback_allegiances.append("%s=%s" % [allegiance_id, doctrine_id])
+			if not (doctrine_id in missing_template_doctrines):
+				missing_template_doctrines.append(doctrine_id)
+
+		bias_totals["raid_bias"] += float(biases.get("raid_bias", 0.0))
+		bias_totals["defense_bias"] += float(biases.get("defense_bias", 0.0))
+		bias_totals["rally_bias"] += float(biases.get("rally_bias", 0.0))
+		bias_totals["magic_bias"] += float(biases.get("magic_bias", 0.0))
+		doctrine_by_allegiance[allegiance_id] = {
+			"doctrine": doctrine_id,
+			"label": doctrine_label,
+			"tags": doctrine_tags,
+			"source": source,
+			"biases": biases
+		}
+
+	doctrine_labels.sort()
+	fallback_allegiances.sort()
+	missing_template_doctrines.sort()
+	var avg_divisor: float = max(1.0, float(doctrine_total))
+	var average_biases: Dictionary = {
+		"raid_bias": float(bias_totals.get("raid_bias", 0.0)) / avg_divisor,
+		"defense_bias": float(bias_totals.get("defense_bias", 0.0)) / avg_divisor,
+		"rally_bias": float(bias_totals.get("rally_bias", 0.0)) / avg_divisor,
+		"magic_bias": float(bias_totals.get("magic_bias", 0.0)) / avg_divisor
+	}
+
+	var dominant_doctrine: String = ""
+	var dominant_count: int = 0
+	for doctrine_id in ALLEGIANCE_DOCTRINES:
+		var count: int = int(doctrine_counts.get(doctrine_id, 0))
+		if count > dominant_count:
+			dominant_doctrine = doctrine_id
+			dominant_count = count
+
+	return {
+		"by_allegiance": doctrine_by_allegiance,
+		"labels": doctrine_labels,
+		"counts": doctrine_counts,
+		"sources": source_counts,
+		"fallback_used_count": int(source_counts.get("fallback", 0)),
+		"fallback_allegiances": fallback_allegiances,
+		"missing_template_doctrines": missing_template_doctrines,
+		"average_biases": average_biases,
+		"dominant_doctrine": dominant_doctrine,
+		"dominant_count": dominant_count,
+		"doctrine_assigned_total": doctrine_total
+	}
 
 
 func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
@@ -1608,7 +1756,9 @@ func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
 				"rally_regroup_delta": -0.05,
 				"rally_pressure_delta": 0.08,
 				"magic_damage_mult": 1.00,
-				"magic_energy_cost_mult": 1.00
+				"magic_energy_cost_mult": 1.00,
+				"source": "fallback",
+				"uses_fallback": true
 			}
 		"steadfast":
 			return {
@@ -1620,7 +1770,9 @@ func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
 				"rally_regroup_delta": 0.08,
 				"rally_pressure_delta": -0.04,
 				"magic_damage_mult": 1.00,
-				"magic_energy_cost_mult": 1.00
+				"magic_energy_cost_mult": 1.00,
+				"source": "fallback",
+				"uses_fallback": true
 			}
 		"arcane":
 			return {
@@ -1632,7 +1784,9 @@ func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
 				"rally_regroup_delta": 0.03,
 				"rally_pressure_delta": 0.01,
 				"magic_damage_mult": 1.06,
-				"magic_energy_cost_mult": 0.94
+				"magic_energy_cost_mult": 0.94,
+				"source": "fallback",
+				"uses_fallback": true
 			}
 		_:
 			return {
@@ -1644,7 +1798,9 @@ func _default_doctrine_modifiers(doctrine: String) -> Dictionary:
 				"rally_regroup_delta": 0.0,
 				"rally_pressure_delta": 0.0,
 				"magic_damage_mult": 1.00,
-				"magic_energy_cost_mult": 1.00
+				"magic_energy_cost_mult": 1.00,
+				"source": "fallback",
+				"uses_fallback": true
 			}
 
 
@@ -2468,7 +2624,13 @@ func _assign_doctrine_for_allegiance(
 	if allegiance_id == "":
 		return ""
 	var doctrine: String = _pick_doctrine_for_allegiance(faction, structure_state, dominant_champions)
+	if not (doctrine in ALLEGIANCE_DOCTRINES):
+		push_warning("WorldManager: ignored invalid doctrine '%s' for allegiance '%s'." % [doctrine, allegiance_id])
+		allegiance_doctrine_by_id.erase(allegiance_id)
+		doctrine_invalid_by_allegiance[allegiance_id] = doctrine
+		return ""
 	allegiance_doctrine_by_id[allegiance_id] = doctrine
+	doctrine_invalid_by_allegiance.erase(allegiance_id)
 	return doctrine
 
 
@@ -2476,6 +2638,7 @@ func _clear_allegiance_doctrine(allegiance_id: String) -> String:
 	var doctrine: String = get_allegiance_doctrine(allegiance_id)
 	if allegiance_id != "":
 		allegiance_doctrine_by_id.erase(allegiance_id)
+		doctrine_invalid_by_allegiance.erase(allegiance_id)
 	return doctrine
 
 
