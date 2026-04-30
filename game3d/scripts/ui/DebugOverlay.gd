@@ -174,6 +174,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var neutral_gate_active: bool = bool(snapshot.get("neutral_gate_active", false))
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
+    var support_gate_visual_state: String = str(snapshot.get("support_gate_visual_state", "inactive")).strip_edges()
+    var support_gate_visual_label: String = str(
+        snapshot.get("support_gate_visual_label", support_gate_visual_state)
+    ).strip_edges()
     var gate_response_human_label: String = str(snapshot.get("gate_response_human_label", "none"))
     var gate_response_monster_label: String = str(snapshot.get("gate_response_monster_label", "none"))
 
@@ -236,6 +240,13 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("gate_response_ended_total", 0)),
             int(snapshot.get("gate_response_success_total", 0)),
             int(snapshot.get("gate_response_interrupted_total", 0))
+        ]
+    )
+    lines.append(
+        "Support gate visual: %s (%s)"
+        % [
+            support_gate_visual_state if support_gate_visual_state != "" else "inactive",
+            support_gate_visual_label if support_gate_visual_label != "" else "inactive"
         ]
     )
     lines.append("")
@@ -1143,6 +1154,7 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_poi: String = str(snapshot.get("neutral_gate_poi", "rift_gate"))
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
+    var support_gate_visual_state: String = str(snapshot.get("support_gate_visual_state", "inactive")).strip_edges()
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
     var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
@@ -1193,6 +1205,10 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             "Neutral Gate: %s at %s (cooldown %.1fs)"
             % [neutral_gate_status, neutral_gate_poi, neutral_gate_cooldown]
         )
+    lines.append(
+        "Support gate visual: %s"
+        % [support_gate_visual_state if support_gate_visual_state != "" else "inactive"]
+    )
 
     lines.append(
         "Doctrines: warlike=%d steadfast=%d arcane=%d dominant=%s"

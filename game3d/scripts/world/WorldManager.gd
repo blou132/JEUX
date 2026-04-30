@@ -64,6 +64,15 @@ var neutral_gate_breach_pending: bool = false
 var neutral_gate_bonus_breach_used: bool = false
 var neutral_gate_response_pull_human_mult: float = 1.0
 var neutral_gate_response_pull_monster_mult: float = 1.0
+var support_gate_objective_visual_state: Dictionary = {
+	"support_gate_active": false,
+	"support_gate_available": false,
+	"support_gate_success_flash_timer": 0.0,
+	"support_gate_cooldown": 0.0,
+	"support_gate_progress_ratio": 0.0,
+	"support_gate_visual_state": "inactive",
+	"support_gate_visual_label": "inactive"
+}
 var allegiance_crisis_raid_mult_by_id: Dictionary = {}
 var allegiance_recovery_defense_delta_by_id: Dictionary = {}
 var allegiance_mending_modifiers_by_id: Dictionary = {}
@@ -105,6 +114,39 @@ func set_raid_pressure_modifiers(
 
 func set_world_event_visual(event_id: String) -> void:
 	world_event_visual_id = event_id
+
+
+func set_support_gate_objective_visual(state: Dictionary) -> void:
+	var active: bool = bool(state.get("support_gate_active", false))
+	var available: bool = bool(state.get("support_gate_available", false))
+	var success_flash_timer: float = max(0.0, float(state.get("support_gate_success_flash_timer", 0.0)))
+	var cooldown: float = max(0.0, float(state.get("support_gate_cooldown", 0.0)))
+	var progress_ratio: float = clampf(float(state.get("support_gate_progress_ratio", 0.0)), 0.0, 1.0)
+	var visual_state: String = str(state.get("support_gate_visual_state", "")).strip_edges().to_lower()
+	if not (visual_state in ["inactive", "ready", "flash", "cooldown", "unavailable"]):
+		if not active:
+			visual_state = "inactive"
+		elif success_flash_timer > 0.0:
+			visual_state = "flash"
+		elif available:
+			visual_state = "ready"
+		elif cooldown > 0.0:
+			visual_state = "cooldown"
+		else:
+			visual_state = "unavailable"
+	var visual_label: String = str(state.get("support_gate_visual_label", visual_state)).strip_edges().to_lower()
+	if visual_label == "":
+		visual_label = visual_state
+
+	support_gate_objective_visual_state = {
+		"support_gate_active": active,
+		"support_gate_available": available,
+		"support_gate_success_flash_timer": success_flash_timer,
+		"support_gate_cooldown": cooldown,
+		"support_gate_progress_ratio": progress_ratio,
+		"support_gate_visual_state": visual_state,
+		"support_gate_visual_label": visual_label
+	}
 
 
 func set_faction_templates(templates_by_id: Dictionary = {}) -> void:
@@ -2207,6 +2249,15 @@ func _build_pois() -> void:
 	neutral_gate_bonus_breach_used = false
 	neutral_gate_response_pull_human_mult = 1.0
 	neutral_gate_response_pull_monster_mult = 1.0
+	support_gate_objective_visual_state = {
+		"support_gate_active": false,
+		"support_gate_available": false,
+		"support_gate_success_flash_timer": 0.0,
+		"support_gate_cooldown": 0.0,
+		"support_gate_progress_ratio": 0.0,
+		"support_gate_visual_state": "inactive",
+		"support_gate_visual_label": "inactive"
+	}
 	allegiance_crisis_raid_mult_by_id.clear()
 	allegiance_recovery_defense_delta_by_id.clear()
 	allegiance_mending_modifiers_by_id.clear()
@@ -2491,6 +2542,63 @@ func _apply_poi_visual_state(
 		var target_pulse := 1.0 + 0.08 * sin(time_seconds * 7.0)
 		ring.scale *= Vector3(target_pulse, 1.0, target_pulse)
 		_set_mesh_color(ring, Color(1.0, 0.62, 0.30), intensity + 0.24)
+
+	_apply_support_gate_objective_visual(poi_name, ring, beacon, gate_halo, time_seconds)
+
+
+func _apply_support_gate_objective_visual(
+	poi_name: String,
+	ring: MeshInstance3D,
+	beacon: MeshInstance3D,
+	gate_halo: MeshInstance3D,
+	time_seconds: float
+) -> void:
+	if gate_halo == null:
+		return
+	if poi_name != _find_neutral_gate_poi_name():
+		return
+
+	var active: bool = bool(support_gate_objective_visual_state.get("support_gate_active", false))
+	if not active:
+		return
+
+	var visual_state: String = str(
+		support_gate_objective_visual_state.get("support_gate_visual_state", "inactive")
+	).strip_edges().to_lower()
+	var progress_ratio: float = clampf(
+		float(support_gate_objective_visual_state.get("support_gate_progress_ratio", 0.0)),
+		0.0,
+		1.0
+	)
+
+	gate_halo.visible = true
+	match visual_state:
+		"flash":
+			var flash_scale := 1.18 + 0.16 * sin(time_seconds * 18.0)
+			gate_halo.scale = Vector3.ONE * flash_scale
+			_set_mesh_color(gate_halo, Color(1.0, 0.94, 0.58), 1.32)
+			_set_mesh_color(beacon, Color(1.0, 0.89, 0.52), 1.08)
+			_set_mesh_color(ring, Color(0.98, 0.83, 0.50), 0.94)
+		"ready":
+			var ready_scale := 1.04 + 0.12 * sin(time_seconds * 9.6)
+			gate_halo.scale = Vector3.ONE * ready_scale
+			_set_mesh_color(gate_halo, Color(0.48, 1.0, 0.82), 1.08)
+			_set_mesh_color(beacon, Color(0.58, 1.0, 0.88), 0.96)
+			_set_mesh_color(ring, Color(0.52, 0.95, 0.84), 0.70 + 0.20 * progress_ratio)
+		"cooldown":
+			var cooldown_scale := 0.98 + 0.05 * sin(time_seconds * 5.2)
+			gate_halo.scale = Vector3.ONE * cooldown_scale
+			_set_mesh_color(gate_halo, Color(0.72, 0.74, 0.86), 0.70)
+			_set_mesh_color(beacon, Color(0.70, 0.73, 0.84), 0.55)
+		"unavailable":
+			var unavailable_scale := 0.96 + 0.03 * sin(time_seconds * 3.8)
+			gate_halo.scale = Vector3.ONE * unavailable_scale
+			_set_mesh_color(gate_halo, Color(0.60, 0.60, 0.66), 0.50)
+			_set_mesh_color(beacon, Color(0.64, 0.62, 0.70), 0.42)
+		_:
+			var idle_scale := 0.98 + 0.04 * sin(time_seconds * 4.0)
+			gate_halo.scale = Vector3.ONE * idle_scale
+			_set_mesh_color(gate_halo, Color(0.66, 0.66, 0.74), 0.56)
 
 
 func _dominant_faction_from_status(status: String) -> String:

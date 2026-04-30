@@ -17,6 +17,7 @@ const OBJECTIVE_GATE_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 58
 const OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD: float = 16.0
 const OBJECTIVE_GATE_SUPPORT_INTERACTION_COOLDOWN: float = 1.25
 const OBJECTIVE_GATE_SUPPORT_STABILIZE_SECONDS: float = 1.40
+const OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
@@ -603,6 +604,9 @@ var world_objective_interaction_next_allowed_time: float = 0.0
 var world_objective_interaction_feedback_label: String = ""
 var world_objective_interaction_feedback_type: String = ""
 var world_objective_interaction_feedback_timer: float = 0.0
+var support_gate_success_flash_timer: float = 0.0
+var support_gate_visual_state: String = "inactive"
+var support_gate_visual_label: String = "inactive"
 var world_objective_gate_bad_state_elapsed: float = 0.0
 var world_objective_gate_bad_state_threshold: float = OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD
 var run_status: String = "running"
@@ -832,6 +836,59 @@ func _update_objective_interaction_feedback(delta: float) -> void:
 	world_objective_interaction_feedback_type = ""
 
 
+func _resolve_support_gate_visual_state() -> Dictionary:
+	var is_support_gate_objective: bool = world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
+	var is_support_gate_active: bool = (
+		is_support_gate_objective
+		and world_objective_status == "active"
+		and world_objective_category in ["interaction", "gate_support"]
+	)
+	var cooldown_left: float = 0.0
+	if is_support_gate_active:
+		cooldown_left = max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+	var progress_ratio: float = 0.0
+	if is_support_gate_objective:
+		progress_ratio = clampf(world_objective_progress, 0.0, 1.0)
+
+	var visual_state: String = "inactive"
+	var visual_label: String = "inactive"
+	if is_support_gate_active:
+		if support_gate_success_flash_timer > 0.0:
+			visual_state = "flash"
+			visual_label = "flash success"
+		elif world_objective_interaction_available:
+			visual_state = "ready"
+			visual_label = "ready"
+		elif cooldown_left > 0.0:
+			visual_state = "cooldown"
+			visual_label = "cooldown"
+		else:
+			visual_state = "unavailable"
+			visual_label = "unavailable"
+
+	return {
+		"support_gate_active": is_support_gate_active,
+		"support_gate_available": is_support_gate_active and world_objective_interaction_available,
+		"support_gate_success_flash_timer": support_gate_success_flash_timer,
+		"support_gate_cooldown": cooldown_left,
+		"support_gate_progress_ratio": progress_ratio,
+		"support_gate_visual_state": visual_state,
+		"support_gate_visual_label": visual_label
+	}
+
+
+func _push_support_gate_objective_visual_state() -> void:
+	var visual_state_data: Dictionary = _resolve_support_gate_visual_state()
+	support_gate_visual_state = str(visual_state_data.get("support_gate_visual_state", "inactive"))
+	support_gate_visual_label = str(visual_state_data.get("support_gate_visual_label", "inactive"))
+	world_manager.set_support_gate_objective_visual(visual_state_data)
+
+
+func _update_support_gate_objective_visual_state(delta: float) -> void:
+	support_gate_success_flash_timer = max(0.0, support_gate_success_flash_timer - max(delta, 0.0))
+	_push_support_gate_objective_visual_state()
+
+
 func trigger_world_objective_interaction() -> bool:
 	if run_status in ["completed", "failed"]:
 		_set_objective_interaction_feedback("run already finished", "blocked", 1.8)
@@ -872,6 +929,7 @@ func trigger_world_objective_interaction() -> bool:
 	)
 	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
 	world_objective_interaction_available = false
+	support_gate_success_flash_timer = OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION
 	_set_objective_interaction_feedback("Gate support accepted", "success", 2.0)
 
 	record_event(
@@ -923,6 +981,7 @@ func _process(delta: float) -> void:
 func _tick(delta: float) -> void:
 	elapsed_time += delta
 	tick_index += 1
+	_push_support_gate_objective_visual_state()
 
 	_update_world_events(delta)
 	world_manager.tick_world(delta)
@@ -939,6 +998,7 @@ func _tick(delta: float) -> void:
 	_update_poi_runtime()
 	_update_world_objective(delta)
 	_update_objective_interaction_feedback(delta)
+	_update_support_gate_objective_visual_state(delta)
 	_update_actor_allegiances()
 	_update_allegiance_crisis_runtime(delta)
 	_update_allegiance_recovery_runtime(delta)
@@ -1114,6 +1174,9 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	world_objective_interaction_feedback_label = ""
 	world_objective_interaction_feedback_type = ""
 	world_objective_interaction_feedback_timer = 0.0
+	support_gate_success_flash_timer = 0.0
+	support_gate_visual_state = "inactive"
+	support_gate_visual_label = "inactive"
 	world_objective_gate_bad_state_elapsed = 0.0
 	world_objective_gate_bad_state_threshold = max(
 		0.1,
@@ -1132,6 +1195,7 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 		"objective_started",
 		"Objective START: %s" % world_objective_id
 	)
+	_push_support_gate_objective_visual_state()
 
 
 func _compute_objective_dominant_faction(poi_runtime_snapshot: Dictionary) -> String:
@@ -10006,6 +10070,8 @@ func _build_snapshot() -> Dictionary:
 		"objective_interaction_feedback_label": world_objective_interaction_feedback_label,
 		"objective_interaction_feedback_type": world_objective_interaction_feedback_type,
 		"objective_interaction_feedback_timer": world_objective_interaction_feedback_timer,
+		"support_gate_visual_state": support_gate_visual_state,
+		"support_gate_visual_label": support_gate_visual_label,
 		"major_event_count": int(run_summary.get("major_event_count", 0)),
 		"project_count": int(run_summary.get("project_count", 0)),
 		"vendetta_count": int(run_summary.get("vendetta_count", 0)),

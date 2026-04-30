@@ -322,13 +322,19 @@ Passerelles runtime (ordre de chargement) :
   - refus `unavailable`: `gate unavailable` / `objective non-interactive`.
   - refus `blocked`: `objective not active` / `run already finished`.
   - type + timer exposes dans le snapshot via `objective_interaction_feedback_*`.
+- Feedback visuel gate v148 (runtime):
+  - `ready`: halo objectif visible et pulse leger quand `E` est disponible.
+  - `flash success`: flash court apres interaction reussie.
+  - `cooldown` / `unavailable`: halo plus neutre.
+  - `inactive`: retour au rendu gate normal hors objectif actif.
+  - etats exposes: `support_gate_visual_state`, `support_gate_visual_label`.
 - Succès:
   - objectif `completed` quand le nombre requis d'actions est atteint avant timeout.
 - Echec:
   - `too_many_deaths`, `interaction_timeout` ou `gate_unstable_too_long`.
 - HUD:
   - mode `player`: ligne compacte `E: stabilize gate` + compteur `X/N`.
-  - mode `debug`: compteurs interaction, disponibilite et cooldown.
+  - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
 
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
