@@ -299,6 +299,11 @@ Passerelles runtime (ordre de chargement) :
   - `objective_interaction_feedback_label`
   - `objective_interaction_feedback_type`
   - `objective_interaction_feedback_timer`
+  - `champion_support_available`
+  - `champion_support_candidate_count`
+  - `champion_support_target_label`
+  - `champion_support_progress_label`
+  - `champion_support_debug_label`
 - HUD:
   - mode `player`: `Objective: ...` + `Goal: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
   - mode `debug`: details `objective_id`, `objective_category`, `objective_config_label`, status/faction/switch/fail reason.
@@ -323,7 +328,7 @@ Passerelles runtime (ordre de chargement) :
   - succes: `Gate support accepted`.
   - succes champion: `Champion support accepted`.
   - refus `cooldown`: `cooldown 0.xs`.
-  - refus `unavailable`: `gate unavailable` / `champion unavailable` / `objective non-interactive`.
+  - refus `unavailable`: `gate unavailable` / `champion unavailable: no champion available` / `objective non-interactive`.
   - refus `blocked`: `objective not active` / `run already finished`.
   - type + timer exposes dans le snapshot via `objective_interaction_feedback_*`.
 - Feedback visuel gate v148 (runtime):
@@ -338,7 +343,15 @@ Passerelles runtime (ordre de chargement) :
   - `too_many_deaths`, `interaction_timeout` ou `gate_unstable_too_long`.
 - HUD:
   - mode `player`: ligne compacte `E: stabilize gate` ou `E: support champion` + compteur `X/N`.
+  - mode `player` (rally_champion actif): `Champion: <target|none>` + `E: support champion` + `Support: X/N`.
   - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
+  - mode `debug` (rally_champion actif): `Champion support: available=... candidates=... target=...` + `Champion support debug: ...`.
+- Champs debug rally_champion:
+  - `champion_support_available` = objectif actif + au moins un champion vivant detecte.
+  - `champion_support_candidate_count` = nombre de champions vivants eligibles.
+  - `champion_support_target_label` = cible courante (ou `none`).
+  - `champion_support_progress_label` = progression support `X/N`.
+  - `champion_support_debug_label` = raison courte (`ready`, `cooldown`, `no champion available`, `run already finished`, etc.).
 - Metriques/export avances:
   - restent centres sur `support_gate` pour l'instant (v149-v152), afin de garder un tuning borne.
 

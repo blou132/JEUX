@@ -1031,6 +1031,17 @@ func _build_objective_panel_lines(
     var objective_interaction_label: String = str(snapshot.get("objective_interaction_label", "")).strip_edges()
     var objective_interaction_available: bool = bool(snapshot.get("objective_interaction_available", false))
     var objective_interaction_cooldown: float = float(snapshot.get("objective_interaction_cooldown", 0.0))
+    var champion_support_available: bool = bool(snapshot.get("champion_support_available", false))
+    var champion_support_candidate_count: int = int(snapshot.get("champion_support_candidate_count", 0))
+    var champion_support_target_label: String = str(
+        snapshot.get("champion_support_target_label", "none")
+    ).strip_edges()
+    var champion_support_progress_label: String = str(
+        snapshot.get("champion_support_progress_label", "0/0 supports")
+    ).strip_edges()
+    var champion_support_debug_label: String = str(
+        snapshot.get("champion_support_debug_label", "inactive")
+    ).strip_edges()
     var objective_has_interaction: bool = objective_interaction_required > 0
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var lines: Array[String] = []
@@ -1058,15 +1069,20 @@ func _build_objective_panel_lines(
         lines.append("Progress: %s" % objective_progress_label)
         lines.append("Status: %s" % objective_status)
         if objective_has_interaction and objective_interaction_label != "":
+            if objective_id == "rally_champion":
+                lines.append("Champion: %s" % champion_support_target_label)
             lines.append("%s" % objective_interaction_label)
-            lines.append(
-                "Support: %d/%d (%s)"
-                % [
-                    objective_interaction_count,
-                    objective_interaction_required,
-                    "ready" if objective_interaction_available else "wait"
-                ]
-            )
+            if objective_id == "rally_champion":
+                lines.append("Support: %s" % champion_support_progress_label)
+            else:
+                lines.append(
+                    "Support: %d/%d (%s)"
+                    % [
+                        objective_interaction_count,
+                        objective_interaction_required,
+                        "ready" if objective_interaction_available else "wait"
+                    ]
+                )
         if objective_status == "failed" and objective_fail_reason != "":
             lines.append("Fail reason: %s" % objective_fail_reason)
         elif objective_result_label != "":
@@ -1132,6 +1148,19 @@ func _build_objective_panel_lines(
                 "yes" if objective_interaction_available else "no",
                 objective_interaction_cooldown
             ]
+        )
+    if objective_id == "rally_champion":
+        lines.append(
+            "Champion support: available=%s candidates=%d target=%s"
+            % [
+                "yes" if champion_support_available else "no",
+                champion_support_candidate_count,
+                champion_support_target_label if champion_support_target_label != "" else "none"
+            ]
+        )
+        lines.append(
+            "Champion support debug: %s"
+            % (champion_support_debug_label if champion_support_debug_label != "" else "inactive")
         )
     if objective_status == "failed" and objective_fail_reason != "":
         lines.append("Objective fail reason: %s" % objective_fail_reason)

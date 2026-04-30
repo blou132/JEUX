@@ -894,6 +894,77 @@ func _get_alive_champion_counts() -> Dictionary:
 	}
 
 
+func _resolve_champion_support_candidates() -> Dictionary:
+	var candidate_count: int = 0
+	var human_count: int = 0
+	var monster_count: int = 0
+	var target: Actor = null
+	var target_score: float = -1000000.0
+	for actor in actors:
+		if actor == null or actor.is_dead or not actor.is_champion:
+			continue
+		candidate_count += 1
+		if actor.faction == "human":
+			human_count += 1
+		elif actor.faction == "monster":
+			monster_count += 1
+		var actor_score: float = float(actor.renown) + float(actor.notoriety) * 0.35 + float(actor.level) * 2.0
+		if target == null or actor_score > target_score:
+			target = actor
+			target_score = actor_score
+
+	var target_label: String = "none"
+	if target != null:
+		target_label = _actor_label(target)
+	return {
+		"candidate_count": candidate_count,
+		"human_count": human_count,
+		"monster_count": monster_count,
+		"target_label": target_label
+	}
+
+
+func _build_champion_support_observability() -> Dictionary:
+	var progress_label: String = (
+		"%d/%d supports"
+		% [world_objective_interaction_count, max(1, world_objective_interaction_required)]
+	)
+	var default_payload: Dictionary = {
+		"champion_support_available": false,
+		"champion_support_candidate_count": 0,
+		"champion_support_target_label": "none",
+		"champion_support_progress_label": progress_label,
+		"champion_support_debug_label": "inactive"
+	}
+	if world_objective_id != WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		return default_payload
+
+	var candidates: Dictionary = _resolve_champion_support_candidates()
+	var candidate_count: int = int(candidates.get("candidate_count", 0))
+	var target_label: String = str(candidates.get("target_label", "none"))
+	var is_objective_active: bool = world_objective_status == "active"
+	var champion_support_available: bool = is_objective_active and candidate_count > 0
+	var debug_label: String = "ready"
+	if run_status in ["completed", "failed"]:
+		debug_label = "run already finished"
+	elif not is_objective_active:
+		debug_label = "objective not active"
+	elif candidate_count <= 0:
+		debug_label = "no champion available"
+	elif world_objective_interaction_count >= world_objective_interaction_required and world_objective_interaction_required > 0:
+		debug_label = "support complete"
+	elif elapsed_time < world_objective_interaction_next_allowed_time:
+		debug_label = "cooldown %.1fs" % max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+
+	return {
+		"champion_support_available": champion_support_available,
+		"champion_support_candidate_count": candidate_count,
+		"champion_support_target_label": target_label,
+		"champion_support_progress_label": progress_label,
+		"champion_support_debug_label": debug_label
+	}
+
+
 func _resolve_support_gate_visual_state() -> Dictionary:
 	var is_support_gate_objective: bool = world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
 	var is_support_gate_active: bool = (
@@ -1255,11 +1326,11 @@ func _trigger_support_gate_objective_interaction() -> bool:
 
 
 func _trigger_champion_support_objective_interaction() -> bool:
-	var champion_counts: Dictionary = _get_alive_champion_counts()
-	var champion_alive_total: int = int(champion_counts.get("alive_total", 0))
-	if champion_alive_total <= 0:
+	var champion_support_runtime: Dictionary = _build_champion_support_observability()
+	var champion_candidates: int = int(champion_support_runtime.get("champion_support_candidate_count", 0))
+	if champion_candidates <= 0:
 		world_objective_interaction_available = false
-		_set_objective_interaction_feedback("champion unavailable", "unavailable", 1.8)
+		_set_objective_interaction_feedback("champion unavailable: no champion available", "unavailable", 1.8)
 		return false
 	if elapsed_time < world_objective_interaction_next_allowed_time:
 		world_objective_interaction_available = false
@@ -2100,10 +2171,10 @@ func _update_objective_champion_support(delta: float) -> void:
 	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	world_objective_dominant_faction = _compute_objective_dominant_faction(poi_runtime_snapshot)
 
-	var champion_counts: Dictionary = _get_alive_champion_counts()
-	var champion_alive_total: int = int(champion_counts.get("alive_total", 0))
-	var champion_human_total: int = int(champion_counts.get("human_total", 0))
-	var champion_monster_total: int = int(champion_counts.get("monster_total", 0))
+	var champion_candidates: Dictionary = _resolve_champion_support_candidates()
+	var champion_alive_total: int = int(champion_candidates.get("candidate_count", 0))
+	var champion_human_total: int = int(champion_candidates.get("human_count", 0))
+	var champion_monster_total: int = int(champion_candidates.get("monster_count", 0))
 	if champion_human_total > champion_monster_total:
 		world_objective_dominant_faction = "human"
 	elif champion_monster_total > champion_human_total:
@@ -10523,6 +10594,7 @@ func _build_snapshot() -> Dictionary:
 		monsters_alive
 	)
 	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
+	var champion_support_observability: Dictionary = _build_champion_support_observability()
 	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
 	var objective_available_count: int = world_objective_available_ids.size()
 
@@ -10595,6 +10667,21 @@ func _build_snapshot() -> Dictionary:
 		"objective_interaction_feedback_label": world_objective_interaction_feedback_label,
 		"objective_interaction_feedback_type": world_objective_interaction_feedback_type,
 		"objective_interaction_feedback_timer": world_objective_interaction_feedback_timer,
+		"champion_support_available": bool(
+			champion_support_observability.get("champion_support_available", false)
+		),
+		"champion_support_candidate_count": int(
+			champion_support_observability.get("champion_support_candidate_count", 0)
+		),
+		"champion_support_target_label": str(
+			champion_support_observability.get("champion_support_target_label", "none")
+		),
+		"champion_support_progress_label": str(
+			champion_support_observability.get("champion_support_progress_label", "0/0 supports")
+		),
+		"champion_support_debug_label": str(
+			champion_support_observability.get("champion_support_debug_label", "inactive")
+		),
 		"support_gate_visual_state": support_gate_visual_state,
 		"support_gate_visual_label": support_gate_visual_label,
 		"support_gate_attempts_total": int(support_gate_tuning.get("support_gate_attempts_total", 0)),
