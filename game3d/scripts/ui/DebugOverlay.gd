@@ -128,27 +128,6 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
-    var objective_active: bool = bool(snapshot.get("objective_active", false))
-    var objective_id: String = str(snapshot.get("objective_id", ""))
-    var objective_title: String = str(snapshot.get("objective_title", "World objective"))
-    var objective_description: String = str(snapshot.get("objective_description", ""))
-    var objective_category: String = str(snapshot.get("objective_category", ""))
-    var objective_config_label: String = str(snapshot.get("objective_config_label", ""))
-    var objective_available_ids: Array = snapshot.get("objective_available_ids", [])
-    var objective_selected_index: int = int(snapshot.get("objective_selected_index", -1))
-    var objective_available_count: int = int(
-        snapshot.get("objective_available_count", objective_available_ids.size())
-    )
-    var objective_completion_target_label: String = str(snapshot.get("objective_completion_target_label", ""))
-    var objective_status: String = str(snapshot.get("objective_status", "inactive"))
-    var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
-    var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
-    var objective_required: float = float(snapshot.get("objective_required", 0.0))
-    var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", ""))
-    var objective_dominant_faction: String = str(snapshot.get("objective_dominant_faction", ""))
-    var objective_switch_count: int = int(snapshot.get("objective_switch_count", 0))
-    var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
-    var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -593,36 +572,6 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         )
     )
     lines.append(
-        "Objective: %s | id=%s | type=%s | active=%s | status=%s | faction=%s | switches=%d"
-        % [
-            objective_title,
-            objective_id if objective_id != "" else "(none)",
-            objective_category if objective_category != "" else "(none)",
-            "yes" if objective_active else "no",
-            objective_status,
-            objective_dominant_faction if objective_dominant_faction != "" else "none",
-            objective_switch_count
-        ]
-    )
-    if objective_description != "":
-        lines.append("Objective description: %s" % objective_description)
-    if objective_config_label != "":
-        lines.append("Objective config: %s" % objective_config_label)
-    if objective_completion_target_label != "":
-        lines.append("Objective target: %s" % objective_completion_target_label)
-    if not objective_available_ids.is_empty():
-        lines.append("Objective available: %s" % ", ".join(objective_available_ids))
-    if objective_available_count > 0 and objective_selected_index >= 0:
-        lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
-    lines.append(
-        "Objective progress: %.2f | %.1fs/%.1fs | %s"
-        % [objective_progress, objective_elapsed, objective_required, objective_progress_label]
-    )
-    if objective_fail_reason != "":
-        lines.append("Objective fail reason: %s" % objective_fail_reason)
-    if objective_result_label != "":
-        lines.append("Objective result: %s" % objective_result_label)
-    lines.append(
         "Run status: %s | result_visible=%s"
         % [run_status, "yes" if run_result_visible else "no"]
     )
@@ -631,6 +580,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         for panel_line in _build_run_result_panel_lines(snapshot, 4):
             lines.append(panel_line)
         lines.append("--- End Run Result Panel ---")
+    for objective_panel_line in _build_objective_panel_lines(snapshot, OVERLAY_MODE_DEBUG):
+        lines.append(objective_panel_line)
     lines.append("%s:" % run_summary_title)
     if run_summary_lines.is_empty():
         lines.append("- (none)")
@@ -957,6 +908,116 @@ func _build_help_panel_lines(snapshot: Dictionary) -> Array[String]:
     ]
 
 
+func _build_objective_panel_lines(
+    snapshot: Dictionary,
+    mode: String = OVERLAY_MODE_PLAYER
+) -> Array[String]:
+    var normalized_mode: String = mode.strip_edges().to_lower()
+    if normalized_mode == OVERLAY_MODE_OFF:
+        return []
+
+    var objective_active: bool = bool(snapshot.get("objective_active", false))
+    var objective_id: String = str(snapshot.get("objective_id", "")).strip_edges()
+    var objective_title: String = str(snapshot.get("objective_title", "World objective")).strip_edges()
+    var objective_description: String = str(snapshot.get("objective_description", "")).strip_edges()
+    var objective_category: String = str(snapshot.get("objective_category", "")).strip_edges()
+    var objective_config_label: String = str(snapshot.get("objective_config_label", "")).strip_edges()
+    var objective_available_ids: Array = snapshot.get("objective_available_ids", [])
+    var objective_selected_index: int = int(snapshot.get("objective_selected_index", -1))
+    var objective_available_count: int = int(
+        snapshot.get("objective_available_count", objective_available_ids.size())
+    )
+    var objective_completion_target_label: String = str(
+        snapshot.get("objective_completion_target_label", "")
+    ).strip_edges()
+    var objective_status: String = str(snapshot.get("objective_status", "inactive")).strip_edges()
+    var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%")).strip_edges()
+    var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
+    var objective_required: float = float(snapshot.get("objective_required", 0.0))
+    var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", "")).strip_edges()
+    var objective_dominant_faction: String = str(snapshot.get("objective_dominant_faction", "")).strip_edges()
+    var objective_switch_count: int = int(snapshot.get("objective_switch_count", 0))
+    var objective_result_label: String = str(snapshot.get("objective_result_label", "")).strip_edges()
+    var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
+    var lines: Array[String] = []
+
+    if normalized_mode == OVERLAY_MODE_PLAYER and run_result_visible:
+        lines.append(
+            "Objective Panel: %s | status=%s | progress=%s"
+            % [objective_title, objective_status if objective_status != "" else "inactive", objective_progress_label]
+        )
+        return lines
+
+    if normalized_mode == OVERLAY_MODE_PLAYER:
+        lines.append("------------ Objective Panel ------------")
+        lines.append("Objective: %s" % objective_title)
+        if objective_description != "":
+            lines.append("Goal: %s" % objective_description)
+        if objective_completion_target_label != "":
+            lines.append("Target: %s" % objective_completion_target_label)
+        lines.append("Progress: %s" % objective_progress_label)
+        lines.append("Status: %s" % objective_status)
+        if objective_status == "failed" and objective_fail_reason != "":
+            lines.append("Fail reason: %s" % objective_fail_reason)
+        elif objective_result_label != "":
+            lines.append("Result: %s" % objective_result_label)
+
+        while lines.size() > 7:
+            var removable_index: int = -1
+            for index in range(lines.size()):
+                var line: String = str(lines[index])
+                if line.begins_with("Goal:"):
+                    removable_index = index
+                    break
+                if removable_index == -1 and line.begins_with("Target:"):
+                    removable_index = index
+            if removable_index == -1:
+                lines.remove_at(lines.size() - 1)
+            else:
+                lines.remove_at(removable_index)
+        return lines
+
+    lines.append("------------ Objective Panel ------------")
+    lines.append("Objective: %s" % objective_title)
+    lines.append(
+        "Objective status: %s | active=%s"
+        % [objective_status if objective_status != "" else "inactive", "yes" if objective_active else "no"]
+    )
+    lines.append(
+        "Objective id/category: %s / %s"
+        % [
+            objective_id if objective_id != "" else "(none)",
+            objective_category if objective_category != "" else "(none)"
+        ]
+    )
+    lines.append(
+        "Objective dominance: faction=%s switches=%d"
+        % [
+            objective_dominant_faction if objective_dominant_faction != "" else "none",
+            objective_switch_count
+        ]
+    )
+    if objective_description != "":
+        lines.append("Objective description: %s" % objective_description)
+    if objective_completion_target_label != "":
+        lines.append("Objective target: %s" % objective_completion_target_label)
+    lines.append(
+        "Objective progress: %s (%.1fs/%.1fs)"
+        % [objective_progress_label, objective_elapsed, objective_required]
+    )
+    if objective_available_count > 0 and objective_selected_index >= 0:
+        lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
+    if not objective_available_ids.is_empty():
+        lines.append("Objective available: %s" % ", ".join(objective_available_ids))
+    if objective_config_label != "":
+        lines.append("Objective config: %s" % objective_config_label)
+    if objective_status == "failed" and objective_fail_reason != "":
+        lines.append("Objective fail reason: %s" % objective_fail_reason)
+    if objective_result_label != "":
+        lines.append("Objective result: %s" % objective_result_label)
+    return lines
+
+
 func _build_run_result_panel_lines(
     snapshot: Dictionary,
     max_result_lines: int = 4
@@ -1007,12 +1068,6 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var dominant_doctrine: String = str(snapshot.get("dominant_doctrine", "")).strip_edges()
     var run_status: String = str(snapshot.get("run_status", "running"))
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
-    var objective_title: String = str(snapshot.get("objective_title", "World objective"))
-    var objective_description: String = str(snapshot.get("objective_description", ""))
-    var objective_status: String = str(snapshot.get("objective_status", "inactive"))
-    var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
-    var objective_fail_reason: String = str(snapshot.get("objective_fail_reason", ""))
-    var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
 
@@ -1023,6 +1078,11 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     if _help_panel_visible:
         for help_panel_line in _build_help_panel_lines(snapshot):
             lines.append(help_panel_line)
+        lines.append("")
+    var objective_panel_lines: Array[String] = _build_objective_panel_lines(snapshot, OVERLAY_MODE_PLAYER)
+    if not objective_panel_lines.is_empty():
+        for objective_panel_line in objective_panel_lines:
+            lines.append(objective_panel_line)
         lines.append("")
 
     lines.append("HUD player | tick=%d t=%.0fs" % [tick, sim_time])
@@ -1046,14 +1106,6 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
     for help_line in _build_controls_help_lines(_overlay_mode, run_status, run_result_visible):
         lines.append(help_line)
-    lines.append("Objective: %s (%s)" % [objective_title, objective_status])
-    if objective_description != "":
-        lines.append("Goal: %s" % objective_description)
-    lines.append("Progress: %s" % objective_progress_label)
-    if objective_status == "failed" and objective_fail_reason != "":
-        lines.append("Fail reason: %s" % objective_fail_reason)
-    if objective_result_label != "":
-        lines.append("Result: %s" % objective_result_label)
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():
         lines.append("- (none)")

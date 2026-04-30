@@ -288,6 +288,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("pagedown", content)
         self.assertIn("help panel", content)
         self.assertIn("f2", content)
+        self.assertIn("objective panel", content)
 
     def test_magic_system_has_second_spell(self):
         content = (GAME3D / "scripts" / "magic" / "MagicSystem.gd").read_text(encoding="utf-8")
@@ -403,6 +404,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("var _help_panel_visible: bool", content)
         self.assertIn("func toggle_help_panel", content)
         self.assertIn("func _build_help_panel_lines", content)
+        self.assertIn("func _build_objective_panel_lines", content)
         self.assertIn("func _build_run_result_panel_lines", content)
         self.assertIn("_build_player_overlay_lines", content)
         self.assertIn("func _build_controls_help_lines", content)
@@ -418,6 +420,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("RUN COMPLETED", content)
         self.assertIn("RUN FAILED", content)
         self.assertIn("====================", content)
+        self.assertIn("Objective Panel", content)
         self.assertIn("HUD player", content)
         self.assertIn("Objective:", content)
         self.assertIn("Goal:", content)
@@ -425,6 +428,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("Objective description:", content)
         self.assertIn("Objective config:", content)
         self.assertIn("Objective target:", content)
+        self.assertIn("Objective status:", content)
         self.assertIn("Objective available:", content)
         self.assertIn("Objective fail reason:", content)
         self.assertIn("Objective result:", content)

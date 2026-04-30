@@ -345,6 +345,20 @@ Passerelles runtime (ordre de chargement) :
 - `observe_dominance` reste l'objectif par defaut au lancement.
 - Le changement enregistre un evenement timeline `objective_selected`, puis relance proprement l'objectif choisi.
 
+## Objective panel
+- v144 ajoute un **objective panel** compact dans le HUD, sans refonte UI.
+- Mode `player`:
+  - panneau court proche du haut,
+  - infos lisibles: titre, goal/target, progress, status,
+  - fail reason ou result si pertinent.
+- Mode `debug`:
+  - panneau plus detaille avec `objective_id`, `objective_category`, `objective_config_label`,
+  - index de selection (`objective_selected_index`) et nombre d'objectifs (`objective_available_count`),
+  - rappel des valeurs target/progress/status/fail/result.
+- Priorite:
+  - si `run_result_visible=true`, le result panel reste prioritaire,
+  - l'objective panel reste affiche juste apres (ou en version reduite cote player).
+
 ## Help panel
 - v143 ajoute un panneau d'aide compact dans `DebugOverlay`, sans menu complet.
 - Affichage/masquage:
