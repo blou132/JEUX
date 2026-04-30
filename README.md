@@ -242,6 +242,29 @@ Passerelles runtime (ordre de chargement) :
   - la **timeline** liste les evenements majeurs recents dans l'ordre temporel,
   - le **resume** condense l'etat global de la run en 3 a 6 lignes lisibles.
 
+## World objective
+- Un premier objectif monde leger est expose par `GameLoop`:
+  - `observe_dominance`
+  - objectif: observer quelle faction garde la dominance de la carte pendant une courte duree.
+- Etats exposes:
+  - `inactive`
+  - `active`
+  - `completed`
+  - `failed`
+- Champs snapshot:
+  - `objective_active`
+  - `objective_id`
+  - `objective_title`
+  - `objective_status`
+  - `objective_progress`
+  - `objective_progress_label`
+  - `objective_result_label`
+- Timeline narrative:
+  - `objective_started`
+  - `objective_completed`
+  - `objective_failed`
+- Ce world objective est un repere lisible pour le joueur et **ne remplace pas** le sandbox emergent.
+
 ## HUD modes
 - `DebugOverlay` supporte trois modes:
   - `debug` : affichage complet (doctrines, timeline, run summary, projets, vendettas, systemes internes) pour le developpement.

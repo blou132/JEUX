@@ -4,6 +4,10 @@ class_name GameLoop
 const TICK_RATE: float = 8.0
 const MAX_EVENT_LOG: int = 14
 const MAX_MAJOR_EVENT_TIMELINE: int = 30
+const WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE: String = "observe_dominance"
+const WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS: float = 30.0
+const WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
+const WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES: int = 7
 const XP_ON_HIT: float = 1.5
 const XP_ON_CAST: float = 0.75
 const XP_ON_KILL: float = 5.0
@@ -558,6 +562,17 @@ var _memorial_scar_sites_root: Node3D = null
 
 var event_log: Array[String] = []
 var major_event_timeline: Array[Dictionary] = []
+var world_objective_active: bool = false
+var world_objective_id: String = ""
+var world_objective_title: String = ""
+var world_objective_status: String = "inactive"
+var world_objective_progress: float = 0.0
+var world_objective_progress_label: String = "0%"
+var world_objective_result_label: String = ""
+var world_objective_dominant_faction: String = ""
+var world_objective_dominance_hold_seconds: float = 0.0
+var world_objective_dominance_switches: int = 0
+var world_objective_start_deaths_total: int = 0
 
 
 func _ready() -> void:
@@ -585,6 +600,7 @@ func _ready() -> void:
 	sandbox_systems.setup(self, world_manager, entities_root)
 	_load_creature_profiles_data()
 	sandbox_systems.spawn_initial_population(actors)
+	_setup_world_objective()
 	record_event("Sandbox boot complete.")
 
 
@@ -712,6 +728,7 @@ func _tick(delta: float) -> void:
 	_update_splinters(delta)
 	magic_system.tick_projectiles(delta, actors, self)
 	_update_poi_runtime()
+	_update_world_objective(delta)
 	_update_actor_allegiances()
 	_update_allegiance_crisis_runtime(delta)
 	_update_allegiance_recovery_runtime(delta)
@@ -738,6 +755,142 @@ func _tick(delta: float) -> void:
 	sandbox_systems.tick_systems(delta, actors, self)
 
 	debug_overlay.update_overlay(_build_snapshot(), event_log)
+
+
+func _setup_world_objective() -> void:
+	world_objective_active = true
+	world_objective_id = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE
+	world_objective_title = "Observe map dominance"
+	world_objective_status = "active"
+	world_objective_progress = 0.0
+	world_objective_progress_label = "0/%.0fs (0%%) faction=none" % WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS
+	world_objective_result_label = ""
+	world_objective_dominant_faction = ""
+	world_objective_dominance_hold_seconds = 0.0
+	world_objective_dominance_switches = 0
+	world_objective_start_deaths_total = deaths_total
+	record_event(
+		"Objective START: %s (hold a faction dominance for %.0fs)."
+		% [world_objective_id, WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS]
+	)
+	_record_major_event(
+		"objective_started",
+		"Objective START: %s" % world_objective_id
+	)
+
+
+func _compute_objective_dominant_faction(poi_runtime_snapshot: Dictionary) -> String:
+	var human_dominant_poi: int = 0
+	var monster_dominant_poi: int = 0
+	for poi_name in poi_runtime_snapshot.keys():
+		var details_variant: Variant = poi_runtime_snapshot.get(poi_name, {})
+		if typeof(details_variant) != TYPE_DICTIONARY:
+			continue
+		var details: Dictionary = details_variant
+		var status: String = str(details.get("status", "calm"))
+		if status == "human_dominant":
+			human_dominant_poi += 1
+		elif status == "monster_dominant":
+			monster_dominant_poi += 1
+
+	if human_dominant_poi > monster_dominant_poi:
+		return "human"
+	if monster_dominant_poi > human_dominant_poi:
+		return "monster"
+	return ""
+
+
+func _update_world_objective(delta: float) -> void:
+	if world_objective_id != WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE:
+		return
+	if not world_objective_active:
+		return
+	if world_objective_status != "active":
+		return
+
+	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot(actors)
+	var dominant_faction: String = _compute_objective_dominant_faction(poi_runtime_snapshot)
+	if dominant_faction != "":
+		if world_objective_dominant_faction != "" and dominant_faction != world_objective_dominant_faction:
+			world_objective_dominance_switches += 1
+			world_objective_dominance_hold_seconds = 0.0
+		if dominant_faction == world_objective_dominant_faction:
+			world_objective_dominance_hold_seconds += delta
+		else:
+			world_objective_dominant_faction = dominant_faction
+			world_objective_dominance_hold_seconds = max(delta, 0.0)
+	else:
+		world_objective_dominance_hold_seconds = max(0.0, world_objective_dominance_hold_seconds - delta * 0.55)
+
+	world_objective_progress = clampf(
+		world_objective_dominance_hold_seconds / WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
+		0.0,
+		1.0
+	)
+	var progress_percent: int = int(round(world_objective_progress * 100.0))
+	var faction_label: String = world_objective_dominant_faction if world_objective_dominant_faction != "" else "none"
+	world_objective_progress_label = (
+		"%.0f/%.0fs (%d%%) faction=%s"
+		% [
+			world_objective_dominance_hold_seconds,
+			WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
+			progress_percent,
+			faction_label
+		]
+	)
+
+	var deaths_since_start: int = max(0, deaths_total - world_objective_start_deaths_total)
+	if deaths_since_start >= WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD:
+		world_objective_active = false
+		world_objective_status = "failed"
+		world_objective_result_label = (
+			"Failed: too many deaths (%d/%d)."
+			% [deaths_since_start, WORLD_OBJECTIVE_FAIL_DEATHS_THRESHOLD]
+		)
+		record_event("Objective FAILED: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_failed",
+			"Objective FAILED: deaths overload"
+		)
+		return
+
+	if world_objective_dominance_switches >= WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES:
+		world_objective_active = false
+		world_objective_status = "failed"
+		world_objective_result_label = (
+			"Failed: unstable dominance (switches %d/%d)."
+			% [world_objective_dominance_switches, WORLD_OBJECTIVE_FAIL_DOMINANCE_SWITCHES]
+		)
+		record_event("Objective FAILED: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_failed",
+			"Objective FAILED: unstable dominance"
+		)
+		return
+
+	if world_objective_dominance_hold_seconds >= WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS:
+		world_objective_active = false
+		world_objective_status = "completed"
+		world_objective_progress = 1.0
+		world_objective_progress_label = (
+			"%.0f/%.0fs (100%%) faction=%s"
+			% [
+				WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
+				WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS,
+				world_objective_dominant_faction
+			]
+		)
+		var completed_label: String = "Humans" if world_objective_dominant_faction == "human" else "Monsters"
+		world_objective_result_label = (
+			"Completed: %s held dominance for %.0fs."
+			% [completed_label, WORLD_OBJECTIVE_DOMINANCE_TARGET_SECONDS]
+		)
+		record_event("Objective COMPLETE: %s" % world_objective_result_label)
+		_record_major_event(
+			"objective_completed",
+			"Objective COMPLETE: %s dominance" % world_objective_dominant_faction,
+			world_objective_dominant_faction
+		)
 
 
 func register_spawn(actor: Actor) -> void:
@@ -9069,6 +9222,13 @@ func _build_snapshot() -> Dictionary:
 		"run_summary_lines": run_summary.get("run_summary_lines", []),
 		"dominant_faction": str(run_summary.get("dominant_faction", "neutral")),
 		"dominant_doctrine": str(run_summary.get("dominant_doctrine", "")),
+		"objective_active": world_objective_active,
+		"objective_id": world_objective_id,
+		"objective_title": world_objective_title,
+		"objective_status": world_objective_status,
+		"objective_progress": world_objective_progress,
+		"objective_progress_label": world_objective_progress_label,
+		"objective_result_label": world_objective_result_label,
 		"major_event_count": int(run_summary.get("major_event_count", 0)),
 		"project_count": int(run_summary.get("project_count", 0)),
 		"vendetta_count": int(run_summary.get("vendetta_count", 0)),

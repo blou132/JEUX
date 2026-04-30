@@ -118,6 +118,13 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var last_major_event_label: String = str(snapshot.get("last_major_event_label", "(none)"))
     var run_summary_title: String = str(snapshot.get("run_summary_title", "Run Summary"))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
+    var objective_active: bool = bool(snapshot.get("objective_active", false))
+    var objective_id: String = str(snapshot.get("objective_id", ""))
+    var objective_title: String = str(snapshot.get("objective_title", "World objective"))
+    var objective_status: String = str(snapshot.get("objective_status", "inactive"))
+    var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
+    var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
+    var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var allegiance_doctrine_fallback_labels: Array = snapshot.get("allegiance_doctrine_fallback_labels", [])
     var allegiance_doctrine_fallback_used_count: int = int(
         snapshot.get("allegiance_doctrine_fallback_used_count", 0)
@@ -558,6 +565,21 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             else "(none)"
         )
     )
+    lines.append(
+        "Objective: %s | id=%s | active=%s | status=%s"
+        % [
+            objective_title,
+            objective_id if objective_id != "" else "(none)",
+            "yes" if objective_active else "no",
+            objective_status
+        ]
+    )
+    lines.append(
+        "Objective progress: %.2f | %s"
+        % [objective_progress, objective_progress_label]
+    )
+    if objective_result_label != "":
+        lines.append("Objective result: %s" % objective_result_label)
     lines.append("%s:" % run_summary_title)
     if run_summary_lines.is_empty():
         lines.append("- (none)")
@@ -857,6 +879,10 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var dominant_faction: String = str(snapshot.get("dominant_faction", "neutral"))
     var dominant_doctrine: String = str(snapshot.get("dominant_doctrine", "")).strip_edges()
+    var objective_title: String = str(snapshot.get("objective_title", "World objective"))
+    var objective_status: String = str(snapshot.get("objective_status", "inactive"))
+    var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%"))
+    var objective_result_label: String = str(snapshot.get("objective_result_label", ""))
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
 
@@ -881,6 +907,10 @@ func _build_player_overlay_lines(snapshot: Dictionary) -> Array[String]:
     lines.append("Dominance: faction=%s doctrine=%s" % [faction_label, doctrine_label])
     for help_line in _build_controls_help_lines(_overlay_mode):
         lines.append(help_line)
+    lines.append("Objective: %s (%s)" % [objective_title, objective_status])
+    lines.append("Progress: %s" % objective_progress_label)
+    if objective_result_label != "":
+        lines.append("Result: %s" % objective_result_label)
 
     lines.append("Run Summary:")
     if run_summary_lines.is_empty():
