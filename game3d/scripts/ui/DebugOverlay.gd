@@ -128,6 +128,8 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var objective_description: String = str(snapshot.get("objective_description", ""))
     var objective_category: String = str(snapshot.get("objective_category", ""))
     var objective_config_label: String = str(snapshot.get("objective_config_label", ""))
+    var objective_available_ids: Array = snapshot.get("objective_available_ids", [])
+    var objective_completion_target_label: String = str(snapshot.get("objective_completion_target_label", ""))
     var objective_status: String = str(snapshot.get("objective_status", "inactive"))
     var objective_progress: float = float(snapshot.get("objective_progress", 0.0))
     var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
@@ -593,6 +595,10 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         lines.append("Objective description: %s" % objective_description)
     if objective_config_label != "":
         lines.append("Objective config: %s" % objective_config_label)
+    if objective_completion_target_label != "":
+        lines.append("Objective target: %s" % objective_completion_target_label)
+    if not objective_available_ids.is_empty():
+        lines.append("Objective available: %s" % ", ".join(objective_available_ids))
     lines.append(
         "Objective progress: %.2f | %.1fs/%.1fs | %s"
         % [objective_progress, objective_elapsed, objective_required, objective_progress_label]

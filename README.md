@@ -243,17 +243,20 @@ Passerelles runtime (ordre de chargement) :
   - le **resume** condense l'etat global de la run en 3 a 6 lignes lisibles.
 
 ## World objective
-- Un premier objectif monde leger est expose par `GameLoop`:
-  - `observe_dominance`
-  - objectif: observer quelle faction garde la dominance de la carte pendant une courte duree.
+- Les objectifs monde v140 disponibles (structure v139) sont:
+  - `observe_dominance` (categorie `dominance`): garder une faction dominante sur les POI pendant une duree cible.
+  - `survive_calamity` (categorie `survival`): survivre X secondes avec moins de Y morts sur la run.
+  - `watch_champion_rise` (categorie `champion`): observer au moins une promotion champion dans la fenetre de temps.
+- Par defaut, **observe_dominance reste l'objectif actif** au lancement.
 - v139 prepare une extension vers **plusieurs objectifs** via une definition interne legere:
   - `id`, `title`, `description`, `category`
   - `required_time`, `fail_deaths_threshold`, `fail_switch_threshold`
   - `status_labels` + `config_label`
 - Helpers:
   - `_get_world_objective_definition(objective_id: String) -> Dictionary`
+  - `_get_available_world_objective_ids() -> Array[String]`
   - `_setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DOMINANCE)`
-- Pour cette version, **seul observe_dominance est actif**.
+- Pour cette version, **observe_dominance reste l'objectif actif par defaut**.
 - Constantes centralisees:
   - `OBJECTIVE_DOMINANCE_REQUIRED_TIME` (duree de dominance requise)
   - `OBJECTIVE_FAIL_DEATHS_THRESHOLD` (echec si trop de morts)
@@ -275,6 +278,8 @@ Passerelles runtime (ordre de chargement) :
   - `objective_description`
   - `objective_category` (`objective_type` alias)
   - `objective_config_label`
+  - `objective_available_ids`
+  - `objective_completion_target_label`
   - `objective_status`
   - `objective_progress`
   - `objective_elapsed`
@@ -291,7 +296,7 @@ Passerelles runtime (ordre de chargement) :
   - `objective_started`
   - `objective_completed`
   - `objective_failed`
-- Ce world objective est un repere lisible pour le joueur et **ne remplace pas** le sandbox emergent.
+- Ce world objective est un repere lisible pour le joueur, reste **observation-only**, et **ne remplace pas** le sandbox emergent.
 
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
