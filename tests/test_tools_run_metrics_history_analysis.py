@@ -80,6 +80,13 @@ def _build_support_gate_rows(
     return rows
 
 
+def _run_summary_from_rows(rows: list[str]) -> dict:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = Path(tmpdir) / "run_metrics_history.jsonl"
+        _write_jsonl(input_path, rows)
+        return _run_summary_json(input_path)
+
+
 class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
     def test_valid_history_summary_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -332,6 +339,141 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             summary = _run_summary_json(input_path)
             self.assertIn("Support gate tuning looks stable.", summary["recommendations"])
 
+    def test_support_gate_stability_unknown(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "stability_unknown_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ]
+        )
+        support_gate = summary["support_gate"]
+        self.assertEqual(support_gate["support_gate_stability_label"], "unknown")
+        self.assertIsNone(support_gate["stddev_support_gate_run_success_rate"])
+        self.assertIsNone(support_gate["stddev_support_gate_run_available_ratio"])
+
+    def test_support_gate_stability_stable(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "stability_stable_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.45,
+                        "support_gate_run_available_ratio": 0.55,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_stable_2",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_stable_3",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.55,
+                        "support_gate_run_available_ratio": 0.45,
+                    }
+                ),
+            ]
+        )
+        self.assertEqual(summary["support_gate"]["support_gate_stability_label"], "stable")
+
+    def test_support_gate_stability_variable(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "stability_variable_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.20,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_variable_2",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_variable_3",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.80,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        self.assertEqual(summary["support_gate"]["support_gate_stability_label"], "variable")
+
+    def test_support_gate_stability_unstable_and_recommendation(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "stability_unstable_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.00,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_unstable_2",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "stability_unstable_3",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 1.00,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        self.assertEqual(summary["support_gate"]["support_gate_stability_label"], "unstable")
+        self.assertIn(
+            "Support gate results vary a lot: run more tests before changing tuning.",
+            summary["recommendations"],
+        )
+
     def test_text_output_includes_recommendations_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             input_path = Path(tmpdir) / "run_metrics_history.jsonl"
@@ -358,6 +500,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertIn("Recommendations:", result.stdout)
             self.assertIn("Support gate tuning looks stable.", result.stdout)
+            self.assertIn("Support gate stability:", result.stdout)
 
     def test_markdown_output_contains_expected_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -383,6 +526,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("# Run Metrics History Analysis", result.stdout)
             self.assertIn("## Support gate", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
+            self.assertIn("| support gate stability |", result.stdout)
 
     def test_output_option_writes_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

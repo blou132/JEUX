@@ -436,6 +436,14 @@ python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history
   - l'outil ajoute des recommandations de tuning simples pour `support_gate` selon `available ratio`, `success rate`, et `objective success rate`.
   - exemples: augmenter la disponibilite gate, alleger cooldown/actions, ou durcir legerement l'objectif si trop facile.
   - ces recommandations sont des **heuristiques pratiques** de playtest, pas une verite absolue d'equilibrage.
+- stabilite `support_gate` par historique:
+  - le resume ajoute `stddev_support_gate_run_success_rate`, `stddev_support_gate_run_available_ratio` et `support_gate_stability_label`.
+  - `support_gate_stability_label` est derive d'une regle simple sur l'ecart-type du `success_rate`:
+    - `unknown`: pas assez de valeurs numeriques,
+    - `stable`: ecart-type < 0.12,
+    - `variable`: ecart-type >= 0.12,
+    - `unstable`: ecart-type >= 0.25.
+  - cette stabilite est une lecture simple de dispersion, pas une preuve statistique complete.
 - exemple rapport Markdown archive:
 ```bash
 py tools/analyze_run_metrics_history.py --input path/to/run_metrics_history.jsonl --format markdown --output reports/run_metrics_report.md
@@ -462,7 +470,7 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - `high`: les deux historiques ont 10 runs ou plus.
 - quand `confidence=low`, le rapport ajoute la note:
   - `Use more runs before trusting this comparison.`
-- cette conclusion reste **heuristique** (aide pratique de tuning), pas une analyse statistique formelle.
+- cette conclusion et la confidence restent **heuristiques** (aide pratique de tuning), sans test statistique avance.
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

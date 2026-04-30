@@ -13,11 +13,13 @@ COMPARISON_SUPPORT_GATE_METRICS = (
     "objective_success_rate",
     "avg_support_gate_run_attempts",
     "avg_support_gate_run_success",
+    "stddev_support_gate_run_success_rate",
 )
 COMPARISON_RATE_METRICS = {
     "avg_support_gate_run_success_rate",
     "avg_support_gate_run_available_ratio",
     "objective_success_rate",
+    "stddev_support_gate_run_success_rate",
 }
 COMPARISON_AVAILABLE_DROP_TOLERANCE = -0.05
 COMPARISON_STRONG_DROP_THRESHOLD = -0.10
@@ -117,12 +119,32 @@ def _average(values: list[float]) -> float | None:
     return float(sum(values) / len(values))
 
 
+def _stddev(values: list[float]) -> float | None:
+    if len(values) < 2:
+        return None
+    mean_value = float(sum(values) / len(values))
+    variance = float(sum((value - mean_value) ** 2 for value in values) / len(values))
+    return variance ** 0.5
+
+
+def _build_support_gate_stability_label(success_rate_values: list[float]) -> str:
+    stddev_success_rate = _stddev(success_rate_values)
+    if stddev_success_rate is None:
+        return "unknown"
+    if stddev_success_rate >= 0.25:
+        return "unstable"
+    if stddev_success_rate >= 0.12:
+        return "variable"
+    return "stable"
+
+
 def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
     support_gate = summary.get("support_gate", {})
     records = int(support_gate.get("records", 0))
     avg_available_ratio = _as_float(support_gate.get("avg_support_gate_run_available_ratio"))
     avg_success_rate = _as_float(support_gate.get("avg_support_gate_run_success_rate"))
     objective_success_rate = _as_float(support_gate.get("objective_success_rate"))
+    stability_label = str(support_gate.get("support_gate_stability_label", "")).strip().lower()
     invalid_lines = int(summary.get("invalid_lines", 0))
 
     recommendations: list[str] = []
@@ -155,6 +177,8 @@ def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
 
     if invalid_lines > 0:
         recommendations.append("Some input lines were ignored because they were invalid JSON records.")
+    if stability_label == "unstable":
+        recommendations.append("Support gate results vary a lot: run more tests before changing tuning.")
 
     return recommendations
 
@@ -189,11 +213,16 @@ def build_summary(
     success_values = [_as_float(record.get("support_gate_run_success")) for record in support_gate_records]
     success_rate_values = [_as_float(record.get("support_gate_run_success_rate")) for record in support_gate_records]
     available_rate_values = [_as_float(record.get("support_gate_run_available_ratio")) for record in support_gate_records]
+    success_rate_numeric_values = [value for value in success_rate_values if value is not None]
+    available_rate_numeric_values = [value for value in available_rate_values if value is not None]
 
     attempts_avg = _average([value for value in attempts_values if value is not None])
     success_avg = _average([value for value in success_values if value is not None])
-    success_rate_avg = _average([value for value in success_rate_values if value is not None])
-    available_rate_avg = _average([value for value in available_rate_values if value is not None])
+    success_rate_avg = _average(success_rate_numeric_values)
+    available_rate_avg = _average(available_rate_numeric_values)
+    success_rate_stddev = _stddev(success_rate_numeric_values)
+    available_rate_stddev = _stddev(available_rate_numeric_values)
+    support_gate_stability_label = _build_support_gate_stability_label(success_rate_numeric_values)
 
     support_gate_completed = 0
     support_gate_failed = 0
@@ -226,6 +255,9 @@ def build_summary(
             "avg_support_gate_run_success": success_avg,
             "avg_support_gate_run_success_rate": success_rate_avg,
             "avg_support_gate_run_available_ratio": available_rate_avg,
+            "stddev_support_gate_run_success_rate": success_rate_stddev,
+            "stddev_support_gate_run_available_ratio": available_rate_stddev,
+            "support_gate_stability_label": support_gate_stability_label,
             "best_run": _run_label(best_run),
             "worst_run": _run_label(worst_run),
             "objective_success_rate": objective_success_rate,
@@ -406,6 +438,10 @@ def format_summary_text(summary: dict[str, Any]) -> str:
             _pct(_as_float(support_gate.get("objective_success_rate"))),
         )
     )
+    lines.append(
+        "Support gate stability: %s"
+        % str(support_gate.get("support_gate_stability_label", "unknown"))
+    )
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -535,6 +571,18 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append(
         "| objective success rate | %s |"
         % _pct(_as_float(support_gate.get("objective_success_rate")))
+    )
+    lines.append(
+        "| stddev success rate | %s |"
+        % _pct(_as_float(support_gate.get("stddev_support_gate_run_success_rate")))
+    )
+    lines.append(
+        "| stddev available ratio | %s |"
+        % _pct(_as_float(support_gate.get("stddev_support_gate_run_available_ratio")))
+    )
+    lines.append(
+        "| support gate stability | %s |"
+        % str(support_gate.get("support_gate_stability_label", "unknown"))
     )
 
     lines.append("")
