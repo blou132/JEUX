@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "schema": "location_templates_v1",
+  "locations": [
+    {
+      "id": "camp",
+      "label": "Camp",
+      "kind": "camp",
+      "faction_affinity": "human",
+      "influence_radius": 8.0,
+      "alert_radius": 13.0,
+      "can_upgrade_to": "human_outpost",
+      "tags": [
+        "poi",
+        "anchor",
+        "human",
+        "upgrade_human_outpost"
+      ]
+    },
+    {
+      "id": "ruins",
+      "label": "Ruins",
+      "kind": "ruins",
+      "faction_affinity": "monster",
+      "influence_radius": 8.0,
+      "alert_radius": 13.0,
+      "can_upgrade_to": "monster_lair",
+      "tags": [
+        "poi",
+        "anchor",
+        "monster",
+        "upgrade_monster_lair"
+      ]
+    },
+    {
+      "id": "rift_gate",
+      "label": "Rift Gate",
+      "kind": "rift_gate",
+      "faction_affinity": "neutral",
+      "influence_radius": 7.2,
+      "alert_radius": 16.5,
+      "can_upgrade_to": "",
+      "tags": [
+        "poi",
+        "neutral",
+        "gate",
+        "volatile"
+      ]
+    }
+  ]
+}

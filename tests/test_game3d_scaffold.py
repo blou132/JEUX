@@ -93,16 +93,32 @@ class TestGame3DScaffold(unittest.TestCase):
         expected_ids = {"arcane_sigil", "oath_standard"}
         self.assertTrue(expected_ids.issubset(ids))
 
+    def test_location_templates_json_exists_and_has_expected_ids(self):
+        shared_path = ROOT / "shared_data" / "locations.json"
+        godot_path = GAME3D / "data" / "locations.json"
+        self.assertTrue(shared_path.exists(), f"Missing file: {shared_path}")
+        self.assertTrue(godot_path.exists(), f"Missing file: {godot_path}")
+
+        payload = json.loads(godot_path.read_text(encoding="utf-8"))
+        locations = payload.get("locations", [])
+        self.assertIsInstance(locations, list)
+
+        ids = {entry.get("id") for entry in locations if isinstance(entry, dict)}
+        expected_ids = {"camp", "ruins", "rift_gate"}
+        self.assertTrue(expected_ids.issubset(ids))
+
     def test_data_loader_is_hooked_in_game_loop(self):
         game_loop = (GAME3D / "scripts" / "core" / "GameLoop.gd").read_text(encoding="utf-8")
         self.assertIn("DataLoaderScript", game_loop)
         self.assertIn("_load_creature_profiles_data", game_loop)
         self.assertIn("_load_world_events_data", game_loop)
         self.assertIn("_load_faction_templates_data", game_loop)
+        self.assertIn("_load_location_templates_data", game_loop)
         self.assertIn("_load_relic_templates_data", game_loop)
         self.assertIn("DataLoader OK", game_loop)
         self.assertIn("DataLoader OK: world events", game_loop)
         self.assertIn("DataLoader OK: faction templates", game_loop)
+        self.assertIn("DataLoader OK: location templates", game_loop)
         self.assertIn("DataLoader OK: relic templates", game_loop)
 
         sandbox = (GAME3D / "scripts" / "sandbox" / "SandboxSystems.gd").read_text(encoding="utf-8")
@@ -114,6 +130,8 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("get_world_events", data_loader)
         self.assertIn("load_faction_templates", data_loader)
         self.assertIn("get_faction_templates", data_loader)
+        self.assertIn("load_location_templates", data_loader)
+        self.assertIn("get_location_templates", data_loader)
         self.assertIn("load_relic_templates", data_loader)
         self.assertIn("get_relic_templates", data_loader)
 
@@ -254,6 +272,7 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("allegiance_removed", content)
         self.assertIn("set_raid_pressure_modifiers", content)
         self.assertIn("set_world_event_visual", content)
+        self.assertIn("set_location_templates", content)
         self.assertIn("set_bounty_state", content)
         self.assertIn("get_bounty_guidance", content)
         self.assertIn("set_convergence_state", content)

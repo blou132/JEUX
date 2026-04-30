@@ -15,6 +15,7 @@ Flux de donnees cible :
 - Les world events runtime peuvent etre pilotes par `game3d/data/events.json` (`mana_surge`, `monster_frenzy`, `sanctuary_calm`).
 - Les templates de factions/allegiances peuvent etre pilotes par `game3d/data/factions.json` (`human_core`, `monster_core`).
 - Les templates de relics peuvent etre pilotes par `game3d/data/relics.json` (`arcane_sigil`, `oath_standard`).
+- Les templates de lieux/POI peuvent etre pilotes par `game3d/data/locations.json` (`camp`, `ruins`, `rift_gate`).
 
 La priorite est le gameplay 3D observable, pas l'ajout de micro-traits dans l'ancien simulateur.
 
@@ -176,6 +177,8 @@ Vous pouvez encore executer l'ancien simulateur et les scripts d'analyse si nece
 - Export/validation factions : `tools/export_faction_templates.py`
 - Templates relics : `shared_data/relics.json` -> `game3d/data/relics.json`
 - Export/validation relics : `tools/export_relic_templates.py`
+- Templates lieux/POI : `shared_data/locations.json` -> `game3d/data/locations.json`
+- Export/validation lieux/POI : `tools/export_location_templates.py`
 - Script de sync : `tools/sync_shared_to_godot.py`
 - Chargeur Godot : `game3d/scripts/data/DataLoader.gd`
 
@@ -184,6 +187,7 @@ Passerelles runtime (ordre de chargement) :
 - `events.json` : charge par `DataLoader.load_world_events()` puis utilise pour la rotation des world events.
 - `factions.json` : charge par `DataLoader.load_faction_templates()` puis injecte dans `WorldManager` (pools de doctrines + metadata template).
 - `relics.json` : charge par `DataLoader.load_relic_templates()` puis utilise par `GameLoop` (labels, eligibilite d'apparition, modificateurs relics avec fallback).
+- `locations.json` : charge par `DataLoader.load_location_templates()` puis injecte dans `WorldManager` (labels/rayons/tags/upgrade target POI avec fallback).
 
 Commande :
 ```bash
@@ -191,6 +195,7 @@ py tools/export_creature_profiles.py --path shared_data/creatures.json
 py tools/export_world_events.py --path shared_data/events.json
 py tools/export_faction_templates.py --path shared_data/factions.json
 py tools/export_relic_templates.py --path shared_data/relics.json
+py tools/export_location_templates.py --path shared_data/locations.json
 py tools/sync_shared_to_godot.py
 ```
 
@@ -200,6 +205,7 @@ py tools/export_creature_profiles.py --path shared_data/creatures.json --validat
 py tools/export_world_events.py --path shared_data/events.json --validate-only
 py tools/export_faction_templates.py --path shared_data/factions.json --validate-only
 py tools/export_relic_templates.py --path shared_data/relics.json --validate-only
+py tools/export_location_templates.py --path shared_data/locations.json --validate-only
 ```
 
 ## Tests
@@ -238,6 +244,7 @@ Verifications de scaffold actuelles pour le pivot 3D :
 - [test_tools_world_events_export.py](tests/test_tools_world_events_export.py) (contrats export/validation des world events JSON)
 - [test_tools_faction_templates_export.py](tests/test_tools_faction_templates_export.py) (contrats export/validation des templates factions/allegiances JSON)
 - [test_tools_relic_templates_export.py](tests/test_tools_relic_templates_export.py) (contrats export/validation des templates relics JSON)
+- [test_tools_location_templates_export.py](tests/test_tools_location_templates_export.py) (contrats export/validation des templates de lieux/POI JSON)
 
 Executer les tests cibles :
 ```bash

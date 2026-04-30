@@ -303,6 +303,7 @@ var creature_profiles_by_id: Dictionary = {}
 var world_event_profiles_by_id: Dictionary = {}
 var faction_templates_by_id: Dictionary = {}
 var relic_templates_by_id: Dictionary = {}
+var location_templates_by_id: Dictionary = {}
 var world_event_ids: Array[String] = []
 var _data_loader: DataLoader = null
 
@@ -596,6 +597,7 @@ func _load_creature_profiles_data() -> void:
 
 	_load_world_events_data()
 	_load_faction_templates_data()
+	_load_location_templates_data()
 	_load_relic_templates_data()
 
 
@@ -642,6 +644,21 @@ func _load_relic_templates_data() -> void:
 		return
 
 	relic_templates_by_id.clear()
+	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
+
+
+func _load_location_templates_data() -> void:
+	if _data_loader == null:
+		_data_loader = DataLoaderScript.new()
+
+	if _data_loader.load_location_templates():
+		location_templates_by_id = _data_loader.get_location_templates()
+		world_manager.set_location_templates(location_templates_by_id)
+		record_event("DataLoader OK: location templates=%d." % location_templates_by_id.size())
+		return
+
+	location_templates_by_id.clear()
+	world_manager.set_location_templates({})
 	record_event("DataLoader ERROR: %s." % _data_loader.get_last_error())
 
 
@@ -6857,7 +6874,7 @@ func _start_alert_pulse(candidate: Dictionary) -> void:
 
 	alert_started_total += 1
 	_alert_global_cooldown_left = ALERT_GLOBAL_COOLDOWN
-	var anchor_label: String = home_poi if home_poi != "" else allegiance_id
+	var anchor_label: String = world_manager.get_poi_label(home_poi, home_poi) if home_poi != "" else allegiance_id
 	record_event("Alert START: %s at %s (%s, %.0fs)." % [allegiance_id, anchor_label, cause, duration])
 
 
@@ -6866,7 +6883,7 @@ func _end_alert_pulse(allegiance_id: String, reason: String) -> void:
 	if runtime.is_empty():
 		return
 	var home_poi: String = str(runtime.get("home_poi", ""))
-	var anchor_label: String = home_poi if home_poi != "" else allegiance_id
+	var anchor_label: String = world_manager.get_poi_label(home_poi, home_poi) if home_poi != "" else allegiance_id
 	_alert_runtime_by_allegiance.erase(allegiance_id)
 	_alert_cooldown_until_by_allegiance[allegiance_id] = elapsed_time + ALERT_ALLEGIANCE_COOLDOWN
 	alert_ended_total += 1
@@ -6888,7 +6905,10 @@ func _sync_alert_state_to_world() -> void:
 			"faction": str(runtime.get("faction", "")),
 			"home_poi": str(runtime.get("home_poi", "")),
 			"center_position": runtime.get("center", Vector3.ZERO),
-			"radius": ALERT_SIGNAL_RADIUS,
+			"radius": world_manager.get_poi_alert_radius(
+				str(runtime.get("home_poi", "")),
+				ALERT_SIGNAL_RADIUS
+			),
 			"cause": str(runtime.get("cause", "heightened_tension")),
 			"score": float(runtime.get("score", 0.0)),
 			"started_at": float(runtime.get("started_at", elapsed_time)),

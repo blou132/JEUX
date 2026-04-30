@@ -72,6 +72,8 @@ var allegiance_doctrine_by_id: Dictionary = {}
 var faction_template_by_id: Dictionary = {}
 var faction_template_by_kind: Dictionary = {}
 var faction_template_id_by_allegiance: Dictionary = {}
+var location_template_by_id: Dictionary = {}
+var location_template_by_kind: Dictionary = {}
 var allegiance_project_runtime_by_id: Dictionary = {}
 var allegiance_project_cooldown_until_by_id: Dictionary = {}
 var allegiance_project_next_attempt_at_by_id: Dictionary = {}
@@ -131,6 +133,27 @@ func set_faction_templates(templates_by_id: Dictionary = {}) -> void:
 		var template_id: String = _resolve_faction_template_id_for_faction(faction)
 		if template_id != "":
 			faction_template_id_by_allegiance[allegiance_id] = template_id
+
+
+func set_location_templates(templates_by_id: Dictionary = {}) -> void:
+	location_template_by_id.clear()
+	location_template_by_kind.clear()
+
+	for template_variant in templates_by_id.values():
+		if typeof(template_variant) != TYPE_DICTIONARY:
+			continue
+		var sanitized: Dictionary = _sanitize_location_template_entry(template_variant)
+		if sanitized.is_empty():
+			continue
+		var template_id: String = str(sanitized.get("id", ""))
+		var kind: String = str(sanitized.get("kind", ""))
+		if template_id == "" or kind == "":
+			continue
+		location_template_by_id[template_id] = sanitized
+		if not location_template_by_kind.has(kind):
+			location_template_by_kind[kind] = sanitized
+
+	_apply_location_templates_to_existing_pois()
 
 
 func set_allegiance_crisis_raid_modifiers(modifiers_by_allegiance: Dictionary = {}) -> void:
@@ -911,10 +934,17 @@ func get_active_allegiances(time_seconds: float = -1.0) -> Array[Dictionary]:
 			alert_remaining = max(0.0, float(alert_runtime.get("ends_at", time_seconds)) - time_seconds)
 		var faction_template: Dictionary = get_allegiance_faction_template(allegiance_id)
 		var template_tags: Array = faction_template.get("tags", [])
+		var poi_tags_variant: Variant = poi.get("tags", [])
+		var poi_tags: Array = []
+		if typeof(poi_tags_variant) == TYPE_ARRAY:
+			poi_tags = poi_tags_variant
+			poi_tags = poi_tags.duplicate(true)
 		active.append({
 			"allegiance_id": allegiance_id,
 			"faction": str(poi_structure_faction.get(poi_name, "")),
 			"home_poi": poi_name,
+			"home_poi_label": str(poi.get("label", poi_name)),
+			"home_poi_tags": poi_tags,
 			"position": poi.get("position", Vector3.ZERO),
 			"structure_state": structure_state,
 			"doctrine": get_allegiance_doctrine(allegiance_id),
@@ -1339,6 +1369,111 @@ func _sanitize_faction_template_entry(template_data: Dictionary) -> Dictionary:
 	}
 
 
+func _sanitize_location_template_entry(template_data: Dictionary) -> Dictionary:
+	var template_id: String = str(template_data.get("id", "")).strip_edges()
+	var label: String = str(template_data.get("label", "")).strip_edges()
+	var kind: String = str(template_data.get("kind", "")).strip_edges()
+	if template_id == "" or label == "" or kind == "":
+		return {}
+	if kind not in ["camp", "ruins", "rift_gate"]:
+		return {}
+
+	var faction_affinity: String = str(template_data.get("faction_affinity", "")).strip_edges()
+	if faction_affinity not in ["human", "monster", "neutral"]:
+		return {}
+
+	var influence_radius_variant: Variant = template_data.get("influence_radius", null)
+	if typeof(influence_radius_variant) != TYPE_INT and typeof(influence_radius_variant) != TYPE_FLOAT:
+		return {}
+	var influence_radius: float = float(influence_radius_variant)
+	if influence_radius <= 0.0:
+		return {}
+
+	var alert_radius_variant: Variant = template_data.get("alert_radius", null)
+	if typeof(alert_radius_variant) != TYPE_INT and typeof(alert_radius_variant) != TYPE_FLOAT:
+		return {}
+	var alert_radius: float = float(alert_radius_variant)
+	if alert_radius <= 0.0:
+		return {}
+
+	var can_upgrade_to: String = str(template_data.get("can_upgrade_to", "")).strip_edges()
+	if can_upgrade_to not in ["", "human_outpost", "monster_lair"]:
+		return {}
+
+	var tags_variant: Variant = template_data.get("tags", [])
+	var tags: Array[String] = []
+	if typeof(tags_variant) == TYPE_ARRAY:
+		var tags_array: Array = tags_variant
+		for tag_variant in tags_array:
+			if typeof(tag_variant) != TYPE_STRING:
+				continue
+			var tag: String = str(tag_variant).strip_edges()
+			if tag == "":
+				continue
+			tags.append(tag)
+
+	return {
+		"id": template_id,
+		"label": label,
+		"kind": kind,
+		"faction_affinity": faction_affinity,
+		"influence_radius": influence_radius,
+		"alert_radius": alert_radius,
+		"can_upgrade_to": can_upgrade_to,
+		"tags": tags
+	}
+
+
+func _location_template_for(poi_name: String, poi_kind: String) -> Dictionary:
+	if poi_name != "" and location_template_by_id.has(poi_name):
+		return Dictionary(location_template_by_id[poi_name]).duplicate(true)
+	if poi_kind != "" and location_template_by_kind.has(poi_kind):
+		return Dictionary(location_template_by_kind[poi_kind]).duplicate(true)
+	return {}
+
+
+func _apply_location_template_to_poi(base_poi: Dictionary) -> Dictionary:
+	var poi: Dictionary = base_poi.duplicate(true)
+	var poi_name: String = str(poi.get("name", ""))
+	var poi_kind: String = str(poi.get("kind", ""))
+	var template: Dictionary = _location_template_for(poi_name, poi_kind)
+	if template.is_empty():
+		return poi
+
+	var label: String = str(template.get("label", "")).strip_edges()
+	if label != "":
+		poi["label"] = label
+
+	var faction_affinity: String = str(template.get("faction_affinity", "")).strip_edges()
+	if faction_affinity == "human" or faction_affinity == "monster":
+		poi["faction_hint"] = faction_affinity
+	elif faction_affinity == "neutral":
+		poi["faction_hint"] = ""
+
+	poi["radius"] = max(1.0, float(template.get("influence_radius", float(poi.get("radius", 7.0)))))
+	poi["alert_radius"] = max(1.0, float(template.get("alert_radius", float(poi.get("alert_radius", 13.0)))))
+	poi["upgrade_target"] = str(template.get("can_upgrade_to", str(poi.get("upgrade_target", ""))))
+
+	var tags_variant: Variant = template.get("tags", [])
+	if typeof(tags_variant) == TYPE_ARRAY:
+		var tags: Array = tags_variant
+		poi["tags"] = tags.duplicate(true)
+
+	return poi
+
+
+func _apply_location_templates_to_existing_pois() -> void:
+	if pois.is_empty():
+		return
+	for index in range(pois.size()):
+		var current_variant: Variant = pois[index]
+		if typeof(current_variant) != TYPE_DICTIONARY:
+			continue
+		var current: Dictionary = current_variant
+		pois[index] = _apply_location_template_to_poi(current)
+	_refresh_poi_markers()
+
+
 func get_allegiance_doctrine(allegiance_id: String) -> String:
 	if allegiance_id == "":
 		return ""
@@ -1539,6 +1674,28 @@ func get_poi_name_for_position(position: Vector3) -> String:
 	return ""
 
 
+func get_poi_label(poi_name: String, fallback_label: String = "") -> String:
+	if poi_name == "":
+		return fallback_label
+	var poi: Dictionary = _get_poi_by_name(poi_name)
+	if poi.is_empty():
+		return fallback_label
+	var label: String = str(poi.get("label", "")).strip_edges()
+	if label != "":
+		return label
+	return fallback_label if fallback_label != "" else poi_name
+
+
+func get_poi_alert_radius(poi_name: String, fallback_radius: float = 13.0) -> float:
+	if poi_name == "":
+		return max(1.0, fallback_radius)
+	var poi: Dictionary = _get_poi_by_name(poi_name)
+	if poi.is_empty():
+		return max(1.0, fallback_radius)
+	var radius: float = float(poi.get("alert_radius", fallback_radius))
+	return max(1.0, radius)
+
+
 func trigger_poi_entry_effect(poi_name: String, faction: String) -> void:
 	var poi_node: Node3D = poi_nodes.get(poi_name, null)
 	if poi_node == null:
@@ -1613,30 +1770,42 @@ func _build_spawn_points() -> void:
 
 func _build_pois() -> void:
 	pois.clear()
-	pois.append({
+	pois.append(_apply_location_template_to_poi({
 		"name": "camp",
+		"label": "Camp",
 		"kind": "camp",
 		"faction_hint": "human",
 		"position": Vector3(-10.0, 0.0, -6.0),
 		"radius": 8.0,
+		"alert_radius": 13.0,
+		"upgrade_target": "human_outpost",
+		"tags": ["poi", "anchor", "human", "upgrade_human_outpost"],
 		"color": Color(0.40, 0.72, 1.0)
-	})
-	pois.append({
+	}))
+	pois.append(_apply_location_template_to_poi({
 		"name": "ruins",
+		"label": "Ruins",
 		"kind": "ruins",
 		"faction_hint": "monster",
 		"position": Vector3(10.0, 0.0, 6.0),
 		"radius": 8.0,
+		"alert_radius": 13.0,
+		"upgrade_target": "monster_lair",
+		"tags": ["poi", "anchor", "monster", "upgrade_monster_lair"],
 		"color": Color(0.95, 0.60, 0.35)
-	})
-	pois.append({
+	}))
+	pois.append(_apply_location_template_to_poi({
 		"name": "rift_gate",
+		"label": "Rift Gate",
 		"kind": "rift_gate",
 		"faction_hint": "",
 		"position": Vector3(0.0, 0.0, 0.0),
 		"radius": 7.2,
+		"alert_radius": 16.5,
+		"upgrade_target": "",
+		"tags": ["poi", "neutral", "gate", "volatile"],
 		"color": Color(0.76, 0.40, 0.96)
-	})
+	}))
 
 	poi_runtime_status.clear()
 	poi_dominant_faction.clear()
@@ -1994,7 +2163,14 @@ func _compute_influence_kind(poi_kind: String, dominant_faction: String, dominan
 	return ""
 
 
-func _compute_structure_kind(poi_kind: String, dominant_faction: String) -> String:
+func _compute_structure_kind(poi_name: String, poi_kind: String, dominant_faction: String) -> String:
+	var poi: Dictionary = _get_poi_by_name(poi_name)
+	var configured_upgrade: String = str(poi.get("upgrade_target", "")).strip_edges()
+	if configured_upgrade == "human_outpost" and dominant_faction == "human":
+		return configured_upgrade
+	if configured_upgrade == "monster_lair" and dominant_faction == "monster":
+		return configured_upgrade
+
 	if poi_kind == "camp" and dominant_faction == "human":
 		return "human_outpost"
 	if poi_kind == "ruins" and dominant_faction == "monster":
@@ -2015,7 +2191,7 @@ func _update_structure_runtime(
 	var events: Array[Dictionary] = []
 	var current_state: String = str(poi_structure_state.get(poi_name, ""))
 	var current_faction: String = str(poi_structure_faction.get(poi_name, ""))
-	var can_structure_kind: String = _compute_structure_kind(poi_kind, dominant_faction)
+	var can_structure_kind: String = _compute_structure_kind(poi_name, poi_kind, dominant_faction)
 
 	var required_presence: int = poi_structure_min_presence
 	if dominant_champions > 0:
