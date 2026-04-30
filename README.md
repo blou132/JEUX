@@ -247,6 +247,7 @@ Passerelles runtime (ordre de chargement) :
   - `observe_dominance` (categorie `dominance`): garder une faction dominante sur les POI pendant une duree cible.
   - `survive_calamity` (categorie `survival`): survivre X secondes avec moins de Y morts sur la run.
   - `watch_champion_rise` (categorie `champion`): observer au moins une promotion champion dans la fenetre de temps.
+  - `support_gate` (categorie `gate_support`): stabiliser la rift gate via interaction clavier legere.
 - Par defaut, **observe_dominance reste l'objectif actif** au lancement.
 - v139 prepare une extension vers **plusieurs objectifs** via une definition interne legere:
   - `id`, `title`, `description`, `category`
@@ -289,14 +290,36 @@ Passerelles runtime (ordre de chargement) :
   - `objective_switch_count`
   - `objective_progress_label`
   - `objective_result_label`
+  - `objective_interaction_count`
+  - `objective_interaction_required`
+  - `objective_interaction_label`
+  - `objective_interaction_available`
+  - `objective_interaction_cooldown`
 - HUD:
   - mode `player`: `Objective: ...` + `Goal: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
   - mode `debug`: details `objective_id`, `objective_category`, `objective_config_label`, status/faction/switch/fail reason.
 - Timeline narrative:
   - `objective_started`
+  - `objective_interaction`
   - `objective_completed`
   - `objective_failed`
-- Ce world objective est un repere lisible pour le joueur, reste **observation-only**, et **ne remplace pas** le sandbox emergent.
+- Les world objectives restent un repere lisible pour le joueur et **ne remplacent pas** le sandbox emergent.
+- Les objectifs historiques restent majoritairement **observation-only**; `support_gate` ajoute une interaction clavier legere et bornee.
+
+## Objectif interactif (v146)
+- v146 ajoute un premier objectif avec interaction clavier legere, sans avatar joueur physique:
+  - `support_gate` (`gate_support`)
+- Principe:
+  - quand la rift gate est ouverte et que l'objectif est actif, `E` applique un support abstrait.
+  - chaque interaction valide incremente un compteur borne (`objective_interaction_count`).
+  - un cooldown court evite le spam (`objective_interaction_cooldown`).
+- Succès:
+  - objectif `completed` quand le nombre requis d'actions est atteint avant timeout.
+- Echec:
+  - `too_many_deaths`, `interaction_timeout` ou `gate_unstable_too_long`.
+- HUD:
+  - mode `player`: ligne compacte `E: stabilize gate` + compteur `X/N`.
+  - mode `debug`: compteurs interaction, disponibilite et cooldown.
 
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
@@ -341,7 +364,7 @@ Passerelles runtime (ordre de chargement) :
   - `O` ou `PageDown`: objectif suivant (uniquement si la run est `completed` ou `failed`).
   - `R`: restart de la run courante.
 - L'ordre de cycle suit `objective_available_ids`:
-  - `observe_dominance` -> `survive_calamity` -> `watch_champion_rise`.
+  - `observe_dominance` -> `survive_calamity` -> `watch_champion_rise` -> `support_gate`.
 - `observe_dominance` reste l'objectif par defaut au lancement.
 - Le changement enregistre un evenement timeline `objective_selected`, puis relance proprement l'objectif choisi.
 
@@ -350,9 +373,11 @@ Passerelles runtime (ordre de chargement) :
 - Mode `player`:
   - panneau court proche du haut,
   - infos lisibles: titre, goal/target, progress, status,
+  - pour objectif interactif: commande `E` + compteur de support,
   - fail reason ou result si pertinent.
 - Mode `debug`:
   - panneau plus detaille avec `objective_id`, `objective_category`, `objective_config_label`,
+  - details interaction si present (`count/required`, `available`, `cooldown`),
   - index de selection (`objective_selected_index`) et nombre d'objectifs (`objective_available_count`),
   - rappel des valeurs target/progress/status/fail/result.
 - Priorite:
@@ -399,6 +424,7 @@ Passerelles runtime (ordre de chargement) :
   - `F1` : bascule HUD `player <-> debug`.
   - `Tab` : bascule HUD `player <-> debug` (si conservee).
   - `F3` : bascule detail debug `debug_full <-> debug_compact` (mode `debug` uniquement).
+  - `E` : interaction objectif (uniquement quand l'objectif actif est interactif et disponible).
   - `R` : `restart run` (affiche seulement quand la run est terminee).
   - `O` / `PageDown` : `next objective` (affiche seulement quand la run est terminee).
   - `set_overlay_mode("player" | "debug" | "off")` : selection explicite du mode.

@@ -920,6 +920,7 @@ func _build_help_panel_lines(snapshot: Dictionary) -> Array[String]:
     return [
         "==================== HELP ====================",
         "F1/Tab: toggle HUD player/debug",
+        "E: support objective (si objectif interactif actif)",
         "R: restart run (si run terminee)",
         "O/PageDown: next objective (si run terminee)",
         "H/F2: afficher/masquer aide",
@@ -958,13 +959,25 @@ func _build_objective_panel_lines(
     var objective_dominant_faction: String = str(snapshot.get("objective_dominant_faction", "")).strip_edges()
     var objective_switch_count: int = int(snapshot.get("objective_switch_count", 0))
     var objective_result_label: String = str(snapshot.get("objective_result_label", "")).strip_edges()
+    var objective_interaction_count: int = int(snapshot.get("objective_interaction_count", 0))
+    var objective_interaction_required: int = int(snapshot.get("objective_interaction_required", 0))
+    var objective_interaction_label: String = str(snapshot.get("objective_interaction_label", "")).strip_edges()
+    var objective_interaction_available: bool = bool(snapshot.get("objective_interaction_available", false))
+    var objective_interaction_cooldown: float = float(snapshot.get("objective_interaction_cooldown", 0.0))
+    var objective_has_interaction: bool = objective_interaction_required > 0
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var lines: Array[String] = []
 
     if normalized_mode == OVERLAY_MODE_PLAYER and run_result_visible:
+        var reduced_progress: String = objective_progress_label
+        if objective_has_interaction:
+            reduced_progress = (
+                "%d/%d supports"
+                % [objective_interaction_count, objective_interaction_required]
+            )
         lines.append(
             "Objective Panel: %s | status=%s | progress=%s"
-            % [objective_title, objective_status if objective_status != "" else "inactive", objective_progress_label]
+            % [objective_title, objective_status if objective_status != "" else "inactive", reduced_progress]
         )
         return lines
 
@@ -977,6 +990,16 @@ func _build_objective_panel_lines(
             lines.append("Target: %s" % objective_completion_target_label)
         lines.append("Progress: %s" % objective_progress_label)
         lines.append("Status: %s" % objective_status)
+        if objective_has_interaction and objective_interaction_label != "":
+            lines.append("%s" % objective_interaction_label)
+            lines.append(
+                "Support: %d/%d (%s)"
+                % [
+                    objective_interaction_count,
+                    objective_interaction_required,
+                    "ready" if objective_interaction_available else "wait"
+                ]
+            )
         if objective_status == "failed" and objective_fail_reason != "":
             lines.append("Fail reason: %s" % objective_fail_reason)
         elif objective_result_label != "":
@@ -1031,6 +1054,18 @@ func _build_objective_panel_lines(
         lines.append("Objective available: %s" % ", ".join(objective_available_ids))
     if objective_config_label != "":
         lines.append("Objective config: %s" % objective_config_label)
+    if objective_has_interaction:
+        if objective_interaction_label != "":
+            lines.append("Objective interaction command: %s" % objective_interaction_label)
+        lines.append(
+            "Objective interaction: %d/%d available=%s cooldown=%.2fs"
+            % [
+                objective_interaction_count,
+                objective_interaction_required,
+                "yes" if objective_interaction_available else "no",
+                objective_interaction_cooldown
+            ]
+        )
     if objective_status == "failed" and objective_fail_reason != "":
         lines.append("Objective fail reason: %s" % objective_fail_reason)
     if objective_result_label != "":
