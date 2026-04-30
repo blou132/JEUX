@@ -178,6 +178,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var support_gate_visual_label: String = str(
         snapshot.get("support_gate_visual_label", support_gate_visual_state)
     ).strip_edges()
+    var support_gate_tuning_label: String = str(
+        snapshot.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")
+    ).strip_edges()
     var gate_response_human_label: String = str(snapshot.get("gate_response_human_label", "none"))
     var gate_response_monster_label: String = str(snapshot.get("gate_response_monster_label", "none"))
 
@@ -247,6 +250,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % [
             support_gate_visual_state if support_gate_visual_state != "" else "inactive",
             support_gate_visual_label if support_gate_visual_label != "" else "inactive"
+        ]
+    )
+    lines.append(
+        "Support gate tuning: %s"
+        % [
+            support_gate_tuning_label
+            if support_gate_tuning_label != ""
+            else "attempts=0 success=0 rate=0% available=0%"
         ]
     )
     lines.append("")
@@ -1155,6 +1166,9 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
     var support_gate_visual_state: String = str(snapshot.get("support_gate_visual_state", "inactive")).strip_edges()
+    var support_gate_tuning_label: String = str(
+        snapshot.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")
+    ).strip_edges()
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
     var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
@@ -1208,6 +1222,14 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     lines.append(
         "Support gate visual: %s"
         % [support_gate_visual_state if support_gate_visual_state != "" else "inactive"]
+    )
+    lines.append(
+        "Support gate tuning: %s"
+        % [
+            support_gate_tuning_label
+            if support_gate_tuning_label != ""
+            else "attempts=0 success=0 rate=0% available=0%"
+        ]
     )
 
     lines.append(

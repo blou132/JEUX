@@ -336,6 +336,28 @@ Passerelles runtime (ordre de chargement) :
   - mode `player`: ligne compacte `E: stabilize gate` + compteur `X/N`.
   - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
 
+## Support gate tuning (v149)
+- v149 ajoute des metriques runtime pour equilibrer `support_gate` sans refonte gameplay.
+- compteurs cumulés session:
+  - `support_gate_attempts_total`
+  - `support_gate_success_total`
+  - `support_gate_blocked_total`
+  - `support_gate_cooldown_blocked_total`
+  - `support_gate_unavailable_total`
+  - `support_gate_completed_total`
+  - `support_gate_failed_total`
+- timing:
+  - `support_gate_first_success_time`
+  - `support_gate_last_success_time`
+  - `support_gate_available_time_total`
+  - `support_gate_unavailable_time_total`
+- snapshot/hud debug:
+  - `support_gate_success_rate`
+  - `support_gate_available_ratio`
+  - `support_gate_tuning_label`
+  - ligne compacte: `Support gate tuning: attempts=X success=Y rate=Z% available=A%`
+- ces metriques servent uniquement au playtest/tuning (observability), sans changer l'equilibrage coeur.
+
 ## Run result
 - Un etat global de run est expose en plus de l'objectif:
   - `run_status`: `running` / `completed` / `failed`

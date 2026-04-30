@@ -607,6 +607,17 @@ var world_objective_interaction_feedback_timer: float = 0.0
 var support_gate_success_flash_timer: float = 0.0
 var support_gate_visual_state: String = "inactive"
 var support_gate_visual_label: String = "inactive"
+var support_gate_attempts_total: int = 0
+var support_gate_success_total: int = 0
+var support_gate_blocked_total: int = 0
+var support_gate_cooldown_blocked_total: int = 0
+var support_gate_unavailable_total: int = 0
+var support_gate_completed_total: int = 0
+var support_gate_failed_total: int = 0
+var support_gate_first_success_time: float = -1.0
+var support_gate_last_success_time: float = -1.0
+var support_gate_available_time_total: float = 0.0
+var support_gate_unavailable_time_total: float = 0.0
 var world_objective_gate_bad_state_elapsed: float = 0.0
 var world_objective_gate_bad_state_threshold: float = OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD
 var run_status: String = "running"
@@ -889,17 +900,87 @@ func _update_support_gate_objective_visual_state(delta: float) -> void:
 	_push_support_gate_objective_visual_state()
 
 
+func _is_support_gate_objective_context() -> bool:
+	return world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
+
+
+func _register_support_gate_interaction_attempt() -> void:
+	if not _is_support_gate_objective_context():
+		return
+	support_gate_attempts_total += 1
+
+
+func _register_support_gate_interaction_blocked(feedback_type: String) -> void:
+	if not _is_support_gate_objective_context():
+		return
+	support_gate_blocked_total += 1
+	var normalized_type: String = feedback_type.strip_edges().to_lower()
+	if normalized_type == "cooldown":
+		support_gate_cooldown_blocked_total += 1
+	elif normalized_type == "unavailable":
+		support_gate_unavailable_total += 1
+
+
+func _register_support_gate_interaction_success() -> void:
+	if not _is_support_gate_objective_context():
+		return
+	support_gate_success_total += 1
+	if support_gate_first_success_time < 0.0:
+		support_gate_first_success_time = elapsed_time
+	support_gate_last_success_time = elapsed_time
+
+
+func _build_support_gate_tuning_metrics() -> Dictionary:
+	var attempts_total: int = max(0, support_gate_attempts_total)
+	var success_total: int = max(0, support_gate_success_total)
+	var success_rate: float = 0.0
+	if attempts_total > 0:
+		success_rate = float(success_total) / float(attempts_total)
+
+	var availability_total: float = max(
+		0.0,
+		support_gate_available_time_total + support_gate_unavailable_time_total
+	)
+	var available_ratio: float = 0.0
+	if availability_total > 0.0:
+		available_ratio = support_gate_available_time_total / availability_total
+
+	var tuning_label: String = (
+		"attempts=%d success=%d rate=%d%% available=%d%%"
+		% [
+			attempts_total,
+			success_total,
+			int(round(clampf(success_rate, 0.0, 1.0) * 100.0)),
+			int(round(clampf(available_ratio, 0.0, 1.0) * 100.0))
+		]
+	)
+
+	return {
+		"support_gate_attempts_total": attempts_total,
+		"support_gate_success_total": success_total,
+		"support_gate_success_rate": success_rate,
+		"support_gate_available_ratio": available_ratio,
+		"support_gate_tuning_label": tuning_label
+	}
+
+
 func trigger_world_objective_interaction() -> bool:
+	_register_support_gate_interaction_attempt()
+
 	if run_status in ["completed", "failed"]:
+		_register_support_gate_interaction_blocked("blocked")
 		_set_objective_interaction_feedback("run already finished", "blocked", 1.8)
 		return false
 	if world_objective_status != "active":
+		_register_support_gate_interaction_blocked("blocked")
 		_set_objective_interaction_feedback("objective not active", "blocked", 1.8)
 		return false
 	if not (world_objective_category in ["interaction", "gate_support"]):
+		_register_support_gate_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("objective non-interactive", "unavailable", 1.8)
 		return false
 	if world_objective_interaction_required <= 0:
+		_register_support_gate_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("objective unavailable", "unavailable", 1.8)
 		return false
 
@@ -907,11 +988,13 @@ func trigger_world_objective_interaction() -> bool:
 	var gate_active: bool = bool(gate_runtime.get("active", false))
 	if not gate_active:
 		world_objective_interaction_available = false
+		_register_support_gate_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("gate unavailable", "unavailable", 1.8)
 		return false
 	if elapsed_time < world_objective_interaction_next_allowed_time:
 		world_objective_interaction_available = false
 		var cooldown_remaining: float = max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+		_register_support_gate_interaction_blocked("cooldown")
 		_set_objective_interaction_feedback("cooldown %.1fs" % cooldown_remaining, "cooldown", 1.1)
 		return false
 
@@ -930,6 +1013,7 @@ func trigger_world_objective_interaction() -> bool:
 	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
 	world_objective_interaction_available = false
 	support_gate_success_flash_timer = OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION
+	_register_support_gate_interaction_success()
 	_set_objective_interaction_feedback("Gate support accepted", "success", 2.0)
 
 	record_event(
@@ -1621,12 +1705,19 @@ func _update_objective_gate_support(delta: float) -> void:
 		and world_objective_interaction_count < world_objective_interaction_required
 		and elapsed_time >= world_objective_interaction_next_allowed_time
 	)
+	var objective_delta: float = max(delta, 0.0)
+	if objective_delta > 0.0:
+		if world_objective_interaction_available:
+			support_gate_available_time_total += objective_delta
+		else:
+			support_gate_unavailable_time_total += objective_delta
 
 	var deaths_since_run: int = max(0, deaths_total - run_deaths_baseline)
 	if deaths_since_run >= world_objective_fail_deaths_threshold:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_interaction_available = false
+		support_gate_failed_total += 1
 		world_objective_fail_reason = "too_many_deaths"
 		world_objective_result_label = (
 			"Failed: run deaths threshold reached (%d/%d)."
@@ -1645,6 +1736,7 @@ func _update_objective_gate_support(delta: float) -> void:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_interaction_available = false
+		support_gate_failed_total += 1
 		world_objective_fail_reason = "gate_unstable_too_long"
 		world_objective_result_label = (
 			"Failed: rift gate stayed unstable too long (%.1fs/%.1fs)."
@@ -1664,6 +1756,7 @@ func _update_objective_gate_support(delta: float) -> void:
 		world_objective_status = "completed"
 		world_objective_progress = 1.0
 		world_objective_interaction_available = false
+		support_gate_completed_total += 1
 		world_objective_fail_reason = ""
 		world_objective_progress_label = (
 			"%d/%d supports | %.1fs / %.1fs (100%%)"
@@ -1692,6 +1785,7 @@ func _update_objective_gate_support(delta: float) -> void:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_interaction_available = false
+		support_gate_failed_total += 1
 		world_objective_fail_reason = "interaction_timeout"
 		world_objective_result_label = (
 			"Failed: not enough supports before timeout (%d/%d)."
@@ -5140,6 +5234,11 @@ func get_run_narrative_summary(
 		)
 	else:
 		run_summary_lines.append("No clear doctrine dominance yet.")
+	if world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE:
+		run_summary_lines.append(
+			"Gate support: %d/%d actions completed."
+			% [world_objective_interaction_count, max(1, world_objective_interaction_required)]
+		)
 	run_summary_lines.append(
 		"%d projects launched; vendettas started=%d (resolved=%d)."
 		% [project_count, vendetta_count, vendetta_resolved_count]
@@ -10002,6 +10101,7 @@ func _build_snapshot() -> Dictionary:
 		humans_alive,
 		monsters_alive
 	)
+	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
 	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
 	var objective_available_count: int = world_objective_available_ids.size()
 
@@ -10072,6 +10172,20 @@ func _build_snapshot() -> Dictionary:
 		"objective_interaction_feedback_timer": world_objective_interaction_feedback_timer,
 		"support_gate_visual_state": support_gate_visual_state,
 		"support_gate_visual_label": support_gate_visual_label,
+		"support_gate_attempts_total": int(support_gate_tuning.get("support_gate_attempts_total", 0)),
+		"support_gate_success_total": int(support_gate_tuning.get("support_gate_success_total", 0)),
+		"support_gate_blocked_total": support_gate_blocked_total,
+		"support_gate_cooldown_blocked_total": support_gate_cooldown_blocked_total,
+		"support_gate_unavailable_total": support_gate_unavailable_total,
+		"support_gate_completed_total": support_gate_completed_total,
+		"support_gate_failed_total": support_gate_failed_total,
+		"support_gate_first_success_time": support_gate_first_success_time,
+		"support_gate_last_success_time": support_gate_last_success_time,
+		"support_gate_available_time_total": support_gate_available_time_total,
+		"support_gate_unavailable_time_total": support_gate_unavailable_time_total,
+		"support_gate_success_rate": float(support_gate_tuning.get("support_gate_success_rate", 0.0)),
+		"support_gate_available_ratio": float(support_gate_tuning.get("support_gate_available_ratio", 0.0)),
+		"support_gate_tuning_label": str(support_gate_tuning.get("support_gate_tuning_label", "attempts=0 success=0 rate=0% available=0%")),
 		"major_event_count": int(run_summary.get("major_event_count", 0)),
 		"project_count": int(run_summary.get("project_count", 0)),
 		"vendetta_count": int(run_summary.get("vendetta_count", 0)),
