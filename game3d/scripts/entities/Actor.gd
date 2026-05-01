@@ -827,8 +827,8 @@ func _wander(delta: float, world: WorldManager) -> void:
 	_move_towards(wander_target, delta, world, 0.82)
 
 
-func _move_towards(target_position: Vector3, delta: float, world: WorldManager, speed_multiplier: float = 1.0) -> void:
-	var to_target := target_position - global_position
+func _move_towards(move_target_position: Vector3, delta: float, world: WorldManager, speed_multiplier: float = 1.0) -> void:
+	var to_target := move_target_position - global_position
 	to_target.y = 0.0
 
 	if to_target.length() < 0.05:
@@ -839,7 +839,6 @@ func _move_towards(target_position: Vector3, delta: float, world: WorldManager, 
 	var next_position := global_position + velocity * delta
 	global_position = world.clamp_to_world(next_position)
 	_spend_energy(energy_drain_rate * 0.30 * final_speed_multiplier * _rally_energy_drain_multiplier() * delta)
-
 
 func _move_away_from(danger_position: Vector3, delta: float, world: WorldManager, speed_multiplier: float = 1.0) -> void:
 	var away_vector := global_position - danger_position

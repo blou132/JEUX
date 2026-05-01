@@ -1896,15 +1896,18 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	_push_support_gate_objective_visual_state()
 
 
-func _compute_objective_dominant_faction(poi_runtime_snapshot: Dictionary) -> String:
+func _compute_objective_dominant_faction(input_poi_runtime_snapshot: Dictionary) -> String:
 	var human_dominant_poi: int = 0
 	var monster_dominant_poi: int = 0
-	for poi_name in poi_runtime_snapshot.keys():
-		var details_variant: Variant = poi_runtime_snapshot.get(poi_name, {})
+
+	for poi_name in input_poi_runtime_snapshot.keys():
+		var details_variant: Variant = input_poi_runtime_snapshot.get(poi_name, {})
 		if typeof(details_variant) != TYPE_DICTIONARY:
 			continue
+
 		var details: Dictionary = details_variant
 		var status: String = str(details.get("status", "calm"))
+
 		if status == "human_dominant":
 			human_dominant_poi += 1
 		elif status == "monster_dominant":
@@ -1933,10 +1936,10 @@ func _set_run_result_from_objective(status: String) -> void:
 		elif actor.faction == "monster":
 			monsters_alive += 1
 
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
+	var current_poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	var doctrine_runtime_snapshot: Dictionary = world_manager.get_allegiance_doctrine_snapshot()
 	var run_summary: Dictionary = get_run_narrative_summary(
-		poi_runtime_snapshot,
+		current_poi_runtime_snapshot,
 		doctrine_runtime_snapshot,
 		humans_alive,
 		monsters_alive
@@ -2053,9 +2056,8 @@ func _update_world_objective(delta: float) -> void:
 
 
 func _update_objective_dominance(delta: float) -> void:
-
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
-	var dominant_faction: String = _compute_objective_dominant_faction(poi_runtime_snapshot)
+	var current_poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
+	var dominant_faction: String = _compute_objective_dominant_faction(current_poi_runtime_snapshot)
 	if dominant_faction != "":
 		if world_objective_dominant_faction != "" and dominant_faction != world_objective_dominant_faction:
 			world_objective_dominance_switches += 1
@@ -2144,7 +2146,6 @@ func _update_objective_dominance(delta: float) -> void:
 			world_objective_dominant_faction
 		)
 		_set_run_result_from_objective("completed")
-
 
 func _update_objective_survival(delta: float) -> void:
 	world_objective_elapsed += max(delta, 0.0)
@@ -2298,8 +2299,8 @@ func _update_objective_champion(delta: float) -> void:
 
 func _update_objective_gate_support(delta: float) -> void:
 	world_objective_elapsed += max(delta, 0.0)
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
-	world_objective_dominant_faction = _compute_objective_dominant_faction(poi_runtime_snapshot)
+	var current_poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
+	world_objective_dominant_faction = _compute_objective_dominant_faction(current_poi_runtime_snapshot)
 
 	var gate_runtime: Dictionary = world_manager.get_neutral_gate_runtime_state(elapsed_time)
 	var gate_active: bool = bool(gate_runtime.get("active", false))
@@ -2424,11 +2425,10 @@ func _update_objective_gate_support(delta: float) -> void:
 		)
 		_set_run_result_from_objective("failed")
 
-
 func _update_objective_champion_support(delta: float) -> void:
 	world_objective_elapsed += max(delta, 0.0)
-	var poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
-	world_objective_dominant_faction = _compute_objective_dominant_faction(poi_runtime_snapshot)
+	var current_poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
+	world_objective_dominant_faction = _compute_objective_dominant_faction(current_poi_runtime_snapshot)
 
 	var champion_candidates: Dictionary = _resolve_champion_support_candidates()
 	var champion_alive_total: int = int(champion_candidates.get("candidate_count", 0))
@@ -2539,7 +2539,6 @@ func _update_objective_champion_support(delta: float) -> void:
 			world_objective_dominant_faction
 		)
 		_set_run_result_from_objective("failed")
-
 
 func register_spawn(actor: Actor) -> void:
 	spawns_total += 1
@@ -2935,7 +2934,7 @@ func _sync_gate_response_pull_modifiers() -> void:
 	world_manager.set_neutral_gate_response_pull_modifiers(human_mult, monster_mult)
 
 
-func _spawn_gate_response_signal(faction: String, position: Vector3, response_id: String) -> void:
+func _spawn_gate_response_signal(faction: String, signal_position: Vector3, response_id: String) -> void:
 	if _gate_response_signals_root == null or not is_instance_valid(_gate_response_signals_root):
 		return
 
@@ -2946,7 +2945,7 @@ func _spawn_gate_response_signal(faction: String, position: Vector3, response_id
 	mesh.bottom_radius = 2.10
 	mesh.height = 0.08
 	signal_node.mesh = mesh
-	signal_node.position = position + Vector3(0.0, 0.14, 0.0)
+	signal_node.position = signal_position + Vector3(0.0, 0.14, 0.0)
 	signal_node.scale = Vector3.ONE * 0.22
 
 	var color := Color(0.58, 0.86, 1.0) if faction == "human" else Color(1.0, 0.52, 0.34)
@@ -2960,7 +2959,6 @@ func _spawn_gate_response_signal(faction: String, position: Vector3, response_id
 	var tween := create_tween()
 	tween.tween_property(signal_node, "scale", Vector3.ONE * 1.52, 0.42)
 	tween.finished.connect(signal_node.queue_free)
-
 
 func _setup_convergence_state() -> void:
 	if _convergence_signals_root != null and is_instance_valid(_convergence_signals_root):
@@ -3171,13 +3169,13 @@ func _start_convergence_event(candidate: Dictionary) -> void:
 	)
 
 
-func _spawn_convergence_signal(position: Vector3, event_id: int) -> Node3D:
+func _spawn_convergence_signal(signal_position: Vector3, event_id: int) -> Node3D:
 	if _convergence_signals_root == null or not is_instance_valid(_convergence_signals_root):
 		return null
 
 	var node := Node3D.new()
 	node.name = "Convergence_%d" % event_id
-	node.position = position
+	node.position = signal_position
 
 	var ring := MeshInstance3D.new()
 	ring.name = "Ring"
@@ -3216,24 +3214,24 @@ func _spawn_convergence_signal(position: Vector3, event_id: int) -> Node3D:
 	tween.tween_property(node, "scale", Vector3.ONE, 0.34)
 	return node
 
-
 func _animate_convergence_signal(signal_node: Node3D, elapsed_ratio: float) -> void:
 	if signal_node == null or not is_instance_valid(signal_node):
 		return
+
 	var ring := signal_node.get_node_or_null("Ring") as MeshInstance3D
 	var beacon := signal_node.get_node_or_null("Beacon") as MeshInstance3D
-	var seed: float = float(signal_node.get_instance_id() % 29)
+	var signal_seed: float = float(signal_node.get_instance_id() % 29)
 
 	if ring != null:
-		var pulse := 1.0 + 0.09 * sin(elapsed_time * 4.6 + seed)
+		var pulse := 1.0 + 0.09 * sin(elapsed_time * 4.6 + signal_seed)
 		var fade := lerpf(1.0, 0.74, elapsed_ratio)
 		ring.scale = Vector3.ONE * pulse * fade
+
 	if beacon != null:
-		beacon.position.y = 1.25 + 0.10 * sin(elapsed_time * 3.2 + seed * 0.45)
+		beacon.position.y = 1.25 + 0.10 * sin(elapsed_time * 3.2 + signal_seed * 0.45)
 		var beacon_mat := beacon.material_override as StandardMaterial3D
 		if beacon_mat != null:
 			beacon_mat.emission = Color(0.76, 0.52, 1.0) * lerpf(1.20, 0.46, elapsed_ratio)
-
 
 func _apply_convergence_pulse(runtime: Dictionary) -> void:
 	var center: Vector3 = runtime.get("center", Vector3.ZERO)
@@ -3599,22 +3597,23 @@ func _spawn_marked_zone_signal(center: Vector3, zone_type: String, zone_id: int)
 func _animate_marked_zone_signal(node: Node3D, elapsed_ratio: float, zone_type: String) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+
 	var ring := node.get_node_or_null("Ring") as MeshInstance3D
 	var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
-	var seed: float = float(node.get_instance_id() % 31)
+	var zone_seed: float = float(node.get_instance_id() % 31)
 	var colors := _marked_zone_colors(zone_type)
 
 	if ring != null:
-		var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.0 + seed)
+		var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.0 + zone_seed)
 		var fade := lerpf(1.0, 0.70, elapsed_ratio)
 		ring.scale = Vector3.ONE * pulse * fade
+
 	if beacon != null:
-		beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.0 + seed * 0.45)
+		beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.0 + zone_seed * 0.45)
 		var beacon_mat := beacon.material_override as StandardMaterial3D
 		if beacon_mat != null:
 			var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
 			beacon_mat.emission = accent * lerpf(1.16, 0.40, elapsed_ratio)
-
 
 func _marked_zone_colors(zone_type: String) -> Dictionary:
 	if zone_type == "sanctified_zone":
@@ -4161,22 +4160,23 @@ func _spawn_sanctuary_bastion_signal(center: Vector3, site_type: String, site_id
 func _animate_sanctuary_bastion_signal(node: Node3D, elapsed_ratio: float, site_type: String) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+
 	var ring := node.get_node_or_null("Ring") as MeshInstance3D
 	var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
-	var seed: float = float(node.get_instance_id() % 37)
+	var site_seed: float = float(node.get_instance_id() % 37)
 	var colors := _sanctuary_bastion_colors(site_type)
 
 	if ring != null:
-		var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.2 + seed)
+		var pulse := 1.0 + 0.08 * sin(elapsed_time * 4.2 + site_seed)
 		var fade := lerpf(1.0, 0.68, elapsed_ratio)
 		ring.scale = Vector3.ONE * pulse * fade
+
 	if beacon != null:
-		beacon.position.y = 1.08 + 0.10 * sin(elapsed_time * 3.2 + seed * 0.45)
+		beacon.position.y = 1.08 + 0.10 * sin(elapsed_time * 3.2 + site_seed * 0.45)
 		var beacon_mat := beacon.material_override as StandardMaterial3D
 		if beacon_mat != null:
 			var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
 			beacon_mat.emission = accent * lerpf(1.18, 0.40, elapsed_ratio)
-
 
 func _sanctuary_bastion_colors(site_type: String) -> Dictionary:
 	if site_type == "sanctuary_site":
@@ -4702,22 +4702,23 @@ func _spawn_taboo_signal(center: Vector3, taboo_type: String, taboo_id: int) -> 
 func _animate_taboo_signal(node: Node3D, elapsed_ratio: float, taboo_type: String) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+
 	var ring := node.get_node_or_null("Ring") as MeshInstance3D
 	var beacon := node.get_node_or_null("Beacon") as MeshInstance3D
-	var seed: float = float(node.get_instance_id() % 41)
+	var taboo_seed: float = float(node.get_instance_id() % 41)
 	var colors := _taboo_colors(taboo_type)
 
 	if ring != null:
-		var pulse: float = 1.0 + 0.08 * sin(elapsed_time * 5.0 + seed)
+		var pulse: float = 1.0 + 0.08 * sin(elapsed_time * 5.0 + taboo_seed)
 		var fade: float = lerpf(1.0, 0.66, elapsed_ratio)
 		ring.scale = Vector3.ONE * pulse * fade
+
 	if beacon != null:
-		beacon.position.y = 0.98 + 0.08 * sin(elapsed_time * 3.8 + seed * 0.45)
+		beacon.position.y = 0.98 + 0.08 * sin(elapsed_time * 3.8 + taboo_seed * 0.45)
 		var beacon_mat := beacon.material_override as StandardMaterial3D
 		if beacon_mat != null:
 			var accent: Color = colors.get("accent", Color(1.0, 1.0, 1.0))
 			beacon_mat.emission = accent * lerpf(1.16, 0.40, elapsed_ratio)
-
 
 func _taboo_colors(taboo_type: String) -> Dictionary:
 	if taboo_type == "forbidden_site":
@@ -5614,7 +5615,7 @@ func _try_spawn_memorial_scar_site(
 	var site_id: int = _memorial_scar_next_id
 	_memorial_scar_next_id += 1
 
-	var position: Vector3 = world_manager.clamp_to_world(world_manager.snap_to_nav_grid(victim.global_position))
+	var site_position: Vector3 = world_manager.clamp_to_world(world_manager.snap_to_nav_grid(victim.global_position))
 	var duration: float = randf_range(
 		min(MEMORIAL_SCAR_DURATION_MIN, MEMORIAL_SCAR_DURATION_MAX),
 		max(MEMORIAL_SCAR_DURATION_MIN, MEMORIAL_SCAR_DURATION_MAX)
@@ -5622,13 +5623,13 @@ func _try_spawn_memorial_scar_site(
 	var ends_at: float = elapsed_time + duration
 	var source_label: String = _actor_label(victim)
 	var source_short := "%s#%d" % [victim.actor_kind, victim.actor_id]
-	var visual_node: Node3D = _spawn_memorial_scar_visual(site_type, position, site_id)
+	var visual_node: Node3D = _spawn_memorial_scar_visual(site_type, site_position, site_id)
 
 	_memorial_scar_runtime[site_id] = {
 		"id": site_id,
 		"type": site_type,
 		"faction": victim.faction,
-		"position": position,
+		"position": site_position,
 		"radius": MEMORIAL_SCAR_RADIUS,
 		"source_label": source_label,
 		"source_short": source_short,
@@ -5642,8 +5643,8 @@ func _try_spawn_memorial_scar_site(
 	}
 	memorial_scar_born_total += 1
 	record_event(
-        "Memorial/Scar BORN: %s at %s from %s (%s, %.0fs)."
-		% [site_type, _position_label_2d(position), source_label, trigger_kind, duration]
+		"Memorial/Scar BORN: %s at %s from %s (%s, %.0fs)."
+		% [site_type, _position_label_2d(site_position), source_label, trigger_kind, duration]
 	)
 	_record_major_event(
 		"memorial_scar_born",
@@ -5653,7 +5654,6 @@ func _try_spawn_memorial_scar_site(
 		world_manager.get_allegiance_doctrine(victim.allegiance_id),
 		world_manager.get_allegiance_doctrine_source(victim.allegiance_id)
 	)
-
 
 func _trim_memorial_scar_capacity() -> void:
 	while _memorial_scar_runtime.size() >= MEMORIAL_SCAR_MAX_ACTIVE:
@@ -5671,7 +5671,7 @@ func _trim_memorial_scar_capacity() -> void:
 		_fade_memorial_scar_site(oldest_id, "cap")
 
 
-func _spawn_memorial_scar_visual(site_type: String, position: Vector3, site_id: int) -> Node3D:
+func _spawn_memorial_scar_visual(site_type: String, site_position: Vector3, site_id: int) -> Node3D:
 	if _memorial_scar_sites_root == null:
 		return null
 
@@ -5681,7 +5681,7 @@ func _spawn_memorial_scar_visual(site_type: String, position: Vector3, site_id: 
 
 	var site_node := Node3D.new()
 	site_node.name = "Site_%d" % site_id
-	site_node.position = position
+	site_node.position = site_position
 
 	var ring := MeshInstance3D.new()
 	ring.name = "Ring"
@@ -5718,7 +5718,6 @@ func _spawn_memorial_scar_visual(site_type: String, position: Vector3, site_id: 
 	var tween := create_tween()
 	tween.tween_property(site_node, "scale", Vector3.ONE, 0.34)
 	return site_node
-
 
 func _make_memorial_scar_material(color: Color, emission_strength: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
@@ -5837,9 +5836,8 @@ func _memorial_scar_type_short(site_type: String) -> String:
 	return "M" if site_type == "memorial_site" else "S"
 
 
-func _position_label_2d(position: Vector3) -> String:
-	return "(%.1f, %.1f)" % [position.x, position.z]
-
+func _position_label_2d(world_position: Vector3) -> String:
+	return "(%.1f, %.1f)" % [world_position.x, world_position.z]
 
 func record_event(message: String) -> void:
 	event_log.append("[%05d] %s" % [tick_index, message])
@@ -5908,7 +5906,7 @@ func _trim_major_event_timeline() -> void:
 
 
 func get_run_narrative_summary(
-	poi_runtime_snapshot: Dictionary,
+	input_poi_runtime_snapshot: Dictionary,
 	doctrine_runtime_snapshot: Dictionary,
 	humans_alive: int,
 	monsters_alive: int
@@ -5916,13 +5914,16 @@ func get_run_narrative_summary(
 	var human_dominant_poi: int = 0
 	var monster_dominant_poi: int = 0
 	var poi_total: int = 0
-	for poi_name in poi_runtime_snapshot.keys():
-		var details_variant: Variant = poi_runtime_snapshot.get(poi_name, {})
+
+	for poi_name in input_poi_runtime_snapshot.keys():
+		var details_variant: Variant = input_poi_runtime_snapshot.get(poi_name, {})
 		if typeof(details_variant) != TYPE_DICTIONARY:
 			continue
+
 		poi_total += 1
 		var details: Dictionary = details_variant
 		var status: String = str(details.get("status", "calm"))
+
 		if status == "human_dominant":
 			human_dominant_poi += 1
 		elif status == "monster_dominant":
@@ -5958,6 +5959,7 @@ func get_run_narrative_summary(
 	var legacy_count: int = max(0, legacy_successor_chosen_total - run_legacy_successor_baseline)
 	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
 	var last_major_event: String = "(none)"
+
 	if major_event_count > 0:
 		var last_event_variant: Variant = major_event_timeline[major_event_count - 1]
 		if typeof(last_event_variant) == TYPE_DICTIONARY:
@@ -5970,12 +5972,14 @@ func get_run_narrative_summary(
 		)
 	else:
 		run_summary_lines.append("%s remained ahead in the field." % dominant_faction_label)
+
 	if dominant_doctrine != "":
 		run_summary_lines.append(
 			"Doctrine %s guided %d allegiances." % [dominant_doctrine, dominant_doctrine_count]
 		)
 	else:
 		run_summary_lines.append("No clear doctrine dominance yet.")
+
 	if world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE:
 		var support_gate_run_success: int = int(support_gate_tuning.get("support_gate_run_success", 0))
 		var support_gate_run_success_rate: int = int(
@@ -6015,6 +6019,7 @@ func get_run_narrative_summary(
 				champion_support_run_success_rate
 			]
 		)
+
 	run_summary_lines.append(
 		"%d projects launched; vendettas started=%d (resolved=%d)."
 		% [project_count, vendetta_count, vendetta_resolved_count]
@@ -6037,7 +6042,6 @@ func get_run_narrative_summary(
 		"relic_count": relic_count,
 		"legacy_count": legacy_count
 	}
-
 
 func _get_relic_template(relic_id: String) -> Dictionary:
 	if relic_id == "":
@@ -6404,22 +6408,28 @@ func _spawn_special_arrival(candidate: Dictionary) -> void:
 	if actor == null:
 		return
 
-	actor.global_position = _special_arrival_spawn_position(anchor_position, faction)
+	var spawn_position: Vector3 = _special_arrival_spawn_position(anchor_position, faction)
+
+	entities_root.add_child(actor)
+	actor.global_position = spawn_position
+
 	actor.set_special_arrival(variant_id, title)
 	actor.promote_to_champion("special_arrival:%s" % variant_id)
 	actor.apply_special_arrival_bonus(variant_id)
+
 	if allegiance_id != "":
 		actor.set_allegiance(allegiance_id, poi_name)
 
-	entities_root.add_child(actor)
 	actors.append(actor)
 	register_spawn(actor)
+
 	var arrival_renown_gain: float = RENOWN_GAIN_ON_SPECIAL_ARRIVAL
 	var arrival_notoriety_gain: float = NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL
 	if variant_id == "summoned_hero":
 		arrival_notoriety_gain *= 0.72
 	elif variant_id == "calamity_invader":
 		arrival_notoriety_gain *= 1.12
+
 	_apply_notability_gain(
 		actor,
 		arrival_renown_gain,
@@ -6435,10 +6445,9 @@ func _spawn_special_arrival(candidate: Dictionary) -> void:
 
 	var poi_label := poi_name if poi_name != "" else "wilds"
 	record_event(
-        "Special Arrival START: %s at %s (%s)."
+		"Special Arrival START: %s at %s (%s)."
 		% [title, poi_label, _world_event_label(world_event_active_id)]
 	)
-
 
 func _make_special_arrival_actor(variant_id: String) -> Actor:
 	if variant_id == "summoned_hero":
@@ -6752,18 +6761,23 @@ func _spawn_neutral_gate_breach(transition: Dictionary) -> Actor:
 
 	var breach := RangedMonster.new()
 	var jitter := Vector3(randf_range(-1.8, 1.8), 0.0, randf_range(-1.8, 1.8))
-	breach.global_position = world_manager.clamp_to_world(world_manager.snap_to_nav_grid(gate_position + jitter))
+	var breach_position: Vector3 = world_manager.clamp_to_world(
+		world_manager.snap_to_nav_grid(gate_position + jitter)
+	)
+
+	entities_root.add_child(breach)
+	breach.global_position = breach_position
+
 	breach.set_special_arrival("rift_gate_breach", "Rift Breacher")
 	breach.apply_special_arrival_bonus("rift_gate_breach")
 
-	entities_root.add_child(breach)
 	actors.append(breach)
 	register_spawn(breach)
 	_apply_notability_gain(
 		breach,
 		RENOWN_GAIN_ON_SPECIAL_ARRIVAL * 0.48,
 		NOTORIETY_GAIN_ON_SPECIAL_ARRIVAL * 0.62,
-        "gate_breach"
+		"gate_breach"
 	)
 
 	if not bounty_active:
@@ -6772,20 +6786,19 @@ func _spawn_neutral_gate_breach(transition: Dictionary) -> Actor:
 
 	return breach
 
-
 func _update_bounty_system(delta: float) -> void:
 	_bounty_cooldown_left = max(0.0, _bounty_cooldown_left - delta)
 	_bounty_check_timer += delta
 
 	if bounty_active:
+		var active_bounty_target: Actor = _find_actor_by_id(bounty_target_actor_id)
 		bounty_remaining = max(0.0, bounty_remaining - delta)
-		var target: Actor = _find_actor_by_id(bounty_target_actor_id)
-		if target == null or target.is_dead:
+		if active_bounty_target == null or active_bounty_target.is_dead:
 			_expire_bounty("target_lost")
 			return
 
-		bounty_target_position = target.global_position
-		bounty_target_label = _actor_label(target)
+		bounty_target_position = active_bounty_target.global_position
+		bounty_target_label = _actor_label(active_bounty_target)
 		_push_bounty_state_to_world()
 		if bounty_remaining <= 0.0:
 			_expire_bounty("timeout")
@@ -6811,12 +6824,11 @@ func _update_bounty_system(delta: float) -> void:
 		return
 	var source_position: Vector3 = source.get("position", Vector3.ZERO)
 	var source_allegiance_id: String = str(source.get("allegiance_id", ""))
-	var target: Actor = _pick_bounty_target(source_faction, source_position, source_allegiance_id)
-	if target == null:
+	var selected_bounty_target: Actor = _pick_bounty_target(source_faction, source_position, source_allegiance_id)
+	if selected_bounty_target == null:
 		return
 
-	_start_bounty(source, target)
-
+	_start_bounty(source, selected_bounty_target)
 
 func _count_active_bounties() -> int:
 	return 1 if bounty_active else 0
@@ -7073,17 +7085,17 @@ func _update_destiny_pulls(delta: float) -> void:
 			if runtime.is_empty():
 				continue
 
-			var actor: Actor = _find_actor_by_id(actor_id)
-			if actor == null or actor.is_dead:
+			var runtime_actor: Actor = _find_actor_by_id(actor_id)
+			if runtime_actor == null or runtime_actor.is_dead:
 				_end_destiny_pull(actor_id, "interrupted", "actor_unavailable")
 				continue
 
-			var refreshed: Dictionary = _refresh_destiny_runtime_target(runtime, actor)
+			var refreshed: Dictionary = _refresh_destiny_runtime_target(runtime, runtime_actor)
 			if not bool(refreshed.get("valid", false)):
 				_end_destiny_pull(actor_id, "interrupted", str(refreshed.get("reason", "context_lost")))
 				continue
 
-			var target_position: Vector3 = refreshed.get("target_position", actor.global_position)
+			var target_position: Vector3 = refreshed.get("target_position", runtime_actor.global_position)
 			var target_label: String = str(refreshed.get("target_label", str(runtime.get("target_label", "target"))))
 			runtime["target_position"] = target_position
 			runtime["target_label"] = target_label
@@ -7093,16 +7105,16 @@ func _update_destiny_pulls(delta: float) -> void:
 				refreshed.get("target_allegiance_id", str(runtime.get("target_allegiance_id", "")))
 			)
 
-			var distance: float = actor.global_position.distance_to(target_position)
+			var distance: float = runtime_actor.global_position.distance_to(target_position)
 			var near_time: float = float(runtime.get("near_time", 0.0))
 			if distance <= DESTINY_FULFILL_RADIUS:
 				near_time += delta
-				actor.energy = min(actor.max_energy, actor.energy + DESTINY_NEAR_ENERGY_BONUS_PER_SEC * delta)
+				runtime_actor.energy = min(runtime_actor.max_energy, runtime_actor.energy + DESTINY_NEAR_ENERGY_BONUS_PER_SEC * delta)
 			else:
 				near_time = max(0.0, near_time - delta * 0.40)
 			runtime["near_time"] = near_time
 
-			actor.set_destiny_pull(
+			runtime_actor.set_destiny_pull(
 				true,
 				str(runtime.get("type", "")),
 				target_position,
@@ -7136,12 +7148,13 @@ func _update_destiny_pulls(delta: float) -> void:
 	var picked: Dictionary = _pick_destiny_start_candidate()
 	if picked.is_empty():
 		return
-	var actor: Actor = picked.get("actor", null)
-	var option: Dictionary = picked.get("option", {})
-	if actor == null or actor.is_dead or option.is_empty():
-		return
-	_start_destiny_pull(actor, option)
 
+	var picked_actor: Actor = picked.get("actor", null)
+	var option: Dictionary = picked.get("option", {})
+	if picked_actor == null or picked_actor.is_dead or option.is_empty():
+		return
+
+	_start_destiny_pull(picked_actor, option)
 
 func _pick_destiny_start_candidate() -> Dictionary:
 	var weighted_candidates: Array[Dictionary] = []
@@ -8046,16 +8059,17 @@ func _apply_echo_pulse(runtime: Dictionary) -> void:
 			_apply_notability_gain(actor, 0.0, ECHO_NOTORIETY_PULSE, "echo_dark")
 
 
-func _spawn_echo_signal(position: Vector3, echo_id: int, echo_type: String) -> Node3D:
+func _spawn_echo_signal(echo_position: Vector3, echo_id: int, echo_type: String) -> Node3D:
 	if _echo_signals_root == null or not is_instance_valid(_echo_signals_root):
 		return null
+
 	var colors: Dictionary = _echo_colors(echo_type)
 	var base_color: Color = colors.get("base", Color(0.82, 0.82, 0.82))
 	var accent_color: Color = colors.get("accent", Color(0.95, 0.95, 0.95))
 
 	var node := Node3D.new()
 	node.name = "Echo_%d" % echo_id
-	node.position = position
+	node.position = echo_position
 
 	var ring := MeshInstance3D.new()
 	ring.name = "Ring"
@@ -8090,30 +8104,31 @@ func _spawn_echo_signal(position: Vector3, echo_id: int, echo_type: String) -> N
 
 	node.scale = Vector3.ONE * 0.24
 	_echo_signals_root.add_child(node)
+
 	var tween := create_tween()
 	tween.tween_property(node, "scale", Vector3.ONE, 0.28)
 	return node
 
-
 func _animate_echo_signal(signal_node: Node3D, echo_type: String, elapsed_ratio: float) -> void:
 	if signal_node == null or not is_instance_valid(signal_node):
 		return
+
 	var ring := signal_node.get_node_or_null("Ring") as MeshInstance3D
 	var beacon := signal_node.get_node_or_null("Beacon") as MeshInstance3D
-	var seed: float = float(signal_node.get_instance_id() % 41)
+	var echo_seed: float = float(signal_node.get_instance_id() % 41)
 
 	if ring != null:
-		var pulse := 1.0 + 0.10 * sin(elapsed_time * 4.4 + seed)
+		var pulse := 1.0 + 0.10 * sin(elapsed_time * 4.4 + echo_seed)
 		var fade := lerpf(1.0, 0.68, elapsed_ratio)
 		ring.scale = Vector3.ONE * pulse * fade
+
 	if beacon != null:
-		beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.1 + seed * 0.42)
+		beacon.position.y = 1.10 + 0.09 * sin(elapsed_time * 3.1 + echo_seed * 0.42)
 		var beacon_mat := beacon.material_override as StandardMaterial3D
 		if beacon_mat != null:
 			var colors: Dictionary = _echo_colors(echo_type)
 			var accent_color: Color = colors.get("accent", Color(0.95, 0.95, 0.95))
 			beacon_mat.emission = accent_color * lerpf(1.14, 0.40, elapsed_ratio)
-
 
 func _echo_colors(echo_type: String) -> Dictionary:
 	if echo_type == "heroic_echo":
@@ -8432,10 +8447,10 @@ func _collect_expedition_destination_options(actor: Actor) -> Array[Dictionary]:
 		var runtime: Dictionary = _memorial_scar_runtime.get(site_id, {})
 		if runtime.is_empty():
 			continue
-		var position: Vector3 = runtime.get("position", Vector3.ZERO)
-		if position == Vector3.ZERO:
+		var site_position: Vector3 = runtime.get("position", Vector3.ZERO)
+		if site_position == Vector3.ZERO:
 			continue
-		var site_distance: float = actor.global_position.distance_to(position)
+		var site_distance: float = actor.global_position.distance_to(site_position)
 		var site_score: float = 0.84 + max(0.0, (22.0 - min(site_distance, 22.0)) * 0.016)
 		var site_type: String = str(runtime.get("type", ""))
 		if _legacy_successor_runtime_by_actor.has(actor.actor_id):
@@ -8448,13 +8463,12 @@ func _collect_expedition_destination_options(actor: Actor) -> Array[Dictionary]:
 			"type": "expedition_memorial",
 			"destination_kind": "memorial_scar",
 			"destination_id": site_id,
-			"target_position": position,
+			"target_position": site_position,
 			"target_label": str(runtime.get("label", "site")),
 			"score": site_score
 		})
 
 	return options
-
 
 func _try_start_expedition(
 	actor: Actor,
@@ -11964,13 +11978,11 @@ func _update_legacy_runtime(delta: float) -> void:
 			to_remove.append(actor_id)
 
 	for actor_id in to_remove:
-		var runtime: Dictionary = _legacy_successor_runtime_by_actor.get(actor_id, {})
 		var actor: Actor = _find_actor_by_id(actor_id)
 		var label: String = _actor_label(actor) if actor != null else ("actor#%d" % actor_id)
 		record_event("Legacy Faded: %s." % label)
 		legacy_faded_total += 1
 		_legacy_successor_runtime_by_actor.erase(actor_id)
-
 
 func _apply_poi_influences(delta: float) -> void:
 	var influences: Array[Dictionary] = world_manager.get_active_poi_influences()

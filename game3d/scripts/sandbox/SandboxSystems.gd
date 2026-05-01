@@ -68,6 +68,7 @@ func _spawn_actor(faction: String, actors: Array) -> void:
 
 	var actor: Actor
 	var profile_id: String = ""
+
 	if faction == "human":
 		var human: HumanAgent = HumanAgent.new()
 		human.assign_role(_pick_human_role())
@@ -79,8 +80,11 @@ func _spawn_actor(faction: String, actors: Array) -> void:
 
 	_apply_profile_to_actor(actor, profile_id)
 
-	actor.global_position = _world.get_spawn_point(faction)
+	var spawn_position: Vector3 = _world.get_spawn_point(faction)
+
 	_entities_root.add_child(actor)
+	actor.global_position = spawn_position
+
 	actors.append(actor)
 	_loop.register_spawn(actor)
 

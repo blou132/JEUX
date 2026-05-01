@@ -625,22 +625,20 @@ func get_alert_guidance(actor: Actor) -> Dictionary:
 	}
 
 
-func clamp_to_world(position: Vector3) -> Vector3:
+func clamp_to_world(world_position: Vector3) -> Vector3:
 	var half_size: float = (map_size * 0.5) - 1.0
 	return Vector3(
-		clamp(position.x, -half_size, half_size),
+		clamp(world_position.x, -half_size, half_size),
 		0.0,
-		clamp(position.z, -half_size, half_size)
+		clamp(world_position.z, -half_size, half_size)
 	)
 
-
-func snap_to_nav_grid(position: Vector3) -> Vector3:
+func snap_to_nav_grid(world_position: Vector3) -> Vector3:
 	return Vector3(
-		round(position.x / nav_cell_size) * nav_cell_size,
+		round(world_position.x / nav_cell_size) * nav_cell_size,
 		0.0,
-		round(position.z / nav_cell_size) * nav_cell_size
+		round(world_position.z / nav_cell_size) * nav_cell_size
 	)
-
 
 func get_spawn_point(faction: String) -> Vector3:
 	var points: Array[Vector3] = human_spawn_points if faction == "human" else monster_spawn_points
@@ -2073,15 +2071,14 @@ func register_vendetta_incident(
 	return _try_start_vendetta(source_allegiance_id, target_allegiance_id, reason, time_seconds)
 
 
-func get_poi_name_for_position(position: Vector3) -> String:
+func get_poi_name_for_position(world_position: Vector3) -> String:
 	for poi in pois:
 		var poi_name: String = str(poi.get("name", "poi"))
 		var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
 		var poi_radius: float = float(poi.get("radius", 7.0))
-		if position.distance_to(poi_pos) <= poi_radius:
+		if world_position.distance_to(poi_pos) <= poi_radius:
 			return poi_name
 	return ""
-
 
 func get_poi_label(poi_name: String, fallback_label: String = "") -> String:
 	if poi_name == "":
@@ -2284,14 +2281,14 @@ func _refresh_markers() -> void:
 		marker_root.add_child(_make_marker(point, Color(0.95, 0.45, 0.45)))
 
 
-func _make_marker(position: Vector3, color: Color) -> MeshInstance3D:
+func _make_marker(marker_position: Vector3, color: Color) -> MeshInstance3D:
 	var marker := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 0.30
 	mesh.bottom_radius = 0.30
 	mesh.height = 0.15
 	marker.mesh = mesh
-	marker.position = position + Vector3(0.0, 0.075, 0.0)
+	marker.position = marker_position + Vector3(0.0, 0.075, 0.0)
 
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
@@ -2300,7 +2297,6 @@ func _make_marker(position: Vector3, color: Color) -> MeshInstance3D:
 	marker.material_override = material
 
 	return marker
-
 
 func _refresh_poi_markers() -> void:
 	var old_root := get_node_or_null("PoiMarkers")
@@ -2399,19 +2395,22 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	return material
 
 
-func _get_nearest_poi(position: Vector3, skip_neutral_gate: bool = false) -> Dictionary:
+func _get_nearest_poi(world_position: Vector3, skip_neutral_gate: bool = false) -> Dictionary:
 	var selected: Dictionary = {}
 	var closest_sq: float = INF
+
 	for poi in pois:
 		if skip_neutral_gate and _is_neutral_gate_poi(poi):
 			continue
+
 		var poi_pos: Vector3 = poi.get("position", Vector3.ZERO)
-		var d_sq: float = position.distance_squared_to(poi_pos)
+		var d_sq: float = world_position.distance_squared_to(poi_pos)
+
 		if d_sq < closest_sq:
 			selected = poi
 			closest_sq = d_sq
-	return selected
 
+	return selected
 
 func _get_poi_by_name(poi_name: String) -> Dictionary:
 	for poi in pois:
@@ -3034,12 +3033,12 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 		var home_poi: String = str(context.get("home_poi", ""))
 		var runtime: Dictionary = allegiance_project_runtime_by_id.get(allegiance_id, {})
 		if not runtime.is_empty():
-			var project_id: String = str(runtime.get("project_id", ""))
-			var end_at: float = float(runtime.get("end_at", time_seconds))
-			if project_id == "" or not (project_id in ALLEGIANCE_PROJECT_TYPES):
+			var active_project_id: String = str(runtime.get("project_id", ""))
+			var active_end_at: float = float(runtime.get("end_at", time_seconds))
+			if active_project_id == "" or not (active_project_id in ALLEGIANCE_PROJECT_TYPES):
 				allegiance_project_runtime_by_id.erase(allegiance_id)
 				continue
-			if time_seconds >= end_at:
+			if time_seconds >= active_end_at:
 				allegiance_project_runtime_by_id.erase(allegiance_id)
 				allegiance_project_cooldown_until_by_id[allegiance_id] = time_seconds + allegiance_project_cooldown
 				allegiance_project_next_attempt_at_by_id[allegiance_id] = time_seconds + allegiance_project_check_interval
@@ -3047,7 +3046,7 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 					"kind": "allegiance_project_ended",
 					"poi": home_poi,
 					"allegiance_id": allegiance_id,
-					"project_id": project_id
+					"project_id": active_project_id
 				})
 			continue
 
@@ -3070,28 +3069,28 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 			str(context.get("structure_state", "")),
 			str(context.get("doctrine", ""))
 		)
-		var project_id: String = str(project_choice.get("project_id", ""))
-		if not (project_id in ALLEGIANCE_PROJECT_TYPES):
+		var new_project_id: String = str(project_choice.get("project_id", ""))
+		if not (new_project_id in ALLEGIANCE_PROJECT_TYPES):
 			continue
 
 		var duration: float = randf_range(
 			min(allegiance_project_duration_min, allegiance_project_duration_max),
 			max(allegiance_project_duration_min, allegiance_project_duration_max)
 		)
-		var end_at: float = time_seconds + duration
+		var new_end_at: float = time_seconds + duration
 		allegiance_project_runtime_by_id[allegiance_id] = {
-			"project_id": project_id,
+			"project_id": new_project_id,
 			"home_poi": home_poi,
 			"started_at": time_seconds,
-			"end_at": end_at
+			"end_at": new_end_at
 		}
 		events.append({
 			"kind": "allegiance_project_started",
 			"poi": home_poi,
 			"allegiance_id": allegiance_id,
-			"project_id": project_id,
+			"project_id": new_project_id,
 			"duration": duration,
-			"base_project_id": str(project_choice.get("base_project_id", project_id)),
+			"base_project_id": str(project_choice.get("base_project_id", new_project_id)),
 			"doctrine_id": str(project_choice.get("doctrine_id", "")),
 			"doctrine_source": str(project_choice.get("doctrine_source", "fallback")),
 			"doctrine_project_bias": str(project_choice.get("doctrine_preferred_project", "")),
@@ -3102,7 +3101,6 @@ func _update_allegiance_projects_runtime(snapshot: Dictionary, time_seconds: flo
 	return {
 		"events": events
 	}
-
 
 func _try_start_vendetta(
 	source_allegiance_id: String,
@@ -3556,4 +3554,6 @@ func _apply_world_event_visual_bias(
 			var calm_mix := 0.20 + 0.04 * sin(time_seconds * 3.4)
 			_set_mesh_color(ring, status_color.lerp(Color(0.52, 0.82, 1.0), calm_mix), intensity + 0.10)
 func get_poi_runtime_snapshot() -> Dictionary:
+	return {}
+func get_allegiance_doctrine_snapshot() -> Dictionary:
 	return {}

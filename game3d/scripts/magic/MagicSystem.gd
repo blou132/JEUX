@@ -13,6 +13,8 @@ var projectiles: Array[Dictionary] = []
 func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
 	if caster == null or target == null:
 		return false
+	if not caster.is_inside_tree() or not target.is_inside_tree():
+		return false
 	if caster.is_dead or target.is_dead:
 		return false
 	if not caster.can_cast_magic():
@@ -40,8 +42,8 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
 	caster.energy = max(0.0, caster.energy - energy_cost)
 
 	var visual := _create_projectile_visual(caster.faction)
-	visual.global_position = caster.global_position + Vector3(0.0, 1.2, 0.0)
 	add_child(visual)
+	visual.global_position = caster.global_position + Vector3(0.0, 1.2, 0.0)
 
 	projectiles.append({
 		"node": visual,
@@ -58,7 +60,11 @@ func try_cast(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
 
 
 func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
-	if caster == null or caster.is_dead:
+	if caster == null:
+		return false
+	if not caster.is_inside_tree():
+		return false
+	if caster.is_dead:
 		return false
 	if not caster.can_cast_nova():
 		return false
@@ -71,7 +77,11 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
 
 	var hits: int = 0
 	for actor in actors:
-		if actor == null or actor.is_dead:
+		if actor == null:
+			continue
+		if not actor.is_inside_tree():
+			continue
+		if actor.is_dead:
 			continue
 		if not caster.is_enemy(actor):
 			continue
@@ -101,6 +111,8 @@ func try_cast_nova(caster: Actor, actors: Array, game_loop: GameLoop) -> bool:
 
 func try_cast_control(caster: Actor, target: Actor, game_loop: GameLoop) -> bool:
 	if caster == null or target == null:
+		return false
+	if not caster.is_inside_tree() or not target.is_inside_tree():
 		return false
 	if caster.is_dead or target.is_dead:
 		return false
@@ -135,15 +147,18 @@ func tick_projectiles(delta: float, actors: Array, game_loop: GameLoop) -> void:
 	for idx in range(projectiles.size() - 1, -1, -1):
 		var projectile: Dictionary = projectiles[idx]
 		var node: Node3D = projectile["node"]
-		if node == null:
+
+		if node == null or not is_instance_valid(node):
 			projectiles.remove_at(idx)
 			continue
 
-		var position: Vector3 = projectile["position"]
+		var projectile_position: Vector3 = projectile["position"]
 		var direction: Vector3 = projectile["direction"]
-		position += direction * projectile_speed * delta
-		projectile["position"] = position
-		node.global_position = position
+		projectile_position += direction * projectile_speed * delta
+		projectile["position"] = projectile_position
+
+		if node.is_inside_tree():
+			node.global_position = projectile_position
 
 		projectile["lifetime"] = float(projectile["lifetime"]) - delta
 		if float(projectile["lifetime"]) <= 0.0:
@@ -167,27 +182,36 @@ func tick_projectiles(delta: float, actors: Array, game_loop: GameLoop) -> void:
 
 
 func _find_collision_target(projectile: Dictionary, actors: Array) -> Actor:
-	var position: Vector3 = projectile["position"]
+	var projectile_position: Vector3 = projectile["position"]
 	var faction: String = str(projectile["faction"])
 
 	for actor in actors:
-		if actor == null or actor.is_dead:
+		if actor == null:
+			continue
+		if not actor.is_inside_tree():
+			continue
+		if actor.is_dead:
 			continue
 		if actor.faction == faction:
 			continue
 
 		var check_position: Vector3 = actor.global_position + Vector3(0.0, 1.0, 0.0)
-		if position.distance_to(check_position) <= projectile_radius:
+		if projectile_position.distance_to(check_position) <= projectile_radius:
 			return actor
 
 	return null
 
 
 func _remove_projectile(index: int) -> void:
+	if index < 0 or index >= projectiles.size():
+		return
+
 	var projectile: Dictionary = projectiles[index]
 	var node: Node3D = projectile["node"]
-	if node != null:
+
+	if node != null and is_instance_valid(node):
 		node.queue_free()
+
 	projectiles.remove_at(index)
 
 
@@ -209,13 +233,15 @@ func _create_projectile_visual(faction: String) -> MeshInstance3D:
 
 
 func _spawn_nova_visual(center: Vector3, radius: float, faction: String) -> void:
+	if not is_inside_tree():
+		return
+
 	var ring := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
 	mesh.height = 0.12
 	ring.mesh = mesh
-	ring.global_position = center
 	ring.scale = Vector3(0.05, 1.0, 0.05)
 
 	var color := Color(0.40, 0.78, 1.0) if faction == "human" else Color(1.0, 0.45, 0.45)
@@ -224,7 +250,9 @@ func _spawn_nova_visual(center: Vector3, radius: float, faction: String) -> void
 	material.emission_enabled = true
 	material.emission = color * 0.95
 	ring.material_override = material
+
 	add_child(ring)
+	ring.global_position = center
 
 	var tween := create_tween()
 	tween.tween_property(ring, "scale", Vector3.ONE, nova_visual_duration)
@@ -232,13 +260,15 @@ func _spawn_nova_visual(center: Vector3, radius: float, faction: String) -> void
 
 
 func _spawn_control_visual(center: Vector3, faction: String) -> void:
+	if not is_inside_tree():
+		return
+
 	var ring := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 1.1
 	mesh.bottom_radius = 1.1
 	mesh.height = 0.10
 	ring.mesh = mesh
-	ring.global_position = center
 	ring.scale = Vector3(0.45, 1.0, 0.45)
 
 	var color := Color(0.30, 0.86, 0.92) if faction == "human" else Color(0.98, 0.55, 0.32)
@@ -247,7 +277,9 @@ func _spawn_control_visual(center: Vector3, faction: String) -> void:
 	material.emission_enabled = true
 	material.emission = color * 0.95
 	ring.material_override = material
+
 	add_child(ring)
+	ring.global_position = center
 
 	var tween := create_tween()
 	tween.tween_property(ring, "scale", Vector3.ONE * 1.24, control_visual_duration)
