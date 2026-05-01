@@ -304,6 +304,9 @@ Passerelles runtime (ordre de chargement) :
   - `champion_support_target_label`
   - `champion_support_progress_label`
   - `champion_support_debug_label`
+  - `champion_support_visual_actor_id`
+  - `champion_support_visual_state`
+  - `champion_support_visual_label`
 - HUD:
   - mode `player`: `Objective: ...` + `Goal: ...` + `Progress: 12.4s / 30.0s (41%)` + `Fail reason` si echec.
   - mode `debug`: details `objective_id`, `objective_category`, `objective_config_label`, status/faction/switch/fail reason.
@@ -337,6 +340,13 @@ Passerelles runtime (ordre de chargement) :
   - `cooldown` / `unavailable`: halo plus neutre.
   - `inactive`: retour au rendu gate normal hors objectif actif.
   - etats exposes: `support_gate_visual_state`, `support_gate_visual_label`.
+- Feedback visuel champion v165 (runtime, marqueur leger):
+  - cible rally active: `champion_support_visual_state=target`.
+  - interaction `E` reussie: `champion_support_visual_state=flash`.
+  - aucun champion vivant: `champion_support_visual_state=unavailable`.
+  - hors objectif actif: `champion_support_visual_state=inactive`.
+  - marqueur applique via `Actor.set_objective_marker(...)` sur le champion cible uniquement.
+  - etats exposes: `champion_support_visual_actor_id`, `champion_support_visual_state`, `champion_support_visual_label`.
 - Succès:
   - objectif `completed` quand le nombre requis d'actions est atteint avant timeout.
 - Echec:
@@ -346,6 +356,7 @@ Passerelles runtime (ordre de chargement) :
   - mode `player` (rally_champion actif): `Champion: <target|none>` + `E: support champion` + `Support: X/N`.
   - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
   - mode `debug` (rally_champion actif): `Champion support: available=... candidates=... target=...` + `Champion support debug: ...`.
+  - mode `debug` (visuel): `Champion support visual: state=... actor=... label=...`.
 - Champs debug rally_champion:
   - `champion_support_available` = objectif actif + au moins un champion vivant detecte.
   - `champion_support_candidate_count` = nombre de champions vivants eligibles.

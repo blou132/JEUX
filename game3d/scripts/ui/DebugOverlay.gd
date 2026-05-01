@@ -186,6 +186,13 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var support_gate_visual_label: String = str(
         snapshot.get("support_gate_visual_label", support_gate_visual_state)
     ).strip_edges()
+    var champion_support_visual_actor_id: int = int(snapshot.get("champion_support_visual_actor_id", 0))
+    var champion_support_visual_state: String = str(
+        snapshot.get("champion_support_visual_state", "inactive")
+    ).strip_edges()
+    var champion_support_visual_label: String = str(
+        snapshot.get("champion_support_visual_label", "inactive")
+    ).strip_edges()
     var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
     var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
     var support_gate_run_success_rate: int = int(
@@ -269,6 +276,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
         % [
             support_gate_visual_state if support_gate_visual_state != "" else "inactive",
             support_gate_visual_label if support_gate_visual_label != "" else "inactive"
+        ]
+    )
+    lines.append(
+        "Champion support visual: state=%s actor=%s label=%s"
+        % [
+            champion_support_visual_state if champion_support_visual_state != "" else "inactive",
+            str(champion_support_visual_actor_id) if champion_support_visual_actor_id > 0 else "none",
+            champion_support_visual_label if champion_support_visual_label != "" else "inactive"
         ]
     )
     lines.append(
@@ -1244,6 +1259,13 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var neutral_gate_remaining: float = float(snapshot.get("neutral_gate_remaining", 0.0))
     var neutral_gate_cooldown: float = float(snapshot.get("neutral_gate_cooldown", 0.0))
     var support_gate_visual_state: String = str(snapshot.get("support_gate_visual_state", "inactive")).strip_edges()
+    var champion_support_visual_actor_id: int = int(snapshot.get("champion_support_visual_actor_id", 0))
+    var champion_support_visual_state: String = str(
+        snapshot.get("champion_support_visual_state", "inactive")
+    ).strip_edges()
+    var champion_support_visual_label: String = str(
+        snapshot.get("champion_support_visual_label", "inactive")
+    ).strip_edges()
     var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
     var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
     var support_gate_run_success_rate: int = int(
@@ -1305,6 +1327,14 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     lines.append(
         "Support gate visual: %s"
         % [support_gate_visual_state if support_gate_visual_state != "" else "inactive"]
+    )
+    lines.append(
+        "Champion support visual: state=%s actor=%s label=%s"
+        % [
+            champion_support_visual_state if champion_support_visual_state != "" else "inactive",
+            str(champion_support_visual_actor_id) if champion_support_visual_actor_id > 0 else "none",
+            champion_support_visual_label if champion_support_visual_label != "" else "inactive"
+        ]
     )
     lines.append(
         "Support gate tuning: run attempts=%d success=%d rate=%d%% available=%d%%"

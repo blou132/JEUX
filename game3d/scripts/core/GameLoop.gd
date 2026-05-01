@@ -23,6 +23,7 @@ const OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_TIME: float = 44.0
 const OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS: int = 4
 const OBJECTIVE_CHAMPION_SUPPORT_INTERACTION_COOLDOWN: float = 1.20
 const OBJECTIVE_CHAMPION_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 70
+const OBJECTIVE_CHAMPION_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const OBJECTIVE_GATE_SUPPORT_STABILIZE_SECONDS: float = 1.40
 const OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const XP_ON_HIT: float = 1.5
@@ -628,6 +629,10 @@ var support_gate_unavailable_time_total: float = 0.0
 var world_objective_gate_bad_state_elapsed: float = 0.0
 var world_objective_gate_bad_state_threshold: float = OBJECTIVE_GATE_SUPPORT_BAD_STATE_THRESHOLD
 var world_objective_champion_available_seen: bool = false
+var champion_support_visual_actor_id: int = 0
+var champion_support_visual_state: String = "inactive"
+var champion_support_visual_label: String = "inactive"
+var champion_support_success_flash_timer: float = 0.0
 var run_status: String = "running"
 var run_result_title: String = ""
 var run_result_lines: Array[String] = []
@@ -914,13 +919,17 @@ func _resolve_champion_support_candidates() -> Dictionary:
 			target_score = actor_score
 
 	var target_label: String = "none"
+	var target_actor_id: int = 0
 	if target != null:
 		target_label = _actor_label(target)
+		target_actor_id = target.actor_id
 	return {
 		"candidate_count": candidate_count,
 		"human_count": human_count,
 		"monster_count": monster_count,
-		"target_label": target_label
+		"target_label": target_label,
+		"target_actor_id": target_actor_id,
+		"target_actor": target
 	}
 
 
@@ -963,6 +972,80 @@ func _build_champion_support_observability() -> Dictionary:
 		"champion_support_progress_label": progress_label,
 		"champion_support_debug_label": debug_label
 	}
+
+
+func _resolve_champion_support_visual_state() -> Dictionary:
+	var is_champion_support_active: bool = (
+		world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION
+		and world_objective_status == "active"
+		and world_objective_category == "champion_support"
+	)
+	var visual_actor_id: int = 0
+	var visual_state: String = "inactive"
+	var visual_label: String = "inactive"
+	var target_actor: Actor = null
+	if is_champion_support_active:
+		var candidates: Dictionary = _resolve_champion_support_candidates()
+		var candidate_count: int = int(candidates.get("candidate_count", 0))
+		target_actor = candidates.get("target_actor", null) as Actor
+		visual_actor_id = int(candidates.get("target_actor_id", 0))
+		visual_label = str(candidates.get("target_label", "none"))
+		if candidate_count <= 0 or target_actor == null:
+			visual_actor_id = 0
+			visual_state = "unavailable"
+			visual_label = "unavailable"
+		elif champion_support_success_flash_timer > 0.0:
+			visual_state = "flash"
+		else:
+			visual_state = "target"
+	else:
+		visual_actor_id = 0
+		target_actor = null
+	return {
+		"champion_support_visual_actor_id": visual_actor_id,
+		"champion_support_visual_state": visual_state,
+		"champion_support_visual_label": visual_label,
+		"target_actor": target_actor
+	}
+
+
+func _clear_champion_support_objective_markers() -> void:
+	for actor in actors:
+		if actor == null:
+			continue
+		actor.set_objective_marker(false)
+
+
+func _push_champion_support_objective_visual_state() -> void:
+	var visual_state_data: Dictionary = _resolve_champion_support_visual_state()
+	champion_support_visual_actor_id = int(visual_state_data.get("champion_support_visual_actor_id", 0))
+	champion_support_visual_state = str(visual_state_data.get("champion_support_visual_state", "inactive"))
+	champion_support_visual_label = str(visual_state_data.get("champion_support_visual_label", "inactive"))
+	var target_actor: Actor = visual_state_data.get("target_actor", null) as Actor
+	var mark_target: bool = (
+		target_actor != null
+		and champion_support_visual_state in ["target", "flash"]
+	)
+	for actor in actors:
+		if actor == null:
+			continue
+		if not mark_target or actor != target_actor or actor.is_dead:
+			actor.set_objective_marker(false)
+			continue
+		var marker_label: String = "rally_champion"
+		var marker_flash_timer: float = 0.0
+		if champion_support_visual_state == "flash":
+			marker_label = "rally_champion flash"
+			marker_flash_timer = champion_support_success_flash_timer
+		actor.set_objective_marker(true, marker_label, marker_flash_timer)
+
+
+func _update_champion_support_objective_visual_state(delta: float) -> void:
+	champion_support_success_flash_timer = max(
+		0.0,
+		champion_support_success_flash_timer - max(delta, 0.0)
+	)
+	_push_champion_support_objective_visual_state()
 
 
 func _resolve_support_gate_visual_state() -> Dictionary:
@@ -1345,6 +1428,7 @@ func _trigger_champion_support_objective_interaction() -> bool:
 	)
 	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
 	world_objective_interaction_available = false
+	champion_support_success_flash_timer = OBJECTIVE_CHAMPION_SUPPORT_SUCCESS_FLASH_DURATION
 	_set_objective_interaction_feedback("Champion support accepted", "success", 2.0)
 
 	record_event(
@@ -1408,6 +1492,7 @@ func _tick(delta: float) -> void:
 	_update_splinters(delta)
 	magic_system.tick_projectiles(delta, actors, self)
 	_update_poi_runtime()
+	_update_champion_support_objective_visual_state(delta)
 	_update_world_objective(delta)
 	_update_objective_interaction_feedback(delta)
 	_update_support_gate_objective_visual_state(delta)
@@ -1615,6 +1700,10 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	support_gate_success_flash_timer = 0.0
 	support_gate_visual_state = "inactive"
 	support_gate_visual_label = "inactive"
+	champion_support_visual_actor_id = 0
+	champion_support_visual_state = "inactive"
+	champion_support_visual_label = "inactive"
+	champion_support_success_flash_timer = 0.0
 	world_objective_gate_bad_state_elapsed = 0.0
 	world_objective_gate_bad_state_threshold = max(
 		0.1,
@@ -1634,6 +1723,8 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 		"objective_started",
 		"Objective START: %s" % world_objective_id
 	)
+	_clear_champion_support_objective_markers()
+	_push_champion_support_objective_visual_state()
 	_push_support_gate_objective_visual_state()
 
 
@@ -10682,6 +10773,9 @@ func _build_snapshot() -> Dictionary:
 		"champion_support_debug_label": str(
 			champion_support_observability.get("champion_support_debug_label", "inactive")
 		),
+		"champion_support_visual_actor_id": champion_support_visual_actor_id,
+		"champion_support_visual_state": champion_support_visual_state,
+		"champion_support_visual_label": champion_support_visual_label,
 		"support_gate_visual_state": support_gate_visual_state,
 		"support_gate_visual_label": support_gate_visual_label,
 		"support_gate_attempts_total": int(support_gate_tuning.get("support_gate_attempts_total", 0)),

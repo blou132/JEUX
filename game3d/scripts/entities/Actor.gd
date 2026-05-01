@@ -99,6 +99,9 @@ var bond_patron_active: bool = false
 var bond_label: String = ""
 var splinter_active: bool = false
 var splinter_label: String = ""
+var objective_marker_active: bool = false
+var objective_marker_label: String = ""
+var objective_marker_flash_timer: float = 0.0
 var world_speed_multiplier: float = 1.0
 var world_energy_regen_per_sec: float = 0.0
 
@@ -147,6 +150,7 @@ func tick_actor(
 	melee_cooldown_left = max(0.0, melee_cooldown_left - delta)
 	magic_cooldown_left = max(0.0, magic_cooldown_left - delta)
 	_update_control_state(delta)
+	_update_objective_marker_state(delta)
 	_update_survival_progress(delta, game_loop)
 	_update_world_event_context(game_loop)
 	decay_notability(delta)
@@ -668,6 +672,22 @@ func set_splinter_state(active: bool, next_label: String = "") -> void:
 	_refresh_control_visual()
 
 
+func set_objective_marker(active: bool, label: String = "", flash_timer: float = 0.0) -> void:
+	var resolved_label: String = label.strip_edges() if active else ""
+	var resolved_flash_timer: float = max(0.0, flash_timer) if active else 0.0
+	var has_changed: bool = (
+		objective_marker_active != active
+		or objective_marker_label != resolved_label
+		or absf(objective_marker_flash_timer - resolved_flash_timer) > 0.001
+	)
+	if not has_changed:
+		return
+	objective_marker_active = active
+	objective_marker_label = resolved_label
+	objective_marker_flash_timer = resolved_flash_timer
+	_refresh_control_visual()
+
+
 func set_allegiance(next_allegiance_id: String, next_home_poi: String) -> void:
 	allegiance_id = next_allegiance_id
 	home_poi = next_home_poi
@@ -858,6 +878,14 @@ func _update_control_state(delta: float) -> void:
 	if slow_time_left <= 0.0:
 		slow_multiplier = 1.0
 	_refresh_control_visual()
+
+
+func _update_objective_marker_state(delta: float) -> void:
+	if objective_marker_flash_timer <= 0.0:
+		return
+	objective_marker_flash_timer = max(0.0, objective_marker_flash_timer - delta)
+	if objective_marker_flash_timer <= 0.0:
+		_refresh_control_visual()
 
 
 func _movement_control_factor() -> float:
@@ -1071,6 +1099,17 @@ func _refresh_control_visual() -> void:
 			else:
 				material.emission_enabled = true
 				material.emission = splinter_glow * 0.18
+		if objective_marker_active:
+			var objective_glow := Color(1.0, 0.92, 0.34)
+			var objective_mix: float = 0.22
+			if objective_marker_flash_timer > 0.0:
+				objective_glow = Color(1.0, 1.0, 0.58)
+				objective_mix = 0.44
+			if material.emission_enabled:
+				material.emission = material.emission.lerp(objective_glow, objective_mix)
+			else:
+				material.emission_enabled = true
+				material.emission = objective_glow * 0.32
 		var renown_signal := _notability_signal_strength(renown)
 		if renown_signal > 0.0:
 			var renown_glow := _renown_glow_color()
