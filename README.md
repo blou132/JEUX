@@ -454,6 +454,7 @@ Passerelles runtime (ordre de chargement) :
   - `run_summary_lines`
   - `last_major_event_label`
   - metriques `support_gate` run-only et session (`support_gate_run_*`, `support_gate_*_total`, ratios)
+  - metriques `rally_champion` run-only (`champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`, `champion_support_tuning_label`)
 - ecriture fichier:
   - methode publique `export_run_metrics()`
   - cible locale: `user://run_metrics_latest.json`
@@ -464,6 +465,19 @@ Passerelles runtime (ordre de chargement) :
   - champ snapshot `run_metrics_export_label`
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
+
+## Lecture rapide des metriques champion (v168)
+- ces metriques servent au **runtime/debug/playtest** uniquement et ne changent pas le gameplay.
+- dans `run_metrics_latest.json` / `run_metrics_history.jsonl` (export existant), lire:
+  - `champion_support_run_attempts`
+  - `champion_support_run_success`
+  - `champion_support_run_success_rate`
+  - `champion_support_tuning_label`
+- dans `tools/analyze_run_metrics_history.py`, le resume expose aussi un bloc `champion_support`:
+  - moyennes run attempts/success/success_rate,
+  - meilleur/pire run (sur les exports qui ont les champs),
+  - `latest_champion_support_tuning_label`.
+- compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 
 ## Run metrics export history (v152)
 - v152 conserve `latest` et ajoute un historique local append-only pour comparer plusieurs runs.

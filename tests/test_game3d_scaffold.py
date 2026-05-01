@@ -931,6 +931,14 @@ class TestGame3DScaffold(unittest.TestCase):
         self.assertIn("func get_run_metrics_export_payload", content)
         self.assertIn("func export_run_metrics", content)
         self.assertIn("func _build_run_metrics_export_id", content)
+        self.assertIn('"champion_support_run_attempts": int(snapshot.get("champion_support_run_attempts", 0))', content)
+        self.assertIn('"champion_support_run_success": int(snapshot.get("champion_support_run_success", 0))', content)
+        self.assertIn(
+            '"champion_support_run_success_rate": float(snapshot.get("champion_support_run_success_rate", 0.0))',
+            content
+        )
+        self.assertIn('"champion_support_tuning_label": str(', content)
+        self.assertIn('"support_gate_run_attempts": int(snapshot.get("support_gate_run_attempts", 0))', content)
         self.assertIn("support_gate_run_attempts_baseline", content)
         self.assertIn("support_gate_run_success_baseline", content)
         self.assertIn("support_gate_run_available_time_baseline", content)

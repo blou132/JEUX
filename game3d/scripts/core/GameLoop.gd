@@ -1406,6 +1406,12 @@ func get_run_metrics_export_payload() -> Dictionary:
 		"objective_progress": float(snapshot.get("objective_progress", world_objective_progress)),
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
+		"champion_support_run_attempts": int(snapshot.get("champion_support_run_attempts", 0)),
+		"champion_support_run_success": int(snapshot.get("champion_support_run_success", 0)),
+		"champion_support_run_success_rate": float(snapshot.get("champion_support_run_success_rate", 0.0)),
+		"champion_support_tuning_label": str(
+			snapshot.get("champion_support_tuning_label", "Champion support: run attempts=0 success=0 rate=0%")
+		),
 		"support_gate_run_attempts": int(snapshot.get("support_gate_run_attempts", 0)),
 		"support_gate_run_success": int(snapshot.get("support_gate_run_success", 0)),
 		"support_gate_run_success_rate": float(snapshot.get("support_gate_run_success_rate", 0.0)),

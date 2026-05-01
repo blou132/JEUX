@@ -101,6 +101,46 @@ def _pick_worst_run(records: list[dict[str, Any]]) -> dict[str, Any] | None:
     return worst_record
 
 
+def _pick_best_champion_run(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    best_record: dict[str, Any] | None = None
+    best_key: tuple[float, float, float] | None = None
+    for record in records:
+        rate = _as_float(record.get("champion_support_run_success_rate"))
+        success = _as_float(record.get("champion_support_run_success"))
+        attempts = _as_float(record.get("champion_support_run_attempts"))
+        if rate is None:
+            continue
+        key = (
+            rate,
+            success if success is not None else -1.0,
+            attempts if attempts is not None else -1.0,
+        )
+        if best_key is None or key > best_key:
+            best_key = key
+            best_record = record
+    return best_record
+
+
+def _pick_worst_champion_run(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    worst_record: dict[str, Any] | None = None
+    worst_key: tuple[float, float, float] | None = None
+    for record in records:
+        rate = _as_float(record.get("champion_support_run_success_rate"))
+        success = _as_float(record.get("champion_support_run_success"))
+        attempts = _as_float(record.get("champion_support_run_attempts"))
+        if rate is None:
+            continue
+        key = (
+            rate,
+            success if success is not None else 2.0,
+            attempts if attempts is not None else 2.0,
+        )
+        if worst_key is None or key < worst_key:
+            worst_key = key
+            worst_record = record
+    return worst_record
+
+
 def _run_label(record: dict[str, Any] | None) -> str:
     if record is None:
         return "n/a"
@@ -241,6 +281,51 @@ def build_summary(
     best_run = _pick_best_run(support_gate_records)
     worst_run = _pick_worst_run(support_gate_records)
 
+    champion_support_records = [
+        record for record in filtered_records if str(record.get("objective_id", "")) == "rally_champion"
+    ]
+    champion_attempt_values = [
+        _as_float(record.get("champion_support_run_attempts"))
+        for record in champion_support_records
+    ]
+    champion_success_values = [
+        _as_float(record.get("champion_support_run_success"))
+        for record in champion_support_records
+    ]
+    champion_success_rate_values = [
+        _as_float(record.get("champion_support_run_success_rate"))
+        for record in champion_support_records
+    ]
+    champion_success_rate_numeric_values = [
+        value for value in champion_success_rate_values if value is not None
+    ]
+    champion_attempt_avg = _average([value for value in champion_attempt_values if value is not None])
+    champion_success_avg = _average([value for value in champion_success_values if value is not None])
+    champion_success_rate_avg = _average(champion_success_rate_numeric_values)
+
+    champion_completed = 0
+    champion_failed = 0
+    for record in champion_support_records:
+        objective_status = str(record.get("objective_status", "")).strip().lower()
+        if objective_status == "completed":
+            champion_completed += 1
+        elif objective_status == "failed":
+            champion_failed += 1
+
+    champion_objective_success_rate: float | None = None
+    champion_resolved = champion_completed + champion_failed
+    if champion_resolved > 0:
+        champion_objective_success_rate = float(champion_completed / champion_resolved)
+
+    champion_best_run = _pick_best_champion_run(champion_support_records)
+    champion_worst_run = _pick_worst_champion_run(champion_support_records)
+    champion_tuning_label = ""
+    for record in reversed(champion_support_records):
+        label = str(record.get("champion_support_tuning_label", "")).strip()
+        if label != "":
+            champion_tuning_label = label
+            break
+
     summary = {
         "input_total_records": len(all_records),
         "invalid_lines": invalid_lines,
@@ -263,6 +348,18 @@ def build_summary(
             "objective_success_rate": objective_success_rate,
             "objective_completed": support_gate_completed,
             "objective_failed": support_gate_failed,
+        },
+        "champion_support": {
+            "records": len(champion_support_records),
+            "avg_champion_support_run_attempts": champion_attempt_avg,
+            "avg_champion_support_run_success": champion_success_avg,
+            "avg_champion_support_run_success_rate": champion_success_rate_avg,
+            "best_run": _run_label(champion_best_run),
+            "worst_run": _run_label(champion_worst_run),
+            "objective_success_rate": champion_objective_success_rate,
+            "objective_completed": champion_completed,
+            "objective_failed": champion_failed,
+            "latest_champion_support_tuning_label": champion_tuning_label,
         },
     }
     summary["recommendations"] = build_support_gate_recommendations(summary)
@@ -428,6 +525,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     status_counts = summary.get("run_status_counts", {})
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
+    champion_support = summary.get("champion_support", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -484,6 +582,34 @@ def format_summary_text(summary: dict[str, Any]) -> str:
         "Support gate stability: %s"
         % str(support_gate.get("support_gate_stability_label", "unknown"))
     )
+    lines.append("Champion support records=%d" % int(champion_support.get("records", 0)))
+    lines.append(
+        "Champion support avg: attempts=%s success=%s rate=%s"
+        % (
+            (
+                "n/a"
+                if champion_support.get("avg_champion_support_run_attempts") is None
+                else f"{float(champion_support.get('avg_champion_support_run_attempts')):.2f}"
+            ),
+            (
+                "n/a"
+                if champion_support.get("avg_champion_support_run_success") is None
+                else f"{float(champion_support.get('avg_champion_support_run_success')):.2f}"
+            ),
+            _pct(_as_float(champion_support.get("avg_champion_support_run_success_rate"))),
+        )
+    )
+    lines.append(
+        "Champion support best=%s worst=%s objective_success=%s"
+        % (
+            str(champion_support.get("best_run", "n/a")),
+            str(champion_support.get("worst_run", "n/a")),
+            _pct(_as_float(champion_support.get("objective_success_rate"))),
+        )
+    )
+    champion_tuning_label = str(champion_support.get("latest_champion_support_tuning_label", "")).strip()
+    if champion_tuning_label:
+        lines.append("Champion support latest tuning: %s" % champion_tuning_label)
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -539,6 +665,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     status_counts = summary.get("run_status_counts", {})
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
+    champion_support = summary.get("champion_support", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -628,6 +755,46 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append(
         "| support gate stability | %s |"
         % str(support_gate.get("support_gate_stability_label", "unknown"))
+    )
+
+    lines.append("")
+    lines.append("## Champion support")
+    lines.append("| Metric | Value |")
+    lines.append("|---|---|")
+    lines.append("| records | %d |" % int(champion_support.get("records", 0)))
+    lines.append(
+        "| avg attempts | %s |"
+        % (
+            "n/a"
+            if champion_support.get("avg_champion_support_run_attempts") is None
+            else f"{float(champion_support.get('avg_champion_support_run_attempts')):.2f}"
+        )
+    )
+    lines.append(
+        "| avg success | %s |"
+        % (
+            "n/a"
+            if champion_support.get("avg_champion_support_run_success") is None
+            else f"{float(champion_support.get('avg_champion_support_run_success')):.2f}"
+        )
+    )
+    lines.append(
+        "| avg success rate | %s |"
+        % _pct(_as_float(champion_support.get("avg_champion_support_run_success_rate")))
+    )
+    lines.append("| best run | %s |" % str(champion_support.get("best_run", "n/a")))
+    lines.append("| worst run | %s |" % str(champion_support.get("worst_run", "n/a")))
+    lines.append(
+        "| objective success rate | %s |"
+        % _pct(_as_float(champion_support.get("objective_success_rate")))
+    )
+    lines.append(
+        "| latest tuning label | %s |"
+        % (
+            str(champion_support.get("latest_champion_support_tuning_label", "")).strip()
+            if str(champion_support.get("latest_champion_support_tuning_label", "")).strip()
+            else "n/a"
+        )
     )
 
     lines.append("")

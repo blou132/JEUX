@@ -146,7 +146,74 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(support_gate["best_run"], "exp_001")
             self.assertEqual(support_gate["worst_run"], "exp_002")
             self.assertAlmostEqual(float(support_gate["objective_success_rate"]), 0.5, places=4)
+            champion_support = summary["champion_support"]
+            self.assertEqual(champion_support["records"], 0)
+            self.assertIsNone(champion_support["avg_champion_support_run_attempts"])
+            self.assertIsNone(champion_support["avg_champion_support_run_success"])
+            self.assertIsNone(champion_support["avg_champion_support_run_success_rate"])
+            self.assertEqual(champion_support["best_run"], "n/a")
+            self.assertEqual(champion_support["worst_run"], "n/a")
+            self.assertIsNone(champion_support["objective_success_rate"])
+            self.assertEqual(champion_support["latest_champion_support_tuning_label"], "")
             self.assertIn("final_decision", summary)
+
+    def test_champion_support_metrics_are_aggregated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            rows = [
+                json.dumps(
+                    {
+                        "export_id": "champ_001",
+                        "run_status": "completed",
+                        "objective_id": "rally_champion",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 4,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.75,
+                        "champion_support_tuning_label": "Champion support: run attempts=4 success=3 rate=75%",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_002",
+                        "run_status": "failed",
+                        "objective_id": "rally_champion",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 2,
+                        "champion_support_run_success_rate": 0.40,
+                        "champion_support_tuning_label": "Champion support: run attempts=5 success=2 rate=40%",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "gate_001",
+                        "run_status": "completed",
+                        "objective_id": "support_gate",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 6,
+                        "support_gate_run_success": 6,
+                        "support_gate_run_success_rate": 1.0,
+                        "support_gate_run_available_ratio": 0.60,
+                    }
+                ),
+            ]
+            _write_jsonl(input_path, rows)
+
+            summary = _run_summary_json(input_path)
+            champion_support = summary["champion_support"]
+            self.assertEqual(champion_support["records"], 2)
+            self.assertAlmostEqual(float(champion_support["avg_champion_support_run_attempts"]), 4.5, places=4)
+            self.assertAlmostEqual(float(champion_support["avg_champion_support_run_success"]), 2.5, places=4)
+            self.assertAlmostEqual(float(champion_support["avg_champion_support_run_success_rate"]), 0.575, places=4)
+            self.assertEqual(champion_support["best_run"], "champ_001")
+            self.assertEqual(champion_support["worst_run"], "champ_002")
+            self.assertAlmostEqual(float(champion_support["objective_success_rate"]), 0.5, places=4)
+            self.assertEqual(
+                champion_support["latest_champion_support_tuning_label"],
+                "Champion support: run attempts=5 success=2 rate=40%",
+            )
+            self.assertEqual(summary["support_gate"]["records"], 1)
 
     def test_invalid_lines_are_ignored_and_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -185,6 +252,43 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(support_gate["best_run"], "n/a")
             self.assertEqual(support_gate["worst_run"], "n/a")
             self.assertIsNone(support_gate["objective_success_rate"])
+            champion_support = summary["champion_support"]
+            self.assertEqual(champion_support["records"], 0)
+
+    def test_missing_champion_fields_do_not_crash_for_old_rally_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            rows = [
+                json.dumps(
+                    {
+                        "export_id": "old_rally_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "old_rally_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                    }
+                ),
+            ]
+            _write_jsonl(input_path, rows)
+
+            summary = _run_summary_json(input_path)
+            champion_support = summary["champion_support"]
+            self.assertEqual(champion_support["records"], 2)
+            self.assertIsNone(champion_support["avg_champion_support_run_attempts"])
+            self.assertIsNone(champion_support["avg_champion_support_run_success"])
+            self.assertIsNone(champion_support["avg_champion_support_run_success_rate"])
+            self.assertEqual(champion_support["best_run"], "n/a")
+            self.assertEqual(champion_support["worst_run"], "n/a")
+            self.assertAlmostEqual(float(champion_support["objective_success_rate"]), 0.5, places=4)
+            self.assertEqual(champion_support["latest_champion_support_tuning_label"], "")
+            self.assertIn("support_gate", summary)
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -565,6 +669,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertIn("# Run Metrics History Analysis", result.stdout)
             self.assertIn("## Support gate", result.stdout)
+            self.assertIn("## Champion support", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
             self.assertIn("| support gate stability |", result.stdout)
             self.assertIn("## Final decision", result.stdout)
