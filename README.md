@@ -374,6 +374,33 @@ Passerelles runtime (ordre de chargement) :
   - `champion_support_locked_actor_id` = acteur actuellement verrouille (ou `0`).
   - `champion_support_lock_timer` = temps restant du verrou.
   - `champion_support_lock_label` = label debug du verrou courant.
+
+## Champion support mini-metrics runtime (v167)
+- v167 ajoute des mini-metriques runtime pour `rally_champion` (observability legere, sans refonte gameplay/IA/combat).
+- compteurs cumules session:
+  - `champion_support_attempts_total`
+  - `champion_support_success_total`
+  - `champion_support_unavailable_total`
+  - `champion_support_cooldown_blocked_total`
+  - `champion_support_completed_total`
+  - `champion_support_failed_total`
+- compteurs run-only (via baseline de run/restart objectif):
+  - `champion_support_run_attempts`
+  - `champion_support_run_success`
+  - `champion_support_run_success_rate`
+- incrementations:
+  - chaque appui `E` sur `rally_champion`: `champion_support_attempts_total`
+  - succes interaction: `champion_support_success_total`
+  - refus indisponible: `champion_support_unavailable_total`
+  - refus cooldown: `champion_support_cooldown_blocked_total`
+  - fin objectif `completed`: `champion_support_completed_total`
+  - fin objectif `failed`: `champion_support_failed_total`
+- snapshot/HUD debug:
+  - `champion_support_tuning_label`
+  - ligne debug full/compact: `Champion support tuning: run attempts=X success=Y rate=Z%`
+- run summary:
+  - si objectif actif `rally_champion`: `Champion support: X/Y actions, rate=Z%.`
+- le HUD `player` reste volontairement compact (pas de surcharge mini-metrics).
 - Metriques/export avances:
   - restent centres sur `support_gate` pour l'instant (v149-v152), afin de garder un tuning borne.
 

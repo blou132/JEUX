@@ -623,6 +623,12 @@ var support_gate_cooldown_blocked_total: int = 0
 var support_gate_unavailable_total: int = 0
 var support_gate_completed_total: int = 0
 var support_gate_failed_total: int = 0
+var champion_support_attempts_total: int = 0
+var champion_support_success_total: int = 0
+var champion_support_unavailable_total: int = 0
+var champion_support_cooldown_blocked_total: int = 0
+var champion_support_completed_total: int = 0
+var champion_support_failed_total: int = 0
 var support_gate_first_success_time: float = -1.0
 var support_gate_last_success_time: float = -1.0
 var support_gate_available_time_total: float = 0.0
@@ -658,6 +664,8 @@ var support_gate_run_cooldown_blocked_baseline: int = 0
 var support_gate_run_unavailable_baseline: int = 0
 var support_gate_run_available_time_baseline: float = 0.0
 var support_gate_run_unavailable_time_baseline: float = 0.0
+var champion_support_run_attempts_baseline: int = 0
+var champion_support_run_success_baseline: int = 0
 
 
 func _ready() -> void:
@@ -804,6 +812,8 @@ func _capture_run_metrics_baseline() -> void:
 	support_gate_run_unavailable_baseline = support_gate_unavailable_total
 	support_gate_run_available_time_baseline = support_gate_available_time_total
 	support_gate_run_unavailable_time_baseline = support_gate_unavailable_time_total
+	champion_support_run_attempts_baseline = champion_support_attempts_total
+	champion_support_run_success_baseline = champion_support_success_total
 
 
 func set_world_objective(objective_id: String) -> void:
@@ -1170,6 +1180,40 @@ func _update_support_gate_objective_visual_state(delta: float) -> void:
 	_push_support_gate_objective_visual_state()
 
 
+func _is_champion_support_objective_context() -> bool:
+	return world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION
+
+
+func _is_champion_support_objective_tuning_active() -> bool:
+	return (
+		_is_champion_support_objective_context()
+		and world_objective_status == "active"
+		and run_status == "running"
+	)
+
+
+func _register_champion_support_interaction_attempt() -> void:
+	if not _is_champion_support_objective_tuning_active():
+		return
+	champion_support_attempts_total += 1
+
+
+func _register_champion_support_interaction_blocked(feedback_type: String) -> void:
+	if not _is_champion_support_objective_tuning_active():
+		return
+	var normalized_type: String = feedback_type.strip_edges().to_lower()
+	if normalized_type == "cooldown":
+		champion_support_cooldown_blocked_total += 1
+	elif normalized_type == "unavailable":
+		champion_support_unavailable_total += 1
+
+
+func _register_champion_support_interaction_success() -> void:
+	if not _is_champion_support_objective_tuning_active():
+		return
+	champion_support_success_total += 1
+
+
 func _is_support_gate_objective_context() -> bool:
 	return world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
 
@@ -1293,6 +1337,43 @@ func _build_support_gate_tuning_metrics() -> Dictionary:
 		"support_gate_run_available_ratio": run_available_ratio,
 		"support_gate_tuning_label": tuning_label,
 		"support_gate_run_tuning_label": run_tuning_label
+	}
+
+
+func _build_champion_support_tuning_metrics() -> Dictionary:
+	var attempts_total: int = max(0, champion_support_attempts_total)
+	var success_total: int = max(0, champion_support_success_total)
+	var unavailable_total: int = max(0, champion_support_unavailable_total)
+	var cooldown_blocked_total: int = max(0, champion_support_cooldown_blocked_total)
+	var completed_total: int = max(0, champion_support_completed_total)
+	var failed_total: int = max(0, champion_support_failed_total)
+
+	var run_attempts: int = max(0, attempts_total - champion_support_run_attempts_baseline)
+	var run_success: int = max(0, success_total - champion_support_run_success_baseline)
+	var run_success_rate: float = 0.0
+	if run_attempts > 0:
+		run_success_rate = float(run_success) / float(run_attempts)
+
+	var tuning_label: String = (
+		"Champion support: run attempts=%d success=%d rate=%d%%"
+		% [
+			run_attempts,
+			run_success,
+			int(round(clampf(run_success_rate, 0.0, 1.0) * 100.0))
+		]
+	)
+
+	return {
+		"champion_support_attempts_total": attempts_total,
+		"champion_support_success_total": success_total,
+		"champion_support_unavailable_total": unavailable_total,
+		"champion_support_cooldown_blocked_total": cooldown_blocked_total,
+		"champion_support_completed_total": completed_total,
+		"champion_support_failed_total": failed_total,
+		"champion_support_run_attempts": run_attempts,
+		"champion_support_run_success": run_success,
+		"champion_support_run_success_rate": run_success_rate,
+		"champion_support_tuning_label": tuning_label
 	}
 
 
@@ -1478,15 +1559,18 @@ func _trigger_support_gate_objective_interaction() -> bool:
 
 
 func _trigger_champion_support_objective_interaction() -> bool:
+	_register_champion_support_interaction_attempt()
 	var champion_candidates_data: Dictionary = _resolve_champion_support_candidates()
 	var champion_candidates: int = int(champion_candidates_data.get("candidate_count", 0))
 	if champion_candidates <= 0:
 		world_objective_interaction_available = false
+		_register_champion_support_interaction_blocked("unavailable")
 		_set_objective_interaction_feedback("champion unavailable: no champion available", "unavailable", 1.8)
 		return false
 	if elapsed_time < world_objective_interaction_next_allowed_time:
 		world_objective_interaction_available = false
 		var cooldown_remaining: float = max(0.0, world_objective_interaction_next_allowed_time - elapsed_time)
+		_register_champion_support_interaction_blocked("cooldown")
 		_set_objective_interaction_feedback("cooldown %.1fs" % cooldown_remaining, "cooldown", 1.1)
 		return false
 
@@ -1504,6 +1588,7 @@ func _trigger_champion_support_objective_interaction() -> bool:
 			champion_target,
 			OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME + 0.8
 		)
+	_register_champion_support_interaction_success()
 	_set_objective_interaction_feedback("Champion support accepted", "success", 2.0)
 
 	record_event(
@@ -2378,6 +2463,7 @@ func _update_objective_champion_support(delta: float) -> void:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_interaction_available = false
+		champion_support_failed_total += 1
 		world_objective_fail_reason = "too_many_deaths"
 		world_objective_result_label = (
 			"Failed: run deaths threshold reached (%d/%d)."
@@ -2397,6 +2483,7 @@ func _update_objective_champion_support(delta: float) -> void:
 		world_objective_status = "completed"
 		world_objective_progress = 1.0
 		world_objective_interaction_available = false
+		champion_support_completed_total += 1
 		world_objective_fail_reason = ""
 		world_objective_progress_label = (
 			"%d/%d supports | %.1fs / %.1fs (100%%)"
@@ -2425,6 +2512,7 @@ func _update_objective_champion_support(delta: float) -> void:
 		world_objective_active = false
 		world_objective_status = "failed"
 		world_objective_interaction_available = false
+		champion_support_failed_total += 1
 		var champion_delta: int = max(0, champion_promotions_total - run_champion_promotions_baseline)
 		if not world_objective_champion_available_seen and champion_delta <= 0:
 			world_objective_fail_reason = "no_champion_in_time"
@@ -5897,6 +5985,28 @@ func get_run_narrative_summary(
 				max(1, world_objective_interaction_required),
 				support_gate_run_success_rate,
 				support_gate_run_available_ratio
+			]
+		)
+	elif world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		var champion_support_tuning: Dictionary = _build_champion_support_tuning_metrics()
+		var champion_support_run_success: int = int(
+			champion_support_tuning.get("champion_support_run_success", 0)
+		)
+		var champion_support_run_success_rate: int = int(
+			round(
+				clampf(
+					float(champion_support_tuning.get("champion_support_run_success_rate", 0.0)),
+					0.0,
+					1.0
+				) * 100.0
+			)
+		)
+		run_summary_lines.append(
+			"Champion support: %d/%d actions, rate=%d%%."
+			% [
+				champion_support_run_success,
+				max(1, world_objective_interaction_required),
+				champion_support_run_success_rate
 			]
 		)
 	run_summary_lines.append(
@@ -10762,6 +10872,7 @@ func _build_snapshot() -> Dictionary:
 		monsters_alive
 	)
 	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
+	var champion_support_tuning: Dictionary = _build_champion_support_tuning_metrics()
 	var champion_support_observability: Dictionary = _build_champion_support_observability()
 	var champion_support_lock_label: String = _get_champion_support_lock_label()
 	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
@@ -10850,6 +10961,39 @@ func _build_snapshot() -> Dictionary:
 		),
 		"champion_support_debug_label": str(
 			champion_support_observability.get("champion_support_debug_label", "inactive")
+		),
+		"champion_support_attempts_total": int(
+			champion_support_tuning.get("champion_support_attempts_total", 0)
+		),
+		"champion_support_success_total": int(
+			champion_support_tuning.get("champion_support_success_total", 0)
+		),
+		"champion_support_unavailable_total": int(
+			champion_support_tuning.get("champion_support_unavailable_total", 0)
+		),
+		"champion_support_cooldown_blocked_total": int(
+			champion_support_tuning.get("champion_support_cooldown_blocked_total", 0)
+		),
+		"champion_support_completed_total": int(
+			champion_support_tuning.get("champion_support_completed_total", 0)
+		),
+		"champion_support_failed_total": int(
+			champion_support_tuning.get("champion_support_failed_total", 0)
+		),
+		"champion_support_run_attempts": int(
+			champion_support_tuning.get("champion_support_run_attempts", 0)
+		),
+		"champion_support_run_success": int(
+			champion_support_tuning.get("champion_support_run_success", 0)
+		),
+		"champion_support_run_success_rate": float(
+			champion_support_tuning.get("champion_support_run_success_rate", 0.0)
+		),
+		"champion_support_tuning_label": str(
+			champion_support_tuning.get(
+				"champion_support_tuning_label",
+				"Champion support: run attempts=0 success=0 rate=0%"
+			)
 		),
 		"champion_support_locked_actor_id": champion_support_locked_actor_id,
 		"champion_support_lock_timer": champion_support_lock_timer,

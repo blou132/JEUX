@@ -206,6 +206,11 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var support_gate_run_available_ratio: int = int(
         round(clampf(float(snapshot.get("support_gate_run_available_ratio", 0.0)), 0.0, 1.0) * 100.0)
     )
+    var champion_support_run_attempts: int = int(snapshot.get("champion_support_run_attempts", 0))
+    var champion_support_run_success: int = int(snapshot.get("champion_support_run_success", 0))
+    var champion_support_run_success_rate: int = int(
+        round(clampf(float(snapshot.get("champion_support_run_success_rate", 0.0)), 0.0, 1.0) * 100.0)
+    )
     var support_gate_tuning_label: String = str(
         snapshot.get(
             "support_gate_tuning_label",
@@ -306,6 +311,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             support_gate_run_success,
             support_gate_run_success_rate,
             support_gate_run_available_ratio
+        ]
+    )
+    lines.append(
+        "Champion support tuning: run attempts=%d success=%d rate=%d%%"
+        % [
+            champion_support_run_attempts,
+            champion_support_run_success,
+            champion_support_run_success_rate
         ]
     )
     lines.append(
@@ -1305,6 +1318,11 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var support_gate_run_available_ratio: int = int(
         round(clampf(float(snapshot.get("support_gate_run_available_ratio", 0.0)), 0.0, 1.0) * 100.0)
     )
+    var champion_support_run_attempts: int = int(snapshot.get("champion_support_run_attempts", 0))
+    var champion_support_run_success: int = int(snapshot.get("champion_support_run_success", 0))
+    var champion_support_run_success_rate: int = int(
+        round(clampf(float(snapshot.get("champion_support_run_success_rate", 0.0)), 0.0, 1.0) * 100.0)
+    )
     var run_summary_lines: Array = snapshot.get("run_summary_lines", [])
     var narrative_timeline_labels: Array = snapshot.get("narrative_timeline_labels", [])
     var narrative_timeline_count: int = int(snapshot.get("narrative_timeline_count", 0))
@@ -1382,6 +1400,14 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             support_gate_run_success,
             support_gate_run_success_rate,
             support_gate_run_available_ratio
+        ]
+    )
+    lines.append(
+        "Champion support tuning: run attempts=%d success=%d rate=%d%%"
+        % [
+            champion_support_run_attempts,
+            champion_support_run_success,
+            champion_support_run_success_rate
         ]
     )
     lines.append(
