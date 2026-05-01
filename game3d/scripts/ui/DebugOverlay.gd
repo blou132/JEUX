@@ -193,6 +193,11 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var champion_support_visual_label: String = str(
         snapshot.get("champion_support_visual_label", "inactive")
     ).strip_edges()
+    var champion_support_locked_actor_id: int = int(snapshot.get("champion_support_locked_actor_id", 0))
+    var champion_support_lock_timer: float = float(snapshot.get("champion_support_lock_timer", 0.0))
+    var champion_support_lock_label: String = str(
+        snapshot.get("champion_support_lock_label", "none")
+    ).strip_edges()
     var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
     var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
     var support_gate_run_success_rate: int = int(
@@ -284,6 +289,14 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             champion_support_visual_state if champion_support_visual_state != "" else "inactive",
             str(champion_support_visual_actor_id) if champion_support_visual_actor_id > 0 else "none",
             champion_support_visual_label if champion_support_visual_label != "" else "inactive"
+        ]
+    )
+    lines.append(
+        "Champion support lock: actor=%s timer=%.1fs label=%s"
+        % [
+            str(champion_support_locked_actor_id) if champion_support_locked_actor_id > 0 else "none",
+            max(0.0, champion_support_lock_timer),
+            champion_support_lock_label if champion_support_lock_label != "" else "none"
         ]
     )
     lines.append(
@@ -1057,6 +1070,11 @@ func _build_objective_panel_lines(
     var champion_support_debug_label: String = str(
         snapshot.get("champion_support_debug_label", "inactive")
     ).strip_edges()
+    var champion_support_locked_actor_id: int = int(snapshot.get("champion_support_locked_actor_id", 0))
+    var champion_support_lock_timer: float = float(snapshot.get("champion_support_lock_timer", 0.0))
+    var champion_support_lock_label: String = str(
+        snapshot.get("champion_support_lock_label", "none")
+    ).strip_edges()
     var objective_has_interaction: bool = objective_interaction_required > 0
     var run_result_visible: bool = bool(snapshot.get("run_result_visible", false))
     var lines: Array[String] = []
@@ -1166,11 +1184,19 @@ func _build_objective_panel_lines(
         )
     if objective_id == "rally_champion":
         lines.append(
-            "Champion support: available=%s candidates=%d target=%s"
+            "Champion support: available=%s candidates=%d target=%s lock=%s"
             % [
                 "yes" if champion_support_available else "no",
                 champion_support_candidate_count,
-                champion_support_target_label if champion_support_target_label != "" else "none"
+                champion_support_target_label if champion_support_target_label != "" else "none",
+                champion_support_lock_label if champion_support_lock_label != "" else "none"
+            ]
+        )
+        lines.append(
+            "Champion support lock: actor=%s timer=%.1fs"
+            % [
+                str(champion_support_locked_actor_id) if champion_support_locked_actor_id > 0 else "none",
+                max(0.0, champion_support_lock_timer)
             ]
         )
         lines.append(
@@ -1266,6 +1292,11 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var champion_support_visual_label: String = str(
         snapshot.get("champion_support_visual_label", "inactive")
     ).strip_edges()
+    var champion_support_locked_actor_id: int = int(snapshot.get("champion_support_locked_actor_id", 0))
+    var champion_support_lock_timer: float = float(snapshot.get("champion_support_lock_timer", 0.0))
+    var champion_support_lock_label: String = str(
+        snapshot.get("champion_support_lock_label", "none")
+    ).strip_edges()
     var support_gate_run_attempts: int = int(snapshot.get("support_gate_run_attempts", 0))
     var support_gate_run_success: int = int(snapshot.get("support_gate_run_success", 0))
     var support_gate_run_success_rate: int = int(
@@ -1334,6 +1365,14 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             champion_support_visual_state if champion_support_visual_state != "" else "inactive",
             str(champion_support_visual_actor_id) if champion_support_visual_actor_id > 0 else "none",
             champion_support_visual_label if champion_support_visual_label != "" else "inactive"
+        ]
+    )
+    lines.append(
+        "Champion support lock: actor=%s timer=%.1fs label=%s"
+        % [
+            str(champion_support_locked_actor_id) if champion_support_locked_actor_id > 0 else "none",
+            max(0.0, champion_support_lock_timer),
+            champion_support_lock_label if champion_support_lock_label != "" else "none"
         ]
     )
     lines.append(

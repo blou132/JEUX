@@ -347,6 +347,13 @@ Passerelles runtime (ordre de chargement) :
   - hors objectif actif: `champion_support_visual_state=inactive`.
   - marqueur applique via `Actor.set_objective_marker(...)` sur le champion cible uniquement.
   - etats exposes: `champion_support_visual_actor_id`, `champion_support_visual_state`, `champion_support_visual_label`.
+- Stabilisation de cible v166 (lisibilite):
+  - `rally_champion` verrouille temporairement un champion cible pour limiter le flicker quand plusieurs champions existent.
+  - verrou par runtime: `OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME` (3.0s par defaut).
+  - la cible reste verrouillee tant qu'elle existe, est vivante et reste champion.
+  - si la cible disparait/meurt ou si le timer expire, une nouvelle cible est resolue.
+  - apres une interaction `E` reussie, le verrou est legerement prolonge.
+  - ce verrou est un mecanisme de lisibilite HUD/visuel, pas une mecanique de combat.
 - Succès:
   - objectif `completed` quand le nombre requis d'actions est atteint avant timeout.
 - Echec:
@@ -355,14 +362,18 @@ Passerelles runtime (ordre de chargement) :
   - mode `player`: ligne compacte `E: stabilize gate` ou `E: support champion` + compteur `X/N`.
   - mode `player` (rally_champion actif): `Champion: <target|none>` + `E: support champion` + `Support: X/N`.
   - mode `debug`: compteurs interaction, disponibilite, cooldown + ligne `Support gate visual: ...`.
-  - mode `debug` (rally_champion actif): `Champion support: available=... candidates=... target=...` + `Champion support debug: ...`.
+  - mode `debug` (rally_champion actif): `Champion support: available=... candidates=... target=... lock=...` + `Champion support debug: ...`.
   - mode `debug` (visuel): `Champion support visual: state=... actor=... label=...`.
+  - mode `debug` (lock): `Champion support lock: actor=... timer=... label=...`.
 - Champs debug rally_champion:
   - `champion_support_available` = objectif actif + au moins un champion vivant detecte.
   - `champion_support_candidate_count` = nombre de champions vivants eligibles.
   - `champion_support_target_label` = cible courante (ou `none`).
   - `champion_support_progress_label` = progression support `X/N`.
   - `champion_support_debug_label` = raison courte (`ready`, `cooldown`, `no champion available`, `run already finished`, etc.).
+  - `champion_support_locked_actor_id` = acteur actuellement verrouille (ou `0`).
+  - `champion_support_lock_timer` = temps restant du verrou.
+  - `champion_support_lock_label` = label debug du verrou courant.
 - Metriques/export avances:
   - restent centres sur `support_gate` pour l'instant (v149-v152), afin de garder un tuning borne.
 

@@ -24,6 +24,7 @@ const OBJECTIVE_CHAMPION_SUPPORT_REQUIRED_ACTIONS: int = 4
 const OBJECTIVE_CHAMPION_SUPPORT_INTERACTION_COOLDOWN: float = 1.20
 const OBJECTIVE_CHAMPION_SUPPORT_FAIL_DEATHS_THRESHOLD: int = 70
 const OBJECTIVE_CHAMPION_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
+const OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME: float = 3.0
 const OBJECTIVE_GATE_SUPPORT_STABILIZE_SECONDS: float = 1.40
 const OBJECTIVE_GATE_SUPPORT_SUCCESS_FLASH_DURATION: float = 0.75
 const XP_ON_HIT: float = 1.5
@@ -633,6 +634,8 @@ var champion_support_visual_actor_id: int = 0
 var champion_support_visual_state: String = "inactive"
 var champion_support_visual_label: String = "inactive"
 var champion_support_success_flash_timer: float = 0.0
+var champion_support_locked_actor_id: int = 0
+var champion_support_lock_timer: float = 0.0
 var run_status: String = "running"
 var run_result_title: String = ""
 var run_result_lines: Array[String] = []
@@ -899,7 +902,62 @@ func _get_alive_champion_counts() -> Dictionary:
 	}
 
 
+func _is_valid_champion_support_target(actor: Actor) -> bool:
+	return actor != null and not actor.is_dead and actor.is_champion
+
+
+func _clear_champion_support_target_lock() -> void:
+	champion_support_locked_actor_id = 0
+	champion_support_lock_timer = 0.0
+
+
+func _set_champion_support_target_lock(actor: Actor, duration: float = OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME) -> void:
+	if not _is_valid_champion_support_target(actor):
+		_clear_champion_support_target_lock()
+		return
+	champion_support_locked_actor_id = actor.actor_id
+	champion_support_lock_timer = max(0.0, duration)
+
+
+func _get_locked_champion_support_actor() -> Actor:
+	if champion_support_locked_actor_id == 0 or champion_support_lock_timer <= 0.0:
+		return null
+	var locked_actor: Actor = _find_actor_by_id(champion_support_locked_actor_id)
+	if not _is_valid_champion_support_target(locked_actor):
+		_clear_champion_support_target_lock()
+		return null
+	return locked_actor
+
+
+func _refresh_champion_support_target_lock(delta: float) -> void:
+	var is_rally_active: bool = (
+		world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION
+		and world_objective_status == "active"
+		and world_objective_category == "champion_support"
+	)
+	if not is_rally_active:
+		_clear_champion_support_target_lock()
+		return
+
+	champion_support_lock_timer = max(0.0, champion_support_lock_timer - max(delta, 0.0))
+	if champion_support_lock_timer <= 0.0:
+		_clear_champion_support_target_lock()
+		return
+
+	var locked_actor: Actor = _find_actor_by_id(champion_support_locked_actor_id)
+	if not _is_valid_champion_support_target(locked_actor):
+		_clear_champion_support_target_lock()
+
+
+func _get_champion_support_lock_label() -> String:
+	var locked_actor: Actor = _get_locked_champion_support_actor()
+	if locked_actor == null:
+		return "none"
+	return "%s (%.1fs)" % [_actor_label(locked_actor), champion_support_lock_timer]
+
+
 func _resolve_champion_support_candidates() -> Dictionary:
+	var locked_actor: Actor = _get_locked_champion_support_actor()
 	var candidate_count: int = 0
 	var human_count: int = 0
 	var monster_count: int = 0
@@ -917,6 +975,16 @@ func _resolve_champion_support_candidates() -> Dictionary:
 		if target == null or actor_score > target_score:
 			target = actor
 			target_score = actor_score
+
+	if locked_actor != null:
+		target = locked_actor
+	elif (
+		target != null
+		and world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION
+		and world_objective_status == "active"
+		and world_objective_category == "champion_support"
+	):
+		_set_champion_support_target_lock(target, OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME)
 
 	var target_label: String = "none"
 	var target_actor_id: int = 0
@@ -1041,6 +1109,7 @@ func _push_champion_support_objective_visual_state() -> void:
 
 
 func _update_champion_support_objective_visual_state(delta: float) -> void:
+	_refresh_champion_support_target_lock(delta)
 	champion_support_success_flash_timer = max(
 		0.0,
 		champion_support_success_flash_timer - max(delta, 0.0)
@@ -1409,8 +1478,8 @@ func _trigger_support_gate_objective_interaction() -> bool:
 
 
 func _trigger_champion_support_objective_interaction() -> bool:
-	var champion_support_runtime: Dictionary = _build_champion_support_observability()
-	var champion_candidates: int = int(champion_support_runtime.get("champion_support_candidate_count", 0))
+	var champion_candidates_data: Dictionary = _resolve_champion_support_candidates()
+	var champion_candidates: int = int(champion_candidates_data.get("candidate_count", 0))
 	if champion_candidates <= 0:
 		world_objective_interaction_available = false
 		_set_objective_interaction_feedback("champion unavailable: no champion available", "unavailable", 1.8)
@@ -1429,6 +1498,12 @@ func _trigger_champion_support_objective_interaction() -> bool:
 	world_objective_interaction_next_allowed_time = elapsed_time + world_objective_interaction_cooldown
 	world_objective_interaction_available = false
 	champion_support_success_flash_timer = OBJECTIVE_CHAMPION_SUPPORT_SUCCESS_FLASH_DURATION
+	var champion_target: Actor = champion_candidates_data.get("target_actor", null) as Actor
+	if champion_target != null:
+		_set_champion_support_target_lock(
+			champion_target,
+			OBJECTIVE_CHAMPION_SUPPORT_TARGET_LOCK_TIME + 0.8
+		)
 	_set_objective_interaction_feedback("Champion support accepted", "success", 2.0)
 
 	record_event(
@@ -1704,6 +1779,8 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	champion_support_visual_state = "inactive"
 	champion_support_visual_label = "inactive"
 	champion_support_success_flash_timer = 0.0
+	champion_support_locked_actor_id = 0
+	champion_support_lock_timer = 0.0
 	world_objective_gate_bad_state_elapsed = 0.0
 	world_objective_gate_bad_state_threshold = max(
 		0.1,
@@ -10686,6 +10763,7 @@ func _build_snapshot() -> Dictionary:
 	)
 	var support_gate_tuning: Dictionary = _build_support_gate_tuning_metrics()
 	var champion_support_observability: Dictionary = _build_champion_support_observability()
+	var champion_support_lock_label: String = _get_champion_support_lock_label()
 	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
 	var objective_available_count: int = world_objective_available_ids.size()
 
@@ -10773,6 +10851,9 @@ func _build_snapshot() -> Dictionary:
 		"champion_support_debug_label": str(
 			champion_support_observability.get("champion_support_debug_label", "inactive")
 		),
+		"champion_support_locked_actor_id": champion_support_locked_actor_id,
+		"champion_support_lock_timer": champion_support_lock_timer,
+		"champion_support_lock_label": champion_support_lock_label,
 		"champion_support_visual_actor_id": champion_support_visual_actor_id,
 		"champion_support_visual_state": champion_support_visual_state,
 		"champion_support_visual_label": champion_support_visual_label,
