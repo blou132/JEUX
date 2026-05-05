@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl
+  SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run unit tests
+        run: py -m unittest discover -s tests -p "test_*.py"
+
+      - name: Optional support metrics CI check
+        shell: pwsh
+        run: |
+          $baselinePath = $env:SUPPORT_METRICS_BASELINE_PATH
+          $currentPath = $env:SUPPORT_METRICS_CURRENT_PATH
+          $baselineExists = Test-Path -Path $baselinePath
+          $currentExists = Test-Path -Path $currentPath
+
+          if ($baselineExists -and $currentExists) {
+            Write-Host "Running support metrics CI check with baseline=$baselinePath current=$currentPath"
+            py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format text
+          }
+          else {
+            Write-Host "Support metrics CI check skipped: missing exports. baseline=$baselinePath exists=$baselineExists; current=$currentPath exists=$currentExists"
+          }

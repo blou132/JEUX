@@ -667,6 +667,11 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
 ```bash
 py tools/analyze_run_metrics_history.py --input reports/before_support_gate.jsonl --compare-input reports/after_support_gate.jsonl --ci-check --fail-on-regression --max-warning-delta 0 --max-support-gate-success-rate-drop 0.05 --max-rally-champion-success-rate-drop 0.05 --format json
 ```
+- integration CI optionnelle (workflow):
+  - CI standard = tests unitaires (`py -m unittest discover -s tests -p "test_*.py"`).
+  - CI support metrics = debug/observation (controle `support_metrics_ci_check`).
+  - absence d'exports = pas d'echec (etape support metrics skippee).
+  - mode bloquant possible mais volontaire avec `--ci-check --fail-on-regression`.
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`
