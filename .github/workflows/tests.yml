@@ -10,6 +10,7 @@ on:
 env:
   SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl
   SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl
+  SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md
 
 jobs:
   tests:
@@ -31,13 +32,23 @@ jobs:
         run: |
           $baselinePath = $env:SUPPORT_METRICS_BASELINE_PATH
           $currentPath = $env:SUPPORT_METRICS_CURRENT_PATH
+          $reportPath = $env:SUPPORT_METRICS_REPORT_PATH
           $baselineExists = Test-Path -Path $baselinePath
           $currentExists = Test-Path -Path $currentPath
 
           if ($baselineExists -and $currentExists) {
             Write-Host "Running support metrics CI check with baseline=$baselinePath current=$currentPath"
-            py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format text
+            py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format markdown --output "$reportPath"
           }
           else {
             Write-Host "Support metrics CI check skipped: missing exports. baseline=$baselinePath exists=$baselineExists; current=$currentPath exists=$currentExists"
+            New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
+            "Support metrics exports not found; optional check skipped." | Set-Content -Path $reportPath -Encoding UTF8
           }
+
+      - name: Upload support metrics report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-report
+          path: artifacts/support_metrics_report.md
+          if-no-files-found: ignore

@@ -23,6 +23,14 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("--ci-check", content)
         self.assertNotIn("--fail-on-regression", content)
         self.assertIn("Support metrics CI check skipped: missing exports.", content)
+        self.assertIn("Support metrics exports not found; optional check skipped.", content)
+
+    def test_workflow_generates_markdown_report_and_uploads_artifact(self) -> None:
+        content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("--format markdown", content)
+        self.assertIn("artifacts/support_metrics_report.md", content)
+        self.assertIn("actions/upload-artifact@v4", content)
+        self.assertIn("if-no-files-found: ignore", content)
 
     def test_readme_documents_optional_ci_mode(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")
@@ -30,6 +38,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("CI support metrics = debug/observation", content)
         self.assertIn("absence d'exports = pas d'echec", content)
         self.assertIn("--ci-check --fail-on-regression", content)
+        self.assertIn("support-metrics-report", content)
+        self.assertIn("artifact", content)
 
     def test_support_metrics_ci_check_block_is_still_present_in_tool(self) -> None:
         content = ANALYZE_TOOL_PATH.read_text(encoding="utf-8")
