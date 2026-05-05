@@ -27,6 +27,24 @@ jobs:
       - name: Run unit tests
         run: py -m unittest discover -s tests -p "test_*.py"
 
+      - name: Smoke test support metrics CI summary
+        shell: pwsh
+        run: |
+          py tools/write_support_metrics_ci_summary.py `
+            --ci-check `
+            --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl `
+            --current tests/fixtures/support_metrics_contract/recent_complete.jsonl `
+            --report-output artifacts/support_metrics_smoke_report.md `
+            --step-summary "$env:GITHUB_STEP_SUMMARY" `
+            --artifact-name "support-metrics-smoke-report"
+
+      - name: Upload support metrics smoke report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-smoke-report
+          path: artifacts/support_metrics_smoke_report.md
+          if-no-files-found: error
+
       - name: Optional support metrics CI check
         shell: pwsh
         run: |

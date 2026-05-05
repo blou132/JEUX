@@ -29,11 +29,19 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
 
     def test_workflow_generates_markdown_report_and_uploads_artifact(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("Smoke test support metrics CI summary", content)
+        self.assertIn(
+            "tests/fixtures/support_metrics_contract/recent_complete.jsonl",
+            content,
+        )
+        self.assertIn("artifacts/support_metrics_smoke_report.md", content)
+        self.assertIn("support-metrics-smoke-report", content)
         self.assertIn("artifacts/support_metrics_report.md", content)
         self.assertIn("actions/upload-artifact@v4", content)
         self.assertIn("if-no-files-found: ignore", content)
         self.assertIn("support-metrics-report", content)
         self.assertIn("--artifact-name \"support-metrics-report\"", content)
+        self.assertIn("--artifact-name \"support-metrics-smoke-report\"", content)
 
     def test_readme_documents_optional_ci_mode(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")

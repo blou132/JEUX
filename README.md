@@ -676,11 +676,15 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
   - mode bloquant possible mais volontaire avec `--ci-check --fail-on-regression`.
   - mode strict manuel possible pour le script (`tools/write_support_metrics_ci_summary.py --strict`) si vous voulez echouer sur erreur technique.
   - `--analyze-script` permet de remplacer le chemin d'analyse (utile pour tests/simulation locale); par defaut le script utilise `tools/analyze_run_metrics_history.py`.
-  - quand les exports baseline/current existent, la CI genere `artifacts/support_metrics_report.md` (Markdown).
+  - la CI genere aussi un smoke test technique avec fixtures `recent_complete.jsonl` vers `artifacts/support_metrics_smoke_report.md`.
+  - ce smoke test valide le chemin technique complet (rapport + Summary + artifact), mais ne mesure pas une vraie run gameplay.
+  - quand les exports runtime baseline/current existent (`outputs/ci/...`), la CI genere le rapport reel `artifacts/support_metrics_report.md` (Markdown).
   - l'onglet **Summary** du job affiche un status compact en tete (`Support metrics CI status`) puis le rapport complet.
-  - le workflow upload ce rapport dans l'artifact GitHub Actions `support-metrics-report`.
+  - artifacts CI:
+    - `support-metrics-smoke-report` = rapport smoke fixture technique.
+    - `support-metrics-report` = rapport reel conditionnel (si exports runtime disponibles).
   - si exports absents, la CI conserve un rapport de skip: `Support metrics exports not found; optional check skipped.`
-  - ce rapport (Summary + artifact) reste un outil debug/observation uniquement.
+  - ces rapports (Summary + artifacts) restent des outils debug/observation uniquement.
 - simulation locale du workflow support metrics CI:
 ```bash
 py tools/write_support_metrics_ci_summary.py --ci-check --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --report-output artifacts/support_metrics_report.md --step-summary artifacts/local_step_summary.md --artifact-name support-metrics-report
