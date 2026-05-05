@@ -40,7 +40,29 @@ jobs:
           if ($baselineExists -and $currentExists) {
             Write-Host "Running support metrics CI check with baseline=$baselinePath current=$currentPath"
             py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format markdown --output "$reportPath"
+            $summaryJson = py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format json
+            $summaryObject = $summaryJson | ConvertFrom-Json
+            $regressionState = [string]$summaryObject.support_metrics_regression.regression_state
+            $compactStatus = "warning"
+            if ($regressionState -eq "stable") {
+              $compactStatus = "passed"
+            }
+            elseif ($regressionState -eq "changed") {
+              $compactStatus = "changed"
+            }
+            elseif ($regressionState -eq "warning") {
+              $compactStatus = "warning"
+            }
+            elseif ($regressionState -eq "no_baseline") {
+              $compactStatus = "no_baseline"
+            }
+
             if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
+              Add-Content -Path $stepSummaryPath -Value "## Support metrics CI status"
+              Add-Content -Path $stepSummaryPath -Value "- status: $compactStatus"
+              Add-Content -Path $stepSummaryPath -Value "- blocking: no"
+              Add-Content -Path $stepSummaryPath -Value "- artifact: support-metrics-report"
+              Add-Content -Path $stepSummaryPath -Value ""
               Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
               Add-Content -Path $stepSummaryPath -Value ""
               Get-Content -Path $reportPath | Add-Content -Path $stepSummaryPath
@@ -51,6 +73,12 @@ jobs:
             New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
             "Support metrics exports not found; optional check skipped." | Set-Content -Path $reportPath -Encoding UTF8
             if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
+              Add-Content -Path $stepSummaryPath -Value "## Support metrics CI status"
+              Add-Content -Path $stepSummaryPath -Value "- status: skipped"
+              Add-Content -Path $stepSummaryPath -Value "- reason: exports baseline/current not found"
+              Add-Content -Path $stepSummaryPath -Value "- blocking: no"
+              Add-Content -Path $stepSummaryPath -Value "- artifact: support-metrics-report"
+              Add-Content -Path $stepSummaryPath -Value ""
               Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
               Add-Content -Path $stepSummaryPath -Value ""
               Add-Content -Path $stepSummaryPath -Value "Support metrics exports not found; optional check skipped."
