@@ -527,6 +527,7 @@ Passerelles runtime (ordre de chargement) :
 | `champion_support.multi_run_comparison` | object | comparaison multi-runs champion | present, valeurs `n/a`/`no_data` si donnees insuffisantes | stable |
 | `support_systems_summary` | object | synthese support_gate + rally_champion | present, `data_state=no_data` si aucune donnee support | stable |
 | `support_metrics_quality` | object | controle de coherence des metriques | present, `state=no_data`/`incomplete` selon cas legacy | stable |
+| `support_metrics_regression` | object | comparaison baseline/current des metriques support | present (`no_baseline` hors mode compare) | stable |
 
 ### Champs critiques et comportement
 | Champ | Type | Valeurs possibles | Si absent en export source | Statut |
@@ -541,6 +542,9 @@ Passerelles runtime (ordre de chargement) :
 | `support_systems_summary.interpretation` | string | `both_stable`/`support_gate_stable_champion_unstable`/`support_gate_limited_champion_stable`/`both_limited`/`partial_data`/`no_data` | `partial_data`/`no_data` | debug-only |
 | `support_metrics_quality.state` | string | `valid`/`warning`/`incomplete`/`no_data` | reste calcule meme en legacy | stable |
 | `support_metrics_quality.warnings` | list[string] | cles snake_case lisibles (`*_missing`, `*_out_of_range`, `partial_legacy_export`, etc.) | liste vide ou warnings de compatibilite | stable |
+| `support_metrics_regression.regression_state` | string | `stable`/`changed`/`warning`/`no_baseline`/`incompatible` | `no_baseline` si aucun baseline fourni | stable |
+| `support_metrics_regression.changed_fields` | list[string] | liste des champs compares qui ont change | liste vide si stable/non comparable | stable |
+| `support_metrics_regression.warning_count_delta` | number \| null | delta `current - baseline` | `null` si pas de baseline/comparaison | stable |
 
 ## Run metrics export history (v152)
 - v152 conserve `latest` et ajoute un historique local append-only pour comparer plusieurs runs.
@@ -604,6 +608,32 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - objective success rate
   - avg attempts
   - avg success
+- le mode comparaison ajoute aussi un bloc `support_metrics_regression` (JSON + texte + Markdown) pour la lecture de regression des systemes support:
+  - compare au minimum:
+    - `support_gate.avg_support_gate_run_success_rate`
+    - `champion_support.avg_champion_support_run_success_rate`
+    - `support_metrics_quality.state`
+    - `support_systems_summary.interpretation`
+    - `champion_support.multi_run_comparison.global_interpretation`
+    - delta du nombre de warnings qualite
+  - champs principaux:
+    - `compared`
+    - `baseline_label`
+    - `current_label`
+    - `changed_fields`
+    - `warning_count_delta`
+    - `quality_state_changed`
+    - `support_gate_success_rate_delta`
+    - `rally_champion_success_rate_delta`
+    - `interpretation_changed`
+    - `regression_state` (`stable` / `changed` / `warning` / `no_baseline` / `incompatible`)
+    - `interpretation`
+  - lecture rapide:
+    - `stable`: pas de changement detecte sur les champs compares
+    - `changed`: changements detectes sans degradation qualite
+    - `warning`: changement + degradation qualite (etat qualite change ou warnings en hausse)
+    - `no_baseline`: comparaison non demandee / baseline absent
+    - `incompatible`: resume baseline/current non comparable
 - le mode comparaison ajoute aussi une conclusion automatique:
   - `Candidate looks better for support_gate.`
   - `Candidate looks worse for support_gate.`
@@ -616,6 +646,7 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
 - quand `confidence=low`, le rapport ajoute la note:
   - `Use more runs before trusting this comparison.`
 - cette conclusion et la confidence restent **heuristiques** (aide pratique de tuning), sans test statistique avance.
+- le bloc `support_metrics_regression` reste un outil d'observation/debug: il ne modifie ni le gameplay ni l'equilibrage automatiquement.
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 import subprocess
@@ -7,7 +8,11 @@ import sys
 import tempfile
 import unittest
 
-from tools.analyze_run_metrics_history import build_summary, read_jsonl_records
+from tools.analyze_run_metrics_history import (
+    build_summary,
+    build_support_metrics_regression,
+    read_jsonl_records,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1208,6 +1213,112 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIsInstance(warning, str)
             self.assertEqual(warning, warning.strip())
             self.assertRegex(warning, r"^[a-z0-9_]+$")
+
+    def test_support_metrics_regression_baseline_identical_is_stable(self) -> None:
+        baseline = _build_summary_from_fixture("recent_complete.jsonl")
+        current = copy.deepcopy(baseline)
+        regression = build_support_metrics_regression(
+            baseline,
+            current,
+            baseline_label="baseline_recent",
+            current_label="current_recent",
+        )
+        self.assertTrue(regression["compared"])
+        self.assertEqual(regression["regression_state"], "stable")
+        self.assertEqual(regression["changed_fields"], [])
+        self.assertEqual(regression["warning_count_delta"], 0)
+        self.assertFalse(regression["quality_state_changed"])
+        self.assertFalse(regression["interpretation_changed"])
+
+    def test_support_metrics_regression_success_rate_change_is_changed(self) -> None:
+        baseline = _build_summary_from_fixture("recent_complete.jsonl")
+        current = copy.deepcopy(baseline)
+        current["support_gate"]["avg_support_gate_run_success_rate"] = 0.40
+        regression = build_support_metrics_regression(baseline, current)
+        self.assertEqual(regression["regression_state"], "changed")
+        self.assertIn(
+            "support_gate.avg_support_gate_run_success_rate",
+            regression["changed_fields"],
+        )
+        self.assertAlmostEqual(
+            float(regression["support_gate_success_rate_delta"]),
+            -0.26,
+            places=4,
+        )
+
+    def test_support_metrics_regression_warnings_increase_is_warning(self) -> None:
+        baseline = _build_summary_from_fixture("recent_complete.jsonl")
+        current = _build_summary_from_fixture("incoherent_export.jsonl")
+        regression = build_support_metrics_regression(baseline, current)
+        self.assertEqual(regression["regression_state"], "warning")
+        self.assertGreater(int(regression["warning_count_delta"]), 0)
+        self.assertIn("support_metrics_quality.warning_count", regression["changed_fields"])
+
+    def test_support_metrics_regression_quality_state_change_is_warning(self) -> None:
+        baseline = _build_summary_from_fixture("recent_complete.jsonl")
+        current = _build_summary_from_fixture("partial_export.jsonl")
+        regression = build_support_metrics_regression(baseline, current)
+        self.assertEqual(regression["regression_state"], "warning")
+        self.assertTrue(regression["quality_state_changed"])
+        self.assertIn("support_metrics_quality.state", regression["changed_fields"])
+
+    def test_support_metrics_regression_legacy_baseline_is_compatible(self) -> None:
+        baseline = _build_summary_from_fixture("legacy_no_champion_support.jsonl")
+        current = _build_summary_from_fixture("recent_complete.jsonl")
+        regression = build_support_metrics_regression(baseline, current)
+        self.assertTrue(regression["compared"])
+        self.assertNotEqual(regression["regression_state"], "incompatible")
+
+    def test_support_metrics_regression_no_baseline(self) -> None:
+        current = _build_summary_from_fixture("recent_complete.jsonl")
+        regression = build_support_metrics_regression(
+            None,
+            current,
+            current_label="current_recent",
+        )
+        self.assertFalse(regression["compared"])
+        self.assertEqual(regression["regression_state"], "no_baseline")
+        self.assertIsNone(regression["warning_count_delta"])
+
+    def test_support_metrics_regression_incompatible(self) -> None:
+        current = _build_summary_from_fixture("recent_complete.jsonl")
+        regression = build_support_metrics_regression(
+            {"support_gate": "invalid"},
+            current,
+            baseline_label="bad_baseline",
+            current_label="current_recent",
+        )
+        self.assertFalse(regression["compared"])
+        self.assertEqual(regression["regression_state"], "incompatible")
+
+    def test_support_metrics_regression_json_output(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            ["--compare-input", str(_fixture_path("recent_complete.jsonl"))],
+        )
+        regression = summary["support_metrics_regression"]
+        self.assertTrue(regression["compared"])
+        self.assertEqual(regression["regression_state"], "stable")
+        self.assertEqual(regression["baseline_label"], "recent_complete.jsonl")
+        self.assertEqual(regression["current_label"], "recent_complete.jsonl")
+
+    def test_support_metrics_regression_text_output(self) -> None:
+        result = _run_cli(["--input", str(_fixture_path("recent_complete.jsonl"))])
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("Support metrics regression:", result.stdout)
+        self.assertIn("- state:", result.stdout)
+        self.assertIn("- changed fields:", result.stdout)
+        self.assertIn("- warning delta:", result.stdout)
+        self.assertIn("- interpretation:", result.stdout)
+
+    def test_support_metrics_regression_markdown_output(self) -> None:
+        result = _run_cli(["--input", str(_fixture_path("recent_complete.jsonl")), "--format", "markdown"])
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("### Support metrics regression", result.stdout)
+        self.assertIn("- state:", result.stdout)
+        self.assertIn("- changed fields:", result.stdout)
+        self.assertIn("- warning delta:", result.stdout)
+        self.assertIn("- interpretation:", result.stdout)
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

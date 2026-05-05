@@ -852,6 +852,12 @@ def build_summary(
         "support_metrics_quality": support_metrics_quality,
     }
     summary["recommendations"] = build_support_gate_recommendations(summary)
+    summary["support_metrics_regression"] = build_support_metrics_regression(
+        None,
+        summary,
+        baseline_label="n/a",
+        current_label="current",
+    )
     return summary
 
 
@@ -886,6 +892,140 @@ def _format_percent_change(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"{value:+.1f}%"
+
+
+def _extract_support_metrics_regression_inputs(summary: dict[str, Any]) -> dict[str, Any] | None:
+    support_gate = summary.get("support_gate")
+    champion_support = summary.get("champion_support")
+    support_systems_summary = summary.get("support_systems_summary")
+    support_metrics_quality = summary.get("support_metrics_quality")
+
+    if not isinstance(support_gate, dict):
+        return None
+    if not isinstance(champion_support, dict):
+        return None
+    if not isinstance(support_systems_summary, dict):
+        return None
+    if not isinstance(support_metrics_quality, dict):
+        return None
+
+    champion_multi_run = champion_support.get("multi_run_comparison")
+    if not isinstance(champion_multi_run, dict):
+        return None
+
+    quality_state = str(support_metrics_quality.get("state", "")).strip()
+    support_interpretation = str(support_systems_summary.get("interpretation", "")).strip()
+    champion_interpretation = str(champion_multi_run.get("global_interpretation", "")).strip()
+    quality_warnings = support_metrics_quality.get("warnings")
+
+    if quality_state == "" or support_interpretation == "" or champion_interpretation == "":
+        return None
+    if not isinstance(quality_warnings, list):
+        return None
+
+    return {
+        "support_gate_success_rate": _as_float(support_gate.get("avg_support_gate_run_success_rate")),
+        "rally_champion_success_rate": _as_float(
+            champion_support.get("avg_champion_support_run_success_rate")
+        ),
+        "quality_state": quality_state,
+        "support_systems_interpretation": support_interpretation,
+        "champion_multi_run_interpretation": champion_interpretation,
+        "warning_count": len(quality_warnings),
+    }
+
+
+def build_support_metrics_regression(
+    baseline_summary: dict[str, Any] | None,
+    current_summary: dict[str, Any],
+    baseline_label: str = "baseline",
+    current_label: str = "current",
+) -> dict[str, Any]:
+    regression = {
+        "compared": False,
+        "baseline_label": baseline_label,
+        "current_label": current_label,
+        "changed_fields": [],
+        "warning_count_delta": None,
+        "quality_state_changed": False,
+        "support_gate_success_rate_delta": None,
+        "rally_champion_success_rate_delta": None,
+        "interpretation_changed": False,
+        "regression_state": "no_baseline",
+        "interpretation": "no baseline summary provided; regression comparison skipped",
+    }
+    if baseline_summary is None:
+        return regression
+
+    baseline_inputs = _extract_support_metrics_regression_inputs(baseline_summary)
+    current_inputs = _extract_support_metrics_regression_inputs(current_summary)
+    if baseline_inputs is None or current_inputs is None:
+        regression["regression_state"] = "incompatible"
+        regression["interpretation"] = "baseline/current summaries are incompatible for regression comparison"
+        return regression
+
+    changed_fields: list[str] = []
+    warning_count_delta = int(current_inputs["warning_count"]) - int(baseline_inputs["warning_count"])
+
+    support_gate_success_rate_delta: float | None = None
+    baseline_support_gate_rate = _as_float(baseline_inputs.get("support_gate_success_rate"))
+    current_support_gate_rate = _as_float(current_inputs.get("support_gate_success_rate"))
+    if baseline_support_gate_rate is not None and current_support_gate_rate is not None:
+        support_gate_success_rate_delta = float(current_support_gate_rate - baseline_support_gate_rate)
+        if abs(support_gate_success_rate_delta) > 1e-9:
+            changed_fields.append("support_gate.avg_support_gate_run_success_rate")
+
+    rally_champion_success_rate_delta: float | None = None
+    baseline_champion_rate = _as_float(baseline_inputs.get("rally_champion_success_rate"))
+    current_champion_rate = _as_float(current_inputs.get("rally_champion_success_rate"))
+    if baseline_champion_rate is not None and current_champion_rate is not None:
+        rally_champion_success_rate_delta = float(current_champion_rate - baseline_champion_rate)
+        if abs(rally_champion_success_rate_delta) > 1e-9:
+            changed_fields.append("champion_support.avg_champion_support_run_success_rate")
+
+    baseline_quality_state = str(baseline_inputs.get("quality_state", ""))
+    current_quality_state = str(current_inputs.get("quality_state", ""))
+    quality_state_changed = baseline_quality_state != current_quality_state
+    if quality_state_changed:
+        changed_fields.append("support_metrics_quality.state")
+
+    baseline_support_interpretation = str(baseline_inputs.get("support_systems_interpretation", ""))
+    current_support_interpretation = str(current_inputs.get("support_systems_interpretation", ""))
+    if baseline_support_interpretation != current_support_interpretation:
+        changed_fields.append("support_systems_summary.interpretation")
+
+    baseline_champion_interpretation = str(baseline_inputs.get("champion_multi_run_interpretation", ""))
+    current_champion_interpretation = str(current_inputs.get("champion_multi_run_interpretation", ""))
+    champion_interpretation_changed = baseline_champion_interpretation != current_champion_interpretation
+    if champion_interpretation_changed:
+        changed_fields.append("champion_support.multi_run_comparison.global_interpretation")
+
+    if warning_count_delta != 0:
+        changed_fields.append("support_metrics_quality.warning_count")
+
+    interpretation_changed = (
+        baseline_support_interpretation != current_support_interpretation
+        or champion_interpretation_changed
+    )
+    regression_state = "stable"
+    interpretation = "support metrics are stable compared to baseline"
+    if quality_state_changed or warning_count_delta > 0:
+        regression_state = "warning"
+        interpretation = "support metrics changed with quality degradation signals"
+    elif changed_fields:
+        regression_state = "changed"
+        interpretation = "support metrics changed compared to baseline"
+
+    regression["compared"] = True
+    regression["changed_fields"] = list(dict.fromkeys(changed_fields))
+    regression["warning_count_delta"] = warning_count_delta
+    regression["quality_state_changed"] = quality_state_changed
+    regression["support_gate_success_rate_delta"] = support_gate_success_rate_delta
+    regression["rally_champion_success_rate_delta"] = rally_champion_success_rate_delta
+    regression["interpretation_changed"] = interpretation_changed
+    regression["regression_state"] = regression_state
+    regression["interpretation"] = interpretation
+    return regression
 
 
 def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary: dict[str, Any]) -> dict[str, Any]:
@@ -1017,6 +1157,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     champion_support = summary.get("champion_support", {})
     support_systems_summary = summary.get("support_systems_summary", {})
     support_metrics_quality = summary.get("support_metrics_quality", {})
+    support_metrics_regression = summary.get("support_metrics_regression", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1198,6 +1339,19 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     lines.append("- state: %s" % str(support_metrics_quality.get("state", "no_data")))
     lines.append("- warnings: %s" % quality_warnings_label)
     lines.append("- interpretation: %s" % str(support_metrics_quality.get("interpretation", "no_data")))
+    regression_changed_fields = support_metrics_regression.get("changed_fields", [])
+    regression_changed_fields_label = "none"
+    if isinstance(regression_changed_fields, list) and regression_changed_fields:
+        regression_changed_fields_label = ", ".join(str(item) for item in regression_changed_fields)
+    regression_warning_delta = support_metrics_regression.get("warning_count_delta")
+    regression_warning_delta_label = "n/a"
+    if isinstance(regression_warning_delta, int):
+        regression_warning_delta_label = f"{regression_warning_delta:+d}"
+    lines.append("Support metrics regression:")
+    lines.append("- state: %s" % str(support_metrics_regression.get("regression_state", "no_baseline")))
+    lines.append("- changed fields: %s" % regression_changed_fields_label)
+    lines.append("- warning delta: %s" % regression_warning_delta_label)
+    lines.append("- interpretation: %s" % str(support_metrics_regression.get("interpretation", "no baseline summary provided; regression comparison skipped")))
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -1256,6 +1410,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     champion_support = summary.get("champion_support", {})
     support_systems_summary = summary.get("support_systems_summary", {})
     support_metrics_quality = summary.get("support_metrics_quality", {})
+    support_metrics_regression = summary.get("support_metrics_regression", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1488,6 +1643,20 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append("- state: %s" % str(support_metrics_quality.get("state", "no_data")))
     lines.append("- warnings: %s" % quality_warnings_label)
     lines.append("- interpretation: %s" % str(support_metrics_quality.get("interpretation", "no_data")))
+    regression_changed_fields = support_metrics_regression.get("changed_fields", [])
+    regression_changed_fields_label = "none"
+    if isinstance(regression_changed_fields, list) and regression_changed_fields:
+        regression_changed_fields_label = ", ".join(str(item) for item in regression_changed_fields)
+    regression_warning_delta = support_metrics_regression.get("warning_count_delta")
+    regression_warning_delta_label = "n/a"
+    if isinstance(regression_warning_delta, int):
+        regression_warning_delta_label = f"{regression_warning_delta:+d}"
+    lines.append("")
+    lines.append("### Support metrics regression")
+    lines.append("- state: %s" % str(support_metrics_regression.get("regression_state", "no_baseline")))
+    lines.append("- changed fields: %s" % regression_changed_fields_label)
+    lines.append("- warning delta: %s" % regression_warning_delta_label)
+    lines.append("- interpretation: %s" % str(support_metrics_regression.get("interpretation", "no baseline summary provided; regression comparison skipped")))
 
     lines.append("")
     lines.append("## Recommendations")
@@ -1611,6 +1780,12 @@ def main() -> int:
         objective_filter=objective if objective else None,
         limit=limit if limit > 0 else None,
     )
+    summary["support_metrics_regression"] = build_support_metrics_regression(
+        None,
+        summary,
+        baseline_label="n/a",
+        current_label=input_path.name,
+    )
     if compare_input_path is not None:
         compare_records, compare_invalid_lines = read_jsonl_records(compare_input_path)
         candidate_summary = build_summary(
@@ -1620,6 +1795,12 @@ def main() -> int:
             limit=limit if limit > 0 else None,
         )
         summary["comparison"] = build_comparison_summary(summary, candidate_summary)
+        summary["support_metrics_regression"] = build_support_metrics_regression(
+            summary,
+            candidate_summary,
+            baseline_label=input_path.name,
+            current_label=compare_input_path.name,
+        )
     summary["final_decision"] = build_final_decision(summary)
 
     output_format = str(args.format).strip().lower()
