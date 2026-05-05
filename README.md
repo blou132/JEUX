@@ -689,6 +689,26 @@ py tools/write_support_metrics_ci_summary.py --ci-check --baseline tests/fixture
 ```bash
 py tools/write_support_metrics_ci_summary.py --ci-check --baseline artifacts/missing_baseline.jsonl --current artifacts/missing_current.jsonl --report-output artifacts/support_metrics_report.md --step-summary artifacts/local_step_summary.md --artifact-name support-metrics-report
 ```
+- Simuler localement le support metrics CI:
+  - script de simulation: `tools/simulate_support_metrics_ci.py`.
+  - ce script rejoue l'etape CI locale en appelant `tools/write_support_metrics_ci_summary.py`.
+  - fichiers generes dans `--output-dir`:
+    - `artifacts/support_metrics_report.md`
+    - `artifacts/github_step_summary.md` (pseudo `GITHUB_STEP_SUMMARY`)
+  - mode par defaut non bloquant (debug/observation).
+  - mode strict manuel possible avec `--strict`.
+- exemple (exports presents):
+```bash
+py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --output-dir artifacts/local_ci_sim
+```
+- exemple (exports absents -> skip non bloquant):
+```bash
+py tools/simulate_support_metrics_ci.py --baseline artifacts/missing_baseline.jsonl --current artifacts/missing_current.jsonl --output-dir artifacts/local_ci_sim
+```
+- exemple (test technique avec faux analyze script):
+```bash
+py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --output-dir artifacts/local_ci_sim --analyze-script artifacts/fake_analyze.py
+```
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`
