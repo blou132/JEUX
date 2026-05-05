@@ -713,6 +713,12 @@ py tools/simulate_support_metrics_ci.py --baseline artifacts/missing_baseline.js
 ```bash
 py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --output-dir artifacts/local_ci_sim --analyze-script artifacts/fake_analyze.py
 ```
+
+## CI support metrics reports
+- `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
+- `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
+- si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.
+- ces rapports restent des outils debug/observation uniquement.
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`

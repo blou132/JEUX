@@ -29,7 +29,22 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
 
     def test_workflow_generates_markdown_report_and_uploads_artifact(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
-        self.assertIn("Smoke test support metrics CI summary", content)
+        self.assertIn(
+            "Smoke test support metrics CI summary (technical fixtures)",
+            content,
+        )
+        self.assertIn(
+            "Upload support metrics smoke report artifact (technical fixtures)",
+            content,
+        )
+        self.assertIn(
+            "Optional runtime support metrics CI check (outputs/ci)",
+            content,
+        )
+        self.assertIn(
+            "Upload support metrics runtime report artifact (optional)",
+            content,
+        )
         self.assertIn(
             "tests/fixtures/support_metrics_contract/recent_complete.jsonl",
             content,
@@ -39,9 +54,22 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("artifacts/support_metrics_report.md", content)
         self.assertIn("actions/upload-artifact@v4", content)
         self.assertIn("if-no-files-found: ignore", content)
+        self.assertIn("if-no-files-found: error", content)
         self.assertIn("support-metrics-report", content)
         self.assertIn("--artifact-name \"support-metrics-report\"", content)
         self.assertIn("--artifact-name \"support-metrics-smoke-report\"", content)
+
+    def test_workflow_keeps_smoke_and_runtime_paths_separated(self) -> None:
+        content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl", content)
+        self.assertIn("SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl", content)
+        self.assertIn("SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md", content)
+        self.assertIn("--baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl", content)
+        self.assertIn("--current tests/fixtures/support_metrics_contract/recent_complete.jsonl", content)
+        self.assertIn("--baseline \"$env:SUPPORT_METRICS_BASELINE_PATH\"", content)
+        self.assertIn("--current \"$env:SUPPORT_METRICS_CURRENT_PATH\"", content)
+        self.assertIn("--report-output artifacts/support_metrics_smoke_report.md", content)
+        self.assertIn("--report-output \"$env:SUPPORT_METRICS_REPORT_PATH\"", content)
 
     def test_readme_documents_optional_ci_mode(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")
@@ -56,6 +84,9 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("script Python", content)
         self.assertIn("fail-safe", content)
         self.assertIn("--strict", content)
+        self.assertIn("CI support metrics reports", content)
+        self.assertIn("support-metrics-smoke-report", content)
+        self.assertIn("support-metrics-report", content)
 
     def test_support_metrics_ci_check_block_is_still_present_in_tool(self) -> None:
         content = ANALYZE_TOOL_PATH.read_text(encoding="utf-8")
