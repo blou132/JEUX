@@ -33,17 +33,28 @@ jobs:
           $baselinePath = $env:SUPPORT_METRICS_BASELINE_PATH
           $currentPath = $env:SUPPORT_METRICS_CURRENT_PATH
           $reportPath = $env:SUPPORT_METRICS_REPORT_PATH
+          $stepSummaryPath = $env:GITHUB_STEP_SUMMARY
           $baselineExists = Test-Path -Path $baselinePath
           $currentExists = Test-Path -Path $currentPath
 
           if ($baselineExists -and $currentExists) {
             Write-Host "Running support metrics CI check with baseline=$baselinePath current=$currentPath"
             py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format markdown --output "$reportPath"
+            if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
+              Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
+              Add-Content -Path $stepSummaryPath -Value ""
+              Get-Content -Path $reportPath | Add-Content -Path $stepSummaryPath
+            }
           }
           else {
             Write-Host "Support metrics CI check skipped: missing exports. baseline=$baselinePath exists=$baselineExists; current=$currentPath exists=$currentExists"
             New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
             "Support metrics exports not found; optional check skipped." | Set-Content -Path $reportPath -Encoding UTF8
+            if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
+              Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
+              Add-Content -Path $stepSummaryPath -Value ""
+              Add-Content -Path $stepSummaryPath -Value "Support metrics exports not found; optional check skipped."
+            }
           }
 
       - name: Upload support metrics report artifact

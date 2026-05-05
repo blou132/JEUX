@@ -673,8 +673,10 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
   - absence d'exports = pas d'echec (etape support metrics skippee).
   - mode bloquant possible mais volontaire avec `--ci-check --fail-on-regression`.
   - quand les exports baseline/current existent, la CI genere `artifacts/support_metrics_report.md` (Markdown).
+  - le contenu du rapport est aussi visible dans l'onglet **Summary** du job GitHub Actions.
   - le workflow upload ce rapport dans l'artifact GitHub Actions `support-metrics-report`.
   - si exports absents, la CI conserve un rapport de skip: `Support metrics exports not found; optional check skipped.`
+  - ce rapport (Summary + artifact) reste un outil debug/observation uniquement.
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`
