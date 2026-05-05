@@ -215,6 +215,60 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             )
             self.assertEqual(summary["support_gate"]["records"], 1)
 
+    def test_champion_support_recent_export_fields_feed_diagnostic(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_recent_1",
+                        "run_status": "completed",
+                        "objective_id": "rally_champion",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 4,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.25,
+                        "champion_support_attempts_total": 4,
+                        "champion_support_success_total": 1,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 2,
+                        "champion_support_completed_total": 1,
+                        "champion_support_failed_total": 0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_recent_2",
+                        "run_status": "failed",
+                        "objective_id": "rally_champion",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 6,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.50,
+                        "champion_support_attempts_total": 6,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 2,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 1,
+                        "champion_support_failed_total": 1,
+                    }
+                ),
+            ]
+        )
+        champion_support = summary["champion_support"]
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_attempts_total"]), 5.0, places=4)
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_success_total"]), 2.0, places=4)
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_unavailable_total"]), 1.5, places=4)
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_cooldown_blocked_total"]), 1.5, places=4)
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_completed_total"]), 1.0, places=4)
+        self.assertAlmostEqual(float(champion_support["avg_champion_support_failed_total"]), 0.5, places=4)
+        diagnostic = champion_support["diagnostic"]
+        self.assertAlmostEqual(float(diagnostic["attempts_avg"]), 5.0, places=4)
+        self.assertAlmostEqual(float(diagnostic["success_rate_avg"]), 0.375, places=4)
+        self.assertEqual(diagnostic["cooldown_pressure"], "medium")
+        self.assertEqual(diagnostic["unavailable_pressure"], "medium")
+        self.assertEqual(diagnostic["objective_completion"], "1/2")
+        self.assertIn("low success rate", str(diagnostic["interpretation"]))
+
     def test_invalid_lines_are_ignored_and_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             input_path = Path(tmpdir) / "run_metrics_history.jsonl"
@@ -288,7 +342,92 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(champion_support["worst_run"], "n/a")
             self.assertAlmostEqual(float(champion_support["objective_success_rate"]), 0.5, places=4)
             self.assertEqual(champion_support["latest_champion_support_tuning_label"], "")
+            diagnostic = champion_support["diagnostic"]
+            self.assertIsNone(diagnostic["attempts_avg"])
+            self.assertIsNone(diagnostic["success_rate_avg"])
+            self.assertEqual(diagnostic["cooldown_pressure"], "n/a")
+            self.assertEqual(diagnostic["unavailable_pressure"], "n/a")
+            self.assertEqual(diagnostic["objective_completion"], "1/2")
+            self.assertEqual(diagnostic["interpretation"], "n/a")
             self.assertIn("support_gate", summary)
+
+    def test_champion_support_diagnostic_flags_low_success_rate(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_low_success_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.20,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 1,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 0,
+                        "champion_support_failed_total": 1,
+                    }
+                )
+            ]
+        )
+        diagnostic = summary["champion_support"]["diagnostic"]
+        self.assertIn("low success rate", str(diagnostic["interpretation"]))
+        self.assertIn("support_gate", summary)
+
+    def test_champion_support_diagnostic_flags_high_cooldown_pressure(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_cooldown_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 4,
+                        "champion_support_completed_total": 0,
+                        "champion_support_failed_total": 1,
+                    }
+                )
+            ]
+        )
+        diagnostic = summary["champion_support"]["diagnostic"]
+        self.assertEqual(diagnostic["cooldown_pressure"], "high")
+        self.assertIn("high cooldown pressure", str(diagnostic["interpretation"]))
+
+    def test_champion_support_diagnostic_flags_high_unavailable_pressure(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_unavailable_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 4,
+                        "champion_support_cooldown_blocked_total": 0,
+                        "champion_support_completed_total": 0,
+                        "champion_support_failed_total": 1,
+                    }
+                )
+            ]
+        )
+        diagnostic = summary["champion_support"]["diagnostic"]
+        self.assertEqual(diagnostic["unavailable_pressure"], "high")
+        self.assertIn("high unavailable pressure", str(diagnostic["interpretation"]))
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -644,6 +783,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("Recommendations:", result.stdout)
             self.assertIn("Support gate tuning looks stable.", result.stdout)
             self.assertIn("Support gate stability:", result.stdout)
+            self.assertIn("Champion support diagnostic:", result.stdout)
             self.assertIn("Final decision:", result.stdout)
 
     def test_markdown_output_contains_expected_sections(self) -> None:
@@ -670,6 +810,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("# Run Metrics History Analysis", result.stdout)
             self.assertIn("## Support gate", result.stdout)
             self.assertIn("## Champion support", result.stdout)
+            self.assertIn("### Champion support diagnostic", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
             self.assertIn("| support gate stability |", result.stdout)
             self.assertIn("## Final decision", result.stdout)

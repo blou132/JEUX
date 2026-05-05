@@ -454,7 +454,10 @@ Passerelles runtime (ordre de chargement) :
   - `run_summary_lines`
   - `last_major_event_label`
   - metriques `support_gate` run-only et session (`support_gate_run_*`, `support_gate_*_total`, ratios)
-  - metriques `rally_champion` run-only (`champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`, `champion_support_tuning_label`)
+  - metriques `rally_champion`:
+    - run: `champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`
+    - compteurs: `champion_support_attempts_total`, `champion_support_success_total`, `champion_support_unavailable_total`, `champion_support_cooldown_blocked_total`, `champion_support_completed_total`, `champion_support_failed_total`
+    - label: `champion_support_tuning_label`
 - ecriture fichier:
   - methode publique `export_run_metrics()`
   - cible locale: `user://run_metrics_latest.json`
@@ -466,17 +469,24 @@ Passerelles runtime (ordre de chargement) :
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
 
-## Lecture rapide des metriques champion (v168)
+## Lecture rapide des metriques champion (v169)
 - ces metriques servent au **runtime/debug/playtest** uniquement et ne changent pas le gameplay.
 - dans `run_metrics_latest.json` / `run_metrics_history.jsonl` (export existant), lire:
-  - `champion_support_run_attempts`
-  - `champion_support_run_success`
-  - `champion_support_run_success_rate`
-  - `champion_support_tuning_label`
+  - run: `champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`
+  - compteurs: `champion_support_attempts_total`, `champion_support_success_total`, `champion_support_unavailable_total`, `champion_support_cooldown_blocked_total`, `champion_support_completed_total`, `champion_support_failed_total`
+  - label: `champion_support_tuning_label`
 - dans `tools/analyze_run_metrics_history.py`, le resume expose aussi un bloc `champion_support`:
   - moyennes run attempts/success/success_rate,
   - meilleur/pire run (sur les exports qui ont les champs),
-  - `latest_champion_support_tuning_label`.
+  - `latest_champion_support_tuning_label`,
+  - un bloc lisible `Champion support diagnostic`:
+    - `attempts avg`
+    - `success rate avg`
+    - `cooldown pressure` (`low` / `medium` / `high` / `n/a`)
+    - `unavailable pressure` (`low` / `medium` / `high` / `n/a`)
+    - `objective completion` (`completed/resolved`)
+    - `interpretation` (lecture rapide des signaux: low success rate, cooldown, unavailable, failed despite attempts).
+- ce diagnostic est un outil d'observation/debug pour playtest, pas une modification de gameplay.
 - compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 
 ## Run metrics export history (v152)

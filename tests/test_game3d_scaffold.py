@@ -937,6 +937,15 @@ class TestGame3DScaffold(unittest.TestCase):
             '"champion_support_run_success_rate": float(snapshot.get("champion_support_run_success_rate", 0.0))',
             content
         )
+        self.assertIn('"champion_support_attempts_total": int(snapshot.get("champion_support_attempts_total", 0))', content)
+        self.assertIn('"champion_support_success_total": int(snapshot.get("champion_support_success_total", 0))', content)
+        self.assertIn('"champion_support_unavailable_total": int(snapshot.get("champion_support_unavailable_total", 0))', content)
+        self.assertIn(
+            '"champion_support_cooldown_blocked_total": int(snapshot.get("champion_support_cooldown_blocked_total", 0))',
+            content
+        )
+        self.assertIn('"champion_support_completed_total": int(snapshot.get("champion_support_completed_total", 0))', content)
+        self.assertIn('"champion_support_failed_total": int(snapshot.get("champion_support_failed_total", 0))', content)
         self.assertIn('"champion_support_tuning_label": str(', content)
         self.assertIn('"support_gate_run_attempts": int(snapshot.get("support_gate_run_attempts", 0))', content)
         self.assertIn("support_gate_run_attempts_baseline", content)

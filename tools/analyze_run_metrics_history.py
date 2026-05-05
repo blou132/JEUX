@@ -178,6 +178,58 @@ def _build_support_gate_stability_label(success_rate_values: list[float]) -> str
     return "stable"
 
 
+def _build_pressure_label(blocked_avg: float | None, attempts_avg: float | None) -> str:
+    if blocked_avg is None or attempts_avg is None:
+        return "n/a"
+    if attempts_avg <= 0.0:
+        return "n/a"
+    blocked_ratio = max(0.0, blocked_avg) / attempts_avg
+    if blocked_ratio >= 0.60:
+        return "high"
+    if blocked_ratio >= 0.30:
+        return "medium"
+    return "low"
+
+
+def _build_champion_support_interpretation(
+    records: int,
+    attempts_avg: float | None,
+    success_rate_avg: float | None,
+    cooldown_pressure: str,
+    unavailable_pressure: str,
+    objective_completed: int,
+    objective_failed: int,
+) -> str:
+    if records <= 0:
+        return "n/a"
+    if (
+        attempts_avg is None
+        and success_rate_avg is None
+        and cooldown_pressure == "n/a"
+        and unavailable_pressure == "n/a"
+    ):
+        return "n/a"
+
+    signals: list[str] = []
+    if attempts_avg is not None and attempts_avg < 2.0:
+        signals.append("few attempts")
+    if success_rate_avg is not None and success_rate_avg < 0.40:
+        signals.append("low success rate")
+    if cooldown_pressure == "high":
+        signals.append("high cooldown pressure")
+    elif cooldown_pressure == "medium":
+        signals.append("medium cooldown pressure")
+    if unavailable_pressure == "high":
+        signals.append("high unavailable pressure")
+    elif unavailable_pressure == "medium":
+        signals.append("medium unavailable pressure")
+    if objective_failed > objective_completed and attempts_avg is not None and attempts_avg > 0.0:
+        signals.append("objective often failed despite attempts")
+    if not signals:
+        return "no major champion support pressure detected"
+    return "; ".join(signals)
+
+
 def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
     support_gate = summary.get("support_gate", {})
     records = int(support_gate.get("records", 0))
@@ -302,6 +354,48 @@ def build_summary(
     champion_attempt_avg = _average([value for value in champion_attempt_values if value is not None])
     champion_success_avg = _average([value for value in champion_success_values if value is not None])
     champion_success_rate_avg = _average(champion_success_rate_numeric_values)
+    champion_attempt_total_values = [
+        _as_float(record.get("champion_support_attempts_total"))
+        for record in champion_support_records
+    ]
+    champion_success_total_values = [
+        _as_float(record.get("champion_support_success_total"))
+        for record in champion_support_records
+    ]
+    champion_unavailable_total_values = [
+        _as_float(record.get("champion_support_unavailable_total"))
+        for record in champion_support_records
+    ]
+    champion_cooldown_total_values = [
+        _as_float(record.get("champion_support_cooldown_blocked_total"))
+        for record in champion_support_records
+    ]
+    champion_completed_total_values = [
+        _as_float(record.get("champion_support_completed_total"))
+        for record in champion_support_records
+    ]
+    champion_failed_total_values = [
+        _as_float(record.get("champion_support_failed_total"))
+        for record in champion_support_records
+    ]
+    champion_attempt_total_avg = _average(
+        [value for value in champion_attempt_total_values if value is not None]
+    )
+    champion_success_total_avg = _average(
+        [value for value in champion_success_total_values if value is not None]
+    )
+    champion_unavailable_total_avg = _average(
+        [value for value in champion_unavailable_total_values if value is not None]
+    )
+    champion_cooldown_total_avg = _average(
+        [value for value in champion_cooldown_total_values if value is not None]
+    )
+    champion_completed_total_avg = _average(
+        [value for value in champion_completed_total_values if value is not None]
+    )
+    champion_failed_total_avg = _average(
+        [value for value in champion_failed_total_values if value is not None]
+    )
 
     champion_completed = 0
     champion_failed = 0
@@ -316,6 +410,21 @@ def build_summary(
     champion_resolved = champion_completed + champion_failed
     if champion_resolved > 0:
         champion_objective_success_rate = float(champion_completed / champion_resolved)
+    champion_cooldown_pressure = _build_pressure_label(
+        champion_cooldown_total_avg, champion_attempt_total_avg
+    )
+    champion_unavailable_pressure = _build_pressure_label(
+        champion_unavailable_total_avg, champion_attempt_total_avg
+    )
+    champion_interpretation = _build_champion_support_interpretation(
+        records=len(champion_support_records),
+        attempts_avg=champion_attempt_avg,
+        success_rate_avg=champion_success_rate_avg,
+        cooldown_pressure=champion_cooldown_pressure,
+        unavailable_pressure=champion_unavailable_pressure,
+        objective_completed=champion_completed,
+        objective_failed=champion_failed,
+    )
 
     champion_best_run = _pick_best_champion_run(champion_support_records)
     champion_worst_run = _pick_worst_champion_run(champion_support_records)
@@ -354,12 +463,26 @@ def build_summary(
             "avg_champion_support_run_attempts": champion_attempt_avg,
             "avg_champion_support_run_success": champion_success_avg,
             "avg_champion_support_run_success_rate": champion_success_rate_avg,
+            "avg_champion_support_attempts_total": champion_attempt_total_avg,
+            "avg_champion_support_success_total": champion_success_total_avg,
+            "avg_champion_support_unavailable_total": champion_unavailable_total_avg,
+            "avg_champion_support_cooldown_blocked_total": champion_cooldown_total_avg,
+            "avg_champion_support_completed_total": champion_completed_total_avg,
+            "avg_champion_support_failed_total": champion_failed_total_avg,
             "best_run": _run_label(champion_best_run),
             "worst_run": _run_label(champion_worst_run),
             "objective_success_rate": champion_objective_success_rate,
             "objective_completed": champion_completed,
             "objective_failed": champion_failed,
             "latest_champion_support_tuning_label": champion_tuning_label,
+            "diagnostic": {
+                "attempts_avg": champion_attempt_avg,
+                "success_rate_avg": champion_success_rate_avg,
+                "cooldown_pressure": champion_cooldown_pressure,
+                "unavailable_pressure": champion_unavailable_pressure,
+                "objective_completion": "%d/%d" % (champion_completed, champion_resolved),
+                "interpretation": champion_interpretation,
+            },
         },
     }
     summary["recommendations"] = build_support_gate_recommendations(summary)
@@ -610,6 +733,34 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     champion_tuning_label = str(champion_support.get("latest_champion_support_tuning_label", "")).strip()
     if champion_tuning_label:
         lines.append("Champion support latest tuning: %s" % champion_tuning_label)
+    champion_diagnostic = champion_support.get("diagnostic", {})
+    champion_cooldown_pressure = str(champion_diagnostic.get("cooldown_pressure", "n/a")).strip() or "n/a"
+    champion_unavailable_pressure = str(champion_diagnostic.get("unavailable_pressure", "n/a")).strip() or "n/a"
+    champion_objective_completion = (
+        str(champion_diagnostic.get("objective_completion", "")).strip()
+        or "n/a"
+    )
+    champion_interpretation = (
+        str(champion_diagnostic.get("interpretation", "")).strip()
+        or "n/a"
+    )
+    lines.append("Champion support diagnostic:")
+    lines.append(
+        "- attempts avg: %s"
+        % (
+            "n/a"
+            if champion_diagnostic.get("attempts_avg") is None
+            else f"{float(champion_diagnostic.get('attempts_avg')):.2f}"
+        )
+    )
+    lines.append(
+        "- success rate avg: %s"
+        % _pct(_as_float(champion_diagnostic.get("success_rate_avg")))
+    )
+    lines.append("- cooldown pressure: %s" % champion_cooldown_pressure)
+    lines.append("- unavailable pressure: %s" % champion_unavailable_pressure)
+    lines.append("- objective completion: %s" % champion_objective_completion)
+    lines.append("- interpretation: %s" % champion_interpretation)
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -796,6 +947,36 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             else "n/a"
         )
     )
+    champion_diagnostic = champion_support.get("diagnostic", {})
+    champion_cooldown_pressure = str(champion_diagnostic.get("cooldown_pressure", "n/a")).strip() or "n/a"
+    champion_unavailable_pressure = str(champion_diagnostic.get("unavailable_pressure", "n/a")).strip() or "n/a"
+    champion_objective_completion = (
+        str(champion_diagnostic.get("objective_completion", "")).strip()
+        or "n/a"
+    )
+    champion_interpretation = (
+        str(champion_diagnostic.get("interpretation", "")).strip()
+        or "n/a"
+    )
+
+    lines.append("")
+    lines.append("### Champion support diagnostic")
+    lines.append(
+        "- attempts avg: %s"
+        % (
+            "n/a"
+            if champion_diagnostic.get("attempts_avg") is None
+            else f"{float(champion_diagnostic.get('attempts_avg')):.2f}"
+        )
+    )
+    lines.append(
+        "- success rate avg: %s"
+        % _pct(_as_float(champion_diagnostic.get("success_rate_avg")))
+    )
+    lines.append("- cooldown pressure: %s" % champion_cooldown_pressure)
+    lines.append("- unavailable pressure: %s" % champion_unavailable_pressure)
+    lines.append("- objective completion: %s" % champion_objective_completion)
+    lines.append("- interpretation: %s" % champion_interpretation)
 
     lines.append("")
     lines.append("## Recommendations")
