@@ -373,6 +373,147 @@ def _build_support_systems_summary(
     }
 
 
+def _build_support_metrics_quality(
+    support_gate_records: list[dict[str, Any]],
+    champion_support_records: list[dict[str, Any]],
+    support_gate_attempt_values: list[float | None],
+    support_gate_success_values: list[float | None],
+    support_gate_success_rate_values: list[float | None],
+    support_gate_cooldown_values: list[float | None],
+    support_gate_unavailable_values: list[float | None],
+    support_gate_completed: int,
+    support_gate_failed: int,
+    champion_attempt_values: list[float | None],
+    champion_success_values: list[float | None],
+    champion_success_rate_values: list[float | None],
+    champion_cooldown_values: list[float | None],
+    champion_unavailable_values: list[float | None],
+    champion_completed: int,
+    champion_failed: int,
+) -> dict[str, Any]:
+    warnings: list[str] = []
+
+    def _any_negative(values: list[float | None]) -> bool:
+        return any(value is not None and value < 0.0 for value in values)
+
+    def _any_rate_out_of_range(values: list[float | None]) -> bool:
+        return any(value is not None and (value < 0.0 or value > 1.0) for value in values)
+
+    def _any_success_greater_than_attempts(
+        success_values: list[float | None], attempts_values: list[float | None]
+    ) -> bool:
+        for success_value, attempts_value in zip(success_values, attempts_values):
+            if success_value is None or attempts_value is None:
+                continue
+            if success_value > attempts_value:
+                return True
+        return False
+
+    support_gate_count = len(support_gate_records)
+    champion_count = len(champion_support_records)
+
+    if support_gate_count == 0:
+        warnings.append("support_gate_missing")
+    if champion_count == 0:
+        warnings.append("champion_support_missing")
+
+    if support_gate_count == 0 and champion_count == 0:
+        warnings.append("no_support_metrics")
+    else:
+        if _any_success_greater_than_attempts(support_gate_success_values, support_gate_attempt_values):
+            warnings.append("support_gate_success_greater_than_attempts")
+        if _any_rate_out_of_range(support_gate_success_rate_values):
+            warnings.append("support_gate_success_rate_out_of_range")
+        if _any_negative(support_gate_attempt_values):
+            warnings.append("support_gate_attempts_negative")
+        if _any_negative(support_gate_cooldown_values):
+            warnings.append("support_gate_cooldown_negative")
+        if _any_negative(support_gate_unavailable_values):
+            warnings.append("support_gate_unavailable_negative")
+
+        if _any_success_greater_than_attempts(champion_success_values, champion_attempt_values):
+            warnings.append("champion_success_greater_than_attempts")
+        if _any_rate_out_of_range(champion_success_rate_values):
+            warnings.append("champion_success_rate_out_of_range")
+        if _any_negative(champion_attempt_values):
+            warnings.append("champion_attempts_negative")
+        if _any_negative(champion_cooldown_values):
+            warnings.append("champion_cooldown_negative")
+        if _any_negative(champion_unavailable_values):
+            warnings.append("champion_unavailable_negative")
+
+        support_gate_resolved = support_gate_completed + support_gate_failed
+        if support_gate_resolved > support_gate_count:
+            warnings.append("support_gate_resolution_inconsistent")
+        if support_gate_count > 0 and support_gate_resolved == 0:
+            warnings.append("support_gate_resolution_missing")
+
+        champion_resolved = champion_completed + champion_failed
+        if champion_resolved > champion_count:
+            warnings.append("champion_resolution_inconsistent")
+        if champion_count > 0 and champion_resolved == 0:
+            warnings.append("champion_resolution_missing")
+
+        champion_metric_keys = (
+            "champion_support_run_attempts",
+            "champion_support_run_success",
+            "champion_support_run_success_rate",
+            "champion_support_attempts_total",
+            "champion_support_success_total",
+            "champion_support_unavailable_total",
+            "champion_support_cooldown_blocked_total",
+            "champion_support_completed_total",
+            "champion_support_failed_total",
+        )
+        if champion_count > 0:
+            champion_records_with_metrics = 0
+            for record in champion_support_records:
+                if any(key in record for key in champion_metric_keys):
+                    champion_records_with_metrics += 1
+            if champion_records_with_metrics < champion_count:
+                warnings.append("partial_legacy_export")
+
+    warning_set = set(warnings)
+    state = "valid"
+    warning_issue_keys = {
+        "support_gate_success_greater_than_attempts",
+        "support_gate_success_rate_out_of_range",
+        "support_gate_attempts_negative",
+        "support_gate_cooldown_negative",
+        "support_gate_unavailable_negative",
+        "champion_success_greater_than_attempts",
+        "champion_success_rate_out_of_range",
+        "champion_attempts_negative",
+        "champion_cooldown_negative",
+        "champion_unavailable_negative",
+        "support_gate_resolution_inconsistent",
+        "support_gate_resolution_missing",
+        "champion_resolution_inconsistent",
+        "champion_resolution_missing",
+    }
+    if "no_support_metrics" in warning_set:
+        state = "no_data"
+    elif warning_set.intersection(warning_issue_keys):
+        state = "warning"
+    elif warning_set.intersection({"support_gate_missing", "champion_support_missing", "partial_legacy_export"}):
+        state = "incomplete"
+
+    interpretation = "support metrics look consistent"
+    if state == "no_data":
+        interpretation = "no support metrics available in this history"
+    elif state == "warning":
+        interpretation = "support metrics contain incoherent values"
+    elif state == "incomplete":
+        interpretation = "support metrics are partial but still readable"
+
+    ordered_warnings = list(dict.fromkeys(warnings))
+    return {
+        "state": state,
+        "warnings": ordered_warnings,
+        "interpretation": interpretation,
+    }
+
+
 def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
     support_gate = summary.get("support_gate", {})
     records = int(support_gate.get("records", 0))
@@ -448,6 +589,14 @@ def build_summary(
     success_values = [_as_float(record.get("support_gate_run_success")) for record in support_gate_records]
     success_rate_values = [_as_float(record.get("support_gate_run_success_rate")) for record in support_gate_records]
     available_rate_values = [_as_float(record.get("support_gate_run_available_ratio")) for record in support_gate_records]
+    support_gate_cooldown_values = [
+        _as_float(record.get("support_gate_run_cooldown_blocked"))
+        for record in support_gate_records
+    ]
+    support_gate_unavailable_values = [
+        _as_float(record.get("support_gate_run_unavailable"))
+        for record in support_gate_records
+    ]
     success_rate_numeric_values = [value for value in success_rate_values if value is not None]
     available_rate_numeric_values = [value for value in available_rate_values if value is not None]
 
@@ -611,6 +760,24 @@ def build_summary(
         champion_global_interpretation=champion_multi_run_interpretation,
         champion_records=len(champion_support_records),
     )
+    support_metrics_quality = _build_support_metrics_quality(
+        support_gate_records=support_gate_records,
+        champion_support_records=champion_support_records,
+        support_gate_attempt_values=attempts_values,
+        support_gate_success_values=success_values,
+        support_gate_success_rate_values=success_rate_values,
+        support_gate_cooldown_values=support_gate_cooldown_values,
+        support_gate_unavailable_values=support_gate_unavailable_values,
+        support_gate_completed=support_gate_completed,
+        support_gate_failed=support_gate_failed,
+        champion_attempt_values=champion_attempt_values,
+        champion_success_values=champion_success_values,
+        champion_success_rate_values=champion_success_rate_values,
+        champion_cooldown_values=champion_cooldown_total_values,
+        champion_unavailable_values=champion_unavailable_total_values,
+        champion_completed=champion_completed,
+        champion_failed=champion_failed,
+    )
 
     champion_best_run = _pick_best_champion_run(champion_support_records)
     champion_worst_run = _pick_worst_champion_run(champion_support_records)
@@ -682,6 +849,7 @@ def build_summary(
             },
         },
         "support_systems_summary": support_systems_summary,
+        "support_metrics_quality": support_metrics_quality,
     }
     summary["recommendations"] = build_support_gate_recommendations(summary)
     return summary
@@ -848,6 +1016,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     support_gate = summary.get("support_gate", {})
     champion_support = summary.get("champion_support", {})
     support_systems_summary = summary.get("support_systems_summary", {})
+    support_metrics_quality = summary.get("support_metrics_quality", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1021,6 +1190,14 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     lines.append("- rally_champion: %s" % str(support_systems_summary.get("rally_champion", "n/a")))
     lines.append("- global state: %s" % str(support_systems_summary.get("global_state", "no_data")))
     lines.append("- interpretation: %s" % str(support_systems_summary.get("interpretation", "no_data")))
+    quality_warnings = support_metrics_quality.get("warnings", [])
+    quality_warnings_label = "none"
+    if isinstance(quality_warnings, list) and quality_warnings:
+        quality_warnings_label = ", ".join(str(item) for item in quality_warnings)
+    lines.append("Support metrics quality:")
+    lines.append("- state: %s" % str(support_metrics_quality.get("state", "no_data")))
+    lines.append("- warnings: %s" % quality_warnings_label)
+    lines.append("- interpretation: %s" % str(support_metrics_quality.get("interpretation", "no_data")))
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -1078,6 +1255,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     support_gate = summary.get("support_gate", {})
     champion_support = summary.get("champion_support", {})
     support_systems_summary = summary.get("support_systems_summary", {})
+    support_metrics_quality = summary.get("support_metrics_quality", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1301,6 +1479,15 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append("- rally_champion: %s" % str(support_systems_summary.get("rally_champion", "n/a")))
     lines.append("- global state: %s" % str(support_systems_summary.get("global_state", "no_data")))
     lines.append("- interpretation: %s" % str(support_systems_summary.get("interpretation", "no_data")))
+    quality_warnings = support_metrics_quality.get("warnings", [])
+    quality_warnings_label = "none"
+    if isinstance(quality_warnings, list) and quality_warnings:
+        quality_warnings_label = ", ".join(str(item) for item in quality_warnings)
+    lines.append("")
+    lines.append("### Support metrics quality")
+    lines.append("- state: %s" % str(support_metrics_quality.get("state", "no_data")))
+    lines.append("- warnings: %s" % quality_warnings_label)
+    lines.append("- interpretation: %s" % str(support_metrics_quality.get("interpretation", "no_data")))
 
     lines.append("")
     lines.append("## Recommendations")

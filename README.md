@@ -469,7 +469,7 @@ Passerelles runtime (ordre de chargement) :
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
 
-## Lecture rapide des metriques champion (v171)
+## Lecture rapide des metriques champion (v172)
 - ces metriques servent au **runtime/debug/playtest** uniquement et ne changent pas le gameplay.
 - dans `run_metrics_latest.json` / `run_metrics_history.jsonl` (export existant), lire:
   - run: `champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`
@@ -505,6 +505,12 @@ Passerelles runtime (ordre de chargement) :
   - `data_state` (`complete` / `partial` / `no_data`)
   - `interpretation` (`both_stable`, `support_gate_stable_champion_unstable`, `support_gate_limited_champion_stable`, `both_limited`, `partial_data`, `no_data`)
 - ce bloc sert a une lecture d'observation/debug des systemes de support, sans appliquer de changement gameplay automatique.
+- l'analyse expose aussi un bloc de validation `support_metrics_quality` pour verifier la coherence des donnees exportees:
+  - controles: `success <= attempts`, `success_rate` dans `[0,1]`, compteurs non-negatifs, coherences `completed/failed`, presence/absence des blocs support.
+  - etat global: `valid` / `warning` / `incomplete` / `no_data`.
+  - warnings possibles: `champion_success_greater_than_attempts`, `champion_success_rate_out_of_range`, `support_gate_missing`, `champion_support_missing`, `partial_legacy_export`, `no_support_metrics`.
+- ces warnings servent au debug/qualite des exports uniquement et ne modifient pas le gameplay ni l'equilibrage.
+- les anciens exports restent supportes: l'absence de champs champion historiques est signalee de maniere compatible (`partial_legacy_export`), sans erreur bloquante.
 - ce diagnostic est un outil d'observation/debug pour playtest, pas une modification de gameplay.
 - compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 

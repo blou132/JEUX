@@ -158,6 +158,9 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             support_systems_summary = summary["support_systems_summary"]
             self.assertEqual(support_systems_summary["data_state"], "partial")
             self.assertEqual(support_systems_summary["interpretation"], "partial_data")
+            support_metrics_quality = summary["support_metrics_quality"]
+            self.assertEqual(support_metrics_quality["state"], "incomplete")
+            self.assertIn("champion_support_missing", support_metrics_quality["warnings"])
             self.assertIn("final_decision", summary)
 
     def test_champion_support_metrics_are_aggregated(self) -> None:
@@ -881,6 +884,195 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         self.assertEqual(support_summary["support_gate_main_bottleneck"], "success_rate")
         self.assertEqual(support_summary["rally_champion_global_interpretation"], "unavailable_bottleneck")
 
+    def test_support_metrics_quality_valid(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_valid_gate_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 6,
+                        "support_gate_run_success": 4,
+                        "support_gate_run_success_rate": 0.66,
+                        "support_gate_run_available_ratio": 0.50,
+                        "support_gate_run_cooldown_blocked": 1,
+                        "support_gate_run_unavailable": 0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "quality_valid_champ_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                ),
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "valid")
+        self.assertEqual(quality["warnings"], [])
+
+    def test_support_metrics_quality_success_greater_than_attempts(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_bad_success",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 2,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.80,
+                        "champion_support_attempts_total": 2,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "warning")
+        self.assertIn("champion_success_greater_than_attempts", quality["warnings"])
+
+    def test_support_metrics_quality_success_rate_out_of_range(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_bad_rate",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 4,
+                        "support_gate_run_success": 3,
+                        "support_gate_run_success_rate": 1.20,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "quality_bad_rate_champ",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                ),
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "warning")
+        self.assertIn("support_gate_success_rate_out_of_range", quality["warnings"])
+
+    def test_support_metrics_quality_champion_absent_is_incomplete(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_gate_only",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 4,
+                        "support_gate_run_success": 3,
+                        "support_gate_run_success_rate": 0.75,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "incomplete")
+        self.assertIn("champion_support_missing", quality["warnings"])
+
+    def test_support_metrics_quality_support_gate_absent_is_incomplete(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_champ_only",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "incomplete")
+        self.assertIn("support_gate_missing", quality["warnings"])
+
+    def test_support_metrics_quality_partial_legacy_export(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_partial_gate",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_attempts": 4,
+                        "support_gate_run_success": 2,
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "quality_partial_legacy",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                    }
+                ),
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "incomplete")
+        self.assertIn("partial_legacy_export", quality["warnings"])
+
+    def test_support_metrics_quality_no_support_metrics(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_none",
+                        "objective_id": "observe_dominance",
+                        "run_status": "running",
+                        "objective_status": "active",
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "no_data")
+        self.assertIn("no_support_metrics", quality["warnings"])
+
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             input_path = Path(tmpdir) / "run_metrics_history.jsonl"
@@ -1238,6 +1430,9 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("Champion support diagnostic:", result.stdout)
             self.assertIn("Champion support multi-run comparison:", result.stdout)
             self.assertIn("Support systems summary:", result.stdout)
+            self.assertIn("Support metrics quality:", result.stdout)
+            self.assertIn("- state:", result.stdout)
+            self.assertIn("- warnings:", result.stdout)
             self.assertIn("- support_gate:", result.stdout)
             self.assertIn("- rally_champion:", result.stdout)
             self.assertIn("Final decision:", result.stdout)
@@ -1269,6 +1464,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("### Champion support diagnostic", result.stdout)
             self.assertIn("### Champion support multi-run comparison", result.stdout)
             self.assertIn("### Support systems summary", result.stdout)
+            self.assertIn("### Support metrics quality", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
             self.assertIn("| support gate stability |", result.stdout)
             self.assertIn("## Final decision", result.stdout)
