@@ -469,7 +469,7 @@ Passerelles runtime (ordre de chargement) :
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
 
-## Lecture rapide des metriques champion (v170)
+## Lecture rapide des metriques champion (v171)
 - ces metriques servent au **runtime/debug/playtest** uniquement et ne changent pas le gameplay.
 - dans `run_metrics_latest.json` / `run_metrics_history.jsonl` (export existant), lire:
   - run: `champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`
@@ -497,6 +497,14 @@ Passerelles runtime (ordre de chargement) :
   - `diagnostic_stability` (`stable` / `variable` / `unstable` / `n/a`)
   - `global_interpretation` (`stable_successful`, `unstable_success`, `cooldown_bottleneck`, `unavailable_bottleneck`, `low_attempts`, `no_data`)
 - cette lecture multi-runs sert a observer la stabilite du diagnostic champion selon les runs/seeds, sans automatiser de changement de gameplay.
+- l'analyse expose aussi un bloc global `support_systems_summary` pour lire `support_gate` et `rally_champion` ensemble:
+  - `support_gate_success_rate_avg`
+  - `rally_champion_success_rate_avg`
+  - `support_gate_main_bottleneck`
+  - `rally_champion_global_interpretation`
+  - `data_state` (`complete` / `partial` / `no_data`)
+  - `interpretation` (`both_stable`, `support_gate_stable_champion_unstable`, `support_gate_limited_champion_stable`, `both_limited`, `partial_data`, `no_data`)
+- ce bloc sert a une lecture d'observation/debug des systemes de support, sans appliquer de changement gameplay automatique.
 - ce diagnostic est un outil d'observation/debug pour playtest, pas une modification de gameplay.
 - compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 

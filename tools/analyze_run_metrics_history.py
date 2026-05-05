@@ -282,6 +282,97 @@ def _build_champion_multi_run_interpretation(
     return "stable_successful"
 
 
+def _build_support_gate_main_bottleneck(
+    records: int,
+    success_rate_avg: float | None,
+    available_ratio_avg: float | None,
+    stability_label: str,
+) -> str:
+    if records <= 0 or success_rate_avg is None:
+        return "n/a"
+    if available_ratio_avg is not None and available_ratio_avg < 0.25:
+        return "availability"
+    if (
+        available_ratio_avg is not None
+        and available_ratio_avg >= 0.25
+        and success_rate_avg < 0.40
+    ):
+        return "success_rate"
+    if stability_label in {"unstable", "variable"}:
+        return "stability"
+    return "none"
+
+
+def _build_support_systems_summary(
+    support_gate_success_rate_avg: float | None,
+    support_gate_main_bottleneck: str,
+    support_gate_stability_label: str,
+    support_gate_records: int,
+    champion_success_rate_avg: float | None,
+    champion_global_interpretation: str,
+    champion_records: int,
+) -> dict[str, Any]:
+    support_gate_has_data = support_gate_records > 0 and support_gate_success_rate_avg is not None
+    champion_has_data = champion_records > 0 and champion_success_rate_avg is not None
+
+    data_state = "partial"
+    if support_gate_has_data and champion_has_data:
+        data_state = "complete"
+    elif not support_gate_has_data and not champion_has_data:
+        data_state = "no_data"
+
+    support_gate_is_limited = support_gate_has_data and support_gate_main_bottleneck not in {"none", "n/a"}
+    support_gate_is_stable = (
+        support_gate_has_data
+        and support_gate_main_bottleneck == "none"
+        and support_gate_stability_label == "stable"
+    )
+    champion_is_stable = champion_global_interpretation == "stable_successful"
+    champion_is_limited = champion_global_interpretation in {
+        "unstable_success",
+        "cooldown_bottleneck",
+        "unavailable_bottleneck",
+        "low_attempts",
+    }
+
+    interpretation = "partial_data"
+    if data_state == "no_data":
+        interpretation = "no_data"
+    elif data_state == "partial":
+        interpretation = "partial_data"
+    elif support_gate_is_stable and champion_is_stable:
+        interpretation = "both_stable"
+    elif support_gate_is_stable and champion_is_limited:
+        interpretation = "support_gate_stable_champion_unstable"
+    elif support_gate_is_limited and champion_is_stable:
+        interpretation = "support_gate_limited_champion_stable"
+    elif support_gate_is_limited and champion_is_limited:
+        interpretation = "both_limited"
+    else:
+        interpretation = "partial_data"
+
+    support_gate_label = (
+        "rate=%s bottleneck=%s"
+        % (_pct(support_gate_success_rate_avg), support_gate_main_bottleneck)
+    )
+    rally_champion_label = (
+        "rate=%s interpretation=%s"
+        % (_pct(champion_success_rate_avg), champion_global_interpretation or "no_data")
+    )
+
+    return {
+        "support_gate_success_rate_avg": support_gate_success_rate_avg,
+        "rally_champion_success_rate_avg": champion_success_rate_avg,
+        "support_gate_main_bottleneck": support_gate_main_bottleneck,
+        "rally_champion_global_interpretation": champion_global_interpretation or "no_data",
+        "data_state": data_state,
+        "support_gate": support_gate_label,
+        "rally_champion": rally_champion_label,
+        "global_state": data_state,
+        "interpretation": interpretation,
+    }
+
+
 def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
     support_gate = summary.get("support_gate", {})
     records = int(support_gate.get("records", 0))
@@ -505,6 +596,21 @@ def build_summary(
         objective_failed=champion_failed,
         stability_label=champion_multi_run_stability,
     )
+    support_gate_main_bottleneck = _build_support_gate_main_bottleneck(
+        records=len(support_gate_records),
+        success_rate_avg=success_rate_avg,
+        available_ratio_avg=available_rate_avg,
+        stability_label=support_gate_stability_label,
+    )
+    support_systems_summary = _build_support_systems_summary(
+        support_gate_success_rate_avg=success_rate_avg,
+        support_gate_main_bottleneck=support_gate_main_bottleneck,
+        support_gate_stability_label=support_gate_stability_label,
+        support_gate_records=len(support_gate_records),
+        champion_success_rate_avg=champion_success_rate_avg,
+        champion_global_interpretation=champion_multi_run_interpretation,
+        champion_records=len(champion_support_records),
+    )
 
     champion_best_run = _pick_best_champion_run(champion_support_records)
     champion_worst_run = _pick_worst_champion_run(champion_support_records)
@@ -575,6 +681,7 @@ def build_summary(
                 "global_interpretation": champion_multi_run_interpretation,
             },
         },
+        "support_systems_summary": support_systems_summary,
     }
     summary["recommendations"] = build_support_gate_recommendations(summary)
     return summary
@@ -740,6 +847,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
     champion_support = summary.get("champion_support", {})
+    support_systems_summary = summary.get("support_systems_summary", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -908,6 +1016,11 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     )
     lines.append("- diagnostic stability: %s" % champion_multi_run_stability)
     lines.append("- global interpretation: %s" % champion_multi_run_interpretation)
+    lines.append("Support systems summary:")
+    lines.append("- support_gate: %s" % str(support_systems_summary.get("support_gate", "n/a")))
+    lines.append("- rally_champion: %s" % str(support_systems_summary.get("rally_champion", "n/a")))
+    lines.append("- global state: %s" % str(support_systems_summary.get("global_state", "no_data")))
+    lines.append("- interpretation: %s" % str(support_systems_summary.get("interpretation", "no_data")))
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -964,6 +1077,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     objective_counts = summary.get("objective_counts", {})
     support_gate = summary.get("support_gate", {})
     champion_support = summary.get("champion_support", {})
+    support_systems_summary = summary.get("support_systems_summary", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1181,6 +1295,12 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     )
     lines.append("- diagnostic stability: %s" % champion_multi_run_stability)
     lines.append("- global interpretation: %s" % champion_multi_run_interpretation)
+    lines.append("")
+    lines.append("### Support systems summary")
+    lines.append("- support_gate: %s" % str(support_systems_summary.get("support_gate", "n/a")))
+    lines.append("- rally_champion: %s" % str(support_systems_summary.get("rally_champion", "n/a")))
+    lines.append("- global state: %s" % str(support_systems_summary.get("global_state", "no_data")))
+    lines.append("- interpretation: %s" % str(support_systems_summary.get("interpretation", "no_data")))
 
     lines.append("")
     lines.append("## Recommendations")
