@@ -74,12 +74,17 @@ if fmt == "markdown":
     if mode == "markdown_non_zero":
         print("markdown generation failed")
         raise SystemExit(3)
+    if mode == "markdown_no_output":
+        raise SystemExit(0)
     if output_path:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_text("# Fake report\\n\\ncontent\\n", encoding="utf-8")
     raise SystemExit(0)
 
 if fmt == "json":
+    if mode == "json_non_zero":
+        print("json generation failed")
+        raise SystemExit(4)
     if mode == "invalid_json":
         print("{{invalid_json")
         raise SystemExit(0)
@@ -99,6 +104,17 @@ raise SystemExit(1)
 
 
 class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
+    def test_help_exposes_strict_and_analyze_script_options(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--strict", result.stdout)
+        self.assertIn("--analyze-script", result.stdout)
+
     def test_exports_present_stable_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             report_path = Path(tmpdir) / "artifacts" / "report.md"
@@ -276,8 +292,11 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- status: warning", summary_text)
             self.assertIn("- reason: analysis failed", summary_text)
+            self.assertIn("- blocking: no", summary_text)
             report_text = report_path.read_text(encoding="utf-8")
-            self.assertIn("Support metrics analysis failed in fail-safe mode.", report_text)
+            self.assertIn("Support metrics CI check failed", report_text)
+            self.assertIn("- reason: analysis failed", report_text)
+            self.assertIn("- blocking: no", report_text)
 
     def test_analyze_non_zero_is_warning_and_non_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -300,6 +319,60 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertIn("- status: warning", summary_path.read_text(encoding="utf-8"))
             self.assertTrue(report_path.exists())
 
+    def test_markdown_analysis_failure_generates_minimal_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="markdown_non_zero")
+
+            report_path = Path(tmpdir) / "artifacts" / "report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                extra_args=["--analyze-script", str(fake_analyze_path)],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            self.assertTrue(summary_path.exists())
+            report_text = report_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("Support metrics CI check failed", report_text)
+            self.assertIn("- reason: analysis failed", report_text)
+            self.assertIn("- status: warning", summary_text)
+            self.assertIn("- reason: analysis failed", summary_text)
+
+    def test_json_analysis_failure_generates_minimal_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="json_non_zero")
+
+            report_path = Path(tmpdir) / "artifacts" / "report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                extra_args=["--analyze-script", str(fake_analyze_path)],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            self.assertTrue(summary_path.exists())
+            report_text = report_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("Support metrics CI check failed", report_text)
+            self.assertIn("- reason: analysis failed", report_text)
+            self.assertIn("- status: warning", summary_text)
+            self.assertIn("- reason: analysis failed", summary_text)
+
     def test_missing_regression_state_is_warning_and_non_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
@@ -321,6 +394,7 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- status: warning", summary_text)
             self.assertIn("- reason: analysis failed", summary_text)
+            self.assertTrue(report_path.exists())
 
     def test_missing_regression_block_is_warning_and_non_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -381,6 +455,31 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
                 extra_args=["--analyze-script", str(fake_analyze_path), "--strict"],
             )
             self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(report_path.exists())
+            self.assertTrue(summary_path.exists())
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("- status: warning", summary_text)
+            self.assertIn("- reason: analysis failed", summary_text)
+            self.assertIn("- blocking: no", summary_text)
+
+    def test_markdown_report_missing_is_warning_and_non_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="markdown_no_output")
+
+            report_path = Path(tmpdir) / "artifacts" / "report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                extra_args=["--analyze-script", str(fake_analyze_path)],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertTrue(report_path.exists())
             self.assertTrue(summary_path.exists())
             summary_text = summary_path.read_text(encoding="utf-8")

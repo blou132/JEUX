@@ -191,10 +191,11 @@ def _build_minimal_error_report(error_message: str) -> str:
     lines: list[str] = []
     lines.append("# Support Metrics CI report")
     lines.append("")
-    lines.append("Support metrics analysis failed in fail-safe mode.")
+    lines.append("Support metrics CI check failed")
     lines.append("")
-    lines.append("- status: warning")
     lines.append("- reason: analysis failed")
+    lines.append("- blocking: no")
+    lines.append("- status: warning")
     lines.append("- detail: %s" % error_message)
     lines.append("")
     lines.append("This report is debug/observation only.")
