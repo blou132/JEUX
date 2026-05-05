@@ -579,6 +579,12 @@ python3 tools/analyze_run_metrics_history.py --input path/to/run_metrics_history
   - `--format markdown` ou `--format md` (rapport Markdown lisible/archivable)
   - `--output reports/run_metrics_report.md` (ecrit le resultat dans un fichier au lieu de stdout)
   - `--compare-input after.jsonl` (compare `--input` baseline vs historique candidat)
+  - mode CI support metrics (facultatif):
+    - `--ci-check`
+    - `--fail-on-regression`
+    - `--max-warning-delta N`
+    - `--max-support-gate-success-rate-drop X`
+    - `--max-rally-champion-success-rate-drop X`
 - le script ignore les lignes vides, signale/compte les lignes invalides, et reste robuste si des champs manquent.
 - les tests CLI utilisent l'interpreteur Python courant (`sys.executable`) pour rester portables.
 - section `Recommendations` (texte + JSON):
@@ -647,6 +653,20 @@ py tools/analyze_run_metrics_history.py --input before.jsonl --compare-input aft
   - `Use more runs before trusting this comparison.`
 - cette conclusion et la confidence restent **heuristiques** (aide pratique de tuning), sans test statistique avance.
 - le bloc `support_metrics_regression` reste un outil d'observation/debug: il ne modifie ni le gameplay ni l'equilibrage automatiquement.
+- mode CI (v175):
+  - ajoute un bloc `support_metrics_ci_check` (JSON + texte + Markdown quand `--ci-check` est active).
+  - par defaut, ce mode est **non bloquant**: memes regressions detectees => code de sortie `0`.
+  - le mode bloquant est actif uniquement avec `--fail-on-regression` (code de sortie non nul si regles declenchees).
+  - sans baseline (`--compare-input` absent), etat regression `no_baseline` et pas d'echec CI par defaut.
+  - ce controle CI reste un outil de verification/debug des metriques; aucun changement gameplay n'est applique.
+- exemple CI non bloquant:
+```bash
+py tools/analyze_run_metrics_history.py --input reports/before_support_gate.jsonl --compare-input reports/after_support_gate.jsonl --ci-check --format json
+```
+- exemple CI bloquant avec seuils:
+```bash
+py tools/analyze_run_metrics_history.py --input reports/before_support_gate.jsonl --compare-input reports/after_support_gate.jsonl --ci-check --fail-on-regression --max-warning-delta 0 --max-support-gate-success-rate-drop 0.05 --max-rally-champion-success-rate-drop 0.05 --format json
+```
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`

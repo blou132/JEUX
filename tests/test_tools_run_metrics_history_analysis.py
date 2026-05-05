@@ -10,6 +10,7 @@ import unittest
 
 from tools.analyze_run_metrics_history import (
     build_summary,
+    build_support_metrics_ci_check,
     build_support_metrics_regression,
     read_jsonl_records,
 )
@@ -1319,6 +1320,357 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         self.assertIn("- changed fields:", result.stdout)
         self.assertIn("- warning delta:", result.stdout)
         self.assertIn("- interpretation:", result.stdout)
+
+    def test_support_metrics_ci_check_default_disabled_without_ci_option(self) -> None:
+        summary = _run_summary_json(_fixture_path("recent_complete.jsonl"))
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertFalse(ci_check["enabled"])
+        self.assertIsNone(ci_check["passed"])
+        self.assertEqual(ci_check["triggered_rules"], [])
+        result = _run_cli(["--input", str(_fixture_path("recent_complete.jsonl"))])
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertNotIn("Support metrics CI check:", result.stdout)
+
+    def test_support_metrics_ci_check_without_regression_passes(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            [
+                "--compare-input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+            ],
+        )
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertTrue(ci_check["enabled"])
+        self.assertTrue(ci_check["passed"])
+        self.assertEqual(ci_check["triggered_rules"], [])
+        self.assertEqual(ci_check["exit_code"], 0)
+
+    def test_support_metrics_ci_check_regression_non_blocking(self) -> None:
+        result = _run_cli(
+            [
+                "--input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--compare-input",
+                str(_fixture_path("incoherent_export.jsonl")),
+                "--ci-check",
+                "--format",
+                "json",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        summary = json.loads(result.stdout)
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertTrue(ci_check["enabled"])
+        self.assertFalse(ci_check["passed"])
+        self.assertTrue(ci_check["triggered_rules"])
+        self.assertEqual(ci_check["exit_code"], 0)
+
+    def test_support_metrics_ci_check_fail_on_regression_returns_non_zero(self) -> None:
+        result = _run_cli(
+            [
+                "--input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--compare-input",
+                str(_fixture_path("incoherent_export.jsonl")),
+                "--ci-check",
+                "--fail-on-regression",
+                "--format",
+                "json",
+            ]
+        )
+        self.assertEqual(result.returncode, 1)
+        summary = json.loads(result.stdout)
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertFalse(ci_check["passed"])
+        self.assertEqual(ci_check["exit_code"], 1)
+
+    def test_support_metrics_ci_check_support_gate_drop_exceeds_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "baseline.jsonl"
+            current_path = Path(tmpdir) / "current.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "base_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 4,
+                            "support_gate_run_success_rate": 0.66,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "base_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 3,
+                            "champion_support_run_success_rate": 0.60,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 3,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            _write_jsonl(
+                current_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "curr_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 2,
+                            "support_gate_run_success_rate": 0.30,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "curr_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 3,
+                            "champion_support_run_success_rate": 0.60,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 3,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            summary = _run_summary_json(
+                baseline_path,
+                [
+                    "--compare-input",
+                    str(current_path),
+                    "--ci-check",
+                    "--max-support-gate-success-rate-drop",
+                    "0.10",
+                    "--max-rally-champion-success-rate-drop",
+                    "1.00",
+                    "--max-warning-delta",
+                    "99",
+                ],
+            )
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertIn("support_gate_success_rate_drop_exceeded", ci_check["triggered_rules"])
+
+    def test_support_metrics_ci_check_rally_champion_drop_exceeds_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "baseline.jsonl"
+            current_path = Path(tmpdir) / "current.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "base_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 4,
+                            "support_gate_run_success_rate": 0.66,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "base_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 3,
+                            "champion_support_run_success_rate": 0.60,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 3,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            _write_jsonl(
+                current_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "curr_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 4,
+                            "support_gate_run_success_rate": 0.66,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "curr_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 1,
+                            "champion_support_run_success_rate": 0.20,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 1,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            summary = _run_summary_json(
+                baseline_path,
+                [
+                    "--compare-input",
+                    str(current_path),
+                    "--ci-check",
+                    "--max-rally-champion-success-rate-drop",
+                    "0.10",
+                    "--max-support-gate-success-rate-drop",
+                    "1.00",
+                    "--max-warning-delta",
+                    "99",
+                ],
+            )
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertIn("rally_champion_success_rate_drop_exceeded", ci_check["triggered_rules"])
+
+    def test_support_metrics_ci_check_warning_delta_exceeds_threshold(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            [
+                "--compare-input",
+                str(_fixture_path("incoherent_export.jsonl")),
+                "--ci-check",
+                "--max-warning-delta",
+                "0",
+                "--max-support-gate-success-rate-drop",
+                "1.00",
+                "--max-rally-champion-success-rate-drop",
+                "1.00",
+            ],
+        )
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertIn("warning_count_delta_exceeded", ci_check["triggered_rules"])
+
+    def test_support_metrics_ci_check_no_baseline_does_not_fail(self) -> None:
+        result = _run_cli(
+            [
+                "--input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+                "--fail-on-regression",
+                "--format",
+                "json",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        summary = json.loads(result.stdout)
+        ci_check = summary["support_metrics_ci_check"]
+        self.assertIsNone(ci_check["passed"])
+        self.assertEqual(ci_check["exit_code"], 0)
+        self.assertEqual(summary["support_metrics_regression"]["regression_state"], "no_baseline")
+
+    def test_support_metrics_ci_check_legacy_baseline_is_compatible(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("legacy_no_champion_support.jsonl"),
+            [
+                "--compare-input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+            ],
+        )
+        self.assertNotEqual(
+            summary["support_metrics_regression"]["regression_state"],
+            "incompatible",
+        )
+        self.assertTrue(summary["support_metrics_ci_check"]["enabled"])
+
+    def test_support_metrics_ci_check_text_and_markdown_output(self) -> None:
+        text_result = _run_cli(
+            [
+                "--input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--compare-input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+            ]
+        )
+        self.assertEqual(text_result.returncode, 0, msg=text_result.stdout + text_result.stderr)
+        self.assertIn("Support metrics CI check:", text_result.stdout)
+        self.assertIn("- enabled: true", text_result.stdout)
+        self.assertIn("- passed:", text_result.stdout)
+        self.assertIn("- triggered rules:", text_result.stdout)
+        self.assertIn("- interpretation:", text_result.stdout)
+
+        md_result = _run_cli(
+            [
+                "--input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--compare-input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+                "--format",
+                "markdown",
+            ]
+        )
+        self.assertEqual(md_result.returncode, 0, msg=md_result.stdout + md_result.stderr)
+        self.assertIn("### Support metrics CI check", md_result.stdout)
+        self.assertIn("- enabled: true", md_result.stdout)
+
+    def test_support_metrics_ci_check_function_respects_fail_on_regression(self) -> None:
+        regression = {
+            "regression_state": "warning",
+            "warning_count_delta": 1,
+            "support_gate_success_rate_delta": -0.10,
+            "rally_champion_success_rate_delta": 0.0,
+        }
+        ci_non_blocking = build_support_metrics_ci_check(
+            regression,
+            enabled=True,
+            fail_on_regression=False,
+            max_warning_delta=0,
+            max_support_gate_success_rate_drop=0.05,
+            max_rally_champion_success_rate_drop=0.05,
+        )
+        ci_blocking = build_support_metrics_ci_check(
+            regression,
+            enabled=True,
+            fail_on_regression=True,
+            max_warning_delta=0,
+            max_support_gate_success_rate_drop=0.05,
+            max_rally_champion_success_rate_drop=0.05,
+        )
+        self.assertEqual(ci_non_blocking["exit_code"], 0)
+        self.assertEqual(ci_blocking["exit_code"], 1)
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

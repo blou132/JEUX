@@ -858,6 +858,14 @@ def build_summary(
         baseline_label="n/a",
         current_label="current",
     )
+    summary["support_metrics_ci_check"] = build_support_metrics_ci_check(
+        summary["support_metrics_regression"],
+        enabled=False,
+        fail_on_regression=False,
+        max_warning_delta=0,
+        max_support_gate_success_rate_drop=0.05,
+        max_rally_champion_success_rate_drop=0.05,
+    )
     return summary
 
 
@@ -1028,6 +1036,81 @@ def build_support_metrics_regression(
     return regression
 
 
+def build_support_metrics_ci_check(
+    regression: dict[str, Any] | None,
+    enabled: bool,
+    fail_on_regression: bool,
+    max_warning_delta: int,
+    max_support_gate_success_rate_drop: float,
+    max_rally_champion_success_rate_drop: float,
+) -> dict[str, Any]:
+    ci_check = {
+        "enabled": enabled,
+        "passed": None,
+        "fail_on_regression": bool(fail_on_regression),
+        "thresholds": {
+            "max_warning_delta": int(max_warning_delta),
+            "max_support_gate_success_rate_drop": float(max_support_gate_success_rate_drop),
+            "max_rally_champion_success_rate_drop": float(max_rally_champion_success_rate_drop),
+        },
+        "triggered_rules": [],
+        "exit_code": 0,
+        "interpretation": "CI check disabled",
+    }
+    if not enabled:
+        return ci_check
+
+    if not isinstance(regression, dict):
+        ci_check["passed"] = False
+        ci_check["triggered_rules"] = ["regression_block_missing"]
+        ci_check["interpretation"] = "support metrics regression block is missing"
+        if fail_on_regression:
+            ci_check["exit_code"] = 1
+        return ci_check
+
+    regression_state = str(regression.get("regression_state", "")).strip().lower()
+    if regression_state == "no_baseline":
+        ci_check["passed"] = None
+        ci_check["interpretation"] = "baseline not provided; CI regression check skipped"
+        return ci_check
+
+    triggered_rules: list[str] = []
+    if regression_state == "warning":
+        triggered_rules.append("regression_state_warning")
+    elif regression_state == "incompatible":
+        triggered_rules.append("regression_state_incompatible")
+
+    warning_delta = _as_float(regression.get("warning_count_delta"))
+    if warning_delta is not None and warning_delta > float(max_warning_delta):
+        triggered_rules.append("warning_count_delta_exceeded")
+
+    support_gate_success_rate_delta = _as_float(regression.get("support_gate_success_rate_delta"))
+    if (
+        support_gate_success_rate_delta is not None
+        and support_gate_success_rate_delta < -float(max_support_gate_success_rate_drop)
+    ):
+        triggered_rules.append("support_gate_success_rate_drop_exceeded")
+
+    rally_champion_success_rate_delta = _as_float(
+        regression.get("rally_champion_success_rate_delta")
+    )
+    if (
+        rally_champion_success_rate_delta is not None
+        and rally_champion_success_rate_delta < -float(max_rally_champion_success_rate_drop)
+    ):
+        triggered_rules.append("rally_champion_success_rate_drop_exceeded")
+
+    ci_check["triggered_rules"] = triggered_rules
+    ci_check["passed"] = len(triggered_rules) == 0
+    if ci_check["passed"]:
+        ci_check["interpretation"] = "support metrics CI check passed"
+    else:
+        ci_check["interpretation"] = "support metrics CI check detected regression signals"
+        if fail_on_regression:
+            ci_check["exit_code"] = 1
+    return ci_check
+
+
 def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary: dict[str, Any]) -> dict[str, Any]:
     baseline_support_gate = baseline_summary.get("support_gate", {})
     candidate_support_gate = candidate_summary.get("support_gate", {})
@@ -1158,6 +1241,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     support_systems_summary = summary.get("support_systems_summary", {})
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
+    support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1352,6 +1436,19 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     lines.append("- changed fields: %s" % regression_changed_fields_label)
     lines.append("- warning delta: %s" % regression_warning_delta_label)
     lines.append("- interpretation: %s" % str(support_metrics_regression.get("interpretation", "no baseline summary provided; regression comparison skipped")))
+    ci_enabled = bool(support_metrics_ci_check.get("enabled", False))
+    if ci_enabled:
+        ci_passed = support_metrics_ci_check.get("passed")
+        ci_passed_label = "n/a" if ci_passed is None else ("true" if bool(ci_passed) else "false")
+        ci_triggered_rules = support_metrics_ci_check.get("triggered_rules", [])
+        ci_triggered_rules_label = "none"
+        if isinstance(ci_triggered_rules, list) and ci_triggered_rules:
+            ci_triggered_rules_label = ", ".join(str(item) for item in ci_triggered_rules)
+        lines.append("Support metrics CI check:")
+        lines.append("- enabled: true")
+        lines.append("- passed: %s" % ci_passed_label)
+        lines.append("- triggered rules: %s" % ci_triggered_rules_label)
+        lines.append("- interpretation: %s" % str(support_metrics_ci_check.get("interpretation", "support metrics CI check executed")))
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -1411,6 +1508,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     support_systems_summary = summary.get("support_systems_summary", {})
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
+    support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1657,6 +1755,20 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append("- changed fields: %s" % regression_changed_fields_label)
     lines.append("- warning delta: %s" % regression_warning_delta_label)
     lines.append("- interpretation: %s" % str(support_metrics_regression.get("interpretation", "no baseline summary provided; regression comparison skipped")))
+    ci_enabled = bool(support_metrics_ci_check.get("enabled", False))
+    if ci_enabled:
+        ci_passed = support_metrics_ci_check.get("passed")
+        ci_passed_label = "n/a" if ci_passed is None else ("true" if bool(ci_passed) else "false")
+        ci_triggered_rules = support_metrics_ci_check.get("triggered_rules", [])
+        ci_triggered_rules_label = "none"
+        if isinstance(ci_triggered_rules, list) and ci_triggered_rules:
+            ci_triggered_rules_label = ", ".join(str(item) for item in ci_triggered_rules)
+        lines.append("")
+        lines.append("### Support metrics CI check")
+        lines.append("- enabled: true")
+        lines.append("- passed: %s" % ci_passed_label)
+        lines.append("- triggered rules: %s" % ci_triggered_rules_label)
+        lines.append("- interpretation: %s" % str(support_metrics_ci_check.get("interpretation", "support metrics CI check executed")))
 
     lines.append("")
     lines.append("## Recommendations")
@@ -1754,6 +1866,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional second JSONL file to compare against --input (treated as candidate).",
     )
+    parser.add_argument(
+        "--ci-check",
+        action="store_true",
+        help="Enable support metrics regression CI check.",
+    )
+    parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="Return non-zero exit code if CI check detects regression signals.",
+    )
+    parser.add_argument(
+        "--max-warning-delta",
+        type=int,
+        default=0,
+        help="Maximum allowed increase of support metrics quality warnings.",
+    )
+    parser.add_argument(
+        "--max-support-gate-success-rate-drop",
+        type=float,
+        default=0.05,
+        help="Maximum allowed drop on support_gate average success rate (0..1 scale).",
+    )
+    parser.add_argument(
+        "--max-rally-champion-success-rate-drop",
+        type=float,
+        default=0.05,
+        help="Maximum allowed drop on rally_champion average success rate (0..1 scale).",
+    )
     return parser
 
 
@@ -1762,8 +1902,23 @@ def main() -> int:
     input_path: Path = args.input
     objective = args.objective.strip()
     limit = int(args.limit)
+    ci_check_enabled = bool(args.ci_check or args.fail_on_regression)
+    fail_on_regression = bool(args.fail_on_regression)
+    max_warning_delta = int(args.max_warning_delta)
+    max_support_gate_success_rate_drop = float(args.max_support_gate_success_rate_drop)
+    max_rally_champion_success_rate_drop = float(args.max_rally_champion_success_rate_drop)
+
     if limit < 0:
         print("ERROR: --limit must be >= 0")
+        return 1
+    if max_warning_delta < 0:
+        print("ERROR: --max-warning-delta must be >= 0")
+        return 1
+    if max_support_gate_success_rate_drop < 0.0:
+        print("ERROR: --max-support-gate-success-rate-drop must be >= 0")
+        return 1
+    if max_rally_champion_success_rate_drop < 0.0:
+        print("ERROR: --max-rally-champion-success-rate-drop must be >= 0")
         return 1
     if not input_path.exists():
         print("ERROR: input file not found: %s" % input_path)
@@ -1801,6 +1956,14 @@ def main() -> int:
             baseline_label=input_path.name,
             current_label=compare_input_path.name,
         )
+    summary["support_metrics_ci_check"] = build_support_metrics_ci_check(
+        summary.get("support_metrics_regression"),
+        enabled=ci_check_enabled,
+        fail_on_regression=fail_on_regression,
+        max_warning_delta=max_warning_delta,
+        max_support_gate_success_rate_drop=max_support_gate_success_rate_drop,
+        max_rally_champion_success_rate_drop=max_rally_champion_success_rate_drop,
+    )
     summary["final_decision"] = build_final_decision(summary)
 
     output_format = str(args.format).strip().lower()
@@ -1821,7 +1984,8 @@ def main() -> int:
         output_path.write_text(rendered_output + "\n", encoding="utf-8")
     else:
         print(rendered_output)
-    return 0
+    ci_exit_code = int(summary.get("support_metrics_ci_check", {}).get("exit_code", 0))
+    return ci_exit_code
 
 
 if __name__ == "__main__":
