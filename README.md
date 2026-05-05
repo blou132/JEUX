@@ -680,6 +680,14 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
   - le workflow upload ce rapport dans l'artifact GitHub Actions `support-metrics-report`.
   - si exports absents, la CI conserve un rapport de skip: `Support metrics exports not found; optional check skipped.`
   - ce rapport (Summary + artifact) reste un outil debug/observation uniquement.
+- simulation locale du workflow support metrics CI:
+```bash
+py tools/write_support_metrics_ci_summary.py --ci-check --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --report-output artifacts/support_metrics_report.md --step-summary artifacts/local_step_summary.md --artifact-name support-metrics-report
+```
+- pour valider rapidement le chemin skip (exports absents), pointer vers des fichiers inexistants:
+```bash
+py tools/write_support_metrics_ci_summary.py --ci-check --baseline artifacts/missing_baseline.jsonl --current artifacts/missing_current.jsonl --report-output artifacts/support_metrics_report.md --step-summary artifacts/local_step_summary.md --artifact-name support-metrics-report
+```
 - le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
   - `Collect support_gate runs first.`
   - `Collect more runs before deciding.`
