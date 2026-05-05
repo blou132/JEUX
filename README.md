@@ -469,7 +469,7 @@ Passerelles runtime (ordre de chargement) :
   - ligne `Metrics export: ...` en debug/full/compact
 - cet export sert au tuning/playtest et ne constitue pas une nouvelle passerelle de donnees gameplay.
 
-## Lecture rapide des metriques champion (v169)
+## Lecture rapide des metriques champion (v170)
 - ces metriques servent au **runtime/debug/playtest** uniquement et ne changent pas le gameplay.
 - dans `run_metrics_latest.json` / `run_metrics_history.jsonl` (export existant), lire:
   - run: `champion_support_run_attempts`, `champion_support_run_success`, `champion_support_run_success_rate`
@@ -486,6 +486,17 @@ Passerelles runtime (ordre de chargement) :
     - `unavailable pressure` (`low` / `medium` / `high` / `n/a`)
     - `objective completion` (`completed/resolved`)
     - `interpretation` (lecture rapide des signaux: low success rate, cooldown, unavailable, failed despite attempts).
+- le meme bloc `champion_support` inclut aussi une lecture multi-runs `Champion support multi-run comparison`:
+  - `avg_attempts`
+  - `avg_success`
+  - `avg_success_rate`
+  - `avg_cooldown`
+  - `avg_unavailable`
+  - `objective_completed`
+  - `objective_failed`
+  - `diagnostic_stability` (`stable` / `variable` / `unstable` / `n/a`)
+  - `global_interpretation` (`stable_successful`, `unstable_success`, `cooldown_bottleneck`, `unavailable_bottleneck`, `low_attempts`, `no_data`)
+- cette lecture multi-runs sert a observer la stabilite du diagnostic champion selon les runs/seeds, sans automatiser de changement de gameplay.
 - ce diagnostic est un outil d'observation/debug pour playtest, pas une modification de gameplay.
 - compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 

@@ -349,6 +349,16 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertEqual(diagnostic["unavailable_pressure"], "n/a")
             self.assertEqual(diagnostic["objective_completion"], "1/2")
             self.assertEqual(diagnostic["interpretation"], "n/a")
+            multi_run = champion_support["multi_run_comparison"]
+            self.assertIsNone(multi_run["avg_attempts"])
+            self.assertIsNone(multi_run["avg_success"])
+            self.assertIsNone(multi_run["avg_success_rate"])
+            self.assertIsNone(multi_run["avg_cooldown"])
+            self.assertIsNone(multi_run["avg_unavailable"])
+            self.assertEqual(multi_run["objective_completed"], 1)
+            self.assertEqual(multi_run["objective_failed"], 1)
+            self.assertEqual(multi_run["diagnostic_stability"], "n/a")
+            self.assertEqual(multi_run["global_interpretation"], "no_data")
             self.assertIn("support_gate", summary)
 
     def test_champion_support_diagnostic_flags_low_success_rate(self) -> None:
@@ -428,6 +438,239 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         diagnostic = summary["champion_support"]["diagnostic"]
         self.assertEqual(diagnostic["unavailable_pressure"], "high")
         self.assertIn("high unavailable pressure", str(diagnostic["interpretation"]))
+
+    def test_champion_multi_run_comparison_stable_successful(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_stable_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_stable_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 4,
+                        "champion_support_run_success_rate": 0.70,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "gate_keep_1",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.60,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        multi_run = summary["champion_support"]["multi_run_comparison"]
+        self.assertAlmostEqual(float(multi_run["avg_attempts"]), 5.0, places=4)
+        self.assertAlmostEqual(float(multi_run["avg_success"]), 3.5, places=4)
+        self.assertAlmostEqual(float(multi_run["avg_success_rate"]), 0.65, places=4)
+        self.assertAlmostEqual(float(multi_run["avg_cooldown"]), 1.0, places=4)
+        self.assertAlmostEqual(float(multi_run["avg_unavailable"]), 0.0, places=4)
+        self.assertEqual(multi_run["objective_completed"], 2)
+        self.assertEqual(multi_run["objective_failed"], 0)
+        self.assertEqual(multi_run["diagnostic_stability"], "stable")
+        self.assertEqual(multi_run["global_interpretation"], "stable_successful")
+        self.assertIn("support_gate", summary)
+
+    def test_champion_multi_run_comparison_unstable_success(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_unstable_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 4,
+                        "champion_support_run_success_rate": 0.80,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_unstable_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.20,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 1,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "gate_keep_2",
+                        "objective_id": "support_gate",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "support_gate_run_success_rate": 0.60,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        multi_run = summary["champion_support"]["multi_run_comparison"]
+        self.assertEqual(multi_run["diagnostic_stability"], "unstable")
+        self.assertEqual(multi_run["global_interpretation"], "unstable_success")
+        self.assertIn("support_gate", summary)
+
+    def test_champion_multi_run_comparison_cooldown_bottleneck(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_cd_multi_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 4,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_cd_multi_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 2,
+                        "champion_support_run_success_rate": 0.40,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 4,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "gate_keep_3",
+                        "objective_id": "support_gate",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "support_gate_run_success_rate": 0.40,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        multi_run = summary["champion_support"]["multi_run_comparison"]
+        self.assertEqual(multi_run["global_interpretation"], "cooldown_bottleneck")
+        self.assertIn("support_gate", summary)
+
+    def test_champion_multi_run_comparison_unavailable_bottleneck(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_un_multi_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 4,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_un_multi_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 2,
+                        "champion_support_run_success_rate": 0.40,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_unavailable_total": 4,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "gate_keep_4",
+                        "objective_id": "support_gate",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "support_gate_run_success_rate": 0.40,
+                        "support_gate_run_available_ratio": 0.50,
+                    }
+                ),
+            ]
+        )
+        multi_run = summary["champion_support"]["multi_run_comparison"]
+        self.assertEqual(multi_run["global_interpretation"], "unavailable_bottleneck")
+        self.assertIn("support_gate", summary)
+
+    def test_champion_multi_run_comparison_low_attempts(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "champ_low_attempts_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 1,
+                        "champion_support_run_success": 0,
+                        "champion_support_run_success_rate": 0.0,
+                        "champion_support_attempts_total": 1,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "export_id": "champ_low_attempts_2",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 1,
+                        "champion_support_run_success": 0,
+                        "champion_support_run_success_rate": 0.0,
+                        "champion_support_attempts_total": 1,
+                        "champion_support_unavailable_total": 0,
+                        "champion_support_cooldown_blocked_total": 0,
+                    }
+                ),
+            ]
+        )
+        multi_run = summary["champion_support"]["multi_run_comparison"]
+        self.assertEqual(multi_run["global_interpretation"], "low_attempts")
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -784,6 +1027,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("Support gate tuning looks stable.", result.stdout)
             self.assertIn("Support gate stability:", result.stdout)
             self.assertIn("Champion support diagnostic:", result.stdout)
+            self.assertIn("Champion support multi-run comparison:", result.stdout)
             self.assertIn("Final decision:", result.stdout)
 
     def test_markdown_output_contains_expected_sections(self) -> None:
@@ -811,6 +1055,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             self.assertIn("## Support gate", result.stdout)
             self.assertIn("## Champion support", result.stdout)
             self.assertIn("### Champion support diagnostic", result.stdout)
+            self.assertIn("### Champion support multi-run comparison", result.stdout)
             self.assertIn("## Recommendations", result.stdout)
             self.assertIn("| support gate stability |", result.stdout)
             self.assertIn("## Final decision", result.stdout)

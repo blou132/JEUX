@@ -230,6 +230,58 @@ def _build_champion_support_interpretation(
     return "; ".join(signals)
 
 
+def _build_champion_multi_run_stability_label(
+    records: int,
+    has_data: bool,
+    success_rate_values: list[float],
+    objective_completed: int,
+    objective_failed: int,
+) -> str:
+    if records < 2 or not has_data:
+        return "n/a"
+    if objective_completed > 0 and objective_failed > 0:
+        return "unstable"
+    success_rate_stddev = _stddev(success_rate_values)
+    if success_rate_stddev is None:
+        return "n/a"
+    if success_rate_stddev >= 0.20:
+        return "unstable"
+    if success_rate_stddev >= 0.10:
+        return "variable"
+    return "stable"
+
+
+def _build_champion_multi_run_interpretation(
+    records: int,
+    has_data: bool,
+    attempts_avg: float | None,
+    success_rate_avg: float | None,
+    cooldown_pressure: str,
+    unavailable_pressure: str,
+    objective_completed: int,
+    objective_failed: int,
+    stability_label: str,
+) -> str:
+    if records <= 0 or not has_data:
+        return "no_data"
+    if attempts_avg is not None and attempts_avg < 2.0:
+        return "low_attempts"
+    if cooldown_pressure == "high":
+        return "cooldown_bottleneck"
+    if unavailable_pressure == "high":
+        return "unavailable_bottleneck"
+    if objective_completed > 0 and objective_failed > 0:
+        return "unstable_success"
+    if objective_completed > 0 and objective_failed == 0:
+        if success_rate_avg is None or success_rate_avg >= 0.40:
+            return "stable_successful"
+    if stability_label == "unstable":
+        return "unstable_success"
+    if objective_failed > 0:
+        return "unstable_success"
+    return "stable_successful"
+
+
 def build_support_gate_recommendations(summary: dict[str, Any]) -> list[str]:
     support_gate = summary.get("support_gate", {})
     records = int(support_gate.get("records", 0))
@@ -425,6 +477,34 @@ def build_summary(
         objective_completed=champion_completed,
         objective_failed=champion_failed,
     )
+    champion_multi_run_has_data = any(
+        value is not None
+        for value in [
+            champion_attempt_avg,
+            champion_success_avg,
+            champion_success_rate_avg,
+            champion_cooldown_total_avg,
+            champion_unavailable_total_avg,
+        ]
+    )
+    champion_multi_run_stability = _build_champion_multi_run_stability_label(
+        records=len(champion_support_records),
+        has_data=champion_multi_run_has_data,
+        success_rate_values=champion_success_rate_numeric_values,
+        objective_completed=champion_completed,
+        objective_failed=champion_failed,
+    )
+    champion_multi_run_interpretation = _build_champion_multi_run_interpretation(
+        records=len(champion_support_records),
+        has_data=champion_multi_run_has_data,
+        attempts_avg=champion_attempt_avg,
+        success_rate_avg=champion_success_rate_avg,
+        cooldown_pressure=champion_cooldown_pressure,
+        unavailable_pressure=champion_unavailable_pressure,
+        objective_completed=champion_completed,
+        objective_failed=champion_failed,
+        stability_label=champion_multi_run_stability,
+    )
 
     champion_best_run = _pick_best_champion_run(champion_support_records)
     champion_worst_run = _pick_worst_champion_run(champion_support_records)
@@ -482,6 +562,17 @@ def build_summary(
                 "unavailable_pressure": champion_unavailable_pressure,
                 "objective_completion": "%d/%d" % (champion_completed, champion_resolved),
                 "interpretation": champion_interpretation,
+            },
+            "multi_run_comparison": {
+                "avg_attempts": champion_attempt_avg,
+                "avg_success": champion_success_avg,
+                "avg_success_rate": champion_success_rate_avg,
+                "avg_cooldown": champion_cooldown_total_avg,
+                "avg_unavailable": champion_unavailable_total_avg,
+                "objective_completed": champion_completed,
+                "objective_failed": champion_failed,
+                "diagnostic_stability": champion_multi_run_stability,
+                "global_interpretation": champion_multi_run_interpretation,
             },
         },
     }
@@ -761,6 +852,62 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     lines.append("- unavailable pressure: %s" % champion_unavailable_pressure)
     lines.append("- objective completion: %s" % champion_objective_completion)
     lines.append("- interpretation: %s" % champion_interpretation)
+    champion_multi_run = champion_support.get("multi_run_comparison", {})
+    champion_multi_run_stability = (
+        str(champion_multi_run.get("diagnostic_stability", "")).strip()
+        or "n/a"
+    )
+    champion_multi_run_interpretation = (
+        str(champion_multi_run.get("global_interpretation", "")).strip()
+        or "no_data"
+    )
+    lines.append("Champion support multi-run comparison:")
+    lines.append(
+        "- attempts avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_attempts") is None
+            else f"{float(champion_multi_run.get('avg_attempts')):.2f}"
+        )
+    )
+    lines.append(
+        "- success avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_success") is None
+            else f"{float(champion_multi_run.get('avg_success')):.2f}"
+        )
+    )
+    lines.append(
+        "- success rate avg: %s"
+        % _pct(_as_float(champion_multi_run.get("avg_success_rate")))
+    )
+    lines.append(
+        "- cooldown avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_cooldown") is None
+            else f"{float(champion_multi_run.get('avg_cooldown')):.2f}"
+        )
+    )
+    lines.append(
+        "- unavailable avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_unavailable") is None
+            else f"{float(champion_multi_run.get('avg_unavailable')):.2f}"
+        )
+    )
+    lines.append(
+        "- objective completed: %d"
+        % int(champion_multi_run.get("objective_completed", 0))
+    )
+    lines.append(
+        "- objective failed: %d"
+        % int(champion_multi_run.get("objective_failed", 0))
+    )
+    lines.append("- diagnostic stability: %s" % champion_multi_run_stability)
+    lines.append("- global interpretation: %s" % champion_multi_run_interpretation)
     lines.append("Recommendations:")
     if isinstance(recommendations, list):
         for recommendation in recommendations:
@@ -977,6 +1124,63 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     lines.append("- unavailable pressure: %s" % champion_unavailable_pressure)
     lines.append("- objective completion: %s" % champion_objective_completion)
     lines.append("- interpretation: %s" % champion_interpretation)
+    champion_multi_run = champion_support.get("multi_run_comparison", {})
+    champion_multi_run_stability = (
+        str(champion_multi_run.get("diagnostic_stability", "")).strip()
+        or "n/a"
+    )
+    champion_multi_run_interpretation = (
+        str(champion_multi_run.get("global_interpretation", "")).strip()
+        or "no_data"
+    )
+    lines.append("")
+    lines.append("### Champion support multi-run comparison")
+    lines.append(
+        "- attempts avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_attempts") is None
+            else f"{float(champion_multi_run.get('avg_attempts')):.2f}"
+        )
+    )
+    lines.append(
+        "- success avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_success") is None
+            else f"{float(champion_multi_run.get('avg_success')):.2f}"
+        )
+    )
+    lines.append(
+        "- success rate avg: %s"
+        % _pct(_as_float(champion_multi_run.get("avg_success_rate")))
+    )
+    lines.append(
+        "- cooldown avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_cooldown") is None
+            else f"{float(champion_multi_run.get('avg_cooldown')):.2f}"
+        )
+    )
+    lines.append(
+        "- unavailable avg: %s"
+        % (
+            "n/a"
+            if champion_multi_run.get("avg_unavailable") is None
+            else f"{float(champion_multi_run.get('avg_unavailable')):.2f}"
+        )
+    )
+    lines.append(
+        "- objective completed: %d"
+        % int(champion_multi_run.get("objective_completed", 0))
+    )
+    lines.append(
+        "- objective failed: %d"
+        % int(champion_multi_run.get("objective_failed", 0))
+    )
+    lines.append("- diagnostic stability: %s" % champion_multi_run_stability)
+    lines.append("- global interpretation: %s" % champion_multi_run_interpretation)
 
     lines.append("")
     lines.append("## Recommendations")
