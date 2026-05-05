@@ -671,8 +671,10 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
   - CI standard = tests unitaires (`py -m unittest discover -s tests -p "test_*.py"`).
   - CI support metrics = debug/observation (controle `support_metrics_ci_check`).
   - le workflow delegue la generation du Summary/rapport a `tools/write_support_metrics_ci_summary.py` (script Python).
+  - le script CI est fail-safe par defaut: en cas d'erreur technique d'analyse, il produit un warning dans le Summary et un rapport minimal.
   - absence d'exports = pas d'echec (etape support metrics skippee).
   - mode bloquant possible mais volontaire avec `--ci-check --fail-on-regression`.
+  - mode strict manuel possible pour le script (`tools/write_support_metrics_ci_summary.py --strict`) si vous voulez echouer sur erreur technique.
   - quand les exports baseline/current existent, la CI genere `artifacts/support_metrics_report.md` (Markdown).
   - l'onglet **Summary** du job affiche un status compact en tete (`Support metrics CI status`) puis le rapport complet.
   - le workflow upload ce rapport dans l'artifact GitHub Actions `support-metrics-report`.

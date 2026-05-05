@@ -23,6 +23,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("tools/write_support_metrics_ci_summary.py", content)
         self.assertIn("--ci-check", content)
         self.assertIn("GITHUB_STEP_SUMMARY", content)
+        self.assertNotIn("ConvertFrom-Json", content)
         self.assertNotIn("--fail-on-regression", content)
 
     def test_workflow_generates_markdown_report_and_uploads_artifact(self) -> None:
@@ -44,6 +45,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("Summary", content)
         self.assertIn("status compact", content)
         self.assertIn("script Python", content)
+        self.assertIn("fail-safe", content)
+        self.assertIn("--strict", content)
 
     def test_support_metrics_ci_check_block_is_still_present_in_tool(self) -> None:
         content = ANALYZE_TOOL_PATH.read_text(encoding="utf-8")
