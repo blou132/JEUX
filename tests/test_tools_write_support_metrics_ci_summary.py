@@ -363,6 +363,30 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertTrue(report_path.exists())
             self.assertTrue(summary_path.exists())
 
+    def test_json_invalid_with_strict_mode_returns_non_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="invalid_json")
+
+            report_path = Path(tmpdir) / "artifacts" / "report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                extra_args=["--analyze-script", str(fake_analyze_path), "--strict"],
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(report_path.exists())
+            self.assertTrue(summary_path.exists())
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("- status: warning", summary_text)
+            self.assertIn("- reason: analysis failed", summary_text)
+
 
 if __name__ == "__main__":
     unittest.main()

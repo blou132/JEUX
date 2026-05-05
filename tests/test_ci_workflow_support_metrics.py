@@ -21,6 +21,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
     def test_workflow_support_metrics_check_is_optional_and_non_blocking_by_default(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn("tools/write_support_metrics_ci_summary.py", content)
+        self.assertNotIn("tools/analyze_run_metrics_history.py", content)
         self.assertIn("--ci-check", content)
         self.assertIn("GITHUB_STEP_SUMMARY", content)
         self.assertNotIn("ConvertFrom-Json", content)
