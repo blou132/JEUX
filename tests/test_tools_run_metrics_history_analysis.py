@@ -7,9 +7,12 @@ import sys
 import tempfile
 import unittest
 
+from tools.analyze_run_metrics_history import build_summary, read_jsonl_records
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "analyze_run_metrics_history.py"
+FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_contract"
 
 
 def _write_jsonl(path: Path, rows: list[str]) -> None:
@@ -85,6 +88,15 @@ def _run_summary_from_rows(rows: list[str]) -> dict:
         input_path = Path(tmpdir) / "run_metrics_history.jsonl"
         _write_jsonl(input_path, rows)
         return _run_summary_json(input_path)
+
+
+def _fixture_path(name: str) -> Path:
+    return FIXTURES_DIR / name
+
+
+def _build_summary_from_fixture(name: str) -> dict:
+    records, invalid_lines = read_jsonl_records(_fixture_path(name))
+    return build_summary(records, invalid_lines)
 
 
 class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
@@ -1072,6 +1084,130 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         quality = summary["support_metrics_quality"]
         self.assertEqual(quality["state"], "no_data")
         self.assertIn("no_support_metrics", quality["warnings"])
+
+    def test_support_metrics_contract_main_blocks_and_critical_keys_are_stable(self) -> None:
+        summary = _build_summary_from_fixture("recent_complete.jsonl")
+
+        expected_top_level_blocks = {
+            "support_gate",
+            "champion_support",
+            "support_systems_summary",
+            "support_metrics_quality",
+        }
+        self.assertTrue(expected_top_level_blocks.issubset(summary.keys()))
+
+        support_gate = summary["support_gate"]
+        self.assertTrue(
+            {
+                "records",
+                "avg_support_gate_run_attempts",
+                "avg_support_gate_run_success",
+                "avg_support_gate_run_success_rate",
+                "avg_support_gate_run_available_ratio",
+                "stddev_support_gate_run_success_rate",
+                "stddev_support_gate_run_available_ratio",
+                "support_gate_stability_label",
+                "best_run",
+                "worst_run",
+                "objective_success_rate",
+                "objective_completed",
+                "objective_failed",
+            }.issubset(support_gate.keys())
+        )
+
+        champion_support = summary["champion_support"]
+        self.assertTrue(
+            {
+                "records",
+                "avg_champion_support_run_attempts",
+                "avg_champion_support_run_success",
+                "avg_champion_support_run_success_rate",
+                "avg_champion_support_attempts_total",
+                "avg_champion_support_success_total",
+                "avg_champion_support_unavailable_total",
+                "avg_champion_support_cooldown_blocked_total",
+                "avg_champion_support_completed_total",
+                "avg_champion_support_failed_total",
+                "best_run",
+                "worst_run",
+                "objective_success_rate",
+                "objective_completed",
+                "objective_failed",
+                "latest_champion_support_tuning_label",
+                "diagnostic",
+                "multi_run_comparison",
+            }.issubset(champion_support.keys())
+        )
+        self.assertTrue(
+            {
+                "attempts_avg",
+                "success_rate_avg",
+                "cooldown_pressure",
+                "unavailable_pressure",
+                "objective_completion",
+                "interpretation",
+            }.issubset(champion_support["diagnostic"].keys())
+        )
+        self.assertTrue(
+            {
+                "avg_attempts",
+                "avg_success",
+                "avg_success_rate",
+                "avg_cooldown",
+                "avg_unavailable",
+                "objective_completed",
+                "objective_failed",
+                "diagnostic_stability",
+                "global_interpretation",
+            }.issubset(champion_support["multi_run_comparison"].keys())
+        )
+
+        support_summary = summary["support_systems_summary"]
+        self.assertTrue(
+            {
+                "support_gate_success_rate_avg",
+                "rally_champion_success_rate_avg",
+                "support_gate_main_bottleneck",
+                "rally_champion_global_interpretation",
+                "data_state",
+                "support_gate",
+                "rally_champion",
+                "global_state",
+                "interpretation",
+            }.issubset(support_summary.keys())
+        )
+
+        quality = summary["support_metrics_quality"]
+        self.assertTrue({"state", "warnings", "interpretation"}.issubset(quality.keys()))
+
+    def test_support_metrics_contract_fixtures_are_legacy_compatible(self) -> None:
+        expected_states = {
+            "recent_complete.jsonl": "valid",
+            "legacy_no_champion_support.jsonl": "incomplete",
+            "partial_export.jsonl": "incomplete",
+            "incoherent_export.jsonl": "warning",
+            "no_support_metrics.jsonl": "no_data",
+        }
+
+        for fixture_name, expected_state in expected_states.items():
+            summary = _build_summary_from_fixture(fixture_name)
+            self.assertIn("support_systems_summary", summary)
+            self.assertIn("support_metrics_quality", summary)
+            self.assertEqual(summary["support_metrics_quality"]["state"], expected_state)
+
+        legacy_summary = _build_summary_from_fixture("legacy_no_champion_support.jsonl")
+        self.assertIn("partial_legacy_export", legacy_summary["support_metrics_quality"]["warnings"])
+
+    def test_support_metrics_quality_warnings_are_readable(self) -> None:
+        summary = _build_summary_from_fixture("incoherent_export.jsonl")
+        quality = summary["support_metrics_quality"]
+        self.assertEqual(quality["state"], "warning")
+        warnings = quality["warnings"]
+        self.assertTrue(warnings)
+        for warning in warnings:
+            self.assertIsInstance(warning, str)
+            self.assertEqual(warning, warning.strip())
+            self.assertRegex(warning, r"^[a-z0-9_]+$")
 
     def test_objective_filter_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

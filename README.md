@@ -514,6 +514,34 @@ Passerelles runtime (ordre de chargement) :
 - ce diagnostic est un outil d'observation/debug pour playtest, pas une modification de gameplay.
 - compatibilite legacy: si un ancien export ne contient pas ces champs, l'analyse reste valide (valeurs `n/a` / `None`).
 
+## Support metrics data contract (v173)
+- ce contrat stabilise la structure d'analyse/debug des metriques `support_gate` + `rally_champion`.
+- il ne modifie pas le gameplay, et n'applique pas d'equilibrage automatique.
+- regle de compatibilite: les champs existants ne sont ni renommes ni supprimes; les anciens exports restent lisibles.
+
+### Blocs principaux stables
+| Champ | Type | Valeurs attendues | Si absent | Statut |
+|---|---|---|---|---|
+| `support_gate` | object | bloc d'agregation gate support | bloc present avec valeurs `None`/`n/a` si pas de donnees | stable |
+| `champion_support` | object | bloc d'agregation rally champion | bloc present avec valeurs `None`/`n/a` si pas de donnees | stable |
+| `champion_support.multi_run_comparison` | object | comparaison multi-runs champion | present, valeurs `n/a`/`no_data` si donnees insuffisantes | stable |
+| `support_systems_summary` | object | synthese support_gate + rally_champion | present, `data_state=no_data` si aucune donnee support | stable |
+| `support_metrics_quality` | object | controle de coherence des metriques | present, `state=no_data`/`incomplete` selon cas legacy | stable |
+
+### Champs critiques et comportement
+| Champ | Type | Valeurs possibles | Si absent en export source | Statut |
+|---|---|---|---|---|
+| `support_gate.avg_support_gate_run_success_rate` | number \| null | `0..1` ou `null` | reste `null` dans l'analyse | stable |
+| `support_gate.support_gate_stability_label` | string | `stable`/`variable`/`unstable`/`unknown` | `unknown` si pas assez de valeurs | debug-only |
+| `champion_support.avg_champion_support_run_success_rate` | number \| null | `0..1` ou `null` | reste `null` pour anciens exports | stable |
+| `champion_support.diagnostic.cooldown_pressure` | string | `low`/`medium`/`high`/`n/a` | `n/a` si donnees absentes | debug-only |
+| `champion_support.diagnostic.unavailable_pressure` | string | `low`/`medium`/`high`/`n/a` | `n/a` si donnees absentes | debug-only |
+| `champion_support.multi_run_comparison.global_interpretation` | string | `stable_successful`/`unstable_success`/`cooldown_bottleneck`/`unavailable_bottleneck`/`low_attempts`/`no_data` | `no_data` si legacy/incomplet | debug-only |
+| `support_systems_summary.data_state` | string | `complete`/`partial`/`no_data` | `partial` ou `no_data` selon metriques disponibles | legacy-compatible |
+| `support_systems_summary.interpretation` | string | `both_stable`/`support_gate_stable_champion_unstable`/`support_gate_limited_champion_stable`/`both_limited`/`partial_data`/`no_data` | `partial_data`/`no_data` | debug-only |
+| `support_metrics_quality.state` | string | `valid`/`warning`/`incomplete`/`no_data` | reste calcule meme en legacy | stable |
+| `support_metrics_quality.warnings` | list[string] | cles snake_case lisibles (`*_missing`, `*_out_of_range`, `partial_legacy_export`, etc.) | liste vide ou warnings de compatibilite | stable |
+
 ## Run metrics export history (v152)
 - v152 conserve `latest` et ajoute un historique local append-only pour comparer plusieurs runs.
 - fichiers:
