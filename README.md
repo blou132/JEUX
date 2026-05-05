@@ -670,6 +670,7 @@ py tools/analyze_run_metrics_history.py --input reports/before_support_gate.json
 - integration CI optionnelle (workflow):
   - CI standard = tests unitaires (`py -m unittest discover -s tests -p "test_*.py"`).
   - CI support metrics = debug/observation (controle `support_metrics_ci_check`).
+  - le workflow delegue la generation du Summary/rapport a `tools/write_support_metrics_ci_summary.py` (script Python).
   - absence d'exports = pas d'echec (etape support metrics skippee).
   - mode bloquant possible mais volontaire avec `--ci-check --fail-on-regression`.
   - quand les exports baseline/current existent, la CI genere `artifacts/support_metrics_report.md` (Markdown).

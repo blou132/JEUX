@@ -30,60 +30,13 @@ jobs:
       - name: Optional support metrics CI check
         shell: pwsh
         run: |
-          $baselinePath = $env:SUPPORT_METRICS_BASELINE_PATH
-          $currentPath = $env:SUPPORT_METRICS_CURRENT_PATH
-          $reportPath = $env:SUPPORT_METRICS_REPORT_PATH
-          $stepSummaryPath = $env:GITHUB_STEP_SUMMARY
-          $baselineExists = Test-Path -Path $baselinePath
-          $currentExists = Test-Path -Path $currentPath
-
-          if ($baselineExists -and $currentExists) {
-            Write-Host "Running support metrics CI check with baseline=$baselinePath current=$currentPath"
-            py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format markdown --output "$reportPath"
-            $summaryJson = py tools/analyze_run_metrics_history.py --input "$baselinePath" --compare-input "$currentPath" --ci-check --format json
-            $summaryObject = $summaryJson | ConvertFrom-Json
-            $regressionState = [string]$summaryObject.support_metrics_regression.regression_state
-            $compactStatus = "warning"
-            if ($regressionState -eq "stable") {
-              $compactStatus = "passed"
-            }
-            elseif ($regressionState -eq "changed") {
-              $compactStatus = "changed"
-            }
-            elseif ($regressionState -eq "warning") {
-              $compactStatus = "warning"
-            }
-            elseif ($regressionState -eq "no_baseline") {
-              $compactStatus = "no_baseline"
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
-              Add-Content -Path $stepSummaryPath -Value "## Support metrics CI status"
-              Add-Content -Path $stepSummaryPath -Value "- status: $compactStatus"
-              Add-Content -Path $stepSummaryPath -Value "- blocking: no"
-              Add-Content -Path $stepSummaryPath -Value "- artifact: support-metrics-report"
-              Add-Content -Path $stepSummaryPath -Value ""
-              Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
-              Add-Content -Path $stepSummaryPath -Value ""
-              Get-Content -Path $reportPath | Add-Content -Path $stepSummaryPath
-            }
-          }
-          else {
-            Write-Host "Support metrics CI check skipped: missing exports. baseline=$baselinePath exists=$baselineExists; current=$currentPath exists=$currentExists"
-            New-Item -ItemType Directory -Path (Split-Path -Parent $reportPath) -Force | Out-Null
-            "Support metrics exports not found; optional check skipped." | Set-Content -Path $reportPath -Encoding UTF8
-            if (-not [string]::IsNullOrWhiteSpace($stepSummaryPath)) {
-              Add-Content -Path $stepSummaryPath -Value "## Support metrics CI status"
-              Add-Content -Path $stepSummaryPath -Value "- status: skipped"
-              Add-Content -Path $stepSummaryPath -Value "- reason: exports baseline/current not found"
-              Add-Content -Path $stepSummaryPath -Value "- blocking: no"
-              Add-Content -Path $stepSummaryPath -Value "- artifact: support-metrics-report"
-              Add-Content -Path $stepSummaryPath -Value ""
-              Add-Content -Path $stepSummaryPath -Value "## Support metrics report"
-              Add-Content -Path $stepSummaryPath -Value ""
-              Add-Content -Path $stepSummaryPath -Value "Support metrics exports not found; optional check skipped."
-            }
-          }
+          py tools/write_support_metrics_ci_summary.py `
+            --ci-check `
+            --baseline "$env:SUPPORT_METRICS_BASELINE_PATH" `
+            --current "$env:SUPPORT_METRICS_CURRENT_PATH" `
+            --report-output "$env:SUPPORT_METRICS_REPORT_PATH" `
+            --step-summary "$env:GITHUB_STEP_SUMMARY" `
+            --artifact-name "support-metrics-report"
 
       - name: Upload support metrics report artifact
         uses: actions/upload-artifact@v4
