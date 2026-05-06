@@ -141,6 +141,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("not gameplay validation", content)
         self.assertIn("runtime report optional", content)
         self.assertIn("no --fail-on-regression by default", content)
+        self.assertIn("contrat CLI help", content)
+        self.assertIn("tests/fixtures/support_metrics_cli_help_expected.json", content)
         self.assertIn("smoke", content)
         self.assertIn("runtime", content)
 

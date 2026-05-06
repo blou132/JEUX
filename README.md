@@ -747,6 +747,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - scope: `not gameplay validation`.
   - invariant: `runtime report optional`.
   - invariant: `no --fail-on-regression by default`.
+  - contrat CLI help: les aides `--help` des outils support metrics sont testees (`tests/fixtures/support_metrics_cli_help_expected.json`).
   - `tools/analyze_run_metrics_history.py`:
     - role: analyse des historiques metrics (single-run et multi-run) + comparaison baseline/current.
     - usage principal: rapport JSON/Markdown pour observation/tuning.

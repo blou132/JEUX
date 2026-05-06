@@ -1,0 +1,58 @@
+{
+  "tools": [
+    {
+      "path": "tools/analyze_run_metrics_history.py",
+      "options": [
+        "--input",
+        "--compare-input",
+        "--ci-check",
+        "--format",
+        "--fail-on-regression"
+      ]
+    },
+    {
+      "path": "tools/write_support_metrics_ci_summary.py",
+      "options": [
+        "--baseline",
+        "--current",
+        "--report-output",
+        "--step-summary",
+        "--artifact-name",
+        "--ci-check",
+        "--strict",
+        "--analyze-script",
+        "--report-mode",
+        "--input-label",
+        "--compare-input-label"
+      ]
+    },
+    {
+      "path": "tools/simulate_support_metrics_ci.py",
+      "options": [
+        "--baseline",
+        "--current",
+        "--output-dir",
+        "--strict",
+        "--analyze-script",
+        "--report-mode"
+      ]
+    },
+    {
+      "path": "tools/check_support_metrics_ci_fragments.py",
+      "options": [
+        "--list",
+        "--validate",
+        "--print-missing"
+      ]
+    },
+    {
+      "path": "tools/check_support_metrics_ci_health.py",
+      "options": [
+        "--check",
+        "--json",
+        "--verbose",
+        "--markdown-output"
+      ]
+    }
+  ]
+}
