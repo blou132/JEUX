@@ -727,7 +727,8 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - outil: `tools/check_support_metrics_ci_fragments.py`.
   - verification stricte (code retour non-zero si fragments manquants/vides): `py tools/check_support_metrics_ci_fragments.py --validate`.
   - inventaire lisible par categorie (smoke/runtime/error/local): `py tools/check_support_metrics_ci_fragments.py --list`.
-  - ces controles protegent la lisibilite des rapports CI; ils ne modifient pas le gameplay.
+  - la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_fragments.py --validate`.
+  - ces controles protegent la lisibilite des rapports CI; ils ne valident pas le gameplay et ne modifient pas le gameplay.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.

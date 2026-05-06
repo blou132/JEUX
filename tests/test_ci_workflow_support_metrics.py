@@ -17,6 +17,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
     def test_workflow_runs_unittest_discover(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn('py -m unittest discover -s tests -p "test_*.py"', content)
+        self.assertIn("Validate support metrics CI fragments", content)
+        self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
 
     def test_workflow_support_metrics_check_is_optional_and_non_blocking_by_default(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
