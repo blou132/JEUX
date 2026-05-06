@@ -100,6 +100,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("CI report output contract", content)
         self.assertIn("support_metrics_ci_outputs", content)
         self.assertIn("snapshots par fragments", content)
+        self.assertIn("Support metrics CI fragments maintenance", content)
+        self.assertIn("check_support_metrics_ci_fragments.py", content)
+        self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
+        self.assertIn("py tools/check_support_metrics_ci_fragments.py --list", content)
         self.assertIn("smoke", content)
         self.assertIn("runtime", content)
 
