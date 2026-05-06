@@ -737,6 +737,10 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - ce controle verifie aussi le contrat `--help` des outils support metrics.
   - ce controle aide la maintenance CI/debug, il ne valide pas le gameplay.
   - rappel: runtime absent reste un cas non bloquant et ne signifie pas un echec gameplay.
+- Support metrics CI contract audit:
+  - commande d'audit final de coherence CI/debug: `py tools/audit_support_metrics_ci_contract.py --check`.
+  - cet audit verifie l'alignement entre README, workflow, fixtures CLI help, fragments et outils de maintenance.
+  - ce controle reste maintenance CI/debug uniquement; il ne valide pas le gameplay.
 - Support metrics CI health artifact:
   - la CI genere `artifacts/support_metrics_ci_health.md` via `--markdown-output`.
   - ce rapport est visible dans le `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-health`.

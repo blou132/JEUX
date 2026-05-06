@@ -206,6 +206,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
             content,
         )
         self.assertIn("verifie aussi le contrat `--help` des outils support metrics", content)
+        self.assertIn("Support metrics CI contract audit", content)
+        self.assertIn("py tools/audit_support_metrics_ci_contract.py --check", content)
         self.assertIn("Support metrics CI health artifact", content)
         self.assertIn("artifacts/support_metrics_ci_health.md", content)
         self.assertIn("support-metrics-ci-health", content)
