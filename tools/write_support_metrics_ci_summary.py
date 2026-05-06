@@ -14,6 +14,17 @@ INDEX_START_MARKER = "<!-- support-metrics-index:start -->"
 INDEX_END_MARKER = "<!-- support-metrics-index:end -->"
 INDEX_DATA_PREFIX = "<!-- support-metrics-index-data:"
 INDEX_DATA_SUFFIX = "-->"
+SMOKE_REPORT_NOTE = (
+    "Note: this smoke report uses controlled fixtures. "
+    "It validates the CI/report pipeline, not live gameplay behavior."
+)
+SMOKE_SUMMARY_WARNING = (
+    "Smoke passed means the reporting pipeline works; "
+    "it does not validate runtime gameplay metrics."
+)
+RUNTIME_NO_EXPORTS_MESSAGE = (
+    "Runtime support metrics exports not found; no runtime gameplay metrics were evaluated."
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -140,9 +151,9 @@ def _build_blocking_label(report_mode: str) -> str:
 def _build_role_label(report_mode: str) -> str:
     normalized_mode = report_mode.strip().lower()
     if normalized_mode == "smoke":
-        return "pipeline smoke (fixtures)"
+        return "technical pipeline check only"
     if normalized_mode == "runtime":
-        return "runtime analysis (optional)"
+        return "runtime metrics report"
     if normalized_mode == "local":
         return "local simulation"
     return "manual analysis"
@@ -158,6 +169,51 @@ def _build_report_key(report_mode: str, artifact_name: str) -> str:
     if normalized_artifact == "support-metrics-report":
         return "runtime"
     return "manual"
+
+
+def _build_runtime_data_label(report_mode: str, compact_status: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode == "smoke":
+        return "no"
+    if normalized_mode == "runtime":
+        if compact_status == "skipped":
+            return "no"
+        return "yes"
+    if normalized_mode == "local":
+        return "depends on input files"
+    return "depends on input files"
+
+
+def _build_gameplay_validation_label(report_mode: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode == "smoke":
+        return "no"
+    if normalized_mode == "runtime":
+        return "observation only"
+    if normalized_mode == "local":
+        return "no"
+    return "observation only"
+
+
+def _build_skip_message(report_mode: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode == "runtime":
+        return RUNTIME_NO_EXPORTS_MESSAGE
+    if normalized_mode == "smoke":
+        return "Smoke support metrics fixtures not found; technical pipeline check skipped."
+    return SKIP_REPORT_MESSAGE
+
+
+def _prepend_smoke_note_if_needed(report_mode: str, report_content: str) -> str:
+    if report_mode.strip().lower() != "smoke":
+        return report_content
+    if SMOKE_REPORT_NOTE in report_content:
+        return report_content
+    lines: list[str] = []
+    lines.append(SMOKE_REPORT_NOTE)
+    lines.append("")
+    lines.append(report_content)
+    return "\n".join(lines)
 
 
 def _parse_existing_index_block(content: str) -> tuple[dict[str, dict[str, str]], str]:
@@ -205,12 +261,14 @@ def _build_index_block(index_rows: dict[str, dict[str, str]]) -> str:
         )
     )
     lines.append("## Support metrics reports index")
-    lines.append("| report | status | mode | source | artifact | blocking | role |")
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append(
+        "| report | status | mode | source | artifact | blocking | role | runtime_data | gameplay_validation |"
+    )
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for key in ordered_keys:
         row = index_rows.get(key, {})
         lines.append(
-            "| %s | %s | %s | %s | %s | %s | %s |"
+            "| %s | %s | %s | %s | %s | %s | %s | %s | %s |"
             % (
                 row.get("report", key),
                 row.get("status", "n/a"),
@@ -219,6 +277,8 @@ def _build_index_block(index_rows: dict[str, dict[str, str]]) -> str:
                 row.get("artifact", "n/a"),
                 row.get("blocking", "no"),
                 row.get("role", "manual analysis"),
+                row.get("runtime_data", "depends on input files"),
+                row.get("gameplay_validation", "observation only"),
             )
         )
     lines.append(INDEX_END_MARKER)
@@ -249,6 +309,10 @@ def _append_step_summary(
         lines.append("- input: %s" % input_label)
     if compare_input_label:
         lines.append("- compare input: %s" % compare_input_label)
+    if report_mode.strip().lower() == "smoke":
+        lines.append("- warning: %s" % SMOKE_SUMMARY_WARNING)
+    if report_mode.strip().lower() == "runtime" and compact_status == "skipped":
+        lines.append("- warning: %s" % RUNTIME_NO_EXPORTS_MESSAGE)
     lines.append("")
     lines.append("## Support metrics report")
     lines.append("")
@@ -265,6 +329,8 @@ def _append_step_summary(
         "artifact": artifact_name,
         "blocking": _build_blocking_label(report_mode),
         "role": _build_role_label(report_mode),
+        "runtime_data": _build_runtime_data_label(report_mode, compact_status),
+        "gameplay_validation": _build_gameplay_validation_label(report_mode),
     }
 
     existing_content = ""
@@ -398,7 +464,7 @@ def _handle_skip(
     compare_input_label: str,
     report_mode: str,
 ) -> int:
-    skip_report = SKIP_REPORT_MESSAGE + "\n"
+    skip_report = _build_skip_message(report_mode) + "\n"
     _write_text(report_output_path, skip_report)
     if step_summary_path is not None:
         _append_step_summary(
@@ -406,7 +472,7 @@ def _handle_skip(
             compact_status="skipped",
             artifact_name=artifact_name,
             report_content=skip_report,
-            reason="exports baseline/current not found",
+            reason=_build_skip_message(report_mode),
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
@@ -427,6 +493,7 @@ def _handle_analysis_error(
     report_mode: str,
 ) -> int:
     report_content = _build_minimal_error_report(error_message)
+    report_content = _prepend_smoke_note_if_needed(report_mode, report_content)
     write_error_message = ""
     try:
         _write_text(report_output_path, report_content)
@@ -508,6 +575,9 @@ def main() -> int:
         regression_state = _extract_regression_state(summary_json)
         compact_status = _map_compact_status(regression_state)
         report_content = _read_text(report_output_path)
+        report_content = _prepend_smoke_note_if_needed(report_mode, report_content)
+        if report_content != _read_text(report_output_path):
+            _write_text(report_output_path, report_content)
     except Exception as exc:  # noqa: BLE001 - fail-safe behavior is intentional
         return _handle_analysis_error(
             report_output_path=report_output_path,

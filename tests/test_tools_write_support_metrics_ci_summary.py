@@ -239,7 +239,9 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- source: smoke fixtures", summary_text)
+            self.assertIn("- warning: Smoke passed means the reporting pipeline works;", summary_text)
             report_text = report_path.read_text(encoding="utf-8")
+            self.assertIn("Note: this smoke report uses controlled fixtures.", report_text)
             self.assertIn("- mode: smoke", report_text)
 
     def test_summary_index_lists_smoke_and_runtime_reports(self) -> None:
@@ -286,12 +288,18 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
 
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("## Support metrics reports index", summary_text)
+            self.assertIn("| report | status | mode | source | artifact | blocking | role | runtime_data | gameplay_validation |", summary_text)
             self.assertIn("| smoke |", summary_text)
             self.assertIn("| runtime |", summary_text)
             self.assertIn("support-metrics-smoke-report", summary_text)
             self.assertIn("support-metrics-report", summary_text)
             self.assertIn("fixtures", summary_text)
             self.assertIn("outputs/ci", summary_text)
+            self.assertIn("technical pipeline check only", summary_text)
+            self.assertIn("runtime metrics report", summary_text)
+            self.assertIn("gameplay_validation", summary_text)
+            self.assertIn("| no |", summary_text)
+            self.assertIn("observation only", summary_text)
 
     def test_exports_present_warning_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -318,11 +326,21 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertTrue(summary_path.exists())
 
             report_text = report_path.read_text(encoding="utf-8")
-            self.assertIn("Support metrics exports not found; optional check skipped.", report_text)
+            self.assertIn(
+                "Runtime support metrics exports not found; no runtime gameplay metrics were evaluated.",
+                report_text,
+            )
 
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- status: skipped", summary_text)
-            self.assertIn("- reason: exports baseline/current not found", summary_text)
+            self.assertIn(
+                "- reason: Runtime support metrics exports not found; no runtime gameplay metrics were evaluated.",
+                summary_text,
+            )
+            self.assertIn(
+                "- warning: Runtime support metrics exports not found; no runtime gameplay metrics were evaluated.",
+                summary_text,
+            )
             self.assertIn("- blocking: no", summary_text)
 
     def test_artifact_path_is_respected(self) -> None:

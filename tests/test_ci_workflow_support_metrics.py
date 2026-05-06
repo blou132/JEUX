@@ -94,6 +94,9 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("support-metrics-smoke-report", content)
         self.assertIn("support-metrics-report", content)
         self.assertIn("Support metrics reports index", content)
+        self.assertIn("Smoke report vs runtime report", content)
+        self.assertIn("smoke OK != gameplay OK", content)
+        self.assertIn("runtime absent != echec gameplay", content)
         self.assertIn("smoke", content)
         self.assertIn("runtime", content)
 
