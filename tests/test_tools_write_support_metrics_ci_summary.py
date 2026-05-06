@@ -242,6 +242,57 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             report_text = report_path.read_text(encoding="utf-8")
             self.assertIn("- mode: smoke", report_text)
 
+    def test_summary_index_lists_smoke_and_runtime_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+            smoke_report = Path(tmpdir) / "artifacts" / "smoke_report.md"
+            runtime_report = Path(tmpdir) / "artifacts" / "runtime_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            smoke_result = _run_ci_summary_tool(
+                baseline,
+                current,
+                smoke_report,
+                summary_path,
+                artifact_name="support-metrics-smoke-report",
+                extra_args=[
+                    "--report-mode",
+                    "smoke",
+                    "--input-label",
+                    "fixtures:recent_complete.jsonl",
+                    "--compare-input-label",
+                    "fixtures:recent_complete.jsonl",
+                ],
+            )
+            self.assertEqual(smoke_result.returncode, 0, msg=smoke_result.stdout + smoke_result.stderr)
+
+            runtime_result = _run_ci_summary_tool(
+                baseline,
+                current,
+                runtime_report,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=[
+                    "--report-mode",
+                    "runtime",
+                    "--input-label",
+                    "outputs/ci/support_metrics_baseline.jsonl",
+                    "--compare-input-label",
+                    "outputs/ci/support_metrics_current.jsonl",
+                ],
+            )
+            self.assertEqual(runtime_result.returncode, 0, msg=runtime_result.stdout + runtime_result.stderr)
+
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("## Support metrics reports index", summary_text)
+            self.assertIn("| smoke |", summary_text)
+            self.assertIn("| runtime |", summary_text)
+            self.assertIn("support-metrics-smoke-report", summary_text)
+            self.assertIn("support-metrics-report", summary_text)
+            self.assertIn("fixtures", summary_text)
+            self.assertIn("outputs/ci", summary_text)
+
     def test_exports_present_warning_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             report_path = Path(tmpdir) / "artifacts" / "report.md"

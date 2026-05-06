@@ -10,6 +10,10 @@ from typing import Any
 
 SKIP_REPORT_MESSAGE = "Support metrics exports not found; optional check skipped."
 ANALYSIS_FAILED_REASON = "analysis failed"
+INDEX_START_MARKER = "<!-- support-metrics-index:start -->"
+INDEX_END_MARKER = "<!-- support-metrics-index:end -->"
+INDEX_DATA_PREFIX = "<!-- support-metrics-index-data:"
+INDEX_DATA_SUFFIX = "-->"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -127,6 +131,100 @@ def _build_source_label(report_mode: str) -> str:
     return "manual"
 
 
+def _build_blocking_label(report_mode: str) -> str:
+    if report_mode.strip().lower() == "smoke":
+        return "yes for technical generation only"
+    return "no"
+
+
+def _build_role_label(report_mode: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode == "smoke":
+        return "pipeline smoke (fixtures)"
+    if normalized_mode == "runtime":
+        return "runtime analysis (optional)"
+    if normalized_mode == "local":
+        return "local simulation"
+    return "manual analysis"
+
+
+def _build_report_key(report_mode: str, artifact_name: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode in {"smoke", "runtime", "local"}:
+        return normalized_mode
+    normalized_artifact = artifact_name.strip().lower()
+    if normalized_artifact == "support-metrics-smoke-report":
+        return "smoke"
+    if normalized_artifact == "support-metrics-report":
+        return "runtime"
+    return "manual"
+
+
+def _parse_existing_index_block(content: str) -> tuple[dict[str, dict[str, str]], str]:
+    index_rows: dict[str, dict[str, str]] = {}
+    start = content.find(INDEX_START_MARKER)
+    end = content.find(INDEX_END_MARKER)
+    if start == -1 or end == -1 or end < start:
+        return index_rows, content
+
+    block_end = end + len(INDEX_END_MARKER)
+    block = content[start:block_end]
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if line.startswith(INDEX_DATA_PREFIX) and line.endswith(INDEX_DATA_SUFFIX):
+            payload = line[len(INDEX_DATA_PREFIX) : -len(INDEX_DATA_SUFFIX)].strip()
+            try:
+                parsed = json.loads(payload)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    if isinstance(key, str) and isinstance(value, dict):
+                        row: dict[str, str] = {}
+                        for field_name, field_value in value.items():
+                            if isinstance(field_name, str):
+                                row[field_name] = str(field_value)
+                        index_rows[key] = row
+            break
+
+    content_without_index = (content[:start] + content[block_end:]).lstrip("\n")
+    return index_rows, content_without_index
+
+
+def _build_index_block(index_rows: dict[str, dict[str, str]]) -> str:
+    ordered_keys = [key for key in ["smoke", "runtime", "local", "manual"] if key in index_rows]
+    ordered_keys.extend(sorted(key for key in index_rows.keys() if key not in ordered_keys))
+    lines: list[str] = []
+    lines.append(INDEX_START_MARKER)
+    lines.append(
+        "%s%s %s"
+        % (
+            INDEX_DATA_PREFIX,
+            json.dumps(index_rows, ensure_ascii=False, sort_keys=True),
+            INDEX_DATA_SUFFIX,
+        )
+    )
+    lines.append("## Support metrics reports index")
+    lines.append("| report | status | mode | source | artifact | blocking | role |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for key in ordered_keys:
+        row = index_rows.get(key, {})
+        lines.append(
+            "| %s | %s | %s | %s | %s | %s | %s |"
+            % (
+                row.get("report", key),
+                row.get("status", "n/a"),
+                row.get("mode", "manual"),
+                row.get("source", "manual"),
+                row.get("artifact", "n/a"),
+                row.get("blocking", "no"),
+                row.get("role", "manual analysis"),
+            )
+        )
+    lines.append(INDEX_END_MARKER)
+    return "\n".join(lines)
+
+
 def _append_step_summary(
     step_summary_path: Path,
     compact_status: str,
@@ -136,6 +234,7 @@ def _append_step_summary(
     report_source: str = "",
     input_label: str = "",
     compare_input_label: str = "",
+    report_mode: str = "",
 ) -> None:
     lines: list[str] = []
     lines.append("## Support metrics CI status")
@@ -153,14 +252,34 @@ def _append_step_summary(
     lines.append("")
     lines.append("## Support metrics report")
     lines.append("")
+    section_text = "\n".join(lines) + "\n" + report_content
+    if report_content and not report_content.endswith("\n"):
+        section_text += "\n"
 
-    step_summary_path.parent.mkdir(parents=True, exist_ok=True)
-    with step_summary_path.open("a", encoding="utf-8") as summary_file:
-        summary_file.write("\n".join(lines))
-        summary_file.write("\n")
-        summary_file.write(report_content)
-        if report_content and not report_content.endswith("\n"):
-            summary_file.write("\n")
+    report_key = _build_report_key(report_mode, artifact_name)
+    row = {
+        "report": report_key,
+        "status": compact_status,
+        "mode": report_mode or "manual",
+        "source": report_source or "manual",
+        "artifact": artifact_name,
+        "blocking": _build_blocking_label(report_mode),
+        "role": _build_role_label(report_mode),
+    }
+
+    existing_content = ""
+    if step_summary_path.exists():
+        existing_content = _read_text(step_summary_path)
+    existing_index_rows, body_without_index = _parse_existing_index_block(existing_content)
+    existing_index_rows[report_key] = row
+    index_block = _build_index_block(existing_index_rows)
+
+    if body_without_index.strip():
+        body = body_without_index.rstrip("\n") + "\n" + section_text
+    else:
+        body = section_text
+    final_content = index_block + "\n\n" + body.lstrip("\n")
+    _write_text(step_summary_path, final_content)
 
 
 def _read_text(path: Path) -> str:
@@ -277,6 +396,7 @@ def _handle_skip(
     report_source: str,
     input_label: str,
     compare_input_label: str,
+    report_mode: str,
 ) -> int:
     skip_report = SKIP_REPORT_MESSAGE + "\n"
     _write_text(report_output_path, skip_report)
@@ -290,6 +410,7 @@ def _handle_skip(
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
+            report_mode=report_mode,
         )
     return 0
 
@@ -303,6 +424,7 @@ def _handle_analysis_error(
     report_source: str,
     input_label: str,
     compare_input_label: str,
+    report_mode: str,
 ) -> int:
     report_content = _build_minimal_error_report(error_message)
     write_error_message = ""
@@ -325,6 +447,7 @@ def _handle_analysis_error(
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
+            report_mode=report_mode,
         )
     if strict_mode:
         return 1
@@ -361,6 +484,7 @@ def main() -> int:
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
+            report_mode=report_mode,
         )
 
     try:
@@ -394,6 +518,7 @@ def main() -> int:
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
+            report_mode=report_mode,
         )
 
     if step_summary_path is not None:
@@ -405,6 +530,7 @@ def main() -> int:
             report_source=report_source,
             input_label=input_label,
             compare_input_label=compare_input_label,
+            report_mode=report_mode,
         )
     return 0
 

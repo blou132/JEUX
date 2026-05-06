@@ -93,6 +93,9 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("CI support metrics reports", content)
         self.assertIn("support-metrics-smoke-report", content)
         self.assertIn("support-metrics-report", content)
+        self.assertIn("Support metrics reports index", content)
+        self.assertIn("smoke", content)
+        self.assertIn("runtime", content)
 
     def test_support_metrics_ci_check_block_is_still_present_in_tool(self) -> None:
         content = ANALYZE_TOOL_PATH.read_text(encoding="utf-8")

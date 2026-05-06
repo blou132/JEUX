@@ -719,6 +719,13 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.
 - ces rapports restent des outils debug/observation uniquement.
+- le Summary GitHub Actions commence par un index compact `Support metrics reports index` (smoke/runtime/local si present) avec:
+  - `status` du rapport,
+  - `mode` + `source`,
+  - `artifact`,
+  - `blocking` + role.
+- attention: `smoke` OK signifie que le pipeline technique (fixtures) fonctionne, pas que le runtime gameplay est valide.
+- `runtime` reste optionnel: si `outputs/ci` est absent, le status runtime peut etre `skipped` sans echec gameplay.
 - le rapport ajoute un bloc `support_metrics_report_provenance` pour tracer l'origine des donnees:
   - `input_label` / `compare_input_label`
   - `has_compare_input`
