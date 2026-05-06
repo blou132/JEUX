@@ -23,6 +23,9 @@ REQUIRED_TOOLS: tuple[str, ...] = (
 REQUIRED_WORKFLOW_SNIPPETS: tuple[str, ...] = (
     'py -m unittest discover -s tests -p "test_*.py"',
     "py tools/check_support_metrics_ci_fragments.py --validate",
+    "py tools/check_support_metrics_ci_health.py --check",
+    "artifacts/support_metrics_ci_health.md",
+    "support-metrics-ci-health",
     "Smoke test support metrics CI summary (technical fixtures)",
     "Optional runtime support metrics CI check (outputs/ci)",
     "actions/upload-artifact@v4",
@@ -85,6 +88,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help="Include per-component issue details in text output.",
+    )
+    parser.add_argument(
+        "--markdown-output",
+        type=Path,
+        default=None,
+        help="Optional path to write a compact Markdown health report.",
     )
     return parser
 
@@ -268,9 +277,32 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
             print("- no issues")
 
 
+def _build_markdown_report(report: HealthReport) -> str:
+    lines: list[str] = []
+    lines.append("# Support metrics CI health")
+    lines.append("")
+    lines.append("- overall: %s" % report.overall)
+    lines.append("- tools: %s" % report.tools.state)
+    lines.append("- fixtures: %s" % report.fixtures.state)
+    lines.append("- fragments: %s" % report.fragments.state)
+    lines.append("- workflow: %s" % report.workflow.state)
+    lines.append(
+        "- interpretation: maintenance CI/debug only, not gameplay validation"
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _write_markdown_report(path: Path, report: HealthReport) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_build_markdown_report(report), encoding="utf-8")
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     report = build_health_report(args.root)
+
+    if args.markdown_output is not None:
+        _write_markdown_report(args.markdown_output, report)
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))

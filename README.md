@@ -735,6 +735,11 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - ce controle verifie la presence/coherence des outils, fixtures, fragments et workflow support metrics CI.
   - ce controle aide la maintenance CI/debug, il ne valide pas le gameplay.
   - rappel: runtime absent reste un cas non bloquant et ne signifie pas un echec gameplay.
+- Support metrics CI health artifact:
+  - la CI genere `artifacts/support_metrics_ci_health.md` via `--markdown-output`.
+  - ce rapport est visible dans le `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-health`.
+  - ce rapport verifie la chaine maintenance CI/debug (pas la validation gameplay).
+  - runtime absent pour `support-metrics-report` reste non bloquant et n'est pas un echec gameplay.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.

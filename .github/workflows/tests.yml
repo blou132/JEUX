@@ -31,7 +31,25 @@ jobs:
         run: py tools/check_support_metrics_ci_fragments.py --validate
 
       - name: Validate support metrics CI health
-        run: py tools/check_support_metrics_ci_health.py --check
+        shell: pwsh
+        run: |
+          $healthExitCode = 0
+          py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
+          $healthExitCode = $LASTEXITCODE
+          if (Test-Path artifacts/support_metrics_ci_health.md) {
+            Get-Content artifacts/support_metrics_ci_health.md | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+          if ($healthExitCode -ne 0) {
+            exit $healthExitCode
+          }
+
+      - name: Upload support metrics CI health artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-health
+          path: artifacts/support_metrics_ci_health.md
+          if-no-files-found: error
 
       - name: Smoke test support metrics CI summary (technical fixtures)
         shell: pwsh

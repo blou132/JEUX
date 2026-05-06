@@ -37,6 +37,13 @@ jobs:
         run: py -m unittest discover -s tests -p "test_*.py"
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
+      - name: Validate support metrics CI health
+        run: py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-health
+          path: artifacts/support_metrics_ci_health.md
+          if-no-files-found: error
       - name: Smoke test support metrics CI summary (technical fixtures)
         run: py tools/write_support_metrics_ci_summary.py --artifact-name "support-metrics-smoke-report"
       - name: Optional runtime support metrics CI check (outputs/ci)
@@ -93,6 +100,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("--check", result.stdout)
         self.assertIn("--json", result.stdout)
         self.assertIn("--verbose", result.stdout)
+        self.assertIn("--markdown-output", result.stdout)
 
     def test_health_nominal_is_ok(self) -> None:
         result = _run_health_tool(["--check"])
@@ -178,6 +186,17 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("- fragments: error", result.stdout)
             self.assertIn("empty fragment file (no non-comment fragments): smoke_report_expected_fragments.txt", result.stdout)
+
+    def test_markdown_report_is_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_health.md"
+            result = _run_health_tool(["--check", "--markdown-output", str(output_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+            self.assertIn("# Support metrics CI health", content)
+            self.assertIn("- overall:", content)
+            self.assertIn("not gameplay validation", content)
 
 
 if __name__ == "__main__":

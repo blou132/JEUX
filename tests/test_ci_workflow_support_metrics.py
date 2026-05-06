@@ -21,6 +21,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
         self.assertIn("Validate support metrics CI health", content)
         self.assertIn("py tools/check_support_metrics_ci_health.py --check", content)
+        self.assertIn("--markdown-output artifacts/support_metrics_ci_health.md", content)
 
     def test_workflow_support_metrics_check_is_optional_and_non_blocking_by_default(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -28,6 +29,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertNotIn("tools/analyze_run_metrics_history.py", content)
         self.assertIn("--ci-check", content)
         self.assertIn("GITHUB_STEP_SUMMARY", content)
+        self.assertIn(
+            'Get-Content artifacts/support_metrics_ci_health.md | Add-Content -Path $env:GITHUB_STEP_SUMMARY',
+            content,
+        )
         self.assertNotIn("ConvertFrom-Json", content)
         self.assertNotIn("--fail-on-regression", content)
 
@@ -56,6 +61,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("artifacts/support_metrics_smoke_report.md", content)
         self.assertIn("support-metrics-smoke-report", content)
         self.assertIn("artifacts/support_metrics_report.md", content)
+        self.assertIn("artifacts/support_metrics_ci_health.md", content)
+        self.assertIn("support-metrics-ci-health", content)
+        self.assertIn("Upload support metrics CI health artifact", content)
+        self.assertIn("if: always()", content)
         self.assertIn("actions/upload-artifact@v4", content)
         self.assertIn("if-no-files-found: ignore", content)
         self.assertIn("if-no-files-found: error", content)
@@ -111,6 +120,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("Support metrics CI health check", content)
         self.assertIn("check_support_metrics_ci_health.py --check", content)
         self.assertIn("la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_health.py --check`", content)
+        self.assertIn("Support metrics CI health artifact", content)
+        self.assertIn("artifacts/support_metrics_ci_health.md", content)
+        self.assertIn("support-metrics-ci-health", content)
+        self.assertIn("pas la validation gameplay", content)
         self.assertIn("smoke", content)
         self.assertIn("runtime", content)
 
