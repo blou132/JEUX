@@ -30,6 +30,9 @@ jobs:
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
 
+      - name: Validate support metrics CI health
+        run: py tools/check_support_metrics_ci_health.py --check
+
       - name: Smoke test support metrics CI summary (technical fixtures)
         shell: pwsh
         run: |

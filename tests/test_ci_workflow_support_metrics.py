@@ -19,6 +19,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn('py -m unittest discover -s tests -p "test_*.py"', content)
         self.assertIn("Validate support metrics CI fragments", content)
         self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
+        self.assertIn("Validate support metrics CI health", content)
+        self.assertIn("py tools/check_support_metrics_ci_health.py --check", content)
 
     def test_workflow_support_metrics_check_is_optional_and_non_blocking_by_default(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -108,6 +110,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("py tools/check_support_metrics_ci_fragments.py --list", content)
         self.assertIn("Support metrics CI health check", content)
         self.assertIn("check_support_metrics_ci_health.py --check", content)
+        self.assertIn("la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_health.py --check`", content)
         self.assertIn("smoke", content)
         self.assertIn("runtime", content)
 
