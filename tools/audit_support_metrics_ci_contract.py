@@ -27,6 +27,7 @@ REQUIRED_ARTIFACT_NAMES: tuple[str, ...] = (
     "support-metrics-smoke-report",
     "support-metrics-report",
     "support-metrics-ci-health",
+    "support-metrics-ci-contract-audit",
 )
 REQUIRED_FRAGMENT_CATEGORIES: tuple[str, ...] = (
     "smoke",
@@ -95,6 +96,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help="Print detailed issues for each component in text mode.",
+    )
+    parser.add_argument(
+        "--markdown-output",
+        type=Path,
+        default=None,
+        help="Optional path to write a compact Markdown contract audit report.",
     )
     return parser
 
@@ -440,9 +447,43 @@ def _print_text_report(report: ContractAuditReport, verbose: bool) -> None:
             print("- %s" % issue)
 
 
+def _state_from_components(states: list[str]) -> str:
+    return _worst_state(states)
+
+
+def _build_markdown_report(report: ContractAuditReport) -> str:
+    readme_state = _state_from_components([report.cli_readme_tools.state])
+    workflow_state = _state_from_components([report.workflow_rules.state])
+    tools_state = _state_from_components([report.tool_scripts.state, report.cli_readme_tools.state])
+    fixtures_state = _state_from_components([report.fragments_coverage.state, report.cli_readme_tools.state])
+    fragments_state = _state_from_components([report.fragments_coverage.state])
+    artifacts_state = _state_from_components([report.artifacts_alignment.state])
+
+    lines: list[str] = []
+    lines.append("# Support metrics CI contract audit")
+    lines.append("")
+    lines.append("- overall: %s" % report.overall)
+    lines.append("- README: %s" % readme_state)
+    lines.append("- workflow: %s" % workflow_state)
+    lines.append("- tools: %s" % tools_state)
+    lines.append("- fixtures: %s" % fixtures_state)
+    lines.append("- fragments: %s" % fragments_state)
+    lines.append("- artifacts: %s" % artifacts_state)
+    lines.append("- interpretation: maintenance CI/debug only, not gameplay validation")
+    return "\n".join(lines) + "\n"
+
+
+def _write_markdown_report(path: Path, report: ContractAuditReport) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_build_markdown_report(report), encoding="utf-8")
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     report = build_contract_audit(args.root)
+
+    if args.markdown_output is not None:
+        _write_markdown_report(args.markdown_output, report)
 
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))

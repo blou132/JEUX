@@ -65,6 +65,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
         self.assertIn("Validate support metrics CI contract audit", content)
         self.assertIn("py tools/audit_support_metrics_ci_contract.py --check", content)
+        self.assertIn("--markdown-output \"$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH\"", content)
         self.assertIn("Validate support metrics CI health", content)
         self.assertIn("py tools/check_support_metrics_ci_health.py --check", content)
         self.assertIn("--markdown-output artifacts/support_metrics_ci_health.md", content)
@@ -101,6 +102,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
             content,
         )
         self.assertIn(
+            "Upload support metrics CI contract audit artifact",
+            content,
+        )
+        self.assertIn(
             "tests/fixtures/support_metrics_contract/recent_complete.jsonl",
             content,
         )
@@ -109,6 +114,9 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("artifacts/support_metrics_report.md", content)
         self.assertIn("artifacts/support_metrics_ci_health.md", content)
         self.assertIn("support-metrics-ci-health", content)
+        self.assertIn("artifacts/support_metrics_ci_contract_audit.md", content)
+        self.assertIn("support-metrics-ci-contract-audit", content)
+        self.assertIn("SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH", content)
         self.assertIn("Upload support metrics CI health artifact", content)
         self.assertIn("if: always()", content)
         self.assertIn("actions/upload-artifact@v4", content)
@@ -154,9 +162,11 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         smoke_artifact = self._get_named_step(steps, "Upload support metrics smoke report artifact (technical fixtures)")
         runtime_artifact = self._get_named_step(steps, "Upload support metrics runtime report artifact (optional)")
         health_artifact = self._get_named_step(steps, "Upload support metrics CI health artifact")
+        contract_audit_artifact = self._get_named_step(steps, "Upload support metrics CI contract audit artifact")
 
         self.assertEqual(smoke_artifact.get("with", {}).get("if-no-files-found"), "error")
         self.assertEqual(health_artifact.get("with", {}).get("if-no-files-found"), "error")
+        self.assertEqual(contract_audit_artifact.get("with", {}).get("if-no-files-found"), "error")
         self.assertEqual(runtime_artifact.get("with", {}).get("if-no-files-found"), "ignore")
 
     def test_workflow_keeps_smoke_and_runtime_paths_separated(self) -> None:
@@ -164,10 +174,12 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl", content)
         self.assertIn("SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl", content)
         self.assertIn("SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md", content)
+        self.assertIn("SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH: artifacts/support_metrics_ci_contract_audit.md", content)
         self.assertIn("--baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl", content)
         self.assertIn("--current tests/fixtures/support_metrics_contract/recent_complete.jsonl", content)
         self.assertIn("--baseline \"$env:SUPPORT_METRICS_BASELINE_PATH\"", content)
         self.assertIn("--current \"$env:SUPPORT_METRICS_CURRENT_PATH\"", content)
+        self.assertIn("Get-Content \"$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH\" | Add-Content -Path $env:GITHUB_STEP_SUMMARY", content)
         self.assertIn("--report-output artifacts/support_metrics_smoke_report.md", content)
         self.assertIn("--report-output \"$env:SUPPORT_METRICS_REPORT_PATH\"", content)
         self.assertIn("--input-label \"$env:SUPPORT_METRICS_BASELINE_PATH\"", content)
@@ -212,6 +224,9 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("Support metrics CI contract audit", content)
         self.assertIn("py tools/audit_support_metrics_ci_contract.py --check", content)
         self.assertIn("la CI GitHub Actions execute aussi `py tools/audit_support_metrics_ci_contract.py --check`", content)
+        self.assertIn("Support metrics CI contract audit artifact", content)
+        self.assertIn("support-metrics-ci-contract-audit", content)
+        self.assertIn("artifacts/support_metrics_ci_contract_audit.md", content)
         self.assertIn("Support metrics CI health artifact", content)
         self.assertIn("artifacts/support_metrics_ci_health.md", content)
         self.assertIn("support-metrics-ci-health", content)

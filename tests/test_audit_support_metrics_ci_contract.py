@@ -45,6 +45,14 @@ jobs:
         run: py -m unittest discover -s tests -p "test_*.py"
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
+      - name: Validate support metrics CI contract audit
+        run: py tools/audit_support_metrics_ci_contract.py --check --markdown-output artifacts/support_metrics_ci_contract_audit.md
+      - name: Upload support metrics CI contract audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-contract-audit
+          path: artifacts/support_metrics_ci_contract_audit.md
+          if-no-files-found: error
       - name: Validate support metrics CI health
         run: py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
       - name: Upload support metrics CI health artifact
@@ -94,6 +102,7 @@ tools/check_support_metrics_ci_health.py
 support-metrics-smoke-report
 support-metrics-report
 support-metrics-ci-health
+support-metrics-ci-contract-audit
 CI/debug only
 not gameplay validation
 runtime report optional
@@ -170,6 +179,7 @@ class AuditSupportMetricsCIContractToolTests(unittest.TestCase):
         self.assertIn("--check", result.stdout)
         self.assertIn("--verbose", result.stdout)
         self.assertIn("--root", result.stdout)
+        self.assertIn("--markdown-output", result.stdout)
 
     def test_audit_nominal_is_ok(self) -> None:
         result = _run_audit_tool(["--check"])
@@ -262,6 +272,23 @@ class AuditSupportMetricsCIContractToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Support metrics CI contract audit:", result.stdout)
         self.assertIn("- overall:", result.stdout)
+
+    def test_markdown_report_is_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_contract_audit.md"
+            result = _run_audit_tool(["--check", "--markdown-output", str(output_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+            self.assertIn("# Support metrics CI contract audit", content)
+            self.assertIn("- overall:", content)
+            self.assertIn("- README:", content)
+            self.assertIn("- workflow:", content)
+            self.assertIn("- tools:", content)
+            self.assertIn("- fixtures:", content)
+            self.assertIn("- fragments:", content)
+            self.assertIn("- artifacts:", content)
+            self.assertIn("not gameplay validation", content)
 
 
 if __name__ == "__main__":

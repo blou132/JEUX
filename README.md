@@ -742,6 +742,11 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - la CI GitHub Actions execute aussi `py tools/audit_support_metrics_ci_contract.py --check`.
   - cet audit verifie l'alignement entre README, workflow, fixtures CLI help, fragments et outils de maintenance.
   - ce controle reste maintenance CI/debug uniquement; il ne valide pas le gameplay.
+- Support metrics CI contract audit artifact:
+  - la CI genere `artifacts/support_metrics_ci_contract_audit.md` via `--markdown-output`.
+  - ce rapport est ajoute au `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-contract-audit`.
+  - ce rapport sert a diagnostiquer l'alignement contrat README/workflow/outils/fixtures/fragments.
+  - c'est un controle maintenance CI/debug uniquement; cela ne valide pas le gameplay.
 - Support metrics CI health artifact:
   - la CI genere `artifacts/support_metrics_ci_health.md` via `--markdown-output`.
   - ce rapport est visible dans le `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-health`.

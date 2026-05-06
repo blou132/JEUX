@@ -11,6 +11,7 @@ env:
   SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl
   SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl
   SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md
+  SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH: artifacts/support_metrics_ci_contract_audit.md
 
 jobs:
   tests:
@@ -33,7 +34,29 @@ jobs:
         run: py tools/check_support_metrics_ci_fragments.py --validate
 
       - name: Validate support metrics CI contract audit
-        run: py tools/audit_support_metrics_ci_contract.py --check
+        shell: pwsh
+        run: |
+          $contractAuditExitCode = 0
+
+          py tools/audit_support_metrics_ci_contract.py --check --markdown-output "$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH"
+
+          $contractAuditExitCode = $LASTEXITCODE
+
+          if (Test-Path "$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH") {
+            Get-Content "$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+
+          if ($contractAuditExitCode -ne 0) {
+            exit $contractAuditExitCode
+          }
+
+      - name: Upload support metrics CI contract audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-contract-audit
+          path: artifacts/support_metrics_ci_contract_audit.md
+          if-no-files-found: error
 
       # Global CI health report (blocking for CI/debug chain integrity)
       - name: Validate support metrics CI health
