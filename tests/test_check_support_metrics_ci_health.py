@@ -43,6 +43,53 @@ EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
     "local_simulation_summary_expected_fragments.txt",
     "local_simulation_report_expected_fragments.txt",
 )
+TEMP_ROOT_CLI_HELP_TOOLS: list[dict[str, object]] = [
+    {
+        "path": "tools/analyze_run_metrics_history.py",
+        "options": [
+            "--input",
+            "--compare-input",
+            "--ci-check",
+            "--format",
+            "--fail-on-regression",
+        ],
+    },
+    {
+        "path": "tools/write_support_metrics_ci_summary.py",
+        "options": [
+            "--baseline",
+            "--current",
+            "--report-output",
+            "--step-summary",
+            "--artifact-name",
+            "--ci-check",
+            "--strict",
+            "--analyze-script",
+            "--report-mode",
+            "--input-label",
+            "--compare-input-label",
+        ],
+    },
+    {
+        "path": "tools/simulate_support_metrics_ci.py",
+        "options": [
+            "--baseline",
+            "--current",
+            "--output-dir",
+            "--strict",
+            "--analyze-script",
+            "--report-mode",
+        ],
+    },
+    {
+        "path": "tools/check_support_metrics_ci_fragments.py",
+        "options": ["--list", "--validate", "--print-missing"],
+    },
+    {
+        "path": "tools/check_support_metrics_ci_health.py",
+        "options": ["--check", "--json", "--verbose", "--markdown-output"],
+    },
+]
 
 
 VALID_WORKFLOW_CONTENT = """name: Tests
@@ -90,6 +137,36 @@ def _run_health_tool(extra_args: list[str] | None = None) -> subprocess.Complete
     )
 
 
+def _write_dummy_cli_tool(path: Path, options: list[str]) -> None:
+    unique_options: list[str] = []
+    for option in options:
+        normalized = str(option).strip()
+        if normalized == "":
+            continue
+        if normalized not in unique_options:
+            unique_options.append(normalized)
+
+    option_lines = "\n".join(
+        [
+            "    parser.add_argument(%r, action='store_true')" % option
+            for option in unique_options
+        ]
+    )
+    content = (
+        "from __future__ import annotations\n"
+        "import argparse\n\n"
+        "def main() -> int:\n"
+        "    parser = argparse.ArgumentParser(description='dummy support metrics tool')\n"
+        f"{option_lines}\n"
+        "    parser.parse_args()\n"
+        "    return 0\n\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(main())\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
 def _write_minimal_valid_root(root_dir: Path) -> None:
     tools_dir = root_dir / "tools"
     contract_dir = root_dir / "tests" / "fixtures" / "support_metrics_contract"
@@ -103,6 +180,11 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
 
     for file_name in EXPECTED_TOOL_FILES:
         (tools_dir / file_name).write_text("# stub\n", encoding="utf-8")
+    for tool_entry in TEMP_ROOT_CLI_HELP_TOOLS:
+        _write_dummy_cli_tool(
+            root_dir / str(tool_entry["path"]),
+            [str(option) for option in list(tool_entry["options"])],
+        )
 
     (contract_dir / "recent_complete.jsonl").write_text("{\"ok\": true}\n", encoding="utf-8")
 
@@ -110,6 +192,11 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
         (fragments_dir / file_name).write_text("required fragment\n", encoding="utf-8")
 
     (workflow_dir / "tests.yml").write_text(VALID_WORKFLOW_CONTENT, encoding="utf-8")
+    (root_dir / "tests" / "fixtures").mkdir(parents=True, exist_ok=True)
+    (root_dir / "tests" / "fixtures" / "support_metrics_cli_help_expected.json").write_text(
+        json.dumps({"tools": TEMP_ROOT_CLI_HELP_TOOLS}, indent=2),
+        encoding="utf-8",
+    )
     (root_dir / "README.md").write_text(
         "\n".join(EXPECTED_README_SNIPPETS) + "\n",
         encoding="utf-8",
@@ -130,6 +217,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Support metrics CI health:", result.stdout)
         self.assertIn("- documentation: ok", result.stdout)
+        self.assertIn("- cli_help: ok", result.stdout)
         self.assertIn("- overall: ok", result.stdout)
 
     def test_missing_tool_file_in_temp_root_returns_error(self) -> None:
@@ -190,12 +278,14 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("workflow", parsed)
         self.assertIn("fragments", parsed)
         self.assertIn("documentation", parsed)
+        self.assertIn("cli_help", parsed)
 
     def test_text_output_contains_overall(self) -> None:
         result = _run_health_tool([])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Support metrics CI health:", result.stdout)
         self.assertIn("- documentation:", result.stdout)
+        self.assertIn("- cli_help:", result.stdout)
         self.assertIn("- overall:", result.stdout)
 
     def test_fragments_are_checked_via_v191_tool(self) -> None:
@@ -222,6 +312,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             content = output_path.read_text(encoding="utf-8")
             self.assertIn("# Support metrics CI health", content)
             self.assertIn("- documentation:", content)
+            self.assertIn("- cli_help:", content)
             self.assertIn("- overall:", content)
             self.assertIn("not gameplay validation", content)
 
@@ -275,6 +366,72 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertIn("- overall: error", result.stdout)
             self.assertIn(
                 "README missing snippet: tools/simulate_support_metrics_ci.py",
+                result.stdout,
+            )
+
+    def test_missing_cli_help_fixture_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "tests" / "fixtures" / "support_metrics_cli_help_expected.json").unlink()
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- cli_help: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn("missing CLI help contract fixture", result.stdout)
+
+    def test_cli_help_tool_listed_but_missing_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "tools" / "simulate_support_metrics_ci.py").unlink()
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- cli_help: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn("CLI help tool missing: tools/simulate_support_metrics_ci.py", result.stdout)
+
+    def test_cli_help_non_zero_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            failing_tool = temp_root / "tools" / "check_support_metrics_ci_fragments.py"
+            failing_tool.write_text(
+                "from __future__ import annotations\n"
+                "import sys\n"
+                "raise SystemExit(2)\n",
+                encoding="utf-8",
+            )
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- cli_help: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn(
+                "CLI help returned non-zero for tools/check_support_metrics_ci_fragments.py",
+                result.stdout,
+            )
+
+    def test_cli_help_missing_expected_option_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            fixture_path = temp_root / "tests" / "fixtures" / "support_metrics_cli_help_expected.json"
+            parsed = json.loads(fixture_path.read_text(encoding="utf-8"))
+            for tool_entry in parsed["tools"]:
+                if tool_entry["path"] == "tools/write_support_metrics_ci_summary.py":
+                    tool_entry["options"].append("--missing-contract-option")
+                    break
+            fixture_path.write_text(json.dumps(parsed, indent=2), encoding="utf-8")
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- cli_help: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn(
+                "CLI help missing option --missing-contract-option for tools/write_support_metrics_ci_summary.py",
                 result.stdout,
             )
 

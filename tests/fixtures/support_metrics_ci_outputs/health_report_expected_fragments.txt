@@ -6,5 +6,8 @@ fixtures
 fragments
 workflow
 documentation
+cli_help
+support metrics tools
+--help
 maintenance CI/debug only
 not gameplay validation

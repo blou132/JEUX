@@ -125,6 +125,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
             "verifie aussi que l'index README `Support metrics tools index` reste documente",
             content,
         )
+        self.assertIn("verifie aussi le contrat `--help` des outils support metrics", content)
         self.assertIn("Support metrics CI health artifact", content)
         self.assertIn("artifacts/support_metrics_ci_health.md", content)
         self.assertIn("support-metrics-ci-health", content)

@@ -4,6 +4,8 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import subprocess
+import sys
 
 from check_support_metrics_ci_fragments import inspect_fragment_directory
 
@@ -46,6 +48,9 @@ REQUIRED_README_SNIPPETS: tuple[str, ...] = (
     "runtime report optional",
     "no --fail-on-regression by default",
 )
+CLI_HELP_CONTRACT_RELATIVE_PATH = (
+    Path("tests") / "fixtures" / "support_metrics_cli_help_expected.json"
+)
 
 
 @dataclass
@@ -63,6 +68,7 @@ class HealthReport:
     workflow: ComponentStatus
     fragments: ComponentStatus
     documentation: ComponentStatus
+    cli_help: ComponentStatus
     overall: str
 
     def to_dict(self) -> dict[str, object]:
@@ -72,6 +78,7 @@ class HealthReport:
             "workflow": asdict(self.workflow),
             "fragments": asdict(self.fragments),
             "documentation": asdict(self.documentation),
+            "cli_help": asdict(self.cli_help),
             "overall": self.overall,
         }
 
@@ -288,12 +295,135 @@ def _check_documentation(root: Path) -> ComponentStatus:
     )
 
 
+def _check_cli_help(root: Path) -> ComponentStatus:
+    fixture_path = root / CLI_HELP_CONTRACT_RELATIVE_PATH
+    issues: list[str] = []
+    state = STATE_OK
+    tools_checked = 0
+    tools_with_errors = 0
+
+    if not fixture_path.exists():
+        return ComponentStatus(
+            name="cli_help",
+            state=STATE_ERROR,
+            issues=["missing CLI help contract fixture: %s" % str(CLI_HELP_CONTRACT_RELATIVE_PATH)],
+            details={
+                "fixture_path": str(fixture_path),
+                "exists": False,
+                "tools_checked": 0,
+                "tools_with_errors": 0,
+            },
+        )
+
+    try:
+        parsed = json.loads(fixture_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ComponentStatus(
+            name="cli_help",
+            state=STATE_ERROR,
+            issues=["invalid CLI help contract fixture: %s" % str(exc)],
+            details={
+                "fixture_path": str(fixture_path),
+                "exists": True,
+                "tools_checked": 0,
+                "tools_with_errors": 0,
+            },
+        )
+
+    tools = parsed.get("tools")
+    if not isinstance(tools, list) or len(tools) == 0:
+        return ComponentStatus(
+            name="cli_help",
+            state=STATE_ERROR,
+            issues=["CLI help contract fixture has no tools entries"],
+            details={
+                "fixture_path": str(fixture_path),
+                "exists": True,
+                "tools_checked": 0,
+                "tools_with_errors": 0,
+            },
+        )
+
+    for tool_entry in tools:
+        if not isinstance(tool_entry, dict):
+            tools_with_errors += 1
+            issues.append("CLI help fixture entry is not an object")
+            continue
+
+        tool_path_raw = str(tool_entry.get("path", "")).strip()
+        options = tool_entry.get("options", [])
+        if tool_path_raw == "":
+            tools_with_errors += 1
+            issues.append("CLI help fixture entry missing tool path")
+            continue
+        if not isinstance(options, list) or len(options) == 0:
+            tools_with_errors += 1
+            issues.append("CLI help fixture entry has no options: %s" % tool_path_raw)
+            continue
+
+        tool_path = root / tool_path_raw
+        if not tool_path.exists():
+            tools_with_errors += 1
+            issues.append("CLI help tool missing: %s" % tool_path_raw)
+            continue
+
+        tools_checked += 1
+        try:
+            help_result = subprocess.run(
+                [sys.executable, str(tool_path), "--help"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            tools_with_errors += 1
+            issues.append("CLI help execution failed for %s: %s" % (tool_path_raw, str(exc)))
+            continue
+
+        output = (help_result.stdout or "") + "\n" + (help_result.stderr or "")
+        output_lower = output.lower()
+
+        if help_result.returncode != 0:
+            tools_with_errors += 1
+            issues.append("CLI help returned non-zero for %s: %d" % (tool_path_raw, help_result.returncode))
+        if output.strip() == "":
+            tools_with_errors += 1
+            issues.append("CLI help output is empty for %s" % tool_path_raw)
+        if "traceback" in output_lower:
+            tools_with_errors += 1
+            issues.append("CLI help output contains traceback for %s" % tool_path_raw)
+        if ("usage" not in output_lower) and ("options" not in output_lower):
+            tools_with_errors += 1
+            issues.append("CLI help output missing usage/options for %s" % tool_path_raw)
+        for option in options:
+            if str(option) not in output:
+                tools_with_errors += 1
+                issues.append("CLI help missing option %s for %s" % (str(option), tool_path_raw))
+
+    if issues:
+        state = STATE_ERROR
+
+    return ComponentStatus(
+        name="cli_help",
+        state=state,
+        issues=issues,
+        details={
+            "fixture_path": str(fixture_path),
+            "exists": True,
+            "tools_checked": tools_checked,
+            "tools_with_errors": tools_with_errors,
+        },
+    )
+
+
 def build_health_report(root: Path) -> HealthReport:
     tools = _check_tools(root)
     fixtures = _check_fixtures(root)
     workflow = _check_workflow(root)
     fragments = _check_fragments(root)
     documentation = _check_documentation(root)
+    cli_help = _check_cli_help(root)
     overall = _worst_state(
         [
             tools.state,
@@ -301,6 +431,7 @@ def build_health_report(root: Path) -> HealthReport:
             workflow.state,
             fragments.state,
             documentation.state,
+            cli_help.state,
         ]
     )
     return HealthReport(
@@ -309,6 +440,7 @@ def build_health_report(root: Path) -> HealthReport:
         workflow=workflow,
         fragments=fragments,
         documentation=documentation,
+        cli_help=cli_help,
         overall=overall,
     )
 
@@ -320,6 +452,7 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
     print("- workflow: %s" % report.workflow.state)
     print("- fragments: %s" % report.fragments.state)
     print("- documentation: %s" % report.documentation.state)
+    print("- cli_help: %s" % report.cli_help.state)
     print("- overall: %s" % report.overall)
 
     if not verbose:
@@ -331,6 +464,7 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
         report.workflow,
         report.fragments,
         report.documentation,
+        report.cli_help,
     ):
         print("")
         print("%s details:" % component.name)
@@ -351,6 +485,8 @@ def _build_markdown_report(report: HealthReport) -> str:
     lines.append("- fragments: %s" % report.fragments.state)
     lines.append("- workflow: %s" % report.workflow.state)
     lines.append("- documentation: %s" % report.documentation.state)
+    lines.append("- cli_help: %s" % report.cli_help.state)
+    lines.append("- cli_help contract: support metrics tools --help")
     lines.append(
         "- interpretation: maintenance CI/debug only, not gameplay validation"
     )
