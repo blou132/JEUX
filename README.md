@@ -719,6 +719,18 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.
 - ces rapports restent des outils debug/observation uniquement.
+- le rapport ajoute un bloc `support_metrics_report_provenance` pour tracer l'origine des donnees:
+  - `input_label` / `compare_input_label`
+  - `has_compare_input`
+  - `ci_check_enabled` / `fail_on_regression`
+  - `record_count` / `invalid_line_count`
+  - `report_mode` (`smoke`, `runtime`, `local`, `manual`)
+  - `baseline_label` / `current_label` / `comparison_state` (`absent`, `present`, `incompatible`)
+- lecture rapide provenance:
+  - `smoke` = verification technique avec fixtures controlees.
+  - `runtime` = rapport reel base sur `outputs/ci/...` si presents.
+  - `local` = simulation locale via `tools/simulate_support_metrics_ci.py`.
+  - `manual` = execution CLI standard hors workflow CI.
 - le rapport ajoute un bloc JSON `support_metrics_final_decision` et une section texte/Markdown `Final decision` avec:
   - `decision` (`collect_support_gate_runs_first`, `collect_more_runs_before_deciding`, `keep_candidate_for_more_testing`, `reject_candidate_or_revert`, `review_tradeoff_before_tuning`, `no_runtime_data`)
   - `confidence` (`low`, `medium`, `high`, `n/a`)

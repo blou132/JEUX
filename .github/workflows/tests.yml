@@ -36,7 +36,10 @@ jobs:
             --current tests/fixtures/support_metrics_contract/recent_complete.jsonl `
             --report-output artifacts/support_metrics_smoke_report.md `
             --step-summary "$env:GITHUB_STEP_SUMMARY" `
-            --artifact-name "support-metrics-smoke-report"
+            --artifact-name "support-metrics-smoke-report" `
+            --report-mode "smoke" `
+            --input-label "fixtures:recent_complete.jsonl" `
+            --compare-input-label "fixtures:recent_complete.jsonl"
 
       - name: Upload support metrics smoke report artifact (technical fixtures)
         uses: actions/upload-artifact@v4
@@ -54,7 +57,10 @@ jobs:
             --current "$env:SUPPORT_METRICS_CURRENT_PATH" `
             --report-output "$env:SUPPORT_METRICS_REPORT_PATH" `
             --step-summary "$env:GITHUB_STEP_SUMMARY" `
-            --artifact-name "support-metrics-report"
+            --artifact-name "support-metrics-report" `
+            --report-mode "runtime" `
+            --input-label "$env:SUPPORT_METRICS_BASELINE_PATH" `
+            --compare-input-label "$env:SUPPORT_METRICS_CURRENT_PATH"
 
       - name: Upload support metrics runtime report artifact (optional)
         uses: actions/upload-artifact@v4

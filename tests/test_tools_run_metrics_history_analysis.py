@@ -12,6 +12,7 @@ from tools.analyze_run_metrics_history import (
     build_summary,
     build_support_metrics_final_decision,
     build_support_metrics_ci_check,
+    build_support_metrics_report_provenance,
     build_support_metrics_regression,
     read_jsonl_records,
 )
@@ -1100,6 +1101,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             "champion_support",
             "support_systems_summary",
             "support_metrics_quality",
+            "support_metrics_report_provenance",
             "support_metrics_final_decision",
         }
         self.assertTrue(expected_top_level_blocks.issubset(summary.keys()))
@@ -1187,6 +1189,24 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
 
         quality = summary["support_metrics_quality"]
         self.assertTrue({"state", "warnings", "interpretation"}.issubset(quality.keys()))
+        provenance = summary["support_metrics_report_provenance"]
+        self.assertTrue(
+            {
+                "input_label",
+                "compare_input_label",
+                "has_compare_input",
+                "ci_check_enabled",
+                "fail_on_regression",
+                "objective_filter",
+                "limit",
+                "record_count",
+                "invalid_line_count",
+                "report_mode",
+                "baseline_label",
+                "current_label",
+                "comparison_state",
+            }.issubset(provenance.keys())
+        )
         final_decision = summary["support_metrics_final_decision"]
         self.assertTrue(
             {
@@ -1211,6 +1231,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             summary = _build_summary_from_fixture(fixture_name)
             self.assertIn("support_systems_summary", summary)
             self.assertIn("support_metrics_quality", summary)
+            self.assertIn("support_metrics_report_provenance", summary)
             self.assertIn("support_metrics_final_decision", summary)
             self.assertEqual(summary["support_metrics_quality"]["state"], expected_state)
 
@@ -2500,6 +2521,92 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         self.assertIn("- confidence:", md_result.stdout)
         self.assertIn("- reasons:", md_result.stdout)
         self.assertIn("- blocking: no", md_result.stdout)
+
+    def test_support_metrics_report_provenance_json_without_compare(self) -> None:
+        summary = _run_summary_json(_fixture_path("recent_complete.jsonl"))
+        provenance = summary["support_metrics_report_provenance"]
+        self.assertEqual(provenance["input_label"], "recent_complete.jsonl")
+        self.assertEqual(provenance["compare_input_label"], "")
+        self.assertFalse(provenance["has_compare_input"])
+        self.assertFalse(provenance["ci_check_enabled"])
+        self.assertFalse(provenance["fail_on_regression"])
+        self.assertEqual(provenance["comparison_state"], "absent")
+        self.assertEqual(provenance["report_mode"], "manual")
+        self.assertEqual(provenance["baseline_label"], "n/a")
+        self.assertEqual(provenance["current_label"], "recent_complete.jsonl")
+        self.assertEqual(int(provenance["record_count"]), int(summary["exports_read"]))
+        self.assertEqual(int(provenance["invalid_line_count"]), int(summary["invalid_lines"]))
+
+    def test_support_metrics_report_provenance_json_with_compare_and_ci(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            [
+                "--compare-input",
+                str(_fixture_path("recent_complete.jsonl")),
+                "--ci-check",
+                "--input-label",
+                "smoke-baseline",
+                "--compare-input-label",
+                "smoke-current",
+                "--report-mode",
+                "smoke",
+            ],
+        )
+        provenance = summary["support_metrics_report_provenance"]
+        self.assertTrue(provenance["has_compare_input"])
+        self.assertTrue(provenance["ci_check_enabled"])
+        self.assertFalse(provenance["fail_on_regression"])
+        self.assertEqual(provenance["input_label"], "smoke-baseline")
+        self.assertEqual(provenance["compare_input_label"], "smoke-current")
+        self.assertEqual(provenance["baseline_label"], "smoke-baseline")
+        self.assertEqual(provenance["current_label"], "smoke-current")
+        self.assertEqual(provenance["comparison_state"], "present")
+        self.assertEqual(provenance["report_mode"], "smoke")
+
+    def test_support_metrics_report_provenance_text_and_markdown(self) -> None:
+        text_result = _run_cli(["--input", str(_fixture_path("recent_complete.jsonl"))])
+        self.assertEqual(text_result.returncode, 0, msg=text_result.stdout + text_result.stderr)
+        self.assertIn("Report provenance:", text_result.stdout)
+        self.assertIn("- input:", text_result.stdout)
+        self.assertIn("- compare input:", text_result.stdout)
+        self.assertIn("- records:", text_result.stdout)
+        self.assertIn("- invalid lines:", text_result.stdout)
+        self.assertIn("- ci check:", text_result.stdout)
+        self.assertIn("- mode:", text_result.stdout)
+
+        md_result = _run_cli(
+            ["--input", str(_fixture_path("recent_complete.jsonl")), "--format", "markdown"]
+        )
+        self.assertEqual(md_result.returncode, 0, msg=md_result.stdout + md_result.stderr)
+        self.assertIn("## Report provenance", md_result.stdout)
+        self.assertIn("- input:", md_result.stdout)
+        self.assertIn("- compare input:", md_result.stdout)
+        self.assertIn("- comparison:", md_result.stdout)
+        self.assertIn("- mode:", md_result.stdout)
+
+    def test_support_metrics_report_provenance_legacy_compatible(self) -> None:
+        summary = _run_summary_json(_fixture_path("legacy_no_champion_support.jsonl"))
+        provenance = summary["support_metrics_report_provenance"]
+        self.assertEqual(provenance["comparison_state"], "absent")
+        self.assertEqual(provenance["report_mode"], "manual")
+
+    def test_build_support_metrics_report_provenance_supports_incompatible_state(self) -> None:
+        provenance = build_support_metrics_report_provenance(
+            input_label="baseline",
+            compare_input_label="current",
+            has_compare_input=True,
+            ci_check_enabled=True,
+            fail_on_regression=False,
+            objective_filter="support_gate",
+            limit=10,
+            record_count=10,
+            invalid_line_count=0,
+            report_mode="runtime",
+            baseline_label="baseline",
+            current_label="current",
+            comparison_state="incompatible",
+        )
+        self.assertEqual(provenance["comparison_state"], "incompatible")
 
     def test_support_metrics_final_decision_legacy_compatibility(self) -> None:
         summary = _run_summary_json(_fixture_path("legacy_no_champion_support.jsonl"))

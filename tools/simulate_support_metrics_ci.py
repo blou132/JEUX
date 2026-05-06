@@ -40,6 +40,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional analyze script override (useful for tests).",
     )
+    parser.add_argument(
+        "--report-mode",
+        type=str,
+        default="local",
+        help="Provenance mode forwarded to support metrics summary script (default: local).",
+    )
     return parser
 
 
@@ -58,6 +64,9 @@ def _build_command(
     step_summary_path: Path,
     strict_mode: bool,
     analyze_script_path: Path | None,
+    report_mode: str,
+    input_label: str,
+    compare_input_label: str,
 ) -> list[str]:
     command: list[str] = [
         sys.executable,
@@ -72,6 +81,12 @@ def _build_command(
         str(step_summary_path),
         "--artifact-name",
         "support-metrics-report",
+        "--report-mode",
+        report_mode,
+        "--input-label",
+        input_label,
+        "--compare-input-label",
+        compare_input_label,
         "--ci-check",
     ]
     if strict_mode:
@@ -100,6 +115,9 @@ def main() -> int:
         step_summary_path=step_summary_path,
         strict_mode=bool(args.strict),
         analyze_script_path=args.analyze_script,
+        report_mode=str(args.report_mode).strip() or "local",
+        input_label="local:%s" % str(args.baseline),
+        compare_input_label="local:%s" % str(args.current),
     )
     result = subprocess.run(
         command,

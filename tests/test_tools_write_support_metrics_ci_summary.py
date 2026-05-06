@@ -22,6 +22,7 @@ def _run_ci_summary_tool(
     current_path: Path,
     report_path: Path,
     summary_path: Path,
+    artifact_name: str = "support-metrics-report",
     extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     command = [
@@ -36,7 +37,7 @@ def _run_ci_summary_tool(
         "--step-summary",
         str(summary_path),
         "--artifact-name",
-        "support-metrics-report",
+        artifact_name,
         "--ci-check",
     ]
     if extra_args:
@@ -114,6 +115,9 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("--strict", result.stdout)
         self.assertIn("--analyze-script", result.stdout)
+        self.assertIn("--report-mode", result.stdout)
+        self.assertIn("--input-label", result.stdout)
+        self.assertIn("--compare-input-label", result.stdout)
 
     def test_exports_present_stable_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -132,8 +136,11 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertIn("- status: passed", summary_text)
             self.assertIn("- blocking: no", summary_text)
             self.assertIn("- artifact: support-metrics-report", summary_text)
+            self.assertIn("- source: runtime outputs/ci", summary_text)
             self.assertIn("## Support metrics report", summary_text)
             self.assertIn("# Run Metrics History Analysis", summary_text)
+            self.assertIn("## Report provenance", report_path.read_text(encoding="utf-8"))
+            self.assertIn("- mode: runtime", report_path.read_text(encoding="utf-8"))
 
     def test_exports_present_changed_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -214,6 +221,26 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- status: changed", summary_text)
+
+    def test_smoke_artifact_is_labeled_as_smoke_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-smoke-report",
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn("- source: smoke fixtures", summary_text)
+            report_text = report_path.read_text(encoding="utf-8")
+            self.assertIn("- mode: smoke", report_text)
 
     def test_exports_present_warning_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

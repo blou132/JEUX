@@ -874,6 +874,21 @@ def build_summary(
         max_support_gate_success_rate_drop=0.05,
         max_rally_champion_success_rate_drop=0.05,
     )
+    summary["support_metrics_report_provenance"] = build_support_metrics_report_provenance(
+        input_label="current",
+        compare_input_label="",
+        has_compare_input=False,
+        ci_check_enabled=False,
+        fail_on_regression=False,
+        objective_filter=objective_filter or "",
+        limit=limit,
+        record_count=len(filtered_records),
+        invalid_line_count=invalid_lines,
+        report_mode="manual",
+        baseline_label="n/a",
+        current_label="current",
+        comparison_state="absent",
+    )
     summary["support_metrics_final_decision"] = build_support_metrics_final_decision(summary)
     summary["final_decision"] = build_final_decision(summary)
     return summary
@@ -1119,6 +1134,42 @@ def build_support_metrics_ci_check(
         if fail_on_regression:
             ci_check["exit_code"] = 1
     return ci_check
+
+
+def build_support_metrics_report_provenance(
+    *,
+    input_label: str,
+    compare_input_label: str,
+    has_compare_input: bool,
+    ci_check_enabled: bool,
+    fail_on_regression: bool,
+    objective_filter: str,
+    limit: int | None,
+    record_count: int,
+    invalid_line_count: int,
+    report_mode: str,
+    baseline_label: str,
+    current_label: str,
+    comparison_state: str,
+) -> dict[str, Any]:
+    normalized_comparison_state = comparison_state.strip().lower()
+    if normalized_comparison_state not in {"absent", "present", "incompatible"}:
+        normalized_comparison_state = "absent"
+    return {
+        "input_label": input_label.strip(),
+        "compare_input_label": compare_input_label.strip(),
+        "has_compare_input": bool(has_compare_input),
+        "ci_check_enabled": bool(ci_check_enabled),
+        "fail_on_regression": bool(fail_on_regression),
+        "objective_filter": objective_filter.strip(),
+        "limit": limit,
+        "record_count": int(record_count),
+        "invalid_line_count": int(invalid_line_count),
+        "report_mode": report_mode.strip() or "manual",
+        "baseline_label": baseline_label.strip(),
+        "current_label": current_label.strip(),
+        "comparison_state": normalized_comparison_state,
+    }
 
 
 def build_comparison_summary(baseline_summary: dict[str, Any], candidate_summary: dict[str, Any]) -> dict[str, Any]:
@@ -1397,6 +1448,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
     support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
+    support_metrics_report_provenance = summary.get("support_metrics_report_provenance", {})
     support_metrics_final_decision = summary.get("support_metrics_final_decision", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
@@ -1431,6 +1483,62 @@ def format_summary_text(summary: dict[str, Any]) -> str:
         lines.append("Objectives: " + ", ".join(objective_parts))
     else:
         lines.append("Objectives: none")
+    provenance_compare_input_label = "n/a"
+    provenance_comparison_state = "absent"
+    provenance_baseline_label = "n/a"
+    provenance_current_label = "n/a"
+    if isinstance(support_metrics_report_provenance, dict):
+        compare_input_label_value = str(
+            support_metrics_report_provenance.get("compare_input_label", "")
+        ).strip()
+        if compare_input_label_value:
+            provenance_compare_input_label = compare_input_label_value
+        provenance_comparison_state = (
+            str(support_metrics_report_provenance.get("comparison_state", "absent")).strip()
+            or "absent"
+        )
+        baseline_label_value = str(
+            support_metrics_report_provenance.get("baseline_label", "")
+        ).strip()
+        current_label_value = str(
+            support_metrics_report_provenance.get("current_label", "")
+        ).strip()
+        if baseline_label_value:
+            provenance_baseline_label = baseline_label_value
+        if current_label_value:
+            provenance_current_label = current_label_value
+    provenance_input_label = str(
+        support_metrics_report_provenance.get("input_label", "n/a")
+    ) if isinstance(support_metrics_report_provenance, dict) else "n/a"
+    provenance_record_count = int(
+        support_metrics_report_provenance.get("record_count", int(summary.get("exports_read", 0)))
+    ) if isinstance(support_metrics_report_provenance, dict) else int(summary.get("exports_read", 0))
+    provenance_invalid_lines = int(
+        support_metrics_report_provenance.get("invalid_line_count", int(summary.get("invalid_lines", 0)))
+    ) if isinstance(support_metrics_report_provenance, dict) else int(summary.get("invalid_lines", 0))
+    provenance_ci_enabled = bool(
+        support_metrics_report_provenance.get("ci_check_enabled", False)
+    ) if isinstance(support_metrics_report_provenance, dict) else False
+    provenance_fail_on_regression = bool(
+        support_metrics_report_provenance.get("fail_on_regression", False)
+    ) if isinstance(support_metrics_report_provenance, dict) else False
+    provenance_mode = (
+        str(support_metrics_report_provenance.get("report_mode", "manual")).strip()
+        if isinstance(support_metrics_report_provenance, dict)
+        else "manual"
+    ) or "manual"
+    lines.append("Report provenance:")
+    lines.append("- input: %s" % provenance_input_label)
+    lines.append("- compare input: %s" % provenance_compare_input_label)
+    lines.append(
+        "- comparison: %s (baseline=%s, current=%s)"
+        % (provenance_comparison_state, provenance_baseline_label, provenance_current_label)
+    )
+    lines.append("- records: %d" % provenance_record_count)
+    lines.append("- invalid lines: %d" % provenance_invalid_lines)
+    lines.append("- ci check: %s" % ("enabled" if provenance_ci_enabled else "disabled"))
+    lines.append("- fail on regression: %s" % ("yes" if provenance_fail_on_regression else "no"))
+    lines.append("- mode: %s" % provenance_mode)
 
     lines.append("Support gate records=%d" % int(support_gate.get("records", 0)))
     lines.append(
@@ -1685,6 +1793,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
     support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
+    support_metrics_report_provenance = summary.get("support_metrics_report_provenance", {})
     support_metrics_final_decision = summary.get("support_metrics_final_decision", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
@@ -1728,6 +1837,64 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             lines.append("- %s: %d" % (objective_id, int(count)))
     else:
         lines.append("- none")
+
+    provenance_compare_input_label = "n/a"
+    provenance_comparison_state = "absent"
+    provenance_baseline_label = "n/a"
+    provenance_current_label = "n/a"
+    if isinstance(support_metrics_report_provenance, dict):
+        compare_input_label_value = str(
+            support_metrics_report_provenance.get("compare_input_label", "")
+        ).strip()
+        if compare_input_label_value:
+            provenance_compare_input_label = compare_input_label_value
+        provenance_comparison_state = (
+            str(support_metrics_report_provenance.get("comparison_state", "absent")).strip()
+            or "absent"
+        )
+        baseline_label_value = str(
+            support_metrics_report_provenance.get("baseline_label", "")
+        ).strip()
+        current_label_value = str(
+            support_metrics_report_provenance.get("current_label", "")
+        ).strip()
+        if baseline_label_value:
+            provenance_baseline_label = baseline_label_value
+        if current_label_value:
+            provenance_current_label = current_label_value
+    provenance_input_label = str(
+        support_metrics_report_provenance.get("input_label", "n/a")
+    ) if isinstance(support_metrics_report_provenance, dict) else "n/a"
+    provenance_record_count = int(
+        support_metrics_report_provenance.get("record_count", int(summary.get("exports_read", 0)))
+    ) if isinstance(support_metrics_report_provenance, dict) else int(summary.get("exports_read", 0))
+    provenance_invalid_lines = int(
+        support_metrics_report_provenance.get("invalid_line_count", int(summary.get("invalid_lines", 0)))
+    ) if isinstance(support_metrics_report_provenance, dict) else int(summary.get("invalid_lines", 0))
+    provenance_ci_enabled = bool(
+        support_metrics_report_provenance.get("ci_check_enabled", False)
+    ) if isinstance(support_metrics_report_provenance, dict) else False
+    provenance_fail_on_regression = bool(
+        support_metrics_report_provenance.get("fail_on_regression", False)
+    ) if isinstance(support_metrics_report_provenance, dict) else False
+    provenance_mode = (
+        str(support_metrics_report_provenance.get("report_mode", "manual")).strip()
+        if isinstance(support_metrics_report_provenance, dict)
+        else "manual"
+    ) or "manual"
+    lines.append("")
+    lines.append("## Report provenance")
+    lines.append("- input: %s" % provenance_input_label)
+    lines.append("- compare input: %s" % provenance_compare_input_label)
+    lines.append(
+        "- comparison: %s (baseline=%s, current=%s)"
+        % (provenance_comparison_state, provenance_baseline_label, provenance_current_label)
+    )
+    lines.append("- records: %d" % provenance_record_count)
+    lines.append("- invalid lines: %d" % provenance_invalid_lines)
+    lines.append("- ci check: %s" % ("enabled" if provenance_ci_enabled else "disabled"))
+    lines.append("- fail on regression: %s" % ("yes" if provenance_fail_on_regression else "no"))
+    lines.append("- mode: %s" % provenance_mode)
 
     lines.append("")
     lines.append("## Support gate")
@@ -2065,6 +2232,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional second JSONL file to compare against --input (treated as candidate).",
     )
     parser.add_argument(
+        "--input-label",
+        type=str,
+        default="",
+        help="Optional friendly label for --input used in report provenance.",
+    )
+    parser.add_argument(
+        "--compare-input-label",
+        type=str,
+        default="",
+        help="Optional friendly label for --compare-input used in report provenance.",
+    )
+    parser.add_argument(
+        "--report-mode",
+        type=str,
+        default="manual",
+        help="Optional report provenance mode (example: smoke, runtime, local, manual).",
+    )
+    parser.add_argument(
         "--ci-check",
         action="store_true",
         help="Enable support metrics regression CI check.",
@@ -2102,6 +2287,9 @@ def main() -> int:
     limit = int(args.limit)
     ci_check_enabled = bool(args.ci_check or args.fail_on_regression)
     fail_on_regression = bool(args.fail_on_regression)
+    input_label_arg = str(args.input_label).strip()
+    compare_input_label_arg = str(args.compare_input_label).strip()
+    report_mode = str(args.report_mode).strip() or "manual"
     max_warning_delta = int(args.max_warning_delta)
     max_support_gate_success_rate_drop = float(args.max_support_gate_success_rate_drop)
     max_rally_champion_success_rate_drop = float(args.max_rally_champion_success_rate_drop)
@@ -2125,6 +2313,11 @@ def main() -> int:
     if compare_input_path is not None and not compare_input_path.exists():
         print("ERROR: compare input file not found: %s" % compare_input_path)
         return 1
+    input_label = input_label_arg or input_path.name
+    compare_input_label = ""
+    if compare_input_path is not None:
+        compare_input_label = compare_input_label_arg or compare_input_path.name
+    has_compare_input = compare_input_path is not None
 
     records, invalid_lines = read_jsonl_records(input_path)
     summary = build_summary(
@@ -2137,7 +2330,7 @@ def main() -> int:
         None,
         summary,
         baseline_label="n/a",
-        current_label=input_path.name,
+        current_label=input_label,
     )
     if compare_input_path is not None:
         compare_records, compare_invalid_lines = read_jsonl_records(compare_input_path)
@@ -2151,8 +2344,8 @@ def main() -> int:
         summary["support_metrics_regression"] = build_support_metrics_regression(
             summary,
             candidate_summary,
-            baseline_label=input_path.name,
-            current_label=compare_input_path.name,
+            baseline_label=input_label,
+            current_label=compare_input_label,
         )
     summary["support_metrics_ci_check"] = build_support_metrics_ci_check(
         summary.get("support_metrics_regression"),
@@ -2161,6 +2354,27 @@ def main() -> int:
         max_warning_delta=max_warning_delta,
         max_support_gate_success_rate_drop=max_support_gate_success_rate_drop,
         max_rally_champion_success_rate_drop=max_rally_champion_success_rate_drop,
+    )
+    regression_state = str(
+        summary.get("support_metrics_regression", {}).get("regression_state", "")
+    ).strip().lower()
+    comparison_state = "absent"
+    if has_compare_input:
+        comparison_state = "incompatible" if regression_state == "incompatible" else "present"
+    summary["support_metrics_report_provenance"] = build_support_metrics_report_provenance(
+        input_label=input_label,
+        compare_input_label=compare_input_label,
+        has_compare_input=has_compare_input,
+        ci_check_enabled=ci_check_enabled,
+        fail_on_regression=fail_on_regression,
+        objective_filter=objective,
+        limit=limit if limit > 0 else None,
+        record_count=int(summary.get("exports_read", 0)),
+        invalid_line_count=int(summary.get("invalid_lines", 0)),
+        report_mode=report_mode,
+        baseline_label="n/a" if not has_compare_input else input_label,
+        current_label=input_label if not has_compare_input else compare_input_label,
+        comparison_state=comparison_state,
     )
     summary["support_metrics_final_decision"] = build_support_metrics_final_decision(summary)
     summary["final_decision"] = build_final_decision(summary)

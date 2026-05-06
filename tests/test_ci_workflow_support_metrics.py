@@ -58,6 +58,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("support-metrics-report", content)
         self.assertIn("--artifact-name \"support-metrics-report\"", content)
         self.assertIn("--artifact-name \"support-metrics-smoke-report\"", content)
+        self.assertIn("--report-mode \"smoke\"", content)
+        self.assertIn("--report-mode \"runtime\"", content)
+        self.assertIn("--input-label \"fixtures:recent_complete.jsonl\"", content)
+        self.assertIn("--compare-input-label \"fixtures:recent_complete.jsonl\"", content)
 
     def test_workflow_keeps_smoke_and_runtime_paths_separated(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -70,6 +74,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("--current \"$env:SUPPORT_METRICS_CURRENT_PATH\"", content)
         self.assertIn("--report-output artifacts/support_metrics_smoke_report.md", content)
         self.assertIn("--report-output \"$env:SUPPORT_METRICS_REPORT_PATH\"", content)
+        self.assertIn("--input-label \"$env:SUPPORT_METRICS_BASELINE_PATH\"", content)
+        self.assertIn("--compare-input-label \"$env:SUPPORT_METRICS_CURRENT_PATH\"", content)
 
     def test_readme_documents_optional_ci_mode(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")
@@ -92,6 +98,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         content = ANALYZE_TOOL_PATH.read_text(encoding="utf-8")
         self.assertIn("def build_support_metrics_ci_check(", content)
         self.assertIn("support_metrics_ci_check", content)
+        self.assertIn("def build_support_metrics_report_provenance(", content)
+        self.assertIn("support_metrics_report_provenance", content)
 
 
 if __name__ == "__main__":

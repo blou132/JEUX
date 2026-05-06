@@ -62,6 +62,24 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path override for analyze_run_metrics_history.py (mainly for tests).",
     )
+    parser.add_argument(
+        "--report-mode",
+        type=str,
+        default="",
+        help="Optional provenance mode label (example: smoke, runtime, local, manual).",
+    )
+    parser.add_argument(
+        "--input-label",
+        type=str,
+        default="",
+        help="Optional provenance input label forwarded to analysis report.",
+    )
+    parser.add_argument(
+        "--compare-input-label",
+        type=str,
+        default="",
+        help="Optional provenance compare input label forwarded to analysis report.",
+    )
     return parser
 
 
@@ -86,12 +104,38 @@ def _map_compact_status(regression_state: str) -> str:
     return "warning"
 
 
+def _infer_report_mode(artifact_name: str, report_mode_arg: str) -> str:
+    explicit_mode = report_mode_arg.strip().lower()
+    if explicit_mode:
+        return explicit_mode
+    normalized_artifact = artifact_name.strip().lower()
+    if normalized_artifact == "support-metrics-smoke-report":
+        return "smoke"
+    if normalized_artifact == "support-metrics-report":
+        return "runtime"
+    return "manual"
+
+
+def _build_source_label(report_mode: str) -> str:
+    normalized_mode = report_mode.strip().lower()
+    if normalized_mode == "smoke":
+        return "smoke fixtures"
+    if normalized_mode == "runtime":
+        return "runtime outputs/ci"
+    if normalized_mode == "local":
+        return "local simulation"
+    return "manual"
+
+
 def _append_step_summary(
     step_summary_path: Path,
     compact_status: str,
     artifact_name: str,
     report_content: str,
     reason: str = "",
+    report_source: str = "",
+    input_label: str = "",
+    compare_input_label: str = "",
 ) -> None:
     lines: list[str] = []
     lines.append("## Support metrics CI status")
@@ -100,6 +144,12 @@ def _append_step_summary(
         lines.append("- reason: %s" % reason)
     lines.append("- blocking: no")
     lines.append("- artifact: %s" % artifact_name)
+    if report_source:
+        lines.append("- source: %s" % report_source)
+    if input_label:
+        lines.append("- input: %s" % input_label)
+    if compare_input_label:
+        lines.append("- compare input: %s" % compare_input_label)
     lines.append("")
     lines.append("## Support metrics report")
     lines.append("")
@@ -126,6 +176,9 @@ def _build_summary_json(
     analyze_script_path: Path,
     baseline_path: Path,
     current_path: Path,
+    report_mode: str,
+    input_label: str,
+    compare_input_label: str,
 ) -> dict[str, Any]:
     json_command = [
         sys.executable,
@@ -134,6 +187,12 @@ def _build_summary_json(
         str(baseline_path),
         "--compare-input",
         str(current_path),
+        "--input-label",
+        input_label,
+        "--compare-input-label",
+        compare_input_label,
+        "--report-mode",
+        report_mode,
         "--ci-check",
         "--format",
         "json",
@@ -156,6 +215,9 @@ def _write_markdown_report(
     baseline_path: Path,
     current_path: Path,
     report_output_path: Path,
+    report_mode: str,
+    input_label: str,
+    compare_input_label: str,
 ) -> None:
     report_output_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_command = [
@@ -165,6 +227,12 @@ def _write_markdown_report(
         str(baseline_path),
         "--compare-input",
         str(current_path),
+        "--input-label",
+        input_label,
+        "--compare-input-label",
+        compare_input_label,
+        "--report-mode",
+        report_mode,
         "--ci-check",
         "--format",
         "markdown",
@@ -206,6 +274,9 @@ def _handle_skip(
     report_output_path: Path,
     step_summary_path: Path | None,
     artifact_name: str,
+    report_source: str,
+    input_label: str,
+    compare_input_label: str,
 ) -> int:
     skip_report = SKIP_REPORT_MESSAGE + "\n"
     _write_text(report_output_path, skip_report)
@@ -216,6 +287,9 @@ def _handle_skip(
             artifact_name=artifact_name,
             report_content=skip_report,
             reason="exports baseline/current not found",
+            report_source=report_source,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
     return 0
 
@@ -226,6 +300,9 @@ def _handle_analysis_error(
     artifact_name: str,
     strict_mode: bool,
     error_message: str,
+    report_source: str,
+    input_label: str,
+    compare_input_label: str,
 ) -> int:
     report_content = _build_minimal_error_report(error_message)
     write_error_message = ""
@@ -245,6 +322,9 @@ def _handle_analysis_error(
             artifact_name=artifact_name,
             report_content=report_content,
             reason=reason,
+            report_source=report_source,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
     if strict_mode:
         return 1
@@ -258,6 +338,10 @@ def main() -> int:
     report_output_path: Path = args.report_output
     step_summary_path: Path | None = args.step_summary
     artifact_name = str(args.artifact_name).strip() or "support-metrics-report"
+    report_mode = _infer_report_mode(artifact_name, str(args.report_mode))
+    report_source = _build_source_label(report_mode)
+    input_label = str(args.input_label).strip() or str(baseline_path)
+    compare_input_label = str(args.compare_input_label).strip() or str(current_path)
     strict_mode = bool(args.strict)
     _ = bool(args.ci_check)
 
@@ -274,6 +358,9 @@ def main() -> int:
             report_output_path=report_output_path,
             step_summary_path=step_summary_path,
             artifact_name=artifact_name,
+            report_source=report_source,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
 
     try:
@@ -282,11 +369,17 @@ def main() -> int:
             baseline_path=baseline_path,
             current_path=current_path,
             report_output_path=report_output_path,
+            report_mode=report_mode,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
         summary_json = _build_summary_json(
             analyze_script_path=analyze_script_path,
             baseline_path=baseline_path,
             current_path=current_path,
+            report_mode=report_mode,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
         regression_state = _extract_regression_state(summary_json)
         compact_status = _map_compact_status(regression_state)
@@ -298,6 +391,9 @@ def main() -> int:
             artifact_name=artifact_name,
             strict_mode=strict_mode,
             error_message=str(exc),
+            report_source=report_source,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
 
     if step_summary_path is not None:
@@ -306,6 +402,9 @@ def main() -> int:
             compact_status=compact_status,
             artifact_name=artifact_name,
             report_content=report_content,
+            report_source=report_source,
+            input_label=input_label,
+            compare_input_label=compare_input_label,
         )
     return 0
 

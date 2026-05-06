@@ -74,6 +74,16 @@ raise SystemExit(1)
 
 
 class SimulateSupportMetricsCIToolTests(unittest.TestCase):
+    def test_simulation_help_exposes_report_mode_option(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--report-mode", result.stdout)
+
     def test_simulation_with_recent_fixtures_generates_report_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "simulation"
@@ -93,6 +103,10 @@ class SimulateSupportMetricsCIToolTests(unittest.TestCase):
             self.assertIn("Support metrics CI status", summary_text)
             self.assertIn("- status: passed", summary_text)
             self.assertIn("- artifact: support-metrics-report", summary_text)
+            self.assertIn("- source: local simulation", summary_text)
+            report_text = report_path.read_text(encoding="utf-8")
+            self.assertIn("## Report provenance", report_text)
+            self.assertIn("- mode: local", report_text)
 
     def test_simulation_missing_exports_is_skipped_and_non_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
