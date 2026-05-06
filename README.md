@@ -741,6 +741,41 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - ce rapport health a aussi un contrat de sortie par fragments (`health_summary_expected_fragments.txt`, `health_report_expected_fragments.txt`).
   - ce rapport verifie la chaine maintenance CI/debug (pas la validation gameplay).
   - runtime absent pour `support-metrics-report` reste non bloquant et n'est pas un echec gameplay.
+- Support metrics tools index:
+  - scope: `CI/debug only`.
+  - scope: `not gameplay validation`.
+  - invariant: `runtime report optional`.
+  - invariant: `no --fail-on-regression by default`.
+  - `tools/analyze_run_metrics_history.py`:
+    - role: analyse des historiques metrics (single-run et multi-run) + comparaison baseline/current.
+    - usage principal: rapport JSON/Markdown pour observation/tuning.
+    - mode: CI et local.
+    - bloquant: non bloquant par defaut; bloquant seulement si option explicite `--fail-on-regression`.
+    - exemple: `py tools/analyze_run_metrics_history.py --input reports/before.jsonl --compare-input reports/after.jsonl --ci-check --format markdown --output reports/compare.md`.
+  - `tools/write_support_metrics_ci_summary.py`:
+    - role: genere le rapport support metrics CI (smoke/runtime/local) + section Summary GitHub Actions.
+    - usage principal: produire `support-metrics-smoke-report` / `support-metrics-report` et statut compact.
+    - mode: CI et local.
+    - bloquant: non bloquant par defaut pour regressions metrics; rapport runtime reste optionnel.
+    - exemple: `py tools/write_support_metrics_ci_summary.py --ci-check --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --report-output artifacts/support_metrics_report.md --step-summary artifacts/local_step_summary.md --artifact-name support-metrics-report`.
+  - `tools/simulate_support_metrics_ci.py`:
+    - role: simulation locale de l'etape workflow support metrics.
+    - usage principal: reproduire artifacts + pseudo `GITHUB_STEP_SUMMARY` avant push.
+    - mode: local.
+    - bloquant: non bloquant par defaut; mode strict manuel `--strict`.
+    - exemple: `py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --output-dir artifacts/local_ci_sim`.
+  - `tools/check_support_metrics_ci_fragments.py`:
+    - role: validation du contrat de fragments de lisibilite (smoke/runtime/error/local/health).
+    - usage principal: verifier presence/non-vide/couverture categories des snapshots.
+    - mode: CI et local.
+    - bloquant: oui en CI sur `--validate` (contrat de rapport casse = echec maintenance CI/debug).
+    - exemple: `py tools/check_support_metrics_ci_fragments.py --validate`.
+  - `tools/check_support_metrics_ci_health.py`:
+    - role: health check global de la chaine support metrics CI (tools/fixtures/fragments/workflow).
+    - usage principal: verifier coherences globales et produire `support_metrics_ci_health.md`.
+    - mode: CI et local.
+    - bloquant: oui en CI sur `--check` (maintenance CI/debug), sans valider le gameplay.
+    - exemple: `py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md`.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.
