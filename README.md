@@ -719,13 +719,14 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.
 - ces rapports restent des outils debug/observation uniquement.
-- le rapport ajoute une section `Final decision` (JSON/texte/Markdown) pour donner une synthese courte de decision tuning:
-  - `Collect support_gate runs first.`
-  - `Collect more runs before deciding.`
-  - `Candidate tuning can be kept for further testing.`
-  - `Reject candidate tuning or revert.`
-  - `Review tradeoff before changing tuning.`
-- cette decision finale est une aide heuristique de lecture rapide, pas une preuve statistique.
+- le rapport ajoute un bloc JSON `support_metrics_final_decision` et une section texte/Markdown `Final decision` avec:
+  - `decision` (`collect_support_gate_runs_first`, `collect_more_runs_before_deciding`, `keep_candidate_for_more_testing`, `reject_candidate_or_revert`, `review_tradeoff_before_tuning`, `no_runtime_data`)
+  - `confidence` (`low`, `medium`, `high`, `n/a`)
+  - `reasons`
+  - `data_state`
+  - `is_blocking_decision` (reste `false` par defaut)
+- cette decision finale est une aide heuristique de lecture rapide, pas une preuve statistique et ne modifie pas le gameplay.
+- le mode bloquant reste manuel via `--ci-check --fail-on-regression` (la CI par defaut reste non bloquante).
 - note `user://` Godot:
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.

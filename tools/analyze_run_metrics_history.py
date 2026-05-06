@@ -23,6 +23,14 @@ COMPARISON_RATE_METRICS = {
 }
 COMPARISON_AVAILABLE_DROP_TOLERANCE = -0.05
 COMPARISON_STRONG_DROP_THRESHOLD = -0.10
+FINAL_DECISION_TEXT_BY_CODE = {
+    "collect_support_gate_runs_first": "Collect support_gate runs first.",
+    "collect_more_runs_before_deciding": "Collect more runs before deciding.",
+    "keep_candidate_for_more_testing": "Candidate tuning can be kept for further testing.",
+    "reject_candidate_or_revert": "Reject candidate tuning or revert.",
+    "review_tradeoff_before_tuning": "Review tradeoff before changing tuning.",
+    "no_runtime_data": "No runtime support metrics data available.",
+}
 
 
 def _as_float(value: Any) -> float | None:
@@ -866,6 +874,8 @@ def build_summary(
         max_support_gate_success_rate_drop=0.05,
         max_rally_champion_success_rate_drop=0.05,
     )
+    summary["support_metrics_final_decision"] = build_support_metrics_final_decision(summary)
+    summary["final_decision"] = build_final_decision(summary)
     return summary
 
 
@@ -1186,7 +1196,7 @@ def build_comparison_recommendation(comparison: dict[str, Any]) -> str:
     return "Comparison is inconclusive."
 
 
-def build_final_decision(summary: dict[str, Any]) -> str:
+def _build_legacy_final_decision(summary: dict[str, Any]) -> str:
     comparison = summary.get("comparison")
     support_gate = summary.get("support_gate", {})
     recommendations = summary.get("recommendations", [])
@@ -1227,6 +1237,151 @@ def build_final_decision(summary: dict[str, Any]) -> str:
     return "No clear tuning decision."
 
 
+def _build_support_metrics_data_state(summary: dict[str, Any]) -> str:
+    support_systems_summary = summary.get("support_systems_summary", {})
+    if isinstance(support_systems_summary, dict):
+        data_state = str(support_systems_summary.get("data_state", "")).strip().lower()
+        if data_state in {"complete", "partial", "no_data"}:
+            return data_state
+
+    support_metrics_quality = summary.get("support_metrics_quality", {})
+    if isinstance(support_metrics_quality, dict):
+        quality_state = str(support_metrics_quality.get("state", "")).strip().lower()
+        if quality_state == "no_data":
+            return "no_data"
+        if quality_state in {"incomplete", "warning"}:
+            return "partial"
+        if quality_state == "valid":
+            return "complete"
+    return "partial"
+
+
+def _is_strong_regression_warning(regression: dict[str, Any]) -> bool:
+    regression_state = str(regression.get("regression_state", "")).strip().lower()
+    if regression_state != "warning":
+        return False
+    if bool(regression.get("quality_state_changed", False)):
+        return True
+
+    warning_delta = _as_float(regression.get("warning_count_delta"))
+    if warning_delta is not None and warning_delta > 0.0:
+        return True
+
+    support_gate_drop = _as_float(regression.get("support_gate_success_rate_delta"))
+    if support_gate_drop is not None and support_gate_drop <= COMPARISON_STRONG_DROP_THRESHOLD:
+        return True
+
+    champion_drop = _as_float(regression.get("rally_champion_success_rate_delta"))
+    if champion_drop is not None and champion_drop <= COMPARISON_STRONG_DROP_THRESHOLD:
+        return True
+    return False
+
+
+def build_support_metrics_final_decision(summary: dict[str, Any]) -> dict[str, Any]:
+    support_gate = summary.get("support_gate", {})
+    champion_support = summary.get("champion_support", {})
+    support_metrics_quality = summary.get("support_metrics_quality", {})
+    support_metrics_regression = summary.get("support_metrics_regression", {})
+    support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
+
+    support_gate_records = int(support_gate.get("records", 0)) if isinstance(support_gate, dict) else 0
+    champion_records = int(champion_support.get("records", 0)) if isinstance(champion_support, dict) else 0
+    quality_state = (
+        str(support_metrics_quality.get("state", "")).strip().lower()
+        if isinstance(support_metrics_quality, dict)
+        else ""
+    )
+    regression_state = (
+        str(support_metrics_regression.get("regression_state", "")).strip().lower()
+        if isinstance(support_metrics_regression, dict)
+        else ""
+    )
+    ci_enabled = bool(support_metrics_ci_check.get("enabled", False)) if isinstance(support_metrics_ci_check, dict) else False
+    ci_passed = support_metrics_ci_check.get("passed") if isinstance(support_metrics_ci_check, dict) else None
+
+    data_state = _build_support_metrics_data_state(summary)
+    reasons: list[str] = []
+    decision = "collect_more_runs_before_deciding"
+    confidence = "low"
+
+    if data_state == "no_data":
+        decision = "no_runtime_data"
+        confidence = "n/a"
+        reasons.append("support_metrics_data_state_no_data")
+        if ci_enabled and ci_passed is None:
+            reasons.append("ci_check_skipped")
+    elif regression_state == "incompatible":
+        decision = "collect_more_runs_before_deciding"
+        confidence = "low"
+        reasons.append("regression_incompatible")
+    elif (
+        isinstance(support_metrics_regression, dict)
+        and data_state == "complete"
+        and _is_strong_regression_warning(support_metrics_regression)
+    ):
+        decision = "reject_candidate_or_revert"
+        confidence = "high"
+        reasons.append("strong_regression_warning")
+    elif quality_state == "warning":
+        decision = "review_tradeoff_before_tuning"
+        confidence = "medium"
+        reasons.append("quality_warning")
+    elif data_state == "partial" or quality_state == "incomplete":
+        if support_gate_records <= 0:
+            decision = "collect_support_gate_runs_first"
+            reasons.append("support_gate_data_missing")
+        else:
+            decision = "collect_more_runs_before_deciding"
+            reasons.append("partial_support_metrics_data")
+        confidence = "low"
+    elif regression_state == "no_baseline":
+        decision = "collect_more_runs_before_deciding"
+        confidence = "low"
+        reasons.append("regression_no_baseline")
+    elif regression_state == "warning":
+        decision = "review_tradeoff_before_tuning"
+        confidence = "medium"
+        reasons.append("regression_warning")
+    elif regression_state == "changed":
+        decision = "review_tradeoff_before_tuning"
+        confidence = "medium"
+        reasons.append("regression_changed")
+    elif regression_state == "stable" and data_state == "complete":
+        decision = "keep_candidate_for_more_testing"
+        confidence = "medium"
+        reasons.append("stable_complete_data")
+        if support_gate_records >= 10 and champion_records >= 10:
+            confidence = "high"
+            reasons.append("high_run_volume")
+    else:
+        decision = "collect_more_runs_before_deciding"
+        confidence = "low"
+        reasons.append("insufficient_decision_signals")
+
+    if regression_state == "no_baseline":
+        reasons.append("baseline_not_provided")
+    if ci_enabled and ci_passed is None:
+        reasons.append("ci_check_non_blocking_without_baseline")
+
+    return {
+        "decision": decision,
+        "confidence": confidence,
+        "reasons": list(dict.fromkeys(reasons)),
+        "data_state": data_state,
+        "is_blocking_decision": False,
+    }
+
+
+def build_final_decision(summary: dict[str, Any]) -> str:
+    final_block = summary.get("support_metrics_final_decision")
+    if isinstance(final_block, dict):
+        decision = str(final_block.get("decision", "")).strip()
+        mapped = FINAL_DECISION_TEXT_BY_CODE.get(decision)
+        if mapped is not None:
+            return mapped
+    return _build_legacy_final_decision(summary)
+
+
 def _pct(value: float | None) -> str:
     if value is None:
         return "n/a"
@@ -1242,6 +1397,7 @@ def format_summary_text(summary: dict[str, Any]) -> str:
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
     support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
+    support_metrics_final_decision = summary.get("support_metrics_final_decision", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1455,7 +1611,27 @@ def format_summary_text(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
-    if final_decision:
+    final_decision_reasons = []
+    if isinstance(support_metrics_final_decision, dict):
+        reasons_value = support_metrics_final_decision.get("reasons", [])
+        if isinstance(reasons_value, list):
+            final_decision_reasons = [str(item) for item in reasons_value if str(item).strip() != ""]
+    if isinstance(support_metrics_final_decision, dict) and support_metrics_final_decision:
+        decision_code = str(
+            support_metrics_final_decision.get("decision", "")
+        ).strip() or "collect_more_runs_before_deciding"
+        confidence_label = str(
+            support_metrics_final_decision.get("confidence", "")
+        ).strip() or "n/a"
+        reasons_label = ", ".join(final_decision_reasons) if final_decision_reasons else "none"
+        blocking_label = "yes" if bool(support_metrics_final_decision.get("is_blocking_decision", False)) else "no"
+        lines.append("Final decision:")
+        lines.append("- decision: %s" % decision_code)
+        lines.append("- confidence: %s" % confidence_label)
+        lines.append("- reasons: %s" % reasons_label)
+        lines.append("- blocking: %s" % blocking_label)
+        lines.append("- note: heuristic quick-read only (not statistical proof).")
+    elif final_decision:
         lines.append("Final decision: %s" % final_decision)
 
     comparison = summary.get("comparison")
@@ -1509,6 +1685,7 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
     support_metrics_quality = summary.get("support_metrics_quality", {})
     support_metrics_regression = summary.get("support_metrics_regression", {})
     support_metrics_ci_check = summary.get("support_metrics_ci_check", {})
+    support_metrics_final_decision = summary.get("support_metrics_final_decision", {})
     recommendations = summary.get("recommendations", [])
     final_decision = str(summary.get("final_decision", "")).strip()
 
@@ -1777,7 +1954,28 @@ def format_summary_markdown(summary: dict[str, Any]) -> str:
             lines.append("- %s" % str(recommendation))
     else:
         lines.append("- Support gate tuning looks stable.")
-    if final_decision:
+    final_decision_reasons = []
+    if isinstance(support_metrics_final_decision, dict):
+        reasons_value = support_metrics_final_decision.get("reasons", [])
+        if isinstance(reasons_value, list):
+            final_decision_reasons = [str(item) for item in reasons_value if str(item).strip() != ""]
+    if isinstance(support_metrics_final_decision, dict) and support_metrics_final_decision:
+        decision_code = str(
+            support_metrics_final_decision.get("decision", "")
+        ).strip() or "collect_more_runs_before_deciding"
+        confidence_label = str(
+            support_metrics_final_decision.get("confidence", "")
+        ).strip() or "n/a"
+        reasons_label = ", ".join(final_decision_reasons) if final_decision_reasons else "none"
+        blocking_label = "yes" if bool(support_metrics_final_decision.get("is_blocking_decision", False)) else "no"
+        lines.append("")
+        lines.append("## Final decision")
+        lines.append("- decision: %s" % decision_code)
+        lines.append("- confidence: %s" % confidence_label)
+        lines.append("- reasons: %s" % reasons_label)
+        lines.append("- blocking: %s" % blocking_label)
+        lines.append("- note: heuristic quick-read only (not statistical proof).")
+    elif final_decision:
         lines.append("")
         lines.append("## Final decision")
         lines.append("- %s" % final_decision)
@@ -1964,6 +2162,7 @@ def main() -> int:
         max_support_gate_success_rate_drop=max_support_gate_success_rate_drop,
         max_rally_champion_success_rate_drop=max_rally_champion_success_rate_drop,
     )
+    summary["support_metrics_final_decision"] = build_support_metrics_final_decision(summary)
     summary["final_decision"] = build_final_decision(summary)
 
     output_format = str(args.format).strip().lower()

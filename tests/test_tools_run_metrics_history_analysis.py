@@ -10,6 +10,7 @@ import unittest
 
 from tools.analyze_run_metrics_history import (
     build_summary,
+    build_support_metrics_final_decision,
     build_support_metrics_ci_check,
     build_support_metrics_regression,
     read_jsonl_records,
@@ -1099,6 +1100,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             "champion_support",
             "support_systems_summary",
             "support_metrics_quality",
+            "support_metrics_final_decision",
         }
         self.assertTrue(expected_top_level_blocks.issubset(summary.keys()))
 
@@ -1185,6 +1187,16 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
 
         quality = summary["support_metrics_quality"]
         self.assertTrue({"state", "warnings", "interpretation"}.issubset(quality.keys()))
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertTrue(
+            {
+                "decision",
+                "confidence",
+                "reasons",
+                "data_state",
+                "is_blocking_decision",
+            }.issubset(final_decision.keys())
+        )
 
     def test_support_metrics_contract_fixtures_are_legacy_compatible(self) -> None:
         expected_states = {
@@ -1199,6 +1211,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             summary = _build_summary_from_fixture(fixture_name)
             self.assertIn("support_systems_summary", summary)
             self.assertIn("support_metrics_quality", summary)
+            self.assertIn("support_metrics_final_decision", summary)
             self.assertEqual(summary["support_metrics_quality"]["state"], expected_state)
 
         legacy_summary = _build_summary_from_fixture("legacy_no_champion_support.jsonl")
@@ -1726,7 +1739,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
             _write_jsonl(input_path, rows)
             summary = _run_summary_json(input_path)
             self.assertIn("Not enough support_gate data.", summary["recommendations"])
-            self.assertEqual(summary["final_decision"], "Collect support_gate runs first.")
+            self.assertEqual(summary["final_decision"], "No runtime support metrics data available.")
 
     def test_recommendations_low_available_ratio(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1862,7 +1875,7 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
                 ),
             ]
         )
-        self.assertEqual(summary["final_decision"], "Current support_gate tuning looks acceptable.")
+        self.assertEqual(summary["final_decision"], "Collect more runs before deciding.")
 
     def test_support_gate_stability_unknown(self) -> None:
         summary = _run_summary_from_rows(
@@ -2182,21 +2195,326 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         self.assertEqual(summary["comparison"]["confidence"], "high")
 
     def test_final_decision_comparison_better_with_medium_confidence(self) -> None:
+        baseline_rows = _build_support_gate_rows(
+            "base_better_decision", 3, success_rate=0.50, available_ratio=0.50
+        )
+        baseline_rows.extend(
+            [
+                json.dumps(
+                    {
+                        "export_id": "base_better_champ_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 2,
+                        "champion_support_run_success_rate": 0.40,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 2,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 1,
+                        "champion_support_failed_total": 0,
+                    }
+                )
+            ]
+        )
+        candidate_rows = _build_support_gate_rows(
+            "cand_better_decision", 3, success_rate=0.70, available_ratio=0.48
+        )
+        candidate_rows.extend(
+            [
+                json.dumps(
+                    {
+                        "export_id": "cand_better_champ_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 5,
+                        "champion_support_run_success": 3,
+                        "champion_support_run_success_rate": 0.60,
+                        "champion_support_attempts_total": 5,
+                        "champion_support_success_total": 3,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 1,
+                        "champion_support_failed_total": 0,
+                    }
+                )
+            ]
+        )
         summary = _run_comparison_summary_json(
-            baseline_rows=_build_support_gate_rows("base_better_decision", 3, success_rate=0.50, available_ratio=0.50),
-            candidate_rows=_build_support_gate_rows("cand_better_decision", 3, success_rate=0.70, available_ratio=0.48),
+            baseline_rows=baseline_rows,
+            candidate_rows=candidate_rows,
         )
         self.assertEqual(summary["comparison"]["confidence"], "medium")
         self.assertEqual(summary["comparison"]["recommendation"], "Candidate looks better for support_gate.")
-        self.assertEqual(summary["final_decision"], "Candidate tuning can be kept for further testing.")
+        self.assertEqual(summary["final_decision"], "Review tradeoff before changing tuning.")
 
     def test_final_decision_comparison_worse(self) -> None:
+        baseline_rows = _build_support_gate_rows(
+            "base_worse_decision",
+            3,
+            success_rate=0.70,
+            available_ratio=0.50,
+            run_status="completed",
+            objective_status="completed",
+        )
+        baseline_rows.extend(
+            [
+                json.dumps(
+                    {
+                        "export_id": "base_worse_champ_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "completed",
+                        "objective_status": "completed",
+                        "champion_support_run_attempts": 6,
+                        "champion_support_run_success": 4,
+                        "champion_support_run_success_rate": 0.66,
+                        "champion_support_attempts_total": 6,
+                        "champion_support_success_total": 4,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 1,
+                        "champion_support_failed_total": 0,
+                    }
+                )
+            ]
+        )
+        candidate_rows = _build_support_gate_rows(
+            "cand_worse_decision",
+            3,
+            success_rate=0.40,
+            available_ratio=0.45,
+            run_status="failed",
+            objective_status="failed",
+        )
+        candidate_rows.extend(
+            [
+                json.dumps(
+                    {
+                        "export_id": "cand_worse_champ_1",
+                        "objective_id": "rally_champion",
+                        "run_status": "failed",
+                        "objective_status": "failed",
+                        "champion_support_run_attempts": 6,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.16,
+                        "champion_support_attempts_total": 6,
+                        "champion_support_success_total": 1,
+                        "champion_support_unavailable_total": 1,
+                        "champion_support_cooldown_blocked_total": 1,
+                        "champion_support_completed_total": 0,
+                        "champion_support_failed_total": 1,
+                    }
+                )
+            ]
+        )
         summary = _run_comparison_summary_json(
-            baseline_rows=_build_support_gate_rows("base_worse_decision", 3, success_rate=0.70, available_ratio=0.50, run_status="completed", objective_status="completed"),
-            candidate_rows=_build_support_gate_rows("cand_worse_decision", 3, success_rate=0.40, available_ratio=0.45, run_status="failed", objective_status="failed"),
+            baseline_rows=baseline_rows,
+            candidate_rows=candidate_rows,
         )
         self.assertEqual(summary["comparison"]["recommendation"], "Candidate looks worse for support_gate.")
-        self.assertEqual(summary["final_decision"], "Reject candidate tuning or revert.")
+        self.assertEqual(summary["final_decision"], "Review tradeoff before changing tuning.")
+
+    def test_support_metrics_final_decision_no_runtime_data(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "final_decision_no_data",
+                        "objective_id": "observe_dominance",
+                        "run_status": "running",
+                        "objective_status": "active",
+                    }
+                )
+            ]
+        )
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "no_runtime_data")
+        self.assertEqual(final_decision["confidence"], "n/a")
+        self.assertEqual(final_decision["data_state"], "no_data")
+        self.assertFalse(final_decision["is_blocking_decision"])
+
+    def test_build_support_metrics_final_decision_function_shape(self) -> None:
+        summary = _build_summary_from_fixture("recent_complete.jsonl")
+        final_decision = build_support_metrics_final_decision(summary)
+        self.assertIn("decision", final_decision)
+        self.assertIn("confidence", final_decision)
+        self.assertIn("reasons", final_decision)
+        self.assertIn("data_state", final_decision)
+        self.assertIn("is_blocking_decision", final_decision)
+
+    def test_support_metrics_final_decision_no_baseline_collect_more(self) -> None:
+        summary = _run_summary_json(_fixture_path("recent_complete.jsonl"))
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(summary["support_metrics_regression"]["regression_state"], "no_baseline")
+        self.assertEqual(final_decision["decision"], "collect_more_runs_before_deciding")
+        self.assertEqual(final_decision["confidence"], "low")
+        self.assertIn("baseline_not_provided", final_decision["reasons"])
+        self.assertFalse(final_decision["is_blocking_decision"])
+
+    def test_support_metrics_final_decision_partial_data_collect_more(self) -> None:
+        summary = _run_summary_json(_fixture_path("legacy_no_champion_support.jsonl"))
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["data_state"], "partial")
+        self.assertEqual(final_decision["decision"], "collect_more_runs_before_deciding")
+        self.assertEqual(final_decision["confidence"], "low")
+
+    def test_support_metrics_final_decision_quality_warning_review_tradeoff(self) -> None:
+        summary = _run_summary_json(_fixture_path("incoherent_export.jsonl"))
+        self.assertEqual(summary["support_metrics_quality"]["state"], "warning")
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "review_tradeoff_before_tuning")
+        self.assertEqual(final_decision["confidence"], "medium")
+        self.assertIn("quality_warning", final_decision["reasons"])
+
+    def test_support_metrics_final_decision_regression_stable_keep_candidate(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            ["--compare-input", str(_fixture_path("recent_complete.jsonl"))],
+        )
+        self.assertEqual(summary["support_metrics_regression"]["regression_state"], "stable")
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "keep_candidate_for_more_testing")
+        self.assertIn(final_decision["confidence"], {"medium", "high"})
+        self.assertFalse(final_decision["is_blocking_decision"])
+
+    def test_support_metrics_final_decision_regression_changed_review_tradeoff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline_path = Path(tmpdir) / "baseline.jsonl"
+            current_path = Path(tmpdir) / "current.jsonl"
+            _write_jsonl(
+                baseline_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "base_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 3,
+                            "support_gate_run_success_rate": 0.50,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "base_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 2,
+                            "champion_support_run_success_rate": 0.40,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 2,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            _write_jsonl(
+                current_path,
+                [
+                    json.dumps(
+                        {
+                            "export_id": "curr_gate",
+                            "objective_id": "support_gate",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "support_gate_run_attempts": 6,
+                            "support_gate_run_success": 4,
+                            "support_gate_run_success_rate": 0.60,
+                            "support_gate_run_available_ratio": 0.50,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "export_id": "curr_champ",
+                            "objective_id": "rally_champion",
+                            "run_status": "completed",
+                            "objective_status": "completed",
+                            "champion_support_run_attempts": 5,
+                            "champion_support_run_success": 2,
+                            "champion_support_run_success_rate": 0.40,
+                            "champion_support_attempts_total": 5,
+                            "champion_support_success_total": 2,
+                            "champion_support_unavailable_total": 1,
+                            "champion_support_cooldown_blocked_total": 1,
+                            "champion_support_completed_total": 1,
+                            "champion_support_failed_total": 0,
+                        }
+                    ),
+                ],
+            )
+            summary = _run_summary_json(
+                baseline_path,
+                ["--compare-input", str(current_path)],
+            )
+        self.assertEqual(summary["support_metrics_regression"]["regression_state"], "changed")
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "review_tradeoff_before_tuning")
+        self.assertEqual(final_decision["confidence"], "medium")
+        self.assertIn("regression_changed", final_decision["reasons"])
+
+    def test_support_metrics_final_decision_regression_warning_reject(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            ["--compare-input", str(_fixture_path("incoherent_export.jsonl"))],
+        )
+        self.assertEqual(summary["support_metrics_regression"]["regression_state"], "warning")
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "reject_candidate_or_revert")
+        self.assertEqual(final_decision["confidence"], "high")
+        self.assertIn("strong_regression_warning", final_decision["reasons"])
+
+    def test_support_metrics_final_decision_json_text_markdown_outputs(self) -> None:
+        summary = _run_summary_json(_fixture_path("recent_complete.jsonl"))
+        self.assertIn("support_metrics_final_decision", summary)
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertIn("decision", final_decision)
+        self.assertIn("confidence", final_decision)
+        self.assertIn("reasons", final_decision)
+        self.assertIn("data_state", final_decision)
+        self.assertIn("is_blocking_decision", final_decision)
+
+        text_result = _run_cli(["--input", str(_fixture_path("recent_complete.jsonl"))])
+        self.assertEqual(text_result.returncode, 0, msg=text_result.stdout + text_result.stderr)
+        self.assertIn("Final decision:", text_result.stdout)
+        self.assertIn("- decision:", text_result.stdout)
+        self.assertIn("- confidence:", text_result.stdout)
+        self.assertIn("- reasons:", text_result.stdout)
+        self.assertIn("- blocking: no", text_result.stdout)
+
+        md_result = _run_cli(
+            ["--input", str(_fixture_path("recent_complete.jsonl")), "--format", "markdown"]
+        )
+        self.assertEqual(md_result.returncode, 0, msg=md_result.stdout + md_result.stderr)
+        self.assertIn("## Final decision", md_result.stdout)
+        self.assertIn("- decision:", md_result.stdout)
+        self.assertIn("- confidence:", md_result.stdout)
+        self.assertIn("- reasons:", md_result.stdout)
+        self.assertIn("- blocking: no", md_result.stdout)
+
+    def test_support_metrics_final_decision_legacy_compatibility(self) -> None:
+        summary = _run_summary_json(_fixture_path("legacy_no_champion_support.jsonl"))
+        self.assertIn("support_metrics_final_decision", summary)
+        final_decision = summary["support_metrics_final_decision"]
+        self.assertEqual(final_decision["decision"], "collect_more_runs_before_deciding")
+        self.assertFalse(final_decision["is_blocking_decision"])
+
+    def test_support_metrics_final_decision_ci_remains_non_blocking_by_default(self) -> None:
+        summary = _run_summary_json(
+            _fixture_path("recent_complete.jsonl"),
+            ["--compare-input", str(_fixture_path("incoherent_export.jsonl")), "--ci-check"],
+        )
+        self.assertEqual(summary["support_metrics_ci_check"]["exit_code"], 0)
+        self.assertFalse(summary["support_metrics_final_decision"]["is_blocking_decision"])
 
     def test_comparison_markdown_contains_comparison_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
