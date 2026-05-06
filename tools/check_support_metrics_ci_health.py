@@ -36,6 +36,15 @@ REQUIRED_WORKFLOW_SNIPPETS: tuple[str, ...] = (
     "support-metrics-report",
 )
 FORBIDDEN_WORKFLOW_SNIPPETS: tuple[str, ...] = ("--fail-on-regression",)
+REQUIRED_CONTRACT_AUDIT_WORKFLOW_SNIPPETS: tuple[str, ...] = (
+    "Validate support metrics CI contract audit",
+    "py tools/audit_support_metrics_ci_contract.py --check --markdown-output",
+    "support-metrics-ci-contract-audit",
+    "artifacts/support_metrics_ci_contract_audit.md",
+)
+AUDIT_CONTRACT_TOOL_RELATIVE_PATH = (
+    Path("tools") / "audit_support_metrics_ci_contract.py"
+)
 REQUIRED_README_SNIPPETS: tuple[str, ...] = (
     "Support metrics tools index",
     "tools/analyze_run_metrics_history.py",
@@ -43,6 +52,8 @@ REQUIRED_README_SNIPPETS: tuple[str, ...] = (
     "tools/simulate_support_metrics_ci.py",
     "tools/check_support_metrics_ci_fragments.py",
     "tools/check_support_metrics_ci_health.py",
+    "tools/audit_support_metrics_ci_contract.py",
+    "Support metrics CI contract audit artifact",
     "CI/debug only",
     "not gameplay validation",
     "runtime report optional",
@@ -69,6 +80,7 @@ class HealthReport:
     fragments: ComponentStatus
     documentation: ComponentStatus
     cli_help: ComponentStatus
+    contract_audit: ComponentStatus
     overall: str
 
     def to_dict(self) -> dict[str, object]:
@@ -79,6 +91,7 @@ class HealthReport:
             "fragments": asdict(self.fragments),
             "documentation": asdict(self.documentation),
             "cli_help": asdict(self.cli_help),
+            "contract_audit": asdict(self.contract_audit),
             "overall": self.overall,
         }
 
@@ -417,6 +430,66 @@ def _check_cli_help(root: Path) -> ComponentStatus:
     )
 
 
+def _check_contract_audit(root: Path) -> ComponentStatus:
+    issues: list[str] = []
+    state = STATE_OK
+    tool_path = root / AUDIT_CONTRACT_TOOL_RELATIVE_PATH
+    workflow_path = root / ".github" / "workflows" / "tests.yml"
+    workflow_content = ""
+
+    if not tool_path.exists():
+        issues.append("missing contract audit tool: %s" % str(AUDIT_CONTRACT_TOOL_RELATIVE_PATH))
+    else:
+        try:
+            help_result = subprocess.run(
+                [sys.executable, str(tool_path), "--help"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            issues.append("contract audit --help failed: %s" % str(exc))
+        else:
+            combined_output = (help_result.stdout or "") + "\n" + (help_result.stderr or "")
+            if help_result.returncode != 0:
+                issues.append("contract audit --help returned non-zero: %d" % help_result.returncode)
+            if combined_output.strip() == "":
+                issues.append("contract audit --help output is empty")
+            if "traceback" in combined_output.lower():
+                issues.append("contract audit --help output contains traceback")
+
+    if not workflow_path.exists():
+        issues.append("missing workflow for contract audit checks: .github/workflows/tests.yml")
+    else:
+        workflow_content = workflow_path.read_text(encoding="utf-8")
+        for snippet in REQUIRED_CONTRACT_AUDIT_WORKFLOW_SNIPPETS:
+            if snippet not in workflow_content:
+                issues.append("workflow missing contract audit snippet: %s" % snippet)
+
+        has_markdown_path = (
+            "--markdown-output artifacts/support_metrics_ci_contract_audit.md" in workflow_content
+            or "--markdown-output \"$env:SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH\"" in workflow_content
+        )
+        if not has_markdown_path:
+            issues.append("workflow missing contract audit markdown output path configuration")
+
+    if issues:
+        state = STATE_ERROR
+
+    return ComponentStatus(
+        name="contract_audit",
+        state=state,
+        issues=issues,
+        details={
+            "tool_path": str(tool_path),
+            "tool_exists": tool_path.exists(),
+            "workflow_path": str(workflow_path),
+            "workflow_checked": workflow_path.exists(),
+        },
+    )
+
+
 def build_health_report(root: Path) -> HealthReport:
     tools = _check_tools(root)
     fixtures = _check_fixtures(root)
@@ -424,6 +497,7 @@ def build_health_report(root: Path) -> HealthReport:
     fragments = _check_fragments(root)
     documentation = _check_documentation(root)
     cli_help = _check_cli_help(root)
+    contract_audit = _check_contract_audit(root)
     overall = _worst_state(
         [
             tools.state,
@@ -432,6 +506,7 @@ def build_health_report(root: Path) -> HealthReport:
             fragments.state,
             documentation.state,
             cli_help.state,
+            contract_audit.state,
         ]
     )
     return HealthReport(
@@ -441,6 +516,7 @@ def build_health_report(root: Path) -> HealthReport:
         fragments=fragments,
         documentation=documentation,
         cli_help=cli_help,
+        contract_audit=contract_audit,
         overall=overall,
     )
 
@@ -453,6 +529,7 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
     print("- fragments: %s" % report.fragments.state)
     print("- documentation: %s" % report.documentation.state)
     print("- cli_help: %s" % report.cli_help.state)
+    print("- contract_audit: %s" % report.contract_audit.state)
     print("- overall: %s" % report.overall)
 
     if not verbose:
@@ -465,6 +542,7 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
         report.fragments,
         report.documentation,
         report.cli_help,
+        report.contract_audit,
     ):
         print("")
         print("%s details:" % component.name)
@@ -486,6 +564,9 @@ def _build_markdown_report(report: HealthReport) -> str:
     lines.append("- workflow: %s" % report.workflow.state)
     lines.append("- documentation: %s" % report.documentation.state)
     lines.append("- cli_help: %s" % report.cli_help.state)
+    lines.append("- contract_audit: %s" % report.contract_audit.state)
+    lines.append("- contract_audit artifact: support-metrics-ci-contract-audit")
+    lines.append("- contract_audit tool: audit_support_metrics_ci_contract.py")
     lines.append("- cli_help contract: support metrics tools --help")
     lines.append(
         "- interpretation: maintenance CI/debug only, not gameplay validation"

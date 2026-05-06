@@ -7,6 +7,9 @@ fragments
 workflow
 documentation
 cli_help
+contract_audit
+support-metrics-ci-contract-audit
+audit_support_metrics_ci_contract.py
 support metrics tools
 --help
 maintenance CI/debug only

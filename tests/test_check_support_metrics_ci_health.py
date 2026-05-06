@@ -18,6 +18,7 @@ EXPECTED_TOOL_FILES: tuple[str, ...] = (
     "write_support_metrics_ci_summary.py",
     "simulate_support_metrics_ci.py",
     "check_support_metrics_ci_fragments.py",
+    "audit_support_metrics_ci_contract.py",
 )
 EXPECTED_README_SNIPPETS: tuple[str, ...] = (
     "Support metrics tools index",
@@ -26,6 +27,8 @@ EXPECTED_README_SNIPPETS: tuple[str, ...] = (
     "tools/simulate_support_metrics_ci.py",
     "tools/check_support_metrics_ci_fragments.py",
     "tools/check_support_metrics_ci_health.py",
+    "tools/audit_support_metrics_ci_contract.py",
+    "Support metrics CI contract audit artifact",
     "CI/debug only",
     "not gameplay validation",
     "runtime report optional",
@@ -91,6 +94,10 @@ TEMP_ROOT_CLI_HELP_TOOLS: list[dict[str, object]] = [
         "path": "tools/check_support_metrics_ci_health.py",
         "options": ["--check", "--json", "--verbose", "--markdown-output"],
     },
+    {
+        "path": "tools/audit_support_metrics_ci_contract.py",
+        "options": ["--json", "--check", "--verbose", "--markdown-output"],
+    },
 ]
 
 
@@ -103,6 +110,13 @@ jobs:
         run: py -m unittest discover -s tests -p "test_*.py"
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
+      - name: Validate support metrics CI contract audit
+        run: py tools/audit_support_metrics_ci_contract.py --check --markdown-output artifacts/support_metrics_ci_contract_audit.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-contract-audit
+          path: artifacts/support_metrics_ci_contract_audit.md
+          if-no-files-found: error
       - name: Validate support metrics CI health
         run: |
           py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
@@ -220,6 +234,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("Support metrics CI health:", result.stdout)
         self.assertIn("- documentation: ok", result.stdout)
         self.assertIn("- cli_help: ok", result.stdout)
+        self.assertIn("- contract_audit: ok", result.stdout)
         self.assertIn("- overall: ok", result.stdout)
 
     def test_missing_tool_file_in_temp_root_returns_error(self) -> None:
@@ -270,6 +285,60 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertIn("- overall: warning", result.stdout)
             self.assertIn("workflow contains forbidden snippet: --fail-on-regression", result.stdout)
 
+    def test_workflow_without_contract_audit_step_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            workflow_path = temp_root / ".github" / "workflows" / "tests.yml"
+            content = workflow_path.read_text(encoding="utf-8")
+            content = content.replace(
+                '      - name: Validate support metrics CI contract audit\n'
+                '        run: py tools/audit_support_metrics_ci_contract.py --check --markdown-output artifacts/support_metrics_ci_contract_audit.md\n',
+                "",
+            )
+            workflow_path.write_text(content, encoding="utf-8")
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- contract_audit: error", result.stdout)
+            self.assertIn(
+                "workflow missing contract audit snippet: Validate support metrics CI contract audit",
+                result.stdout,
+            )
+
+    def test_workflow_without_contract_audit_artifact_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            workflow_path = temp_root / ".github" / "workflows" / "tests.yml"
+            workflow_path.write_text(
+                workflow_path.read_text(encoding="utf-8").replace(
+                    "name: support-metrics-ci-contract-audit",
+                    "name: contract-audit-artifact-missing",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- contract_audit: error", result.stdout)
+            self.assertIn(
+                "workflow missing contract audit snippet: support-metrics-ci-contract-audit",
+                result.stdout,
+            )
+
+    def test_contract_audit_tool_missing_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "tools" / "audit_support_metrics_ci_contract.py").unlink()
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- contract_audit: error", result.stdout)
+            self.assertIn("missing contract audit tool:", result.stdout)
+            self.assertIn("audit_support_metrics_ci_contract.py", result.stdout)
+
     def test_json_output_is_valid(self) -> None:
         result = _run_health_tool(["--json"])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
@@ -281,6 +350,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("fragments", parsed)
         self.assertIn("documentation", parsed)
         self.assertIn("cli_help", parsed)
+        self.assertIn("contract_audit", parsed)
 
     def test_text_output_contains_overall(self) -> None:
         result = _run_health_tool([])
@@ -288,6 +358,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("Support metrics CI health:", result.stdout)
         self.assertIn("- documentation:", result.stdout)
         self.assertIn("- cli_help:", result.stdout)
+        self.assertIn("- contract_audit:", result.stdout)
         self.assertIn("- overall:", result.stdout)
 
     def test_fragments_are_checked_via_v191_tool(self) -> None:
@@ -332,6 +403,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertIn("# Support metrics CI health", content)
             self.assertIn("- documentation:", content)
             self.assertIn("- cli_help:", content)
+            self.assertIn("- contract_audit:", content)
             self.assertIn("- overall:", content)
             self.assertIn("not gameplay validation", content)
 
