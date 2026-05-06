@@ -721,12 +721,12 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - les deux rapports restent debug/observation uniquement (pas de tuning gameplay automatique).
 - CI report output contract:
   - des fragments critiques de lisibilite sont verrouilles par tests dans `tests/fixtures/support_metrics_ci_outputs/`.
-  - ces snapshots par fragments couvrent `Summary` et les rapports Markdown pour smoke/runtime-skip/error/local/health.
+  - ces snapshots par fragments couvrent `Summary` et les rapports Markdown pour smoke/runtime-skip/error/local/health/contract_audit.
   - l'objectif est de proteger la lisibilite CI (index, statuts, provenance, avertissements), pas le gameplay.
 - Support metrics CI fragments maintenance:
   - outil: `tools/check_support_metrics_ci_fragments.py`.
   - verification stricte (code retour non-zero si fragments manquants/vides): `py tools/check_support_metrics_ci_fragments.py --validate`.
-  - inventaire lisible par categorie (smoke/runtime/error/local): `py tools/check_support_metrics_ci_fragments.py --list`.
+  - inventaire lisible par categorie (smoke/runtime/error/local/health/contract_audit): `py tools/check_support_metrics_ci_fragments.py --list`.
   - la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_fragments.py --validate`.
   - ces controles protegent la lisibilite des rapports CI; ils ne valident pas le gameplay et ne modifient pas le gameplay.
 - Support metrics CI health check:
@@ -746,6 +746,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - la CI genere `artifacts/support_metrics_ci_contract_audit.md` via `--markdown-output`.
   - ce rapport est ajoute au `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-contract-audit`.
   - ce rapport sert a diagnostiquer l'alignement contrat README/workflow/outils/fixtures/fragments.
+  - ce rapport d'audit contractuel a aussi un contrat de sortie (`contract_audit_summary_expected_fragments.txt`, `contract_audit_report_expected_fragments.txt`) pour proteger la lisibilite CI/debug.
   - c'est un controle maintenance CI/debug uniquement; cela ne valide pas le gameplay.
 - Support metrics CI health artifact:
   - la CI genere `artifacts/support_metrics_ci_health.md` via `--markdown-output`.
@@ -778,7 +779,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
     - bloquant: non bloquant par defaut; mode strict manuel `--strict`.
     - exemple: `py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metrics_contract/recent_complete.jsonl --current tests/fixtures/support_metrics_contract/recent_complete.jsonl --output-dir artifacts/local_ci_sim`.
   - `tools/check_support_metrics_ci_fragments.py`:
-    - role: validation du contrat de fragments de lisibilite (smoke/runtime/error/local/health).
+    - role: validation du contrat de fragments de lisibilite (smoke/runtime/error/local/health/contract_audit).
     - usage principal: verifier presence/non-vide/couverture categories des snapshots.
     - mode: CI et local.
     - bloquant: oui en CI sur `--validate` (contrat de rapport casse = echec maintenance CI/debug).

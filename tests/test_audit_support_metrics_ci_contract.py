@@ -7,13 +7,18 @@ import sys
 import tempfile
 import unittest
 
+from tests.support_metrics_output_fragments import assert_expected_fragments_present
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "audit_support_metrics_ci_contract.py"
+OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
+    "contract_audit_summary_expected_fragments.txt",
+    "contract_audit_report_expected_fragments.txt",
     "smoke_summary_expected_fragments.txt",
     "smoke_report_expected_fragments.txt",
     "runtime_skip_summary_expected_fragments.txt",
@@ -146,7 +151,7 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
     )
     (tools_dir / "check_support_metrics_ci_fragments.py").write_text(
         "EXPECTED_FRAGMENT_FILES = ()\n"
-        "EXPECTED_CATEGORIES = ('health', 'smoke', 'runtime', 'error', 'local')\n",
+        "EXPECTED_CATEGORIES = ('health', 'contract_audit', 'smoke', 'runtime', 'error', 'local')\n",
         encoding="utf-8",
     )
 
@@ -289,6 +294,36 @@ class AuditSupportMetricsCIContractToolTests(unittest.TestCase):
             self.assertIn("- fragments:", content)
             self.assertIn("- artifacts:", content)
             self.assertIn("not gameplay validation", content)
+
+    def test_contract_audit_report_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_contract_audit.md"
+            result = _run_audit_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "contract_audit_report_expected_fragments.txt",
+            )
+
+    def test_contract_audit_summary_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_contract_audit.md"
+            summary_path = Path(tmpdir) / "artifacts" / "github_step_summary.md"
+            result = _run_audit_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+
+            report_text = report_path.read_text(encoding="utf-8")
+            summary_path.write_text("## CI Summary\n\n" + report_text, encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "contract_audit_summary_expected_fragments.txt",
+            )
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ REQUIRED_ARTIFACT_NAMES: tuple[str, ...] = (
     "support-metrics-ci-contract-audit",
 )
 REQUIRED_FRAGMENT_CATEGORIES: tuple[str, ...] = (
+    "contract_audit",
     "smoke",
     "runtime",
     "error",

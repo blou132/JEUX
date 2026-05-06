@@ -34,6 +34,8 @@ EXPECTED_README_SNIPPETS: tuple[str, ...] = (
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
+    "contract_audit_summary_expected_fragments.txt",
+    "contract_audit_report_expected_fragments.txt",
     "smoke_summary_expected_fragments.txt",
     "smoke_report_expected_fragments.txt",
     "runtime_skip_summary_expected_fragments.txt",
@@ -302,6 +304,23 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("- fragments: error", result.stdout)
             self.assertIn("empty fragment file (no non-comment fragments): smoke_report_expected_fragments.txt", result.stdout)
+
+    def test_contract_audit_fragments_are_checked_via_v191_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "tests" / "fixtures" / "support_metrics_ci_outputs" / "contract_audit_report_expected_fragments.txt").write_text(
+                "# comment only\n",
+                encoding="utf-8",
+            )
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- fragments: error", result.stdout)
+            self.assertIn(
+                "empty fragment file (no non-comment fragments): contract_audit_report_expected_fragments.txt",
+                result.stdout,
+            )
 
     def test_markdown_report_is_generated(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

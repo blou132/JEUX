@@ -15,6 +15,8 @@ FRAGMENTS_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
+    "contract_audit_summary_expected_fragments.txt",
+    "contract_audit_report_expected_fragments.txt",
     "smoke_summary_expected_fragments.txt",
     "smoke_report_expected_fragments.txt",
     "runtime_skip_summary_expected_fragments.txt",
@@ -54,11 +56,12 @@ class CheckSupportMetricsCIFragmentsToolTests(unittest.TestCase):
                 msg=f"Fragment fixture has no non-comment lines: {file_path}",
             )
 
-    def test_list_outputs_categories_health_smoke_runtime_error_local(self) -> None:
+    def test_list_outputs_categories_health_contract_audit_smoke_runtime_error_local(self) -> None:
         result = _run_tool(["--list"])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Fragments list", result.stdout)
         self.assertIn("category=health", result.stdout)
+        self.assertIn("category=contract_audit", result.stdout)
         self.assertIn("category=smoke", result.stdout)
         self.assertIn("category=runtime", result.stdout)
         self.assertIn("category=error", result.stdout)
@@ -130,6 +133,30 @@ class CheckSupportMetricsCIFragmentsToolTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("health_report_expected_fragments.txt", result.stdout)
+            self.assertIn("Validation status: invalid", result.stdout)
+
+    def test_validate_fails_when_contract_audit_fragment_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_fragments_dir = Path(tmpdir) / "fragments"
+            temp_fragments_dir.mkdir(parents=True, exist_ok=True)
+            for file_name in EXPECTED_FRAGMENT_FILES:
+                if file_name == "contract_audit_report_expected_fragments.txt":
+                    continue
+                (temp_fragments_dir / file_name).write_text(
+                    "required fragment\n",
+                    encoding="utf-8",
+                )
+
+            result = _run_tool(
+                [
+                    "--validate",
+                    "--print-missing",
+                    "--fragments-dir",
+                    str(temp_fragments_dir),
+                ]
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("contract_audit_report_expected_fragments.txt", result.stdout)
             self.assertIn("Validation status: invalid", result.stdout)
 
 

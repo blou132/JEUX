@@ -1,0 +1,11 @@
+# Contract audit report contract fragments (Markdown artifact)
+Support metrics CI contract audit
+overall
+README
+workflow
+tools
+fixtures
+fragments
+artifacts
+maintenance CI/debug only
+not gameplay validation

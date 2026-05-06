@@ -1,0 +1,11 @@
+# Contract audit summary contract fragments (GitHub Actions Summary section)
+Support metrics CI contract audit
+overall
+README
+workflow
+tools
+fixtures
+fragments
+artifacts
+maintenance CI/debug only
+not gameplay validation
