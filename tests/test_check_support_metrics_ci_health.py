@@ -19,6 +19,18 @@ EXPECTED_TOOL_FILES: tuple[str, ...] = (
     "simulate_support_metrics_ci.py",
     "check_support_metrics_ci_fragments.py",
 )
+EXPECTED_README_SNIPPETS: tuple[str, ...] = (
+    "Support metrics tools index",
+    "tools/analyze_run_metrics_history.py",
+    "tools/write_support_metrics_ci_summary.py",
+    "tools/simulate_support_metrics_ci.py",
+    "tools/check_support_metrics_ci_fragments.py",
+    "tools/check_support_metrics_ci_health.py",
+    "CI/debug only",
+    "not gameplay validation",
+    "runtime report optional",
+    "no --fail-on-regression by default",
+)
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
@@ -98,6 +110,10 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
         (fragments_dir / file_name).write_text("required fragment\n", encoding="utf-8")
 
     (workflow_dir / "tests.yml").write_text(VALID_WORKFLOW_CONTENT, encoding="utf-8")
+    (root_dir / "README.md").write_text(
+        "\n".join(EXPECTED_README_SNIPPETS) + "\n",
+        encoding="utf-8",
+    )
 
 
 class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
@@ -113,6 +129,7 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         result = _run_health_tool(["--check"])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Support metrics CI health:", result.stdout)
+        self.assertIn("- documentation: ok", result.stdout)
         self.assertIn("- overall: ok", result.stdout)
 
     def test_missing_tool_file_in_temp_root_returns_error(self) -> None:
@@ -172,11 +189,13 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
         self.assertIn("tools", parsed)
         self.assertIn("workflow", parsed)
         self.assertIn("fragments", parsed)
+        self.assertIn("documentation", parsed)
 
     def test_text_output_contains_overall(self) -> None:
         result = _run_health_tool([])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Support metrics CI health:", result.stdout)
+        self.assertIn("- documentation:", result.stdout)
         self.assertIn("- overall:", result.stdout)
 
     def test_fragments_are_checked_via_v191_tool(self) -> None:
@@ -202,8 +221,62 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertTrue(output_path.exists())
             content = output_path.read_text(encoding="utf-8")
             self.assertIn("# Support metrics CI health", content)
+            self.assertIn("- documentation:", content)
             self.assertIn("- overall:", content)
             self.assertIn("not gameplay validation", content)
+
+    def test_missing_readme_in_temp_root_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "README.md").unlink()
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- documentation: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn("missing documentation file: README.md", result.stdout)
+
+    def test_readme_without_tools_index_section_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            readme_path = temp_root / "README.md"
+            readme_path.write_text(
+                readme_path.read_text(encoding="utf-8").replace(
+                    "Support metrics tools index",
+                    "Support metrics tools",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- documentation: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn("README missing snippet: Support metrics tools index", result.stdout)
+
+    def test_readme_without_expected_tool_returns_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            readme_path = temp_root / "README.md"
+            readme_path.write_text(
+                readme_path.read_text(encoding="utf-8").replace(
+                    "tools/simulate_support_metrics_ci.py",
+                    "tools/simulate_support_metrics_ci",
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- documentation: error", result.stdout)
+            self.assertIn("- overall: error", result.stdout)
+            self.assertIn(
+                "README missing snippet: tools/simulate_support_metrics_ci.py",
+                result.stdout,
+            )
 
     def test_health_report_matches_output_snapshot_fragments(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

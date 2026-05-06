@@ -121,6 +121,10 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("Support metrics CI health check", content)
         self.assertIn("check_support_metrics_ci_health.py --check", content)
         self.assertIn("la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_health.py --check`", content)
+        self.assertIn(
+            "verifie aussi que l'index README `Support metrics tools index` reste documente",
+            content,
+        )
         self.assertIn("Support metrics CI health artifact", content)
         self.assertIn("artifacts/support_metrics_ci_health.md", content)
         self.assertIn("support-metrics-ci-health", content)

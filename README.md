@@ -733,6 +733,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - commande globale de sante CI/debug: `py tools/check_support_metrics_ci_health.py --check`.
   - la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_health.py --check`.
   - ce controle verifie la presence/coherence des outils, fixtures, fragments et workflow support metrics CI.
+  - ce controle verifie aussi que l'index README `Support metrics tools index` reste documente.
   - ce controle aide la maintenance CI/debug, il ne valide pas le gameplay.
   - rappel: runtime absent reste un cas non bloquant et ne signifie pas un echec gameplay.
 - Support metrics CI health artifact:

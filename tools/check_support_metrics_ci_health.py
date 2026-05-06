@@ -34,6 +34,18 @@ REQUIRED_WORKFLOW_SNIPPETS: tuple[str, ...] = (
     "support-metrics-report",
 )
 FORBIDDEN_WORKFLOW_SNIPPETS: tuple[str, ...] = ("--fail-on-regression",)
+REQUIRED_README_SNIPPETS: tuple[str, ...] = (
+    "Support metrics tools index",
+    "tools/analyze_run_metrics_history.py",
+    "tools/write_support_metrics_ci_summary.py",
+    "tools/simulate_support_metrics_ci.py",
+    "tools/check_support_metrics_ci_fragments.py",
+    "tools/check_support_metrics_ci_health.py",
+    "CI/debug only",
+    "not gameplay validation",
+    "runtime report optional",
+    "no --fail-on-regression by default",
+)
 
 
 @dataclass
@@ -50,6 +62,7 @@ class HealthReport:
     fixtures: ComponentStatus
     workflow: ComponentStatus
     fragments: ComponentStatus
+    documentation: ComponentStatus
     overall: str
 
     def to_dict(self) -> dict[str, object]:
@@ -58,6 +71,7 @@ class HealthReport:
             "fixtures": asdict(self.fixtures),
             "workflow": asdict(self.workflow),
             "fragments": asdict(self.fragments),
+            "documentation": asdict(self.documentation),
             "overall": self.overall,
         }
 
@@ -242,17 +256,59 @@ def _check_fragments(root: Path) -> ComponentStatus:
     )
 
 
+def _check_documentation(root: Path) -> ComponentStatus:
+    readme_path = root / "README.md"
+    issues: list[str] = []
+    state = STATE_OK
+    readme_exists = readme_path.exists()
+    missing_snippets: list[str] = []
+
+    if not readme_exists:
+        state = STATE_ERROR
+        issues.append("missing documentation file: README.md")
+    else:
+        content = readme_path.read_text(encoding="utf-8")
+        for snippet in REQUIRED_README_SNIPPETS:
+            if snippet not in content:
+                missing_snippets.append(snippet)
+        if missing_snippets:
+            state = STATE_ERROR
+            for snippet in missing_snippets:
+                issues.append("README missing snippet: %s" % snippet)
+
+    return ComponentStatus(
+        name="documentation",
+        state=state,
+        issues=issues,
+        details={
+            "path": str(readme_path),
+            "exists": readme_exists,
+            "missing_required_snippets": missing_snippets,
+        },
+    )
+
+
 def build_health_report(root: Path) -> HealthReport:
     tools = _check_tools(root)
     fixtures = _check_fixtures(root)
     workflow = _check_workflow(root)
     fragments = _check_fragments(root)
-    overall = _worst_state([tools.state, fixtures.state, workflow.state, fragments.state])
+    documentation = _check_documentation(root)
+    overall = _worst_state(
+        [
+            tools.state,
+            fixtures.state,
+            workflow.state,
+            fragments.state,
+            documentation.state,
+        ]
+    )
     return HealthReport(
         tools=tools,
         fixtures=fixtures,
         workflow=workflow,
         fragments=fragments,
+        documentation=documentation,
         overall=overall,
     )
 
@@ -263,12 +319,19 @@ def _print_text_report(report: HealthReport, verbose: bool) -> None:
     print("- fixtures: %s" % report.fixtures.state)
     print("- workflow: %s" % report.workflow.state)
     print("- fragments: %s" % report.fragments.state)
+    print("- documentation: %s" % report.documentation.state)
     print("- overall: %s" % report.overall)
 
     if not verbose:
         return
 
-    for component in (report.tools, report.fixtures, report.workflow, report.fragments):
+    for component in (
+        report.tools,
+        report.fixtures,
+        report.workflow,
+        report.fragments,
+        report.documentation,
+    ):
         print("")
         print("%s details:" % component.name)
         if component.issues:
@@ -287,6 +350,7 @@ def _build_markdown_report(report: HealthReport) -> str:
     lines.append("- fixtures: %s" % report.fixtures.state)
     lines.append("- fragments: %s" % report.fragments.state)
     lines.append("- workflow: %s" % report.workflow.state)
+    lines.append("- documentation: %s" % report.documentation.state)
     lines.append(
         "- interpretation: maintenance CI/debug only, not gameplay validation"
     )
