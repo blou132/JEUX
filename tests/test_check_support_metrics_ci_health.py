@@ -7,9 +7,12 @@ import sys
 import tempfile
 import unittest
 
+from tests.support_metrics_output_fragments import assert_expected_fragments_present
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "check_support_metrics_ci_health.py"
+OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 EXPECTED_TOOL_FILES: tuple[str, ...] = (
     "analyze_run_metrics_history.py",
     "write_support_metrics_ci_summary.py",
@@ -17,6 +20,8 @@ EXPECTED_TOOL_FILES: tuple[str, ...] = (
     "check_support_metrics_ci_fragments.py",
 )
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
+    "health_summary_expected_fragments.txt",
+    "health_report_expected_fragments.txt",
     "smoke_summary_expected_fragments.txt",
     "smoke_report_expected_fragments.txt",
     "runtime_skip_summary_expected_fragments.txt",
@@ -38,7 +43,9 @@ jobs:
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
       - name: Validate support metrics CI health
-        run: py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
+        run: |
+          py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
+          Get-Content artifacts/support_metrics_ci_health.md | Add-Content -Path $env:GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v4
         with:
           name: support-metrics-ci-health
@@ -197,6 +204,39 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertIn("# Support metrics CI health", content)
             self.assertIn("- overall:", content)
             self.assertIn("not gameplay validation", content)
+
+    def test_health_report_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_health.md"
+            result = _run_health_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "health_report_expected_fragments.txt",
+            )
+
+    def test_health_summary_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_health.md"
+            summary_path = Path(tmpdir) / "artifacts" / "github_step_summary.md"
+            result = _run_health_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+
+            report_text = report_path.read_text(encoding="utf-8")
+            summary_path.write_text(
+                "## CI Summary\n\n" + report_text,
+                encoding="utf-8",
+            )
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "health_summary_expected_fragments.txt",
+            )
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ REQUIRED_WORKFLOW_SNIPPETS: tuple[str, ...] = (
     "py tools/check_support_metrics_ci_health.py --check",
     "artifacts/support_metrics_ci_health.md",
     "support-metrics-ci-health",
+    "Get-Content artifacts/support_metrics_ci_health.md | Add-Content -Path $env:GITHUB_STEP_SUMMARY",
     "Smoke test support metrics CI summary (technical fixtures)",
     "Optional runtime support metrics CI check (outputs/ci)",
     "actions/upload-artifact@v4",

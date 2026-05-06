@@ -721,7 +721,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - les deux rapports restent debug/observation uniquement (pas de tuning gameplay automatique).
 - CI report output contract:
   - des fragments critiques de lisibilite sont verrouilles par tests dans `tests/fixtures/support_metrics_ci_outputs/`.
-  - ces snapshots par fragments couvrent surtout `Summary` et les rapports Markdown pour smoke/runtime-skip/error.
+  - ces snapshots par fragments couvrent `Summary` et les rapports Markdown pour smoke/runtime-skip/error/local/health.
   - l'objectif est de proteger la lisibilite CI (index, statuts, provenance, avertissements), pas le gameplay.
 - Support metrics CI fragments maintenance:
   - outil: `tools/check_support_metrics_ci_fragments.py`.
@@ -738,6 +738,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - Support metrics CI health artifact:
   - la CI genere `artifacts/support_metrics_ci_health.md` via `--markdown-output`.
   - ce rapport est visible dans le `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-health`.
+  - ce rapport health a aussi un contrat de sortie par fragments (`health_summary_expected_fragments.txt`, `health_report_expected_fragments.txt`).
   - ce rapport verifie la chaine maintenance CI/debug (pas la validation gameplay).
   - runtime absent pour `support-metrics-report` reste non bloquant et n'est pas un echec gameplay.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).

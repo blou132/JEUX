@@ -1,0 +1,9 @@
+# Health summary contract fragments (GitHub Actions Summary section)
+Support metrics CI health
+overall
+tools
+fixtures
+fragments
+workflow
+maintenance CI/debug only
+not gameplay validation
