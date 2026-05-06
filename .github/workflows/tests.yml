@@ -16,6 +16,7 @@ jobs:
   tests:
     runs-on: windows-latest
     steps:
+      # Base setup
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -24,21 +25,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Core validation
       - name: Run unit tests
         run: py -m unittest discover -s tests -p "test_*.py"
 
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
 
+      # Global CI health report (blocking for CI/debug chain integrity)
       - name: Validate support metrics CI health
         shell: pwsh
         run: |
           $healthExitCode = 0
+
           py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md
+
           $healthExitCode = $LASTEXITCODE
+
           if (Test-Path artifacts/support_metrics_ci_health.md) {
             Get-Content artifacts/support_metrics_ci_health.md | Add-Content -Path $env:GITHUB_STEP_SUMMARY
           }
+
           if ($healthExitCode -ne 0) {
             exit $healthExitCode
           }
@@ -51,6 +58,7 @@ jobs:
           path: artifacts/support_metrics_ci_health.md
           if-no-files-found: error
 
+      # Smoke report: technical pipeline check with controlled fixtures
       - name: Smoke test support metrics CI summary (technical fixtures)
         shell: pwsh
         run: |
@@ -72,6 +80,7 @@ jobs:
           path: artifacts/support_metrics_smoke_report.md
           if-no-files-found: error
 
+      # Runtime report: optional, uses outputs/ci if present
       - name: Optional runtime support metrics CI check (outputs/ci)
         shell: pwsh
         run: |

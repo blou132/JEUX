@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 import unittest
 
 
@@ -11,8 +12,51 @@ ANALYZE_TOOL_PATH = ROOT / "tools" / "analyze_run_metrics_history.py"
 
 
 class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
+    def _read_workflow_content(self) -> str:
+        return WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    def _load_workflow_yaml_if_available(self) -> dict[str, Any] | None:
+        content = self._read_workflow_content()
+        try:
+            import yaml  # type: ignore[import-not-found]
+        except Exception:
+            return None
+
+        parsed = yaml.safe_load(content)
+        self.assertIsInstance(parsed, dict, msg="Workflow YAML should parse to a mapping")
+        return parsed
+
+    def _get_workflow_steps(self, parsed: dict[str, Any]) -> list[dict[str, Any]]:
+        jobs = parsed.get("jobs", {})
+        self.assertIsInstance(jobs, dict, msg="Workflow jobs must be a mapping")
+
+        tests_job = jobs.get("tests", {})
+        self.assertIsInstance(tests_job, dict, msg="Workflow tests job must be a mapping")
+
+        steps = tests_job.get("steps", [])
+        self.assertIsInstance(steps, list, msg="Workflow steps must be a list")
+
+        step_dicts = [step for step in steps if isinstance(step, dict)]
+        self.assertGreater(len(step_dicts), 0, msg="Workflow steps list is empty")
+        return step_dicts
+
+    def _get_named_step(self, steps: list[dict[str, Any]], name: str) -> dict[str, Any]:
+        for step in steps:
+            if step.get("name") == name:
+                return step
+        self.fail("Missing workflow step: %s" % name)
+
     def test_workflow_file_exists(self) -> None:
         self.assertTrue(WORKFLOW_PATH.exists(), msg=f"Missing workflow: {WORKFLOW_PATH}")
+
+    def test_workflow_is_yaml_parsable_when_pyyaml_is_available(self) -> None:
+        parsed = self._load_workflow_yaml_if_available()
+        if parsed is None:
+            content = self._read_workflow_content()
+            self.assertIn("jobs:", content)
+            self.assertIn("steps:", content)
+            return
+        self.assertIn("jobs", parsed)
 
     def test_workflow_runs_unittest_discover(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -37,7 +81,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertNotIn("--fail-on-regression", content)
 
     def test_workflow_generates_markdown_report_and_uploads_artifact(self) -> None:
-        content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        content = self._read_workflow_content()
         self.assertIn(
             "Smoke test support metrics CI summary (technical fixtures)",
             content,
@@ -76,8 +120,44 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("--input-label \"fixtures:recent_complete.jsonl\"", content)
         self.assertIn("--compare-input-label \"fixtures:recent_complete.jsonl\"", content)
 
+    def test_workflow_step_structure_keeps_expected_paths(self) -> None:
+        parsed = self._load_workflow_yaml_if_available()
+        if parsed is None:
+            content = self._read_workflow_content()
+            self.assertIn("outputs/ci/support_metrics_baseline.jsonl", content)
+            self.assertIn("tests/fixtures/support_metrics_contract/recent_complete.jsonl", content)
+            return
+
+        steps = self._get_workflow_steps(parsed)
+        step_names = [str(step.get("name", "")) for step in steps]
+        self.assertIn("Run unit tests", step_names)
+        self.assertIn("Validate support metrics CI fragments", step_names)
+        self.assertIn("Validate support metrics CI health", step_names)
+        self.assertIn("Smoke test support metrics CI summary (technical fixtures)", step_names)
+        self.assertIn("Optional runtime support metrics CI check (outputs/ci)", step_names)
+
+        smoke_step = self._get_named_step(steps, "Smoke test support metrics CI summary (technical fixtures)")
+        smoke_run = str(smoke_step.get("run", ""))
+        self.assertIn("recent_complete.jsonl", smoke_run)
+        self.assertNotIn("$env:SUPPORT_METRICS_BASELINE_PATH", smoke_run)
+        self.assertNotIn("$env:SUPPORT_METRICS_CURRENT_PATH", smoke_run)
+
+        runtime_step = self._get_named_step(steps, "Optional runtime support metrics CI check (outputs/ci)")
+        runtime_run = str(runtime_step.get("run", ""))
+        self.assertIn("$env:SUPPORT_METRICS_BASELINE_PATH", runtime_run)
+        self.assertIn("$env:SUPPORT_METRICS_CURRENT_PATH", runtime_run)
+        self.assertNotIn("recent_complete.jsonl", runtime_run)
+
+        smoke_artifact = self._get_named_step(steps, "Upload support metrics smoke report artifact (technical fixtures)")
+        runtime_artifact = self._get_named_step(steps, "Upload support metrics runtime report artifact (optional)")
+        health_artifact = self._get_named_step(steps, "Upload support metrics CI health artifact")
+
+        self.assertEqual(smoke_artifact.get("with", {}).get("if-no-files-found"), "error")
+        self.assertEqual(health_artifact.get("with", {}).get("if-no-files-found"), "error")
+        self.assertEqual(runtime_artifact.get("with", {}).get("if-no-files-found"), "ignore")
+
     def test_workflow_keeps_smoke_and_runtime_paths_separated(self) -> None:
-        content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        content = self._read_workflow_content()
         self.assertIn("SUPPORT_METRICS_BASELINE_PATH: outputs/ci/support_metrics_baseline.jsonl", content)
         self.assertIn("SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl", content)
         self.assertIn("SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md", content)
