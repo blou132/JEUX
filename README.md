@@ -746,6 +746,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - Support metrics CI contract manifest:
   - source de verite legere: `tests/fixtures/support_metrics_ci_contract_manifest.json`.
   - ce manifeste centralise les tools, artifacts, categories de fragments, etapes workflow, invariants et modes de rapport.
+  - la CI GitHub Actions execute aussi `py tools/check_support_metrics_ci_manifest.py --check` pour valider ce manifeste.
   - les controles CI/debug (tests statiques, audit contractuel, health check) s'alignent sur ce manifeste pour limiter les duplications.
   - ce manifeste stabilise la maintenance CI/debug; il ne valide pas le gameplay.
 - Support metrics CI contract audit artifact:
@@ -796,6 +797,12 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
     - mode: CI et local.
     - bloquant: oui en CI sur `--check` (maintenance CI/debug), sans valider le gameplay.
     - exemple: `py tools/check_support_metrics_ci_health.py --check --markdown-output artifacts/support_metrics_ci_health.md`.
+  - `tools/check_support_metrics_ci_manifest.py`:
+    - role: validation structurelle du manifeste central support metrics CI.
+    - usage principal: verifier JSON/cles/listes/doublons/outils references dans `support_metrics_ci_contract_manifest.json`.
+    - mode: CI et local.
+    - bloquant: oui en CI sur `--check` (maintenance CI/debug), sans valider le gameplay.
+    - exemple: `py tools/check_support_metrics_ci_manifest.py --check`.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.

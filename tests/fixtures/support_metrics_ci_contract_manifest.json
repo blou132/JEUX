@@ -5,7 +5,8 @@
     "tools/simulate_support_metrics_ci.py",
     "tools/check_support_metrics_ci_fragments.py",
     "tools/check_support_metrics_ci_health.py",
-    "tools/audit_support_metrics_ci_contract.py"
+    "tools/audit_support_metrics_ci_contract.py",
+    "tools/check_support_metrics_ci_manifest.py"
   ],
   "artifacts": [
     "support-metrics-smoke-report",
@@ -23,6 +24,7 @@
   ],
   "workflow_steps": [
     "Run unit tests",
+    "Validate support metrics CI manifest",
     "Validate support metrics CI fragments",
     "Validate support metrics CI health",
     "Validate support metrics CI contract audit",

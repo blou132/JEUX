@@ -4,6 +4,7 @@ write_support_metrics_ci_summary.py
 simulate_support_metrics_ci.py
 check_support_metrics_ci_fragments.py
 check_support_metrics_ci_health.py
+check_support_metrics_ci_manifest.py
 CI/debug only
 not gameplay validation
 runtime report optional

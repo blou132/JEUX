@@ -30,6 +30,9 @@ jobs:
       - name: Run unit tests
         run: py -m unittest discover -s tests -p "test_*.py"
 
+      - name: Validate support metrics CI manifest
+        run: py tools/check_support_metrics_ci_manifest.py --check
+
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
 

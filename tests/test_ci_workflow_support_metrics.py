@@ -65,6 +65,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
     def test_workflow_runs_unittest_discover(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn('py -m unittest discover -s tests -p "test_*.py"', content)
+        self.assertIn("Validate support metrics CI manifest", content)
+        self.assertIn("py tools/check_support_metrics_ci_manifest.py --check", content)
         self.assertIn("Validate support metrics CI fragments", content)
         self.assertIn("py tools/check_support_metrics_ci_fragments.py --validate", content)
         self.assertIn("Validate support metrics CI contract audit", content)
@@ -145,6 +147,7 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         steps = self._get_workflow_steps(parsed)
         step_names = [str(step.get("name", "")) for step in steps]
         self.assertIn("Run unit tests", step_names)
+        self.assertIn("Validate support metrics CI manifest", step_names)
         self.assertIn("Validate support metrics CI fragments", step_names)
         self.assertIn("Validate support metrics CI contract audit", step_names)
         self.assertIn("Validate support metrics CI health", step_names)
