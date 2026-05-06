@@ -1,0 +1,8 @@
+# Local simulation must keep the main CI summary sections.
+Support metrics reports index
+Support metrics CI status
+support-metrics-report
+local simulation
+runtime_data
+gameplay_validation
+blocking: no

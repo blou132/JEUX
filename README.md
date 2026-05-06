@@ -719,6 +719,10 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - smoke OK != gameplay OK: `support-metrics-smoke-report` valide uniquement le pipeline technique (fixtures controlees).
   - runtime absent != echec gameplay: `support-metrics-report` peut etre `skipped` si `outputs/ci` est absent.
   - les deux rapports restent debug/observation uniquement (pas de tuning gameplay automatique).
+- CI report output contract:
+  - des fragments critiques de lisibilite sont verrouilles par tests dans `tests/fixtures/support_metrics_ci_outputs/`.
+  - ces snapshots par fragments couvrent surtout `Summary` et les rapports Markdown pour smoke/runtime-skip/error.
+  - l'objectif est de proteger la lisibilite CI (index, statuts, provenance, avertissements), pas le gameplay.
 - `support-metrics-smoke-report` (fichier `artifacts/support_metrics_smoke_report.md`) valide la mecanique CI avec une fixture controlee (`recent_complete.jsonl`).
 - `support-metrics-report` (fichier `artifacts/support_metrics_report.md`) est le rapport runtime reel et depend de la presence d'exports `outputs/ci/...` produits pendant une vraie execution.
 - si le rapport runtime reel est absent, cela signifie seulement que les exports runtime n'etaient pas disponibles; ce n'est pas un echec gameplay.

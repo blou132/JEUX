@@ -1,0 +1,2 @@
+# Runtime skip report is optional-check only.
+Runtime support metrics exports not found; no runtime gameplay metrics were evaluated.

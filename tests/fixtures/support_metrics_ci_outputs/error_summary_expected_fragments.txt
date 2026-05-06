@@ -1,0 +1,9 @@
+# Technical failures should remain warning + non-blocking by default.
+Support metrics reports index
+Support metrics CI status
+status: warning
+reason: analysis failed
+blocking: no
+support-metrics-report
+runtime metrics report
+gameplay_validation

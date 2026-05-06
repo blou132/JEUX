@@ -1,0 +1,6 @@
+# Minimal report contract on analysis failure.
+Support metrics CI check failed
+reason: analysis failed
+blocking: no
+status: warning
+This report is debug/observation only.

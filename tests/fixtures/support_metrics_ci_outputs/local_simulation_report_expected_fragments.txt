@@ -1,0 +1,6 @@
+# Local simulation report still comes from analysis pipeline.
+Run Metrics History Analysis
+Report provenance
+- mode: local
+Support metrics CI check
+Final decision

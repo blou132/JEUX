@@ -7,10 +7,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.support_metrics_output_fragments import assert_expected_fragments_present
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "write_support_metrics_ci_summary.py"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_contract"
+OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 
 
 def _write_jsonl(path: Path, rows: list[str]) -> None:
@@ -581,6 +584,190 @@ class WriteSupportMetricsCISummaryToolTests(unittest.TestCase):
             summary_text = summary_path.read_text(encoding="utf-8")
             self.assertIn("- status: warning", summary_text)
             self.assertIn("- reason: analysis failed", summary_text)
+
+    def test_smoke_summary_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+            smoke_report_path = Path(tmpdir) / "artifacts" / "smoke_report.md"
+            runtime_report_path = Path(tmpdir) / "artifacts" / "runtime_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            smoke_result = _run_ci_summary_tool(
+                baseline,
+                current,
+                smoke_report_path,
+                summary_path,
+                artifact_name="support-metrics-smoke-report",
+                extra_args=[
+                    "--report-mode",
+                    "smoke",
+                    "--input-label",
+                    "fixtures:recent_complete.jsonl",
+                    "--compare-input-label",
+                    "fixtures:recent_complete.jsonl",
+                ],
+            )
+            self.assertEqual(smoke_result.returncode, 0, msg=smoke_result.stdout + smoke_result.stderr)
+            runtime_result = _run_ci_summary_tool(
+                baseline,
+                current,
+                runtime_report_path,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=[
+                    "--report-mode",
+                    "runtime",
+                    "--input-label",
+                    "outputs/ci/support_metrics_baseline.jsonl",
+                    "--compare-input-label",
+                    "outputs/ci/support_metrics_current.jsonl",
+                ],
+            )
+            self.assertEqual(runtime_result.returncode, 0, msg=runtime_result.stdout + runtime_result.stderr)
+
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "smoke_summary_expected_fragments.txt",
+            )
+
+    def test_smoke_report_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+            report_path = Path(tmpdir) / "artifacts" / "smoke_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-smoke-report",
+                extra_args=[
+                    "--report-mode",
+                    "smoke",
+                    "--input-label",
+                    "fixtures:recent_complete.jsonl",
+                    "--compare-input-label",
+                    "fixtures:recent_complete.jsonl",
+                ],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "smoke_report_expected_fragments.txt",
+            )
+
+    def test_runtime_skip_summary_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline = Path(tmpdir) / "missing_baseline.jsonl"
+            current = Path(tmpdir) / "missing_current.jsonl"
+            report_path = Path(tmpdir) / "artifacts" / "runtime_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=["--report-mode", "runtime"],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "runtime_skip_summary_expected_fragments.txt",
+            )
+
+    def test_runtime_skip_report_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            baseline = Path(tmpdir) / "missing_baseline.jsonl"
+            current = Path(tmpdir) / "missing_current.jsonl"
+            report_path = Path(tmpdir) / "artifacts" / "runtime_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=["--report-mode", "runtime"],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "runtime_skip_report_expected_fragments.txt",
+            )
+
+    def test_error_summary_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="invalid_json")
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+            report_path = Path(tmpdir) / "artifacts" / "error_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=[
+                    "--report-mode",
+                    "runtime",
+                    "--analyze-script",
+                    str(fake_analyze_path),
+                ],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "error_summary_expected_fragments.txt",
+            )
+
+    def test_error_report_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_analyze_path = Path(tmpdir) / "fake_analyze.py"
+            _write_fake_analyze_script(fake_analyze_path, mode="invalid_json")
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+            report_path = Path(tmpdir) / "artifacts" / "error_report.md"
+            summary_path = Path(tmpdir) / "summary.md"
+
+            result = _run_ci_summary_tool(
+                baseline,
+                current,
+                report_path,
+                summary_path,
+                artifact_name="support-metrics-report",
+                extra_args=[
+                    "--report-mode",
+                    "runtime",
+                    "--analyze-script",
+                    str(fake_analyze_path),
+                ],
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "error_report_expected_fragments.txt",
+            )
 
 
 if __name__ == "__main__":

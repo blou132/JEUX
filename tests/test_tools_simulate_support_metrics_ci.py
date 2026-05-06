@@ -6,10 +6,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.support_metrics_output_fragments import assert_expected_fragments_present
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "simulate_support_metrics_ci.py"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_contract"
+OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 
 
 def _run_simulation(
@@ -194,6 +197,33 @@ class SimulateSupportMetricsCIToolTests(unittest.TestCase):
             summary_path = output_dir / "artifacts" / "github_step_summary.md"
             self.assertTrue(report_path.exists())
             self.assertTrue(summary_path.exists())
+
+    def test_local_simulation_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "simulation"
+            baseline = FIXTURES_DIR / "recent_complete.jsonl"
+            current = FIXTURES_DIR / "recent_complete.jsonl"
+
+            result = _run_simulation(baseline, current, output_dir)
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+
+            report_path = output_dir / "artifacts" / "support_metrics_report.md"
+            summary_path = output_dir / "artifacts" / "github_step_summary.md"
+            self.assertTrue(report_path.exists())
+            self.assertTrue(summary_path.exists())
+
+            summary_text = summary_path.read_text(encoding="utf-8")
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "local_simulation_summary_expected_fragments.txt",
+            )
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "local_simulation_report_expected_fragments.txt",
+            )
 
 
 if __name__ == "__main__":

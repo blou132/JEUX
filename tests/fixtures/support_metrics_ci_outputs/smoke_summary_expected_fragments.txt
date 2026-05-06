@@ -1,0 +1,12 @@
+# Combined smoke+runtime summary must keep these critical readability anchors.
+Support metrics reports index
+Support metrics CI status
+support-metrics-smoke-report
+support-metrics-report
+technical pipeline check only
+runtime metrics report
+gameplay_validation
+runtime_data
+Smoke passed means the reporting pipeline works; it does not validate runtime gameplay metrics.
+role | runtime_data | gameplay_validation
+blocking: no

@@ -1,0 +1,8 @@
+# Smoke report must clearly advertise technical fixture provenance.
+Note: this smoke report uses controlled fixtures. It validates the CI/report pipeline, not live gameplay behavior.
+Run Metrics History Analysis
+Report provenance
+- mode: smoke
+Support metrics CI check
+Final decision
+heuristic quick-read only (not statistical proof).

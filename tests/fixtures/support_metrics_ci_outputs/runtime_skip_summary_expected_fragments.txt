@@ -1,0 +1,9 @@
+# Runtime skip must not look like a gameplay failure.
+Support metrics reports index
+Support metrics CI status
+status: skipped
+support-metrics-report
+runtime metrics report
+gameplay_validation
+Runtime support metrics exports not found; no runtime gameplay metrics were evaluated.
+blocking: no
