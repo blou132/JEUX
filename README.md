@@ -739,6 +739,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - rappel: runtime absent reste un cas non bloquant et ne signifie pas un echec gameplay.
 - Support metrics CI contract audit:
   - commande d'audit final de coherence CI/debug: `py tools/audit_support_metrics_ci_contract.py --check`.
+  - la CI GitHub Actions execute aussi `py tools/audit_support_metrics_ci_contract.py --check`.
   - cet audit verifie l'alignement entre README, workflow, fixtures CLI help, fragments et outils de maintenance.
   - ce controle reste maintenance CI/debug uniquement; il ne valide pas le gameplay.
 - Support metrics CI health artifact:

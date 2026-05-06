@@ -32,6 +32,9 @@ jobs:
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate
 
+      - name: Validate support metrics CI contract audit
+        run: py tools/audit_support_metrics_ci_contract.py --check
+
       # Global CI health report (blocking for CI/debug chain integrity)
       - name: Validate support metrics CI health
         shell: pwsh
