@@ -1,0 +1,45 @@
+{
+  "tools": [
+    "tools/analyze_run_metrics_history.py",
+    "tools/write_support_metrics_ci_summary.py",
+    "tools/simulate_support_metrics_ci.py",
+    "tools/check_support_metrics_ci_fragments.py",
+    "tools/check_support_metrics_ci_health.py",
+    "tools/audit_support_metrics_ci_contract.py"
+  ],
+  "artifacts": [
+    "support-metrics-smoke-report",
+    "support-metrics-report",
+    "support-metrics-ci-health",
+    "support-metrics-ci-contract-audit"
+  ],
+  "fragment_categories": [
+    "smoke",
+    "runtime",
+    "error",
+    "local",
+    "health",
+    "contract_audit"
+  ],
+  "workflow_steps": [
+    "Run unit tests",
+    "Validate support metrics CI fragments",
+    "Validate support metrics CI health",
+    "Validate support metrics CI contract audit",
+    "Smoke test support metrics CI summary",
+    "Optional runtime support metrics CI check"
+  ],
+  "expected_invariants": [
+    "CI/debug only",
+    "not gameplay validation",
+    "runtime report optional",
+    "no --fail-on-regression by default"
+  ],
+  "report_modes": [
+    "smoke",
+    "runtime",
+    "local",
+    "health",
+    "contract_audit"
+  ]
+}

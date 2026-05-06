@@ -35,6 +35,45 @@ EXPECTED_CLI_FIXTURE_TOOLS: tuple[str, ...] = (
     "tools/check_support_metrics_ci_fragments.py",
     "tools/check_support_metrics_ci_health.py",
 )
+TEMP_ROOT_CONTRACT_MANIFEST: dict[str, list[str]] = {
+    "tools": [
+        "tools/analyze_run_metrics_history.py",
+        "tools/write_support_metrics_ci_summary.py",
+        "tools/simulate_support_metrics_ci.py",
+        "tools/check_support_metrics_ci_fragments.py",
+        "tools/check_support_metrics_ci_health.py",
+        "tools/audit_support_metrics_ci_contract.py",
+    ],
+    "artifacts": [
+        "support-metrics-smoke-report",
+        "support-metrics-report",
+        "support-metrics-ci-health",
+        "support-metrics-ci-contract-audit",
+    ],
+    "fragment_categories": [
+        "smoke",
+        "runtime",
+        "error",
+        "local",
+        "health",
+        "contract_audit",
+    ],
+    "workflow_steps": [
+        "Run unit tests",
+        "Validate support metrics CI fragments",
+        "Validate support metrics CI contract audit",
+        "Validate support metrics CI health",
+        "Smoke test support metrics CI summary",
+        "Optional runtime support metrics CI check",
+    ],
+    "expected_invariants": [
+        "CI/debug only",
+        "not gameplay validation",
+        "runtime report optional",
+        "no --fail-on-regression by default",
+    ],
+    "report_modes": ["smoke", "runtime", "local", "health", "contract_audit"],
+}
 
 
 VALID_WORKFLOW_CONTENT = """name: Tests
@@ -165,6 +204,10 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
             },
             indent=2,
         ),
+        encoding="utf-8",
+    )
+    (fixtures_dir / "support_metrics_ci_contract_manifest.json").write_text(
+        json.dumps(TEMP_ROOT_CONTRACT_MANIFEST, indent=2),
         encoding="utf-8",
     )
     (contract_dir / "recent_complete.jsonl").write_text("{\"ok\": true}\n", encoding="utf-8")

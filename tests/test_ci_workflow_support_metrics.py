@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import Any
 import unittest
 
+from support_metrics_ci_contract_manifest import (
+    load_support_metrics_contract_manifest,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "tests.yml"
@@ -228,6 +232,8 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("Support metrics CI contract audit", content)
         self.assertIn("py tools/audit_support_metrics_ci_contract.py --check", content)
         self.assertIn("la CI GitHub Actions execute aussi `py tools/audit_support_metrics_ci_contract.py --check`", content)
+        self.assertIn("Support metrics CI contract manifest", content)
+        self.assertIn("tests/fixtures/support_metrics_ci_contract_manifest.json", content)
         self.assertIn("Support metrics CI contract audit artifact", content)
         self.assertIn("support-metrics-ci-contract-audit", content)
         self.assertIn("artifacts/support_metrics_ci_contract_audit.md", content)
@@ -260,6 +266,21 @@ class SupportMetricsCIWorkflowStaticTests(unittest.TestCase):
         self.assertIn("support_metrics_ci_check", content)
         self.assertIn("def build_support_metrics_report_provenance(", content)
         self.assertIn("support_metrics_report_provenance", content)
+
+    def test_workflow_and_readme_cover_manifest_contract(self) -> None:
+        manifest_result = load_support_metrics_contract_manifest(ROOT)
+        self.assertTrue(manifest_result.is_valid, msg="\n".join(manifest_result.issues))
+        assert manifest_result.manifest is not None
+
+        workflow_content = self._read_workflow_content()
+        readme_content = README_PATH.read_text(encoding="utf-8")
+
+        for artifact_name in manifest_result.manifest["artifacts"]:
+            self.assertIn(artifact_name, workflow_content)
+            self.assertIn(artifact_name, readme_content)
+
+        for workflow_step in manifest_result.manifest["workflow_steps"]:
+            self.assertIn(workflow_step, workflow_content)
 
 
 if __name__ == "__main__":

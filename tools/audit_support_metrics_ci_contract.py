@@ -5,10 +5,18 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from check_support_metrics_ci_fragments import (
     EXPECTED_CATEGORIES,
     inspect_fragment_directory,
+)
+from support_metrics_ci_contract_manifest import (
+    load_support_metrics_contract_manifest,
 )
 
 
@@ -16,20 +24,21 @@ STATE_OK = "ok"
 STATE_ERROR = "error"
 STATE_RANK: dict[str, int] = {STATE_OK: 0, STATE_ERROR: 1}
 
-REQUIRED_WORKFLOW_STEP_SNIPPETS: tuple[str, ...] = (
+DEFAULT_WORKFLOW_STEP_SNIPPETS: tuple[str, ...] = (
     "Run unit tests",
     "Validate support metrics CI fragments",
     "Validate support metrics CI health",
+    "Validate support metrics CI contract audit",
     "Smoke test support metrics CI summary",
     "Optional runtime support metrics CI check",
 )
-REQUIRED_ARTIFACT_NAMES: tuple[str, ...] = (
+DEFAULT_ARTIFACT_NAMES: tuple[str, ...] = (
     "support-metrics-smoke-report",
     "support-metrics-report",
     "support-metrics-ci-health",
     "support-metrics-ci-contract-audit",
 )
-REQUIRED_FRAGMENT_CATEGORIES: tuple[str, ...] = (
+DEFAULT_FRAGMENT_CATEGORIES: tuple[str, ...] = (
     "contract_audit",
     "smoke",
     "runtime",
@@ -189,7 +198,11 @@ def _check_cli_readme_tools(root: Path, readme_content: str) -> ComponentStatus:
     )
 
 
-def _check_artifacts_alignment(readme_content: str, workflow_content: str) -> ComponentStatus:
+def _check_artifacts_alignment(
+    readme_content: str,
+    workflow_content: str,
+    required_artifact_names: list[str],
+) -> ComponentStatus:
     issues: list[str] = []
 
     documented_artifacts = sorted(set(re.findall(r"support-metrics-[a-z0-9-]+", readme_content)))
@@ -202,7 +215,7 @@ def _check_artifacts_alignment(readme_content: str, workflow_content: str) -> Co
         )
     )
 
-    for artifact_name in REQUIRED_ARTIFACT_NAMES:
+    for artifact_name in required_artifact_names:
         if artifact_name not in readme_content:
             issues.append("README missing required artifact mention: %s" % artifact_name)
         if artifact_name not in workflow_content:
@@ -222,14 +235,17 @@ def _check_artifacts_alignment(readme_content: str, workflow_content: str) -> Co
         state=state,
         issues=issues,
         details={
-            "required_artifacts": list(REQUIRED_ARTIFACT_NAMES),
+            "required_artifacts": list(required_artifact_names),
             "documented_artifacts": documented_artifacts,
             "workflow_artifacts": workflow_artifacts,
         },
     )
 
 
-def _check_fragments_coverage(root: Path) -> ComponentStatus:
+def _check_fragments_coverage(
+    root: Path,
+    required_fragment_categories: list[str],
+) -> ComponentStatus:
     issues: list[str] = []
     fragments_dir = root / "tests" / "fixtures" / "support_metrics_ci_outputs"
     result = inspect_fragment_directory(fragments_dir)
@@ -238,7 +254,7 @@ def _check_fragments_coverage(root: Path) -> ComponentStatus:
     known_categories = set(EXPECTED_CATEGORIES)
     missing_known_categories = [
         category
-        for category in REQUIRED_FRAGMENT_CATEGORIES
+        for category in required_fragment_categories
         if category not in known_categories
     ]
     for category in missing_known_categories:
@@ -251,7 +267,7 @@ def _check_fragments_coverage(root: Path) -> ComponentStatus:
             if file_status.status == "ok"
         }
     )
-    for category in REQUIRED_FRAGMENT_CATEGORIES:
+    for category in required_fragment_categories:
         if category not in covered_categories:
             issues.append("fragments fixtures missing coverage for category: %s" % category)
 
@@ -263,15 +279,18 @@ def _check_fragments_coverage(root: Path) -> ComponentStatus:
         details={
             "fragments_dir": str(fragments_dir),
             "covered_categories": covered_categories,
-            "expected_categories": list(REQUIRED_FRAGMENT_CATEGORIES),
+            "expected_categories": list(required_fragment_categories),
         },
     )
 
 
-def _check_workflow_rules(workflow_content: str) -> ComponentStatus:
+def _check_workflow_rules(
+    workflow_content: str,
+    required_workflow_step_snippets: list[str],
+) -> ComponentStatus:
     issues: list[str] = []
 
-    for snippet in REQUIRED_WORKFLOW_STEP_SNIPPETS:
+    for snippet in required_workflow_step_snippets:
         if snippet not in workflow_content:
             issues.append("workflow missing required step snippet: %s" % snippet)
 
@@ -322,13 +341,17 @@ def _check_workflow_rules(workflow_content: str) -> ComponentStatus:
         state=state,
         issues=issues,
         details={
-            "required_step_snippets": list(REQUIRED_WORKFLOW_STEP_SNIPPETS),
+            "required_step_snippets": list(required_workflow_step_snippets),
             "outputs_ci_reference_count": len(outputs_ci_lines),
         },
     )
 
 
-def _check_tool_scripts(root: Path) -> ComponentStatus:
+def _check_tool_scripts(
+    root: Path,
+    required_fragment_categories: list[str],
+    manifest_issues: list[str],
+) -> ComponentStatus:
     issues: list[str] = []
     health_path = root / "tools" / "check_support_metrics_ci_health.py"
     fragments_path = root / "tools" / "check_support_metrics_ci_fragments.py"
@@ -353,9 +376,12 @@ def _check_tool_scripts(root: Path) -> ComponentStatus:
         if error != "":
             issues.append("cannot read fragments tool script: %s" % error)
         else:
-            for category in REQUIRED_FRAGMENT_CATEGORIES:
+            for category in required_fragment_categories:
                 if re.search(r"""['"]%s['"]""" % re.escape(category), content) is None:
                     issues.append("fragments tool missing category token: %s" % category)
+
+    for manifest_issue in manifest_issues:
+        issues.append("manifest issue: %s" % manifest_issue)
 
     state = STATE_OK if not issues else STATE_ERROR
     return ComponentStatus(
@@ -369,12 +395,37 @@ def _check_tool_scripts(root: Path) -> ComponentStatus:
     )
 
 
+def _resolve_manifest_contract_lists(
+    root: Path,
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    result = load_support_metrics_contract_manifest(root)
+    manifest = result.manifest if result.is_valid and result.manifest is not None else None
+
+    if manifest is None:
+        return (
+            list(DEFAULT_ARTIFACT_NAMES),
+            list(DEFAULT_FRAGMENT_CATEGORIES),
+            list(DEFAULT_WORKFLOW_STEP_SNIPPETS),
+            list(result.issues),
+        )
+
+    artifacts = [str(value) for value in manifest.get("artifacts", list(DEFAULT_ARTIFACT_NAMES))]
+    fragment_categories = [
+        str(value) for value in manifest.get("fragment_categories", list(DEFAULT_FRAGMENT_CATEGORIES))
+    ]
+    workflow_steps = [str(value) for value in manifest.get("workflow_steps", list(DEFAULT_WORKFLOW_STEP_SNIPPETS))]
+    return artifacts, fragment_categories, workflow_steps, []
+
+
 def build_contract_audit(root: Path) -> ContractAuditReport:
     readme_path = root / "README.md"
     workflow_path = root / ".github" / "workflows" / "tests.yml"
 
     readme_content, readme_error = _load_text(readme_path)
     workflow_content, workflow_error = _load_text(workflow_path)
+    required_artifacts, required_fragment_categories, required_workflow_steps, manifest_issues = (
+        _resolve_manifest_contract_lists(root)
+    )
 
     pre_issues: list[str] = []
     if readme_error != "":
@@ -387,18 +438,22 @@ def build_contract_audit(root: Path) -> ContractAuditReport:
         cli_readme_tools.state = STATE_ERROR
         cli_readme_tools.issues = pre_issues + cli_readme_tools.issues
 
-    artifacts_alignment = _check_artifacts_alignment(readme_content, workflow_content)
+    artifacts_alignment = _check_artifacts_alignment(
+        readme_content,
+        workflow_content,
+        required_artifacts,
+    )
     if readme_error != "" or workflow_error != "":
         artifacts_alignment.state = STATE_ERROR
         artifacts_alignment.issues = pre_issues + artifacts_alignment.issues
 
-    fragments_coverage = _check_fragments_coverage(root)
-    workflow_rules = _check_workflow_rules(workflow_content)
+    fragments_coverage = _check_fragments_coverage(root, required_fragment_categories)
+    workflow_rules = _check_workflow_rules(workflow_content, required_workflow_steps)
     if workflow_error != "":
         workflow_rules.state = STATE_ERROR
         workflow_rules.issues = pre_issues + workflow_rules.issues
 
-    tool_scripts = _check_tool_scripts(root)
+    tool_scripts = _check_tool_scripts(root, required_fragment_categories, manifest_issues)
 
     overall = _worst_state(
         [

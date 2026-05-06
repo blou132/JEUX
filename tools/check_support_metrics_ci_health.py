@@ -7,7 +7,15 @@ from pathlib import Path
 import subprocess
 import sys
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from check_support_metrics_ci_fragments import inspect_fragment_directory
+from support_metrics_ci_contract_manifest import (
+    SupportMetricsContractManifestLoadResult,
+    load_support_metrics_contract_manifest,
+)
 
 
 STATE_OK = "ok"
@@ -16,11 +24,13 @@ STATE_ERROR = "error"
 STATE_RANK: dict[str, int] = {STATE_OK: 0, STATE_WARNING: 1, STATE_ERROR: 2}
 
 
-REQUIRED_TOOLS: tuple[str, ...] = (
-    "analyze_run_metrics_history.py",
-    "write_support_metrics_ci_summary.py",
-    "simulate_support_metrics_ci.py",
-    "check_support_metrics_ci_fragments.py",
+DEFAULT_REQUIRED_TOOL_PATHS: tuple[str, ...] = (
+    "tools/analyze_run_metrics_history.py",
+    "tools/write_support_metrics_ci_summary.py",
+    "tools/simulate_support_metrics_ci.py",
+    "tools/check_support_metrics_ci_fragments.py",
+    "tools/check_support_metrics_ci_health.py",
+    "tools/audit_support_metrics_ci_contract.py",
 )
 REQUIRED_WORKFLOW_SNIPPETS: tuple[str, ...] = (
     'py -m unittest discover -s tests -p "test_*.py"',
@@ -139,30 +149,33 @@ def _worst_state(states: list[str]) -> str:
     return max(states, key=lambda state: STATE_RANK.get(state, 0))
 
 
-def _check_tools(root: Path) -> ComponentStatus:
-    tools_dir = root / "tools"
+def _check_tools(
+    root: Path,
+    required_tool_paths: list[str],
+) -> ComponentStatus:
     missing: list[str] = []
     present: list[str] = []
-    for file_name in REQUIRED_TOOLS:
-        path = tools_dir / file_name
+    for tool_path in required_tool_paths:
+        normalized = str(tool_path).replace("\\", "/")
+        path = root / normalized
         if path.exists():
-            present.append(file_name)
+            present.append(normalized)
         else:
-            missing.append(file_name)
+            missing.append(normalized)
 
     issues: list[str] = []
     state = STATE_OK
     if missing:
         state = STATE_ERROR
-        for file_name in missing:
-            issues.append("missing tool: tools/%s" % file_name)
+        for tool_path in missing:
+            issues.append("missing tool: %s" % tool_path)
 
     return ComponentStatus(
         name="tools",
         state=state,
         issues=issues,
         details={
-            "path": str(tools_dir),
+            "path": str(root / "tools"),
             "present": present,
             "missing": missing,
         },
@@ -430,12 +443,19 @@ def _check_cli_help(root: Path) -> ComponentStatus:
     )
 
 
-def _check_contract_audit(root: Path) -> ComponentStatus:
+def _check_contract_audit(
+    root: Path,
+    manifest_result: SupportMetricsContractManifestLoadResult,
+) -> ComponentStatus:
     issues: list[str] = []
     state = STATE_OK
     tool_path = root / AUDIT_CONTRACT_TOOL_RELATIVE_PATH
     workflow_path = root / ".github" / "workflows" / "tests.yml"
     workflow_content = ""
+
+    if not manifest_result.is_valid:
+        for manifest_issue in manifest_result.issues:
+            issues.append("contract manifest issue: %s" % manifest_issue)
 
     if not tool_path.exists():
         issues.append("missing contract audit tool: %s" % str(AUDIT_CONTRACT_TOOL_RELATIVE_PATH))
@@ -486,18 +506,29 @@ def _check_contract_audit(root: Path) -> ComponentStatus:
             "tool_exists": tool_path.exists(),
             "workflow_path": str(workflow_path),
             "workflow_checked": workflow_path.exists(),
+            "manifest_path": str(manifest_result.path),
+            "manifest_valid": manifest_result.is_valid,
         },
     )
 
 
 def build_health_report(root: Path) -> HealthReport:
-    tools = _check_tools(root)
+    manifest_result = load_support_metrics_contract_manifest(root)
+    required_tool_paths: list[str] = list(DEFAULT_REQUIRED_TOOL_PATHS)
+    if manifest_result.is_valid and manifest_result.manifest is not None:
+        manifest_tools = manifest_result.manifest.get("tools", [])
+        if isinstance(manifest_tools, list):
+            parsed_paths = [str(tool_path).replace("\\", "/") for tool_path in manifest_tools if str(tool_path).strip() != ""]
+            if len(parsed_paths) > 0:
+                required_tool_paths = parsed_paths
+
+    tools = _check_tools(root, required_tool_paths)
     fixtures = _check_fixtures(root)
     workflow = _check_workflow(root)
     fragments = _check_fragments(root)
     documentation = _check_documentation(root)
     cli_help = _check_cli_help(root)
-    contract_audit = _check_contract_audit(root)
+    contract_audit = _check_contract_audit(root, manifest_result)
     overall = _worst_state(
         [
             tools.state,

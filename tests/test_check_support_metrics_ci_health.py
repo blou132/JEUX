@@ -99,6 +99,45 @@ TEMP_ROOT_CLI_HELP_TOOLS: list[dict[str, object]] = [
         "options": ["--json", "--check", "--verbose", "--markdown-output"],
     },
 ]
+TEMP_ROOT_CONTRACT_MANIFEST: dict[str, list[str]] = {
+    "tools": [
+        "tools/analyze_run_metrics_history.py",
+        "tools/write_support_metrics_ci_summary.py",
+        "tools/simulate_support_metrics_ci.py",
+        "tools/check_support_metrics_ci_fragments.py",
+        "tools/check_support_metrics_ci_health.py",
+        "tools/audit_support_metrics_ci_contract.py",
+    ],
+    "artifacts": [
+        "support-metrics-smoke-report",
+        "support-metrics-report",
+        "support-metrics-ci-health",
+        "support-metrics-ci-contract-audit",
+    ],
+    "fragment_categories": [
+        "smoke",
+        "runtime",
+        "error",
+        "local",
+        "health",
+        "contract_audit",
+    ],
+    "workflow_steps": [
+        "Run unit tests",
+        "Validate support metrics CI fragments",
+        "Validate support metrics CI contract audit",
+        "Validate support metrics CI health",
+        "Smoke test support metrics CI summary",
+        "Optional runtime support metrics CI check",
+    ],
+    "expected_invariants": [
+        "CI/debug only",
+        "not gameplay validation",
+        "runtime report optional",
+        "no --fail-on-regression by default",
+    ],
+    "report_modes": ["smoke", "runtime", "local", "health", "contract_audit"],
+}
 
 
 VALID_WORKFLOW_CONTENT = """name: Tests
@@ -211,6 +250,10 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
     (root_dir / "tests" / "fixtures").mkdir(parents=True, exist_ok=True)
     (root_dir / "tests" / "fixtures" / "support_metrics_cli_help_expected.json").write_text(
         json.dumps({"tools": TEMP_ROOT_CLI_HELP_TOOLS}, indent=2),
+        encoding="utf-8",
+    )
+    (root_dir / "tests" / "fixtures" / "support_metrics_ci_contract_manifest.json").write_text(
+        json.dumps(TEMP_ROOT_CONTRACT_MANIFEST, indent=2),
         encoding="utf-8",
     )
     (root_dir / "README.md").write_text(
@@ -338,6 +381,31 @@ class CheckSupportMetricsCIHealthToolTests(unittest.TestCase):
             self.assertIn("- contract_audit: error", result.stdout)
             self.assertIn("missing contract audit tool:", result.stdout)
             self.assertIn("audit_support_metrics_ci_contract.py", result.stdout)
+
+    def test_contract_manifest_missing_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            (temp_root / "tests" / "fixtures" / "support_metrics_ci_contract_manifest.json").unlink()
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- contract_audit: error", result.stdout)
+            self.assertIn("contract manifest issue:", result.stdout)
+            self.assertIn("support_metrics_ci_contract_manifest.json", result.stdout)
+
+    def test_contract_manifest_invalid_json_is_not_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_root = Path(tmpdir) / "repo"
+            _write_minimal_valid_root(temp_root)
+            manifest_path = temp_root / "tests" / "fixtures" / "support_metrics_ci_contract_manifest.json"
+            manifest_path.write_text("{invalid json", encoding="utf-8")
+
+            result = _run_health_tool(["--check", "--verbose", "--root", str(temp_root)])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("- contract_audit: error", result.stdout)
+            self.assertIn("contract manifest issue:", result.stdout)
+            self.assertIn("invalid JSON", result.stdout)
 
     def test_json_output_is_valid(self) -> None:
         result = _run_health_tool(["--json"])
