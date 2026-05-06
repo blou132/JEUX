@@ -68,6 +68,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=REPO_ROOT,
         help="Repository root to validate (default: current repository root).",
     )
+    parser.add_argument(
+        "--markdown-output",
+        type=Path,
+        default=None,
+        help="Optional path to write a compact Markdown manifest report.",
+    )
     return parser
 
 
@@ -137,9 +143,32 @@ def _print_text_report(check: SupportMetricsManifestCheck, verbose: bool) -> Non
             print("  - none")
 
 
+def _build_markdown_report(check: SupportMetricsManifestCheck) -> str:
+    lines: list[str] = []
+    lines.append("# Support metrics CI manifest")
+    lines.append("")
+    lines.append("- overall: %s" % check.overall)
+    lines.append("- tools: %d" % check.tools_count)
+    lines.append("- artifacts: %d" % check.artifacts_count)
+    lines.append("- fragment_categories: %d" % check.fragment_categories_count)
+    lines.append("- workflow_steps: %d" % check.workflow_steps_count)
+    lines.append("- expected_invariants: %d" % check.expected_invariants_count)
+    lines.append("- report_modes: %d" % check.report_modes_count)
+    lines.append("- interpretation: maintenance CI/debug only, not gameplay validation")
+    return "\n".join(lines) + "\n"
+
+
+def _write_markdown_report(path: Path, check: SupportMetricsManifestCheck) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_build_markdown_report(check), encoding="utf-8")
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     check = build_manifest_check(args.root)
+
+    if args.markdown_output is not None:
+        _write_markdown_report(args.markdown_output, check)
 
     if args.json:
         print(json.dumps(check.to_dict(), indent=2, sort_keys=True))

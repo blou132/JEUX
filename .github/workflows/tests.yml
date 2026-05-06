@@ -12,6 +12,7 @@ env:
   SUPPORT_METRICS_CURRENT_PATH: outputs/ci/support_metrics_current.jsonl
   SUPPORT_METRICS_REPORT_PATH: artifacts/support_metrics_report.md
   SUPPORT_METRICS_CONTRACT_AUDIT_REPORT_PATH: artifacts/support_metrics_ci_contract_audit.md
+  SUPPORT_METRICS_MANIFEST_REPORT_PATH: artifacts/support_metrics_ci_manifest.md
 
 jobs:
   tests:
@@ -31,7 +32,29 @@ jobs:
         run: py -m unittest discover -s tests -p "test_*.py"
 
       - name: Validate support metrics CI manifest
-        run: py tools/check_support_metrics_ci_manifest.py --check
+        shell: pwsh
+        run: |
+          $manifestExitCode = 0
+
+          py tools/check_support_metrics_ci_manifest.py --check --markdown-output "$env:SUPPORT_METRICS_MANIFEST_REPORT_PATH"
+
+          $manifestExitCode = $LASTEXITCODE
+
+          if (Test-Path "$env:SUPPORT_METRICS_MANIFEST_REPORT_PATH") {
+            Get-Content "$env:SUPPORT_METRICS_MANIFEST_REPORT_PATH" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+
+          if ($manifestExitCode -ne 0) {
+            exit $manifestExitCode
+          }
+
+      - name: Upload support metrics CI manifest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: support-metrics-ci-manifest
+          path: artifacts/support_metrics_ci_manifest.md
+          if-no-files-found: error
 
       - name: Validate support metrics CI fragments
         run: py tools/check_support_metrics_ci_fragments.py --validate

@@ -9,6 +9,7 @@
     "tools/check_support_metrics_ci_manifest.py"
   ],
   "artifacts": [
+    "support-metrics-ci-manifest",
     "support-metrics-smoke-report",
     "support-metrics-report",
     "support-metrics-ci-health",

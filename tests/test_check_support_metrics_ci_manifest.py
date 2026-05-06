@@ -50,6 +50,14 @@ def _write_valid_temp_repo(root_dir: Path) -> None:
 
 
 class CheckSupportMetricsCIManifestToolTests(unittest.TestCase):
+    def test_help_exposes_markdown_output_option(self) -> None:
+        result = _run_tool(["--help"])
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--check", result.stdout)
+        self.assertIn("--json", result.stdout)
+        self.assertIn("--verbose", result.stdout)
+        self.assertIn("--markdown-output", result.stdout)
+
     def test_manifest_check_nominal_is_ok(self) -> None:
         result = _run_tool(["--check"])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
@@ -166,10 +174,34 @@ class CheckSupportMetricsCIManifestToolTests(unittest.TestCase):
         self.assertIn("tools_count", parsed)
         self.assertIn("required_keys", parsed)
 
+    def test_markdown_report_is_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_manifest.md"
+            result = _run_tool(["--check", "--markdown-output", str(output_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(output_path.exists())
+            content = output_path.read_text(encoding="utf-8")
+            self.assertIn("# Support metrics CI manifest", content)
+            self.assertIn("- overall:", content)
+            self.assertIn("not gameplay validation", content)
+
     def test_workflow_contains_manifest_validation_step_and_keeps_core_steps(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn("Validate support metrics CI manifest", content)
-        self.assertIn("py tools/check_support_metrics_ci_manifest.py --check", content)
+        self.assertIn("py tools/check_support_metrics_ci_manifest.py --check --markdown-output", content)
+        self.assertIn("support_metrics_ci_manifest.md", content)
+        self.assertIn("support-metrics-ci-manifest", content)
+        self.assertIn("GITHUB_STEP_SUMMARY", content)
+        self.assertIn(
+            "Get-Content \"$env:SUPPORT_METRICS_MANIFEST_REPORT_PATH\" | Add-Content -Path $env:GITHUB_STEP_SUMMARY",
+            content,
+        )
+        self.assertIn("Upload support metrics CI manifest artifact", content)
+        self.assertIn("if-no-files-found: error", content)
+        self.assertIn("support-metrics-smoke-report", content)
+        self.assertIn("support-metrics-report", content)
+        self.assertIn("support-metrics-ci-health", content)
+        self.assertIn("support-metrics-ci-contract-audit", content)
         self.assertIn("Validate support metrics CI fragments", content)
         self.assertIn("Validate support metrics CI health", content)
         self.assertIn("Validate support metrics CI contract audit", content)
