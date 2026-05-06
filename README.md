@@ -845,6 +845,24 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - `user://run_metrics_latest.json` et `user://run_metrics_history.jsonl` sont ecrits dans le dossier utilisateur Godot local.
   - pour analyse CLI, copier ou pointer `--input` vers ce fichier reel sur votre machine.
 
+## Collect runtime support metrics with Godot
+- utilite: script d'aide locale pour collecter `baseline/current` runtime sans changer le gameplay.
+- prerequis: Godot installe localement (le script echoue proprement si le binaire est absent).
+- script: `tools/collect_support_metrics_runtime.py`
+- options principales:
+  - `--mode baseline|current`
+  - `--runs 5`
+  - `--seed-start 1000`
+  - `--output outputs/ci/support_metrics_current.jsonl`
+  - `--godot-bin godot`
+  - `--dry-run` (n'execute pas Godot, affiche seulement les commandes)
+- exemples:
+```bash
+py tools/collect_support_metrics_runtime.py --mode baseline --runs 5
+py tools/collect_support_metrics_runtime.py --mode current --runs 5
+```
+- note: ce script sert a observer les metriques runtime (notamment pour le suivi v211), pas a modifier le gameplay.
+
 ## Support gate playtest protocol
 - Objectif: comparer proprement un reglable baseline et un reglable candidate pour `support_gate`.
 - Etape 1 (baseline):
