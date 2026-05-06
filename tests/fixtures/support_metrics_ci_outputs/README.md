@@ -5,6 +5,7 @@ Definir les fragments textuels contractuels attendus dans les rapports CI suppor
 
 ## Contenu principal
 - Fragments smoke/runtime/error/local/health/contract_audit pour summary et markdown.
+- Fragments manifest pour summary et markdown (`manifest_summary_expected_fragments.txt`, `manifest_report_expected_fragments.txt`).
 
 ## Notes
 - Les tests verifient la presence de fragments critiques, pas des valeurs numeriques exactes.

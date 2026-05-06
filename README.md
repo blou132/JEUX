@@ -722,6 +722,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
 - CI report output contract:
   - des fragments critiques de lisibilite sont verrouilles par tests dans `tests/fixtures/support_metrics_ci_outputs/`.
   - ces snapshots par fragments couvrent `Summary` et les rapports Markdown pour smoke/runtime-skip/error/local/health/contract_audit.
+  - le rapport manifeste (`support_metrics_ci_manifest.md`) a aussi un contrat de sortie via `manifest_summary_expected_fragments.txt` et `manifest_report_expected_fragments.txt`.
   - l'objectif est de proteger la lisibilite CI (index, statuts, provenance, avertissements), pas le gameplay.
 - Support metrics CI fragments maintenance:
   - outil: `tools/check_support_metrics_ci_fragments.py`.
@@ -753,6 +754,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - la CI genere `artifacts/support_metrics_ci_manifest.md` via `--markdown-output`.
   - ce rapport est ajoute au `Summary` GitHub Actions et archive comme artifact `support-metrics-ci-manifest`.
   - ce rapport confirme la lisibilite/coherence du manifeste (structure, cles, listes, outils references).
+  - ce rapport manifeste a aussi un contrat de sortie (fragments `manifest_*_expected_fragments.txt`) pour proteger la lisibilite CI/debug.
   - ce rapport reste maintenance CI/debug uniquement; il ne valide pas le gameplay.
 - Support metrics CI contract audit artifact:
   - la CI genere `artifacts/support_metrics_ci_contract_audit.md` via `--markdown-output`.

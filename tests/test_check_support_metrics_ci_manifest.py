@@ -7,10 +7,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.support_metrics_output_fragments import assert_expected_fragments_present
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "check_support_metrics_ci_manifest.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "tests.yml"
+OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 
 
 VALID_MANIFEST: dict[str, list[str]] = {
@@ -184,6 +187,36 @@ class CheckSupportMetricsCIManifestToolTests(unittest.TestCase):
             self.assertIn("# Support metrics CI manifest", content)
             self.assertIn("- overall:", content)
             self.assertIn("not gameplay validation", content)
+
+    def test_manifest_report_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_manifest.md"
+            result = _run_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            report_text = report_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                report_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "manifest_report_expected_fragments.txt",
+            )
+
+    def test_manifest_summary_matches_output_snapshot_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "artifacts" / "support_metrics_ci_manifest.md"
+            summary_path = Path(tmpdir) / "artifacts" / "github_step_summary.md"
+            result = _run_tool(["--check", "--markdown-output", str(report_path)])
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+
+            report_text = report_path.read_text(encoding="utf-8")
+            summary_path.write_text("## CI Summary\n\n" + report_text, encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+            assert_expected_fragments_present(
+                self,
+                summary_text,
+                OUTPUT_CONTRACT_FIXTURES_DIR / "manifest_summary_expected_fragments.txt",
+            )
 
     def test_workflow_contains_manifest_validation_step_and_keeps_core_steps(self) -> None:
         content = WORKFLOW_PATH.read_text(encoding="utf-8")

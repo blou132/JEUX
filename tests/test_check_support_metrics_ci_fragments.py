@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "check_support_metrics_ci_fragments.py"
 FRAGMENTS_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
+    "manifest_summary_expected_fragments.txt",
+    "manifest_report_expected_fragments.txt",
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
     "contract_audit_summary_expected_fragments.txt",
@@ -56,10 +58,11 @@ class CheckSupportMetricsCIFragmentsToolTests(unittest.TestCase):
                 msg=f"Fragment fixture has no non-comment lines: {file_path}",
             )
 
-    def test_list_outputs_categories_health_contract_audit_smoke_runtime_error_local(self) -> None:
+    def test_list_outputs_categories_manifest_health_contract_audit_smoke_runtime_error_local(self) -> None:
         result = _run_tool(["--list"])
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("Fragments list", result.stdout)
+        self.assertIn("category=manifest", result.stdout)
         self.assertIn("category=health", result.stdout)
         self.assertIn("category=contract_audit", result.stdout)
         self.assertIn("category=smoke", result.stdout)

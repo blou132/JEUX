@@ -15,6 +15,8 @@ SCRIPT = ROOT / "tools" / "audit_support_metrics_ci_contract.py"
 OUTPUT_CONTRACT_FIXTURES_DIR = ROOT / "tests" / "fixtures" / "support_metrics_ci_outputs"
 
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
+    "manifest_summary_expected_fragments.txt",
+    "manifest_report_expected_fragments.txt",
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
     "contract_audit_summary_expected_fragments.txt",
@@ -51,6 +53,7 @@ TEMP_ROOT_CONTRACT_MANIFEST: dict[str, list[str]] = {
         "support-metrics-ci-contract-audit",
     ],
     "fragment_categories": [
+        "manifest",
         "smoke",
         "runtime",
         "error",
@@ -190,7 +193,7 @@ def _write_minimal_valid_root(root_dir: Path) -> None:
     )
     (tools_dir / "check_support_metrics_ci_fragments.py").write_text(
         "EXPECTED_FRAGMENT_FILES = ()\n"
-        "EXPECTED_CATEGORIES = ('health', 'contract_audit', 'smoke', 'runtime', 'error', 'local')\n",
+        "EXPECTED_CATEGORIES = ('manifest', 'health', 'contract_audit', 'smoke', 'runtime', 'error', 'local')\n",
         encoding="utf-8",
     )
 

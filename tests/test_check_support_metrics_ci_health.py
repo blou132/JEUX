@@ -35,6 +35,8 @@ EXPECTED_README_SNIPPETS: tuple[str, ...] = (
     "no --fail-on-regression by default",
 )
 EXPECTED_FRAGMENT_FILES: tuple[str, ...] = (
+    "manifest_summary_expected_fragments.txt",
+    "manifest_report_expected_fragments.txt",
     "health_summary_expected_fragments.txt",
     "health_report_expected_fragments.txt",
     "contract_audit_summary_expected_fragments.txt",
@@ -115,6 +117,7 @@ TEMP_ROOT_CONTRACT_MANIFEST: dict[str, list[str]] = {
         "support-metrics-ci-contract-audit",
     ],
     "fragment_categories": [
+        "manifest",
         "smoke",
         "runtime",
         "error",

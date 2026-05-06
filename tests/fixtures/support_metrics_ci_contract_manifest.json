@@ -16,6 +16,7 @@
     "support-metrics-ci-contract-audit"
   ],
   "fragment_categories": [
+    "manifest",
     "smoke",
     "runtime",
     "error",

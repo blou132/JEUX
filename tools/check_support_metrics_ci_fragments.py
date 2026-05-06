@@ -12,6 +12,8 @@ class ExpectedFragmentFile:
 
 
 EXPECTED_FRAGMENT_FILES: tuple[ExpectedFragmentFile, ...] = (
+    ExpectedFragmentFile("manifest_summary_expected_fragments.txt", "manifest"),
+    ExpectedFragmentFile("manifest_report_expected_fragments.txt", "manifest"),
     ExpectedFragmentFile("health_summary_expected_fragments.txt", "health"),
     ExpectedFragmentFile("health_report_expected_fragments.txt", "health"),
     ExpectedFragmentFile(
@@ -30,6 +32,7 @@ EXPECTED_FRAGMENT_FILES: tuple[ExpectedFragmentFile, ...] = (
     ExpectedFragmentFile("local_simulation_report_expected_fragments.txt", "local"),
 )
 EXPECTED_CATEGORIES: tuple[str, ...] = (
+    "manifest",
     "health",
     "contract_audit",
     "smoke",

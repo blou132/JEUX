@@ -1,0 +1,11 @@
+# Manifest report summary contract fragments
+Support metrics CI manifest
+overall
+tools
+artifacts
+fragment_categories
+workflow_steps
+expected_invariants
+report_modes
+maintenance CI/debug only
+not gameplay validation
