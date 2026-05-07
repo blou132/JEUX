@@ -1,0 +1,374 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+from typing import Any
+
+
+DEFAULT_BASELINE_OUTPUT = Path("outputs/ci/support_metrics_baseline.jsonl")
+DEFAULT_CURRENT_OUTPUT = Path("outputs/ci/support_metrics_current.jsonl")
+DEFAULT_REPORT_OUTPUT = Path("outputs/ci/support_metrics_runtime_comparison.md")
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run local runtime support metrics pipeline: collect baseline/current, "
+            "validate runtime files, compare results, and generate a Markdown report."
+        )
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=5,
+        help="Number of runtime runs for baseline/current collection (default: 5).",
+    )
+    parser.add_argument(
+        "--seed-start",
+        type=int,
+        default=1000,
+        help="Seed start for runtime collection (default: 1000).",
+    )
+    parser.add_argument(
+        "--baseline-output",
+        type=Path,
+        default=DEFAULT_BASELINE_OUTPUT,
+        help="Baseline output JSONL path.",
+    )
+    parser.add_argument(
+        "--current-output",
+        type=Path,
+        default=DEFAULT_CURRENT_OUTPUT,
+        help="Current output JSONL path.",
+    )
+    parser.add_argument(
+        "--report-output",
+        type=Path,
+        default=DEFAULT_REPORT_OUTPUT,
+        help="Markdown comparison report output path.",
+    )
+    parser.add_argument(
+        "--godot-bin",
+        type=str,
+        default="godot",
+        help="Godot executable path or command name (default: godot).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned commands only and exit with code 0.",
+    )
+    parser.add_argument(
+        "--skip-collect",
+        action="store_true",
+        help="Skip runtime collection and use existing baseline/current files.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "Fail on validation warnings and enable strict regression check in the "
+            "comparative analysis."
+        ),
+    )
+    return parser
+
+
+def _format_command(command: list[str]) -> str:
+    if sys.platform.startswith("win"):
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
+
+
+def _resolve_godot_executable(godot_bin: str) -> str | None:
+    candidate_path = Path(godot_bin)
+    if candidate_path.exists():
+        return str(candidate_path)
+    resolved = shutil.which(godot_bin)
+    if resolved is not None:
+        return resolved
+    return None
+
+
+def _collect_script_path() -> Path:
+    return Path(__file__).with_name("collect_support_metrics_runtime.py")
+
+
+def _validate_script_path() -> Path:
+    return Path(__file__).with_name("validate_support_metrics_runtime_files.py")
+
+
+def _analyze_script_path() -> Path:
+    return Path(__file__).with_name("analyze_run_metrics_history.py")
+
+
+def _build_collect_command(
+    mode: str,
+    output_path: Path,
+    runs: int,
+    seed_start: int,
+    godot_bin: str,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(_collect_script_path()),
+        "--mode",
+        mode,
+        "--runs",
+        str(runs),
+        "--seed-start",
+        str(seed_start),
+        "--output",
+        str(output_path),
+        "--godot-bin",
+        godot_bin,
+    ]
+
+
+def _build_validate_command(
+    baseline_output: Path,
+    current_output: Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(_validate_script_path()),
+        "--baseline",
+        str(baseline_output),
+        "--current",
+        str(current_output),
+        "--check",
+        "--json",
+    ]
+
+
+def _build_analyze_command(
+    baseline_output: Path,
+    current_output: Path,
+    report_output: Path,
+    strict: bool,
+) -> list[str]:
+    command = [
+        sys.executable,
+        str(_analyze_script_path()),
+        "--input",
+        str(baseline_output),
+        "--compare-input",
+        str(current_output),
+        "--report-mode",
+        "runtime",
+        "--ci-check",
+        "--format",
+        "markdown",
+        "--output",
+        str(report_output),
+    ]
+    if strict:
+        command.append("--fail-on-regression")
+    return command
+
+
+def _print_planned_commands(
+    collect_commands: list[list[str]],
+    validate_command: list[str],
+    analyze_command: list[str],
+    skip_collect: bool,
+) -> None:
+    print("Support metrics runtime pipeline")
+    print("- dry_run: yes")
+    print("- skip_collect: %s" % ("yes" if skip_collect else "no"))
+    print("DRY-RUN: planned commands")
+    if skip_collect:
+        print("- collect: skipped (--skip-collect)")
+    else:
+        for index, command in enumerate(collect_commands, start=1):
+            print("- collect %d: %s" % (index, _format_command(command)))
+    print("- validate: %s" % _format_command(validate_command))
+    print("- analyze: %s" % _format_command(analyze_command))
+    print("Dry-run completed. No command was executed.")
+
+
+def _run_command(command: list[str], step_name: str) -> subprocess.CompletedProcess[str]:
+    print("Running %s:" % step_name)
+    print("- command: %s" % _format_command(command))
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result
+
+
+def _load_validation_report(validation_stdout: str) -> dict[str, Any] | None:
+    try:
+        parsed = json.loads(validation_stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _run_validation(
+    baseline_output: Path,
+    current_output: Path,
+    strict: bool,
+) -> int:
+    validate_command = _build_validate_command(baseline_output, current_output)
+    validate_result = _run_command(validate_command, "runtime file validation")
+    if validate_result.returncode != 0:
+        print(
+            "Runtime file validation failed. Ensure baseline/current files exist and are valid JSONL.",
+            file=sys.stderr,
+        )
+        return validate_result.returncode
+
+    report = _load_validation_report(validate_result.stdout)
+    if report is None:
+        print(
+            "Runtime file validation returned invalid JSON output.",
+            file=sys.stderr,
+        )
+        return 1
+
+    overall = str(report.get("overall", "error")).strip().lower()
+    issues_count = int(report.get("issues_count", 0))
+    warnings_count = int(report.get("warnings_count", 0))
+    print(
+        "Validation summary: overall=%s issues=%d warnings=%d"
+        % (overall, issues_count, warnings_count)
+    )
+
+    if strict and overall != "ok":
+        print(
+            "Strict mode: runtime file validation warnings/errors are treated as failure.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+def _ensure_skip_collect_files_exist(
+    baseline_output: Path,
+    current_output: Path,
+) -> int:
+    missing: list[str] = []
+    if not baseline_output.exists():
+        missing.append(str(baseline_output))
+    if not current_output.exists():
+        missing.append(str(current_output))
+    if not missing:
+        return 0
+
+    print(
+        "skip-collect requires existing runtime files; missing: %s"
+        % ", ".join(missing),
+        file=sys.stderr,
+    )
+    return 2
+
+
+def main() -> int:
+    args = _build_parser().parse_args()
+
+    if args.runs <= 0:
+        print("--runs must be greater than 0.", file=sys.stderr)
+        return 2
+
+    baseline_output = args.baseline_output
+    current_output = args.current_output
+    report_output = args.report_output
+
+    collect_baseline_command = _build_collect_command(
+        mode="baseline",
+        output_path=baseline_output,
+        runs=args.runs,
+        seed_start=args.seed_start,
+        godot_bin=args.godot_bin,
+    )
+    collect_current_command = _build_collect_command(
+        mode="current",
+        output_path=current_output,
+        runs=args.runs,
+        seed_start=args.seed_start,
+        godot_bin=args.godot_bin,
+    )
+    validate_command = _build_validate_command(baseline_output, current_output)
+    analyze_command = _build_analyze_command(
+        baseline_output=baseline_output,
+        current_output=current_output,
+        report_output=report_output,
+        strict=bool(args.strict),
+    )
+
+    if args.dry_run:
+        _print_planned_commands(
+            collect_commands=[collect_baseline_command, collect_current_command],
+            validate_command=validate_command,
+            analyze_command=analyze_command,
+            skip_collect=bool(args.skip_collect),
+        )
+        return 0
+
+    if args.skip_collect:
+        missing_check_status = _ensure_skip_collect_files_exist(
+            baseline_output=baseline_output,
+            current_output=current_output,
+        )
+        if missing_check_status != 0:
+            return missing_check_status
+    else:
+        resolved_godot = _resolve_godot_executable(args.godot_bin)
+        if resolved_godot is None:
+            print(
+                (
+                    "Godot binary not found: '%s'. Install Godot or use --skip-collect "
+                    "with existing runtime files."
+                )
+                % args.godot_bin,
+                file=sys.stderr,
+            )
+            return 2
+
+        collect_baseline_command[-1] = resolved_godot
+        collect_current_command[-1] = resolved_godot
+
+        baseline_result = _run_command(collect_baseline_command, "runtime collection (baseline)")
+        if baseline_result.returncode != 0:
+            print("Baseline runtime collection failed.", file=sys.stderr)
+            return baseline_result.returncode
+
+        current_result = _run_command(collect_current_command, "runtime collection (current)")
+        if current_result.returncode != 0:
+            print("Current runtime collection failed.", file=sys.stderr)
+            return current_result.returncode
+
+    validation_status = _run_validation(
+        baseline_output=baseline_output,
+        current_output=current_output,
+        strict=bool(args.strict),
+    )
+    if validation_status != 0:
+        return validation_status
+
+    report_output.parent.mkdir(parents=True, exist_ok=True)
+    analyze_result = _run_command(analyze_command, "comparative analysis")
+    if analyze_result.returncode != 0:
+        print("Comparative analysis failed.", file=sys.stderr)
+        return analyze_result.returncode
+
+    print("Runtime support metrics pipeline completed.")
+    print("Report written to: %s" % report_output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

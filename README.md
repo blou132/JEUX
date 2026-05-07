@@ -878,6 +878,29 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
 ```
 - note: cette commande valide des fichiers runtime support metrics; elle ne modifie pas le gameplay.
 
+## Run local runtime support metrics pipeline
+- utilite: orchestration locale en une commande pour `collect -> validate -> compare -> report` apres tuning v211.
+- script: `tools/run_support_metrics_runtime_pipeline.py`
+- options principales:
+  - `--runs 5`
+  - `--seed-start 1000`
+  - `--baseline-output outputs/ci/support_metrics_baseline.jsonl`
+  - `--current-output outputs/ci/support_metrics_current.jsonl`
+  - `--report-output outputs/ci/support_metrics_runtime_comparison.md`
+  - `--godot-bin godot`
+  - `--dry-run`
+  - `--skip-collect`
+  - `--strict`
+- exemple (collecte + validation + comparaison + rapport):
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000
+```
+- exemple sans Godot (fichiers deja collectes):
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-output outputs/ci/support_metrics_baseline.jsonl --current-output outputs/ci/support_metrics_current.jsonl --report-output outputs/ci/support_metrics_runtime_comparison.md
+```
+- note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
+
 ## Support gate playtest protocol
 - Objectif: comparer proprement un reglable baseline et un reglable candidate pour `support_gate`.
 - Etape 1 (baseline):
