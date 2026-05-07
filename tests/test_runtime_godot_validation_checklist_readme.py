@@ -72,6 +72,16 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("history_append_success=no", content)
         self.assertIn("debug only, not gameplay metrics", content)
 
+    def test_readme_contains_force_runtime_objective_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Force runtime objective for support metrics", content)
+        self.assertIn("--objective rally_champion", content)
+        self.assertIn("objective_requested", content)
+        self.assertIn("objective_observed", content)
+        self.assertIn("forced objective rejected / unknown objective", content)
+        self.assertIn("debug/CI", content)
+        self.assertIn("ne modifie pas le gameplay normal", content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -657,6 +657,10 @@ var run_metrics_history_export_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
 var support_metrics_trace_export_enabled: bool = false
 var support_metrics_trace_output_path: String = SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH
 var support_metrics_trace_data: Dictionary = {}
+var support_metrics_forced_objective: String = ""
+var support_metrics_forced_objective_enabled: bool = false
+var support_metrics_forced_objective_rejected: bool = false
+var support_metrics_forced_objective_reject_reason: String = ""
 var run_project_started_baseline: int = 0
 var run_vendetta_started_baseline: int = 0
 var run_vendetta_resolved_baseline: int = 0
@@ -712,6 +716,7 @@ func _ready() -> void:
 	_load_creature_profiles_data()
 	sandbox_systems.spawn_initial_population(actors)
 	_setup_world_objective()
+	_apply_support_metrics_forced_objective_runtime(support_metrics_cli)
 	_setup_support_metrics_trace_options(support_metrics_cli)
 	record_event("Sandbox boot complete.")
 	if bool(support_metrics_cli.get("probe_requested", false)):
@@ -726,6 +731,7 @@ func _read_support_metrics_cli_options() -> Dictionary:
 		"trace_export_requested": false,
 		"seed": "",
 		"quit_after": "",
+		"objective": "",
 		"history_path": RUN_METRICS_HISTORY_EXPORT_PATH,
 		"output_path": RUN_METRICS_LATEST_EXPORT_PATH,
 		"probe_output_path": SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH,
@@ -751,6 +757,9 @@ func _read_support_metrics_cli_options() -> Dictionary:
 		elif token == "--support-metrics-quit-after" and index + 1 < user_args.size():
 			index += 1
 			options["quit_after"] = str(user_args[index])
+		elif token == "--support-metrics-objective" and index + 1 < user_args.size():
+			index += 1
+			options["objective"] = str(user_args[index])
 		elif token == "--support-metrics-history-path" and index + 1 < user_args.size():
 			index += 1
 			options["history_path"] = str(user_args[index])
@@ -765,6 +774,33 @@ func _read_support_metrics_cli_options() -> Dictionary:
 			options["trace_output_path"] = str(user_args[index])
 		index += 1
 	return options
+
+
+func _apply_support_metrics_forced_objective_runtime(options: Dictionary) -> void:
+	support_metrics_forced_objective = str(options.get("objective", "")).strip_edges()
+	support_metrics_forced_objective_enabled = false
+	support_metrics_forced_objective_rejected = false
+	support_metrics_forced_objective_reject_reason = ""
+
+	if support_metrics_forced_objective == "":
+		return
+
+	var available_objectives: Array[String] = _get_available_world_objective_ids()
+	if available_objectives.find(support_metrics_forced_objective) < 0:
+		support_metrics_forced_objective_rejected = true
+		support_metrics_forced_objective_reject_reason = "forced objective rejected / unknown objective"
+		record_event(
+			"Support metrics forced objective rejected: %s (unknown objective)."
+			% support_metrics_forced_objective
+		)
+		return
+
+	support_metrics_forced_objective_enabled = true
+	_setup_world_objective(support_metrics_forced_objective)
+	record_event(
+		"Support metrics forced objective enabled: %s."
+		% support_metrics_forced_objective
+	)
 
 
 func _run_support_metrics_probe(options: Dictionary) -> void:
@@ -787,6 +823,14 @@ func _run_support_metrics_probe(options: Dictionary) -> void:
 		"active_scene": active_scene,
 		"game_loop_found": "yes",
 		"export_runtime_possible": "no",
+		"support_metrics_forced_objective": support_metrics_forced_objective,
+		"support_metrics_forced_objective_enabled": (
+			"yes" if support_metrics_forced_objective_enabled else "no"
+		),
+		"support_metrics_forced_objective_rejected": (
+			"yes" if support_metrics_forced_objective_rejected else "no"
+		),
+		"support_metrics_forced_objective_reject_reason": support_metrics_forced_objective_reject_reason,
 		"note": SUPPORT_METRICS_PROBE_NOTE
 	}
 	var file := FileAccess.open(probe_output_path, FileAccess.WRITE)
@@ -834,7 +878,17 @@ func _setup_support_metrics_trace_options(options: Dictionary) -> void:
 		"args_received": options.get("user_args", []),
 		"active_scene": active_scene,
 		"game_loop_found": "yes",
+		"objective_requested": support_metrics_forced_objective,
+		"objective_observed": world_objective_id,
 		"objective_id": world_objective_id,
+		"support_metrics_forced_objective": support_metrics_forced_objective,
+		"support_metrics_forced_objective_enabled": (
+			"yes" if support_metrics_forced_objective_enabled else "no"
+		),
+		"support_metrics_forced_objective_rejected": (
+			"yes" if support_metrics_forced_objective_rejected else "no"
+		),
+		"support_metrics_forced_objective_reject_reason": support_metrics_forced_objective_reject_reason,
 		"history_path_resolved": _resolve_support_metrics_trace_path(run_metrics_history_export_path),
 		"latest_export_path_resolved": _resolve_support_metrics_trace_path(run_metrics_last_export_path),
 		"export_function_reached": "no",
@@ -865,7 +919,19 @@ func _write_support_metrics_export_trace() -> void:
 	support_metrics_trace_data["latest_export_path_resolved"] = _resolve_support_metrics_trace_path(
 		run_metrics_last_export_path
 	)
+	support_metrics_trace_data["objective_requested"] = support_metrics_forced_objective
+	support_metrics_trace_data["objective_observed"] = world_objective_id
 	support_metrics_trace_data["objective_id"] = world_objective_id
+	support_metrics_trace_data["support_metrics_forced_objective"] = support_metrics_forced_objective
+	support_metrics_trace_data["support_metrics_forced_objective_enabled"] = (
+		"yes" if support_metrics_forced_objective_enabled else "no"
+	)
+	support_metrics_trace_data["support_metrics_forced_objective_rejected"] = (
+		"yes" if support_metrics_forced_objective_rejected else "no"
+	)
+	support_metrics_trace_data["support_metrics_forced_objective_reject_reason"] = (
+		support_metrics_forced_objective_reject_reason
+	)
 	support_metrics_trace_data["tick_observed"] = tick_index
 	support_metrics_trace_data["run_duration_observed"] = elapsed_time
 	support_metrics_trace_data["timestamp"] = str(Time.get_unix_time_from_system())

@@ -20,3 +20,4 @@ Regrouper les scripts utilitaires d'analyse, de verification CI et d'export.
 - Pour diagnostiquer une collecte runtime sans nouvelles lignes exportees, voir la section README: `Diagnose runtime collection`.
 - Pour verifier le handshake Godot runtime (probe), voir la section README: `Probe Godot runtime collection`.
 - Pour tracer le chemin d'export runtime reel (latest/history), voir la section README: `Trace runtime export`.
+- Pour forcer l'objectif runtime en debug/CI (ex: `rally_champion`), voir la section README: `Force runtime objective for support metrics`.

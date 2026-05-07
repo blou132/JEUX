@@ -908,6 +908,22 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start
   - `history_append_success=yes` mais history Python inchange: chemin observe cote Python incorrect.
 - note: `support_metrics_runtime_export_trace.json` est un diagnostic technique (`debug only, not gameplay metrics`) et ne modifie pas le gameplay.
 
+## Force runtime objective for support metrics
+- utilite: forcer l'objectif runtime pendant une collecte debug/CI pour mesurer une cible precise (ex: `rally_champion`) quand l'objectif normal actif n'est pas celui attendu.
+- script: `tools/collect_support_metrics_runtime.py`
+- option principale:
+  - `--objective rally_champion` (passe un flag CLI Godot d'objectif force)
+- exemple:
+```bash
+py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe" --objective rally_champion --diagnose --trace-export
+```
+- interpretation:
+  - `objective_requested` = objectif force demande via CLI.
+  - `objective_observed` = objectif reel observe dans la trace export.
+  - si `objective_requested` differe de `objective_observed`, un warning clair est affiche.
+  - si objectif inconnu, la collecte ne crash pas et la trace indique un rejet `forced objective rejected / unknown objective`.
+- note: ce mode est reserve au debug/CI runtime; il ne modifie pas le gameplay normal et n'ecrit pas de fausse metrique runtime.
+
 ## Validate runtime support metrics files
 - utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).
 - script: `tools/validate_support_metrics_runtime_files.py`

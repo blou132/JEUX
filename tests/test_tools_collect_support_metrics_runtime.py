@@ -44,11 +44,11 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         ")",
                         "if \"%STUB_WRITE_PROBE%\"==\"1\" (",
                         "  for %%I in (\"%STUB_PROBE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
-                        "  > \"%STUB_PROBE_PATH%\" echo {\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"%SUPPORT_METRICS_SEED%\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}",
+                        "  > \"%STUB_PROBE_PATH%\" echo {\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"%SUPPORT_METRICS_SEED%\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"note\":\"probe only, not gameplay metrics\"}",
                         ")",
                         "if \"%STUB_WRITE_TRACE%\"==\"1\" (",
                         "  for %%I in (\"%STUB_TRACE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
-                        "  > \"%STUB_TRACE_PATH%\" echo {\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_id\":\"observe_dominance\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}",
+                        "  > \"%STUB_TRACE_PATH%\" echo {\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}",
                         ")",
                         "exit /b 0",
                     ]
@@ -67,11 +67,11 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "fi",
                         "if [ \"${STUB_WRITE_PROBE:-0}\" = \"1\" ]; then",
                         "  mkdir -p \"$(dirname \"${STUB_PROBE_PATH}\")\"",
-                        "  echo '{\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"'\"${SUPPORT_METRICS_SEED:-0}\"'\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}' > \"${STUB_PROBE_PATH}\"",
+                        "  echo '{\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"'\"${SUPPORT_METRICS_SEED:-0}\"'\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"note\":\"probe only, not gameplay metrics\"}' > \"${STUB_PROBE_PATH}\"",
                         "fi",
                         "if [ \"${STUB_WRITE_TRACE:-0}\" = \"1\" ]; then",
                         "  mkdir -p \"$(dirname \"${STUB_TRACE_PATH}\")\"",
-                        "  echo '{\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_id\":\"observe_dominance\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}' > \"${STUB_TRACE_PATH}\"",
+                        "  echo '{\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}' > \"${STUB_TRACE_PATH}\"",
                         "fi",
                         "exit 0",
                     ]
@@ -97,6 +97,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertIn("--allow-existing-history", result.stdout)
         self.assertIn("--probe", result.stdout)
         self.assertIn("--trace-export", result.stdout)
+        self.assertIn("--objective", result.stdout)
 
     def test_godot_absent_returns_non_zero_and_clear_message(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -196,6 +197,62 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("--support-metrics-trace-export", result.stdout)
         self.assertIn("--support-metrics-trace-output", result.stdout)
+
+    def test_objective_dry_run_shows_objective_command_flag(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--objective",
+                "rally_champion",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--support-metrics-objective rally_champion", result.stdout)
+
+    def test_objective_absent_keeps_default_command_without_objective_flag(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertNotIn("--support-metrics-objective", result.stdout)
+
+    def test_unknown_objective_keeps_running_with_clear_warning(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--objective",
+                "unknown_objective",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("not in known runtime objectives", result.stderr)
+        self.assertIn("--support-metrics-objective unknown_objective", result.stdout)
 
     def test_probe_without_probe_file_returns_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -397,6 +454,44 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
             self.assertIn("Export trace summary", result.stdout)
             self.assertIn("export_function_reached: yes", result.stdout)
             self.assertIn("history_append_success: yes", result.stdout)
+
+    def test_trace_export_warns_when_observed_objective_differs_from_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            trace_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_export_trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
+
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--trace-export",
+                    "--objective",
+                    "rally_champion",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "1",
+                    "STUB_WRITE_TRACE": "1",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_TRACE_PATH": str(trace_path),
+                },
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("objective_observed: observe_dominance", result.stdout)
+            self.assertIn("Warning: objective mismatch in trace", result.stderr)
 
     def test_trace_export_does_not_replace_history_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

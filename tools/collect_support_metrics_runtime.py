@@ -22,6 +22,13 @@ DEFAULT_PROJECT_NAME = "Sandbox Fantasy 3D MVP"
 DEFAULT_QUIT_AFTER_FRAMES = 4200
 DEFAULT_PROBE_OUTPUT_PATH = Path("outputs/ci/support_metrics_runtime_probe.json")
 DEFAULT_TRACE_OUTPUT_PATH = Path("outputs/ci/support_metrics_runtime_export_trace.json")
+KNOWN_RUNTIME_OBJECTIVES: tuple[str, ...] = (
+    "observe_dominance",
+    "survive_calamity",
+    "watch_champion_rise",
+    "rally_champion",
+    "support_gate",
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -121,6 +128,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Enable export trace diagnostics and expect "
             "outputs/ci/support_metrics_runtime_export_trace.json from Godot."
+        ),
+    )
+    parser.add_argument(
+        "--objective",
+        type=str,
+        default="",
+        help=(
+            "Optional runtime objective override for debug/CI collection "
+            "(example: rally_champion)."
         ),
     )
     return parser
@@ -362,6 +378,26 @@ def _build_output_path(mode: str, output_path: Path | None) -> Path:
     return DEFAULT_OUTPUT_BY_MODE[mode]
 
 
+def _normalize_objective(raw_value: str) -> str:
+    return raw_value.strip()
+
+
+def _warn_unknown_objective(objective: str) -> None:
+    if objective == "":
+        return
+    if objective in KNOWN_RUNTIME_OBJECTIVES:
+        return
+    known_values = ", ".join(KNOWN_RUNTIME_OBJECTIVES)
+    print(
+        (
+            "Warning: objective '%s' is not in known runtime objectives [%s]. "
+            "The value will still be forwarded to Godot for debug/CI diagnostics."
+        )
+        % (objective, known_values),
+        file=sys.stderr,
+    )
+
+
 def _build_run_command(
     godot_executable: str,
     project_path: Path,
@@ -371,6 +407,7 @@ def _build_run_command(
     output_path: Path,
     probe_output_path: Path,
     trace_output_path: Path,
+    objective: str,
     probe: bool,
     trace_export: bool,
 ) -> list[str]:
@@ -391,6 +428,8 @@ def _build_run_command(
         "--support-metrics-output-path",
         str(output_path.resolve()),
     ]
+    if objective.strip() != "":
+        command.extend(["--support-metrics-objective", objective.strip()])
     if probe:
         command.extend(
             [
@@ -431,6 +470,7 @@ def _print_configuration(
     mode: str,
     runs: int,
     seed_start: int,
+    objective: str,
     output_path: Path,
     probe_output_path: Path,
     trace_output_path: Path,
@@ -446,6 +486,7 @@ def _print_configuration(
     print("- mode: %s" % mode)
     print("- runs: %d" % runs)
     print("- seed_start: %d" % seed_start)
+    print("- objective: %s" % (objective if objective != "" else "(default)"))
     print("- output: %s" % output_path)
     print("- probe_output: %s" % probe_output_path)
     print("- trace_output: %s" % trace_output_path)
@@ -539,17 +580,55 @@ def _print_probe_summary(probe_payload: dict[str, object]) -> None:
     print("- active_scene: %s" % _to_str(probe_payload.get("active_scene")))
     print("- game_loop_found: %s" % _to_str(probe_payload.get("game_loop_found")))
     print("- export_runtime_possible: %s" % _to_str(probe_payload.get("export_runtime_possible")))
+    print(
+        "- support_metrics_forced_objective: %s"
+        % _to_str(probe_payload.get("support_metrics_forced_objective"))
+    )
+    print(
+        "- support_metrics_forced_objective_enabled: %s"
+        % _to_str(probe_payload.get("support_metrics_forced_objective_enabled"))
+    )
+    print(
+        "- support_metrics_forced_objective_rejected: %s"
+        % _to_str(probe_payload.get("support_metrics_forced_objective_rejected"))
+    )
+    print(
+        "- support_metrics_forced_objective_reject_reason: %s"
+        % _to_str(probe_payload.get("support_metrics_forced_objective_reject_reason"))
+    )
     print("- history_path: %s" % _to_str(probe_payload.get("history_path")))
     print("- output_path: %s" % _to_str(probe_payload.get("output_path")))
     print("- note: %s" % _to_str(probe_payload.get("note")))
 
 
-def _print_trace_summary(trace_payload: dict[str, object]) -> None:
+def _print_trace_summary(trace_payload: dict[str, object], expected_objective: str) -> None:
+    objective_requested = _to_str(trace_payload.get("objective_requested"))
+    objective_observed = _to_str(trace_payload.get("objective_observed"))
+    if objective_observed == "":
+        objective_observed = _to_str(trace_payload.get("objective_id"))
     print("Export trace summary")
     print("- note: %s" % _to_str(trace_payload.get("note")))
     print("- active_scene: %s" % _to_str(trace_payload.get("active_scene")))
     print("- game_loop_found: %s" % _to_str(trace_payload.get("game_loop_found")))
+    print("- objective_requested: %s" % objective_requested)
+    print("- objective_observed: %s" % objective_observed)
     print("- objective_id: %s" % _to_str(trace_payload.get("objective_id")))
+    print(
+        "- support_metrics_forced_objective: %s"
+        % _to_str(trace_payload.get("support_metrics_forced_objective"))
+    )
+    print(
+        "- support_metrics_forced_objective_enabled: %s"
+        % _to_str(trace_payload.get("support_metrics_forced_objective_enabled"))
+    )
+    print(
+        "- support_metrics_forced_objective_rejected: %s"
+        % _to_str(trace_payload.get("support_metrics_forced_objective_rejected"))
+    )
+    print(
+        "- support_metrics_forced_objective_reject_reason: %s"
+        % _to_str(trace_payload.get("support_metrics_forced_objective_reject_reason"))
+    )
     print("- history_path_resolved: %s" % _to_str(trace_payload.get("history_path_resolved")))
     print("- latest_export_path_resolved: %s" % _to_str(trace_payload.get("latest_export_path_resolved")))
     print("- export_function_reached: %s" % _to_str(trace_payload.get("export_function_reached")))
@@ -562,6 +641,28 @@ def _print_trace_summary(trace_payload: dict[str, object]) -> None:
     print("- quit_after_received: %s" % _to_str(trace_payload.get("quit_after_received")))
     print("- tick_observed: %s" % _to_str(trace_payload.get("tick_observed")))
     print("- run_duration_observed: %s" % _to_str(trace_payload.get("run_duration_observed")))
+    if (
+        expected_objective != ""
+        and objective_observed != ""
+        and objective_observed != expected_objective
+    ):
+        print(
+            (
+                "Warning: objective mismatch in trace "
+                "(requested=%s, observed=%s)."
+            )
+            % (expected_objective, objective_observed),
+            file=sys.stderr,
+        )
+    elif objective_requested != "" and objective_observed != "" and objective_requested != objective_observed:
+        print(
+            (
+                "Warning: objective mismatch in trace "
+                "(requested=%s, observed=%s)."
+            )
+            % (objective_requested, objective_observed),
+            file=sys.stderr,
+        )
 
 
 def _trace_file_changed(before_snapshot: dict[str, object], after_snapshot: dict[str, object]) -> bool:
@@ -582,6 +683,7 @@ def _validate_and_print_trace_export(
     trace_output_path: Path,
     before_snapshot: dict[str, object],
     diagnose: bool,
+    objective: str,
 ) -> int:
     after_snapshot = _trace_snapshot(trace_output_path)
     if diagnose:
@@ -605,7 +707,7 @@ def _validate_and_print_trace_export(
     trace_payload = _read_trace_payload(trace_output_path)
     if trace_payload is None:
         return 7
-    _print_trace_summary(trace_payload)
+    _print_trace_summary(trace_payload, expected_objective=objective)
     return 0
 
 def _collect_runtime_probe(
@@ -617,6 +719,7 @@ def _collect_runtime_probe(
     trace_output_path: Path,
     diagnose: bool,
     trace_export: bool,
+    objective: str,
 ) -> int:
     seed_value = _extract_command_arg_value(command, "--support-metrics-seed")
     if seed_value == "":
@@ -699,6 +802,7 @@ def _collect_runtime_probe(
             trace_output_path=trace_output_path,
             before_snapshot=trace_before_snapshot,
             diagnose=diagnose,
+            objective=objective,
         )
         if trace_status != 0:
             return trace_status
@@ -714,6 +818,7 @@ def _collect_runtime_entries(
     diagnose: bool,
     allow_existing_history: bool,
     trace_export: bool,
+    objective: str,
 ) -> tuple[int, list[str]]:
     collected: list[str] = []
 
@@ -769,6 +874,7 @@ def _collect_runtime_entries(
                 trace_output_path=trace_output_path,
                 before_snapshot=trace_before_snapshot,
                 diagnose=diagnose,
+                objective=objective,
             )
             if trace_status != 0:
                 return trace_status, collected
@@ -850,6 +956,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     project_path = args.project_path.resolve()
     output_path = _build_output_path(args.mode, args.output)
+    objective = _normalize_objective(args.objective)
+    _warn_unknown_objective(objective)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     probe_output_path = DEFAULT_PROBE_OUTPUT_PATH
     probe_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -861,6 +969,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         mode=args.mode,
         runs=args.runs,
         seed_start=args.seed_start,
+        objective=objective,
         output_path=output_path,
         probe_output_path=probe_output_path,
         trace_output_path=trace_output_path,
@@ -886,6 +995,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_path=output_path,
                 probe_output_path=probe_output_path,
                 trace_output_path=trace_output_path,
+                objective=objective,
                 probe=bool(args.probe),
                 trace_export=bool(args.trace_export),
             )
@@ -904,6 +1014,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("- output_path: %s" % output_path)
             print("- probe_output_path: %s" % probe_output_path)
             print("- trace_output_path: %s" % trace_output_path)
+            print("- objective: %s" % (objective if objective != "" else "(default)"))
             for run_index, command in enumerate(commands, start=1):
                 print(
                     "- seed[%d]: %s"
@@ -942,6 +1053,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             trace_output_path=trace_output_path,
             diagnose=bool(args.diagnose),
             trace_export=bool(args.trace_export),
+            objective=objective,
         )
 
     collect_status, collected_lines = _collect_runtime_entries(
@@ -953,6 +1065,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         diagnose=bool(args.diagnose),
         allow_existing_history=bool(args.allow_existing_history),
         trace_export=bool(args.trace_export),
+        objective=objective,
     )
     if collect_status != 0:
         if collected_lines:
