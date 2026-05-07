@@ -879,27 +879,35 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
 - note: cette commande valide des fichiers runtime support metrics; elle ne modifie pas le gameplay.
 
 ## Run local runtime support metrics pipeline
-- utilite: orchestration locale en une commande pour `collect -> validate -> compare -> report` apres tuning v211.
+- utilite: orchestration locale en une commande pour `collect -> validate -> compare -> decide` apres tuning v211.
 - script: `tools/run_support_metrics_runtime_pipeline.py`
 - options principales:
   - `--runs 5`
   - `--seed-start 1000`
+  - `--min-runs 5`
   - `--baseline-output outputs/ci/support_metrics_baseline.jsonl`
   - `--current-output outputs/ci/support_metrics_current.jsonl`
   - `--report-output outputs/ci/support_metrics_runtime_comparison.md`
+  - `--decision-output outputs/ci/support_metrics_runtime_decision.md`
+  - `--decision-json-output outputs/ci/support_metrics_runtime_decision.json` (optionnel)
   - `--godot-bin godot`
   - `--dry-run`
   - `--skip-collect`
+  - `--skip-decision`
   - `--strict`
-- exemple (collecte + validation + comparaison + rapport):
+- fichiers generes par defaut:
+  - `outputs/ci/support_metrics_runtime_comparison.md`
+  - `outputs/ci/support_metrics_runtime_decision.md`
+- exemple (collecte + validation + comparaison + decision):
 ```bash
-py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5
 ```
 - exemple sans Godot (fichiers deja collectes):
 ```bash
-py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-output outputs/ci/support_metrics_baseline.jsonl --current-output outputs/ci/support_metrics_current.jsonl --report-output outputs/ci/support_metrics_runtime_comparison.md
+py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-output outputs/ci/support_metrics_baseline.jsonl --current-output outputs/ci/support_metrics_current.jsonl --report-output outputs/ci/support_metrics_runtime_comparison.md --decision-output outputs/ci/support_metrics_runtime_decision.md --min-runs 5
 ```
 - note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
+- note: la decision runtime est heuristique et n'applique jamais de changement gameplay automatiquement.
 
 ## Runtime gameplay decision protocol
 - objectif: definir une decision gameplay coherente apres le pipeline runtime (`baseline/current`) sans changer le jeu "au feeling".
@@ -922,7 +930,7 @@ py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-outpu
   - `tools/decide_support_metrics_runtime_tuning.py`
 - usage recommande apres le pipeline local:
 ```bash
-py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5
 py tools/decide_support_metrics_runtime_tuning.py --baseline outputs/ci/support_metrics_baseline.jsonl --current outputs/ci/support_metrics_current.jsonl --min-runs 5 --markdown-output outputs/ci/support_metrics_runtime_decision.md
 ```
 - usage depuis un resume JSON existant:

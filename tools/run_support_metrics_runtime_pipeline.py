@@ -13,6 +13,7 @@ from typing import Any
 DEFAULT_BASELINE_OUTPUT = Path("outputs/ci/support_metrics_baseline.jsonl")
 DEFAULT_CURRENT_OUTPUT = Path("outputs/ci/support_metrics_current.jsonl")
 DEFAULT_REPORT_OUTPUT = Path("outputs/ci/support_metrics_runtime_comparison.md")
+DEFAULT_DECISION_OUTPUT = Path("outputs/ci/support_metrics_runtime_decision.md")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -53,6 +54,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Markdown comparison report output path.",
     )
     parser.add_argument(
+        "--decision-output",
+        type=Path,
+        default=DEFAULT_DECISION_OUTPUT,
+        help="Markdown runtime decision report output path.",
+    )
+    parser.add_argument(
+        "--decision-json-output",
+        type=Path,
+        default=None,
+        help="Optional JSON runtime decision output path.",
+    )
+    parser.add_argument(
+        "--min-runs",
+        type=int,
+        default=5,
+        help="Minimum runs required per side for runtime decision protocol (default: 5).",
+    )
+    parser.add_argument(
         "--godot-bin",
         type=str,
         default="godot",
@@ -67,6 +86,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--skip-collect",
         action="store_true",
         help="Skip runtime collection and use existing baseline/current files.",
+    )
+    parser.add_argument(
+        "--skip-decision",
+        action="store_true",
+        help="Skip runtime tuning decision report generation.",
     )
     parser.add_argument(
         "--strict",
@@ -105,6 +129,10 @@ def _validate_script_path() -> Path:
 
 def _analyze_script_path() -> Path:
     return Path(__file__).with_name("analyze_run_metrics_history.py")
+
+
+def _decide_script_path() -> Path:
+    return Path(__file__).with_name("decide_support_metrics_runtime_tuning.py")
 
 
 def _build_collect_command(
@@ -172,15 +200,42 @@ def _build_analyze_command(
     return command
 
 
+def _build_decision_command(
+    baseline_output: Path,
+    current_output: Path,
+    decision_output: Path,
+    min_runs: int,
+    with_json_output: bool,
+) -> list[str]:
+    command = [
+        sys.executable,
+        str(_decide_script_path()),
+        "--baseline",
+        str(baseline_output),
+        "--current",
+        str(current_output),
+        "--min-runs",
+        str(min_runs),
+        "--markdown-output",
+        str(decision_output),
+    ]
+    if with_json_output:
+        command.append("--json")
+    return command
+
+
 def _print_planned_commands(
     collect_commands: list[list[str]],
     validate_command: list[str],
     analyze_command: list[str],
+    decision_command: list[str],
     skip_collect: bool,
+    skip_decision: bool,
 ) -> None:
     print("Support metrics runtime pipeline")
     print("- dry_run: yes")
     print("- skip_collect: %s" % ("yes" if skip_collect else "no"))
+    print("- skip_decision: %s" % ("yes" if skip_decision else "no"))
     print("DRY-RUN: planned commands")
     if skip_collect:
         print("- collect: skipped (--skip-collect)")
@@ -189,6 +244,10 @@ def _print_planned_commands(
             print("- collect %d: %s" % (index, _format_command(command)))
     print("- validate: %s" % _format_command(validate_command))
     print("- analyze: %s" % _format_command(analyze_command))
+    if skip_decision:
+        print("- decision: skipped (--skip-decision)")
+    else:
+        print("- decision: %s" % _format_command(decision_command))
     print("Dry-run completed. No command was executed.")
 
 
@@ -276,16 +335,46 @@ def _ensure_skip_collect_files_exist(
     return 2
 
 
+def _write_decision_json_output(
+    decision_json_output: Path,
+    decision_stdout: str,
+) -> int:
+    try:
+        parsed = json.loads(decision_stdout)
+    except json.JSONDecodeError:
+        print(
+            "Runtime decision output is not valid JSON; unable to write --decision-json-output.",
+            file=sys.stderr,
+        )
+        return 1
+    if not isinstance(parsed, dict):
+        print(
+            "Runtime decision output JSON must be an object; unable to write --decision-json-output.",
+            file=sys.stderr,
+        )
+        return 1
+    decision_json_output.parent.mkdir(parents=True, exist_ok=True)
+    decision_json_output.write_text(
+        json.dumps(parsed, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return 0
+
+
 def main() -> int:
     args = _build_parser().parse_args()
 
     if args.runs <= 0:
         print("--runs must be greater than 0.", file=sys.stderr)
         return 2
+    if args.min_runs <= 0:
+        print("--min-runs must be greater than 0.", file=sys.stderr)
+        return 2
 
     baseline_output = args.baseline_output
     current_output = args.current_output
     report_output = args.report_output
+    decision_output = args.decision_output
 
     collect_baseline_command = _build_collect_command(
         mode="baseline",
@@ -308,13 +397,22 @@ def main() -> int:
         report_output=report_output,
         strict=bool(args.strict),
     )
+    decision_command = _build_decision_command(
+        baseline_output=baseline_output,
+        current_output=current_output,
+        decision_output=decision_output,
+        min_runs=int(args.min_runs),
+        with_json_output=args.decision_json_output is not None,
+    )
 
     if args.dry_run:
         _print_planned_commands(
             collect_commands=[collect_baseline_command, collect_current_command],
             validate_command=validate_command,
             analyze_command=analyze_command,
+            decision_command=decision_command,
             skip_collect=bool(args.skip_collect),
+            skip_decision=bool(args.skip_decision),
         )
         return 0
 
@@ -365,8 +463,26 @@ def main() -> int:
         print("Comparative analysis failed.", file=sys.stderr)
         return analyze_result.returncode
 
+    if not args.skip_decision:
+        decision_output.parent.mkdir(parents=True, exist_ok=True)
+        decision_result = _run_command(decision_command, "runtime tuning decision")
+        if decision_result.returncode != 0:
+            print("Runtime tuning decision failed.", file=sys.stderr)
+            return decision_result.returncode
+        if args.decision_json_output is not None:
+            json_write_status = _write_decision_json_output(
+                decision_json_output=args.decision_json_output,
+                decision_stdout=decision_result.stdout,
+            )
+            if json_write_status != 0:
+                return json_write_status
+
     print("Runtime support metrics pipeline completed.")
     print("Report written to: %s" % report_output)
+    if not args.skip_decision:
+        print("Decision report written to: %s" % decision_output)
+    if args.decision_json_output is not None and not args.skip_decision:
+        print("Decision JSON written to: %s" % args.decision_json_output)
     return 0
 
 

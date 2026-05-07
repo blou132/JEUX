@@ -36,9 +36,13 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         self.assertIn("--baseline-output", result.stdout)
         self.assertIn("--current-output", result.stdout)
         self.assertIn("--report-output", result.stdout)
+        self.assertIn("--decision-output", result.stdout)
+        self.assertIn("--decision-json-output", result.stdout)
+        self.assertIn("--min-runs", result.stdout)
         self.assertIn("--godot-bin", result.stdout)
         self.assertIn("--dry-run", result.stdout)
         self.assertIn("--skip-collect", result.stdout)
+        self.assertIn("--skip-decision", result.stdout)
         self.assertIn("--strict", result.stdout)
 
     def test_dry_run_returns_zero(self) -> None:
@@ -55,6 +59,8 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         self.assertIn("collect 2:", normalized_output)
         self.assertIn("--mode current", normalized_output)
         self.assertIn("collect_support_metrics_runtime.py", normalized_output)
+        self.assertIn("decide_support_metrics_runtime_tuning.py", normalized_output)
+        self.assertIn("--min-runs 5", normalized_output)
 
     def test_skip_collect_with_missing_files_returns_non_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -76,9 +82,10 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         combined = result.stdout + "\n" + result.stderr
         self.assertIn("skip-collect requires existing runtime files", combined)
 
-    def test_skip_collect_with_valid_fixtures_generates_markdown_report(self) -> None:
+    def test_skip_collect_with_valid_fixtures_generates_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             report_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_runtime_comparison.md"
+            decision_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_runtime_decision.md"
             result = _run_tool(
                 [
                     "--skip-collect",
@@ -88,13 +95,65 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
                     str(_fixture_path("recent_complete.jsonl")),
                     "--report-output",
                     str(report_path),
+                    "--decision-output",
+                    str(decision_path),
                 ]
             )
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertTrue(report_path.exists())
+            self.assertTrue(decision_path.exists())
             content = report_path.read_text(encoding="utf-8")
             self.assertIn("# Run Metrics History Analysis", content)
             self.assertIn("## Comparison", content)
+            decision_content = decision_path.read_text(encoding="utf-8")
+            self.assertIn("- decision:", decision_content)
+            self.assertIn("- reasons:", decision_content)
+            self.assertIn("- gameplay_change_allowed: false", decision_content)
+
+    def test_min_runs_is_forwarded_to_decision_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            decision_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_runtime_decision.md"
+            result = _run_tool(
+                [
+                    "--skip-collect",
+                    "--baseline-output",
+                    str(_fixture_path("recent_complete.jsonl")),
+                    "--current-output",
+                    str(_fixture_path("recent_complete.jsonl")),
+                    "--decision-output",
+                    str(decision_path),
+                    "--min-runs",
+                    "7",
+                ]
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(decision_path.exists())
+            decision_content = decision_path.read_text(encoding="utf-8")
+            self.assertIn("- minimum required runs per side: 7", decision_content)
+            self.assertIn("- decision: collect_more_runs", decision_content)
+
+    def test_skip_decision_disables_decision_report_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_runtime_comparison.md"
+            decision_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_runtime_decision.md"
+            result = _run_tool(
+                [
+                    "--skip-collect",
+                    "--skip-decision",
+                    "--baseline-output",
+                    str(_fixture_path("recent_complete.jsonl")),
+                    "--current-output",
+                    str(_fixture_path("recent_complete.jsonl")),
+                    "--report-output",
+                    str(report_path),
+                    "--decision-output",
+                    str(decision_path),
+                ]
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue(report_path.exists())
+            self.assertFalse(decision_path.exists())
+            self.assertNotIn("Decision report written to", result.stdout)
 
     def test_missing_godot_without_dry_run_or_skip_collect_returns_error(self) -> None:
         result = _run_tool(
