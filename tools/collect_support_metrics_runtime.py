@@ -88,6 +88,22 @@ def _build_parser() -> argparse.ArgumentParser:
             "(default: 4200)."
         ),
     )
+    parser.add_argument(
+        "--diagnose",
+        action="store_true",
+        help=(
+            "Print detailed runtime collection diagnostics (history file state, "
+            "command details, and no-export root causes)."
+        ),
+    )
+    parser.add_argument(
+        "--allow-existing-history",
+        action="store_true",
+        help=(
+            "Allow reusing existing history lines when no new export line is produced. "
+            "Disabled by default to avoid false runtime success."
+        ),
+    )
     return parser
 
 
@@ -137,6 +153,142 @@ def _read_jsonl_lines(path: Path) -> list[str]:
     return [line for line in lines if line.strip()]
 
 
+def _history_snapshot(path: Path) -> dict[str, object]:
+    exists = path.exists()
+    snapshot: dict[str, object] = {
+        "path": str(path),
+        "exists": exists,
+        "readable": False,
+        "size_bytes": 0,
+        "line_count": 0,
+        "lines": [],
+        "read_error": "",
+    }
+    if not exists:
+        return snapshot
+
+    try:
+        size_bytes = int(path.stat().st_size)
+    except OSError as exc:
+        snapshot["read_error"] = str(exc)
+        return snapshot
+
+    try:
+        lines = _read_jsonl_lines(path)
+    except OSError as exc:
+        snapshot["size_bytes"] = size_bytes
+        snapshot["read_error"] = str(exc)
+        return snapshot
+
+    snapshot["readable"] = True
+    snapshot["size_bytes"] = size_bytes
+    snapshot["line_count"] = len(lines)
+    snapshot["lines"] = lines
+    return snapshot
+
+
+def _to_bool(value: object) -> bool:
+    return bool(value)
+
+
+def _to_int(value: object) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    return 0
+
+
+def _to_str(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    return ""
+
+
+def _to_lines(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str)]
+
+
+def _truncate_line(line: str, max_length: int = 180) -> str:
+    if len(line) <= max_length:
+        return line
+    return line[: max(0, max_length - 3)] + "..."
+
+
+def _tail_lines(lines: list[str], count: int = 3) -> list[str]:
+    if count <= 0:
+        return []
+    if len(lines) <= count:
+        return lines
+    return lines[-count:]
+
+
+def _print_snapshot(prefix: str, snapshot: dict[str, object]) -> None:
+    print("%s history file found: %s" % (prefix, "yes" if _to_bool(snapshot.get("exists")) else "no"))
+    print("%s history readable: %s" % (prefix, "yes" if _to_bool(snapshot.get("readable")) else "no"))
+    print("%s history size bytes: %d" % (prefix, _to_int(snapshot.get("size_bytes"))))
+    print("%s history line count: %d" % (prefix, _to_int(snapshot.get("line_count"))))
+    read_error = _to_str(snapshot.get("read_error")).strip()
+    if read_error != "":
+        print("%s history read error: %s" % (prefix, read_error))
+    tail = _tail_lines(_to_lines(snapshot.get("lines")), count=3)
+    if tail:
+        print("%s history tail lines:" % prefix)
+        for raw_line in tail:
+            print("  - %s" % _truncate_line(raw_line))
+
+
+def _select_existing_history_line(
+    lines: list[str],
+    total_runs: int,
+    run_index: int,
+) -> str | None:
+    if total_runs <= 0 or run_index <= 0:
+        return None
+    if not lines:
+        return None
+    offset_from_end = total_runs - run_index + 1
+    candidate_index = len(lines) - offset_from_end
+    if candidate_index < 0 or candidate_index >= len(lines):
+        return None
+    return lines[candidate_index]
+
+
+def _build_no_new_export_error(
+    seed_value: str,
+    command: list[str],
+    before_snapshot: dict[str, object],
+    after_snapshot: dict[str, object],
+) -> str:
+    before_found = "yes" if _to_bool(before_snapshot.get("exists")) else "no"
+    after_found = "yes" if _to_bool(after_snapshot.get("exists")) else "no"
+    before_lines = _to_int(before_snapshot.get("line_count"))
+    after_lines = _to_int(after_snapshot.get("line_count"))
+    before_size = _to_int(before_snapshot.get("size_bytes"))
+    after_size = _to_int(after_snapshot.get("size_bytes"))
+
+    messages: list[str] = []
+    messages.append("No new run metrics were exported after seed %s." % seed_value)
+    messages.append("Godot launched: yes")
+    messages.append("command: %s" % _format_command(command))
+    messages.append("history file found (before): %s" % before_found)
+    messages.append("history file found (after): %s" % after_found)
+    messages.append("history line count before: %d" % before_lines)
+    messages.append("history line count after: %d" % after_lines)
+    messages.append("history size bytes before: %d" % before_size)
+    messages.append("history size bytes after: %d" % after_size)
+    messages.append("expected new lines: > 0")
+    messages.append("possible causes:")
+    messages.append("- game did not run the export path")
+    messages.append("- wrong project path")
+    messages.append("- wrong history path")
+    messages.append("- run ended before metrics export")
+    messages.append("- Godot CLI arguments not handled by project")
+    return "\n".join(messages)
+
+
 def _build_output_path(mode: str, output_path: Path | None) -> Path:
     if output_path is not None:
         return output_path
@@ -176,6 +328,8 @@ def _print_configuration(
     project_path: Path,
     history_path: Path,
     dry_run: bool,
+    diagnose: bool,
+    allow_existing_history: bool,
 ) -> None:
     print("Support metrics runtime collection")
     print("- mode: %s" % mode)
@@ -185,17 +339,30 @@ def _print_configuration(
     print("- project_path: %s" % project_path)
     print("- history_path: %s" % history_path)
     print("- dry_run: %s" % ("yes" if dry_run else "no"))
+    print("- diagnose: %s" % ("yes" if diagnose else "no"))
+    print("- allow_existing_history: %s" % ("yes" if allow_existing_history else "no"))
 
 
 def _collect_runtime_entries(
     commands: list[list[str]],
     history_path: Path,
+    diagnose: bool,
+    allow_existing_history: bool,
 ) -> tuple[int, list[str]]:
     collected: list[str] = []
-    previous_lines = _read_jsonl_lines(history_path)
 
     for run_index, command in enumerate(commands, start=1):
         seed_value = command[-1]
+        before_snapshot = _history_snapshot(history_path)
+        before_lines = _to_lines(before_snapshot.get("lines"))
+
+        if diagnose:
+            print("")
+            print("DIAGNOSE run %d/%d" % (run_index, len(commands)))
+            print("- seed: %s" % seed_value)
+            print("- command: %s" % _format_command(command))
+            _print_snapshot("- before", before_snapshot)
+
         print("Run %d/%d (seed=%s): %s" % (run_index, len(commands), seed_value, _format_command(command)))
         env = os.environ.copy()
         env["SUPPORT_METRICS_SEED"] = seed_value
@@ -218,20 +385,54 @@ def _collect_runtime_entries(
             )
             return 3, collected
 
-        current_lines = _read_jsonl_lines(history_path)
-        new_lines = current_lines[len(previous_lines) :]
+        after_snapshot = _history_snapshot(history_path)
+        after_lines = _to_lines(after_snapshot.get("lines"))
+        before_count = _to_int(before_snapshot.get("line_count"))
+        after_count = _to_int(after_snapshot.get("line_count"))
+        new_lines: list[str] = []
+        if before_count >= 0 and after_count >= before_count and len(after_lines) >= before_count:
+            new_lines = after_lines[before_count:]
+
+        if diagnose:
+            _print_snapshot("- after", after_snapshot)
+            print("- new lines detected: %d" % len(new_lines))
+            if new_lines:
+                print("- new line tail:")
+                for raw_line in _tail_lines(new_lines, count=3):
+                    print("  - %s" % _truncate_line(raw_line))
+
         if not new_lines:
-            print(
-                (
-                    "No new run metrics were exported after seed %s. "
-                    "Ensure the run reaches completed/failed state and exports metrics."
+            if allow_existing_history:
+                fallback_line = _select_existing_history_line(
+                    lines=after_lines if after_lines else before_lines,
+                    total_runs=len(commands),
+                    run_index=run_index,
                 )
-                % seed_value,
+                if fallback_line is not None:
+                    collected.append(fallback_line)
+                    print(
+                        (
+                            "No new metrics line detected for seed %s; "
+                            "reused existing history line due to --allow-existing-history."
+                        )
+                        % seed_value
+                    )
+                    if diagnose:
+                        print("- reused line: %s" % _truncate_line(fallback_line))
+                    continue
+
+            error_message = _build_no_new_export_error(
+                seed_value=seed_value,
+                command=command,
+                before_snapshot=before_snapshot,
+                after_snapshot=after_snapshot,
+            )
+            print(
+                error_message,
                 file=sys.stderr,
             )
             return 4, collected
         collected.append(new_lines[-1])
-        previous_lines = current_lines
 
     return 0, collected
 
@@ -272,6 +473,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         project_path=project_path,
         history_path=history_path,
         dry_run=bool(args.dry_run),
+        diagnose=bool(args.diagnose),
+        allow_existing_history=bool(args.allow_existing_history),
     )
 
     commands: list[list[str]] = []
@@ -290,6 +493,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("DRY-RUN: planned commands")
         for run_index, command in enumerate(commands, start=1):
             print("- run %d: %s" % (run_index, _format_command(command)))
+        if args.diagnose:
+            print("")
+            print("DIAGNOSE dry-run context")
+            print("- godot_bin: %s" % args.godot_bin)
+            print("- project_path: %s" % project_path)
+            print("- history_path: %s" % history_path)
+            print("- output_path: %s" % output_path)
+            for run_index, command in enumerate(commands, start=1):
+                print("- seed[%d]: %s" % (run_index, command[-1]))
+                print("  command[%d]: %s" % (run_index, _format_command(command)))
+            _print_snapshot("- current", _history_snapshot(history_path))
         print("Dry-run completed. No Godot process was started.")
         return 0
 
@@ -314,6 +528,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     collect_status, collected_lines = _collect_runtime_entries(
         commands=commands_with_resolved_bin,
         history_path=history_path,
+        diagnose=bool(args.diagnose),
+        allow_existing_history=bool(args.allow_existing_history),
     )
     if collect_status != 0:
         if collected_lines:

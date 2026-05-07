@@ -38,6 +38,21 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("ne pas modifier le gameplay", content)
         self.assertIn("ne modifient pas le gameplay automatiquement", content)
 
+    def test_readme_contains_runtime_collection_diagnose_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Diagnose runtime collection", content)
+        self.assertIn("--diagnose", content)
+        self.assertIn("--allow-existing-history", content)
+        self.assertIn("--history-path", content)
+        self.assertIn(
+            "py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin",
+            content,
+        )
+        self.assertIn(
+            "si aucune nouvelle ligne n'est ajoutee au history runtime, la decision gameplay doit rester `collect_more_runs`",
+            content,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

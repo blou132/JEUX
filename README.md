@@ -863,6 +863,19 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 5
 ```
 - note: ce script sert a observer les metriques runtime (notamment pour le suivi v211), pas a modifier le gameplay.
 
+## Diagnose runtime collection
+- utilite: diagnostiquer pourquoi aucune nouvelle ligne runtime n'est ajoutee dans `run_metrics_history.jsonl`.
+- script: `tools/collect_support_metrics_runtime.py`
+- options diagnostic utiles:
+  - `--diagnose` (affiche binaire/paths/commande/snapshot history avant-apres)
+  - `--allow-existing-history` (reutilisation explicite d'historique existant seulement si assume)
+  - `--history-path` (forcer un chemin history explicite)
+- exemple diagnostic:
+```bash
+py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe" --diagnose
+```
+- regle de decision: si aucune nouvelle ligne n'est ajoutee au history runtime, la decision gameplay doit rester `collect_more_runs`.
+
 ## Validate runtime support metrics files
 - utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).
 - script: `tools/validate_support_metrics_runtime_files.py`
