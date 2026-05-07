@@ -139,6 +139,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "(example: rally_champion)."
         ),
     )
+    parser.add_argument(
+        "--export-on-quit",
+        action="store_true",
+        help=(
+            "Debug/CI mode: request a forced runtime export on controlled quit "
+            "when objective flow did not naturally export before --quit-after."
+        ),
+    )
     return parser
 
 
@@ -410,6 +418,7 @@ def _build_run_command(
     objective: str,
     probe: bool,
     trace_export: bool,
+    export_on_quit: bool,
 ) -> list[str]:
     command = [
         godot_executable,
@@ -430,6 +439,8 @@ def _build_run_command(
     ]
     if objective.strip() != "":
         command.extend(["--support-metrics-objective", objective.strip()])
+    if export_on_quit:
+        command.append("--support-metrics-export-on-quit")
     if probe:
         command.extend(
             [
@@ -481,6 +492,7 @@ def _print_configuration(
     allow_existing_history: bool,
     probe: bool,
     trace_export: bool,
+    export_on_quit: bool,
 ) -> None:
     print("Support metrics runtime collection")
     print("- mode: %s" % mode)
@@ -497,6 +509,7 @@ def _print_configuration(
     print("- allow_existing_history: %s" % ("yes" if allow_existing_history else "no"))
     print("- probe: %s" % ("yes" if probe else "no"))
     print("- trace_export: %s" % ("yes" if trace_export else "no"))
+    print("- export_on_quit: %s" % ("yes" if export_on_quit else "no"))
 
 
 def _probe_snapshot(path: Path) -> dict[str, object]:
@@ -610,6 +623,7 @@ def _print_trace_summary(trace_payload: dict[str, object], expected_objective: s
     print("- note: %s" % _to_str(trace_payload.get("note")))
     print("- active_scene: %s" % _to_str(trace_payload.get("active_scene")))
     print("- game_loop_found: %s" % _to_str(trace_payload.get("game_loop_found")))
+    print("- export_on_quit_requested: %s" % _to_str(trace_payload.get("export_on_quit_requested")))
     print("- objective_requested: %s" % objective_requested)
     print("- objective_observed: %s" % objective_observed)
     print("- objective_id: %s" % _to_str(trace_payload.get("objective_id")))
@@ -633,6 +647,7 @@ def _print_trace_summary(trace_payload: dict[str, object], expected_objective: s
     print("- latest_export_path_resolved: %s" % _to_str(trace_payload.get("latest_export_path_resolved")))
     print("- export_function_reached: %s" % _to_str(trace_payload.get("export_function_reached")))
     print("- export_payload_built: %s" % _to_str(trace_payload.get("export_payload_built")))
+    print("- export_trigger: %s" % _to_str(trace_payload.get("export_trigger")))
     print("- latest_export_write_attempted: %s" % _to_str(trace_payload.get("latest_export_write_attempted")))
     print("- latest_export_write_success: %s" % _to_str(trace_payload.get("latest_export_write_success")))
     print("- history_append_attempted: %s" % _to_str(trace_payload.get("history_append_attempted")))
@@ -980,6 +995,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         allow_existing_history=bool(args.allow_existing_history),
         probe=bool(args.probe),
         trace_export=bool(args.trace_export),
+        export_on_quit=bool(args.export_on_quit),
     )
 
     commands: list[list[str]] = []
@@ -998,6 +1014,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 objective=objective,
                 probe=bool(args.probe),
                 trace_export=bool(args.trace_export),
+                export_on_quit=bool(args.export_on_quit),
             )
         )
 
@@ -1015,6 +1032,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("- probe_output_path: %s" % probe_output_path)
             print("- trace_output_path: %s" % trace_output_path)
             print("- objective: %s" % (objective if objective != "" else "(default)"))
+            print("- export_on_quit: %s" % ("yes" if args.export_on_quit else "no"))
             for run_index, command in enumerate(commands, start=1):
                 print(
                     "- seed[%d]: %s"

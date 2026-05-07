@@ -15,6 +15,8 @@ const SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH: String = "outputs/ci/support_me
 const SUPPORT_METRICS_PROBE_NOTE: String = "probe only, not gameplay metrics"
 const SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH: String = "outputs/ci/support_metrics_runtime_export_trace.json"
 const SUPPORT_METRICS_TRACE_EXPORT_NOTE: String = "debug only, not gameplay metrics"
+const SUPPORT_METRICS_EXPORT_TRIGGER_DEBUG_ON_QUIT: String = "debug_export_on_quit"
+const SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW: String = "objective_or_manual"
 const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
 const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
 const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
@@ -657,6 +659,9 @@ var run_metrics_history_export_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
 var support_metrics_trace_export_enabled: bool = false
 var support_metrics_trace_output_path: String = SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH
 var support_metrics_trace_data: Dictionary = {}
+var support_metrics_export_on_quit_enabled: bool = false
+var support_metrics_export_on_quit_attempted: bool = false
+var last_run_metrics_snapshot: Dictionary = {}
 var support_metrics_forced_objective: String = ""
 var support_metrics_forced_objective_enabled: bool = false
 var support_metrics_forced_objective_rejected: bool = false
@@ -692,6 +697,10 @@ func _ready() -> void:
 		run_metrics_last_export_path = RUN_METRICS_LATEST_EXPORT_PATH
 	if run_metrics_history_export_path == "":
 		run_metrics_history_export_path = RUN_METRICS_HISTORY_EXPORT_PATH
+	support_metrics_export_on_quit_enabled = bool(
+		support_metrics_cli.get("export_on_quit_requested", false)
+	)
+	support_metrics_export_on_quit_attempted = false
 	world_event_modifiers = _default_world_event_modifiers()
 	world_manager.setup_world()
 	_setup_gate_response_state()
@@ -729,6 +738,7 @@ func _read_support_metrics_cli_options() -> Dictionary:
 	var options: Dictionary = {
 		"probe_requested": false,
 		"trace_export_requested": false,
+		"export_on_quit_requested": false,
 		"seed": "",
 		"quit_after": "",
 		"objective": "",
@@ -751,6 +761,8 @@ func _read_support_metrics_cli_options() -> Dictionary:
 			options["probe_requested"] = true
 		elif token == "--support-metrics-trace-export":
 			options["trace_export_requested"] = true
+		elif token == "--support-metrics-export-on-quit":
+			options["export_on_quit_requested"] = true
 		elif token == "--support-metrics-seed" and index + 1 < user_args.size():
 			index += 1
 			options["seed"] = str(user_args[index])
@@ -878,6 +890,9 @@ func _setup_support_metrics_trace_options(options: Dictionary) -> void:
 		"args_received": options.get("user_args", []),
 		"active_scene": active_scene,
 		"game_loop_found": "yes",
+		"export_on_quit_requested": (
+			"yes" if support_metrics_export_on_quit_enabled else "no"
+		),
 		"objective_requested": support_metrics_forced_objective,
 		"objective_observed": world_objective_id,
 		"objective_id": world_objective_id,
@@ -893,6 +908,7 @@ func _setup_support_metrics_trace_options(options: Dictionary) -> void:
 		"latest_export_path_resolved": _resolve_support_metrics_trace_path(run_metrics_last_export_path),
 		"export_function_reached": "no",
 		"export_payload_built": "no",
+		"export_trigger": "",
 		"history_append_attempted": "no",
 		"history_append_success": "no",
 		"latest_export_write_attempted": "no",
@@ -932,6 +948,9 @@ func _write_support_metrics_export_trace() -> void:
 	support_metrics_trace_data["support_metrics_forced_objective_reject_reason"] = (
 		support_metrics_forced_objective_reject_reason
 	)
+	support_metrics_trace_data["export_on_quit_requested"] = (
+		"yes" if support_metrics_export_on_quit_enabled else "no"
+	)
 	support_metrics_trace_data["tick_observed"] = tick_index
 	support_metrics_trace_data["run_duration_observed"] = elapsed_time
 	support_metrics_trace_data["timestamp"] = str(Time.get_unix_time_from_system())
@@ -958,7 +977,30 @@ func _write_support_metrics_export_trace() -> void:
 	trace_file.close()
 
 
+func _force_support_metrics_export_on_quit_if_requested() -> void:
+	if not support_metrics_export_on_quit_enabled:
+		return
+	if support_metrics_export_on_quit_attempted:
+		return
+
+	support_metrics_export_on_quit_attempted = true
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["export_trigger"] = SUPPORT_METRICS_EXPORT_TRIGGER_DEBUG_ON_QUIT
+		support_metrics_trace_data["reason_export_not_attempted"] = ""
+
+	if run_metrics_export_count > 0:
+		if support_metrics_trace_export_enabled:
+			support_metrics_trace_data["reason_export_not_attempted"] = (
+				"debug export on quit skipped: runtime already exported"
+			)
+			_write_support_metrics_export_trace()
+		return
+
+	export_run_metrics(SUPPORT_METRICS_EXPORT_TRIGGER_DEBUG_ON_QUIT, true, true)
+
+
 func _exit_tree() -> void:
+	_force_support_metrics_export_on_quit_if_requested()
 	if support_metrics_trace_export_enabled:
 		_write_support_metrics_export_trace()
 
@@ -1653,14 +1695,40 @@ func _build_run_metrics_export_id(next_count: int, tick_value: int) -> String:
 	return "export_%05d_t%07d" % [max(1, next_count), max(0, tick_value)]
 
 
-func get_run_metrics_export_payload() -> Dictionary:
-	var snapshot: Dictionary = _build_snapshot()
+func get_run_metrics_export_payload(
+	export_trigger: String = SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW,
+	debug_export_on_quit: bool = false,
+	prefer_cached_snapshot: bool = false
+) -> Dictionary:
+	var snapshot: Dictionary = {}
+	if prefer_cached_snapshot and not last_run_metrics_snapshot.is_empty():
+		snapshot = last_run_metrics_snapshot.duplicate(true)
+	elif prefer_cached_snapshot:
+		snapshot = {
+			"tick": tick_index,
+			"time": elapsed_time
+		}
+	elif is_inside_tree():
+		snapshot = _build_snapshot()
+	elif not last_run_metrics_snapshot.is_empty():
+		snapshot = last_run_metrics_snapshot.duplicate(true)
+	else:
+		snapshot = {
+			"tick": tick_index,
+			"time": elapsed_time
+		}
 	var tick_value: int = int(snapshot.get("tick", tick_index))
 	var elapsed_value: float = float(snapshot.get("time", elapsed_time))
 	var next_export_count: int = run_metrics_export_count + 1
 	var export_id: String = _build_run_metrics_export_id(next_export_count, tick_value)
+	var resolved_export_trigger: String = export_trigger.strip_edges()
+	if resolved_export_trigger == "":
+		resolved_export_trigger = SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW
 	var payload: Dictionary = {
 		"export_id": export_id,
+		"export_trigger": resolved_export_trigger,
+		"debug_export_on_quit": debug_export_on_quit,
+		"gameplay_change_allowed": false,
 		"exported_at_time": elapsed_value,
 		"run_status": str(snapshot.get("run_status", run_status)),
 		"objective_id": str(snapshot.get("objective_id", world_objective_id)),
@@ -1697,12 +1765,24 @@ func get_run_metrics_export_payload() -> Dictionary:
 	return payload
 
 
-func export_run_metrics() -> bool:
+func export_run_metrics(
+	export_trigger: String = SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW,
+	debug_export_on_quit: bool = false,
+	prefer_cached_snapshot: bool = false
+) -> bool:
+	var resolved_export_trigger: String = export_trigger.strip_edges()
+	if resolved_export_trigger == "":
+		resolved_export_trigger = SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW
 	if support_metrics_trace_export_enabled:
 		support_metrics_trace_data["export_function_reached"] = "yes"
 		support_metrics_trace_data["objective_id"] = world_objective_id
+		support_metrics_trace_data["export_trigger"] = resolved_export_trigger
 		support_metrics_trace_data["reason_export_not_attempted"] = ""
-	var payload: Dictionary = get_run_metrics_export_payload()
+	var payload: Dictionary = get_run_metrics_export_payload(
+		resolved_export_trigger,
+		debug_export_on_quit,
+		prefer_cached_snapshot
+	)
 	if support_metrics_trace_export_enabled:
 		support_metrics_trace_data["export_payload_built"] = "yes"
 	var latest_path: String = run_metrics_last_export_path
@@ -1989,7 +2069,8 @@ func _tick(delta: float) -> void:
 	_cleanup_dead_actors()
 	sandbox_systems.tick_systems(delta, actors, self)
 
-	debug_overlay.update_overlay(_build_snapshot(), event_log)
+	last_run_metrics_snapshot = _build_snapshot()
+	debug_overlay.update_overlay(last_run_metrics_snapshot, event_log)
 
 
 func _get_available_world_objective_ids() -> Array[String]:

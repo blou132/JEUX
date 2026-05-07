@@ -9,6 +9,10 @@ GAME_LOOP_PATH = ROOT / "game3d" / "scripts" / "core" / "GameLoop.gd"
 
 
 class Game3DSupportMetricsTraceScaffoldTests(unittest.TestCase):
+    def test_game_loop_contains_export_on_quit_cli_flag(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("support-metrics-export-on-quit", content)
+
     def test_game_loop_contains_trace_export_cli_flag(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
         self.assertIn("support-metrics-trace-export", content)
@@ -23,11 +27,17 @@ class Game3DSupportMetricsTraceScaffoldTests(unittest.TestCase):
 
     def test_game_loop_trace_contains_export_path_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("export_trigger", content)
         self.assertIn("export_function_reached", content)
+        self.assertIn("export_payload_built", content)
         self.assertIn("history_append_attempted", content)
         self.assertIn("history_append_success", content)
+
+    def test_game_loop_trace_contains_debug_export_payload_markers(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("debug_export_on_quit", content)
+        self.assertIn('"gameplay_change_allowed": false', content)
 
 
 if __name__ == "__main__":
     unittest.main()
-

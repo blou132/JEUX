@@ -855,6 +855,7 @@ py tools/simulate_support_metrics_ci.py --baseline tests/fixtures/support_metric
   - `--seed-start 1000`
   - `--output outputs/ci/support_metrics_current.jsonl`
   - `--godot-bin godot`
+  - `--export-on-quit` (debug/CI: force un export runtime a la fin du quit controle)
   - `--dry-run` (n'execute pas Godot, affiche seulement les commandes)
 - exemples:
 ```bash
@@ -903,6 +904,7 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start
 - interpretation:
   - trace absente: mauvais chemin/projet/scene/args, ou code trace non charge.
   - `export_function_reached=no`: export runtime jamais declenche.
+  - `export_trigger=debug_export_on_quit`: export runtime force en fin de run debug/CI.
   - `history_append_attempted=no`: condition d'export non remplie.
   - `history_append_success=no`: probleme d'ecriture history/path.
   - `history_append_success=yes` mais history Python inchange: chemin observe cote Python incorrect.
@@ -923,6 +925,20 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start
   - si `objective_requested` differe de `objective_observed`, un warning clair est affiche.
   - si objectif inconnu, la collecte ne crash pas et la trace indique un rejet `forced objective rejected / unknown objective`.
 - note: ce mode est reserve au debug/CI runtime; il ne modifie pas le gameplay normal et n'ecrit pas de fausse metrique runtime.
+
+## Export runtime on quit
+- utilite: forcer un export runtime final en debug/CI quand la run se termine via `--quit-after` avant l'etat de fin naturel de l'objectif.
+- script: `tools/collect_support_metrics_runtime.py`
+- option principale:
+  - `--export-on-quit` (transmet un flag CLI Godot dedie a l'export force sur quit)
+- exemple:
+```bash
+py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe" --objective rally_champion --diagnose --trace-export --export-on-quit
+```
+- interpretation:
+  - la trace export doit montrer `export_trigger=debug_export_on_quit` quand l'export est force au quit.
+  - le payload runtime exporte inclut `debug_export_on_quit=true` et `gameplay_change_allowed=false`.
+- note: mode reserve au debug/CI, sans modification du gameplay normal; sert uniquement a collecter une observation runtime reelle quand l'objectif n'est pas termine naturellement.
 
 ## Validate runtime support metrics files
 - utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).

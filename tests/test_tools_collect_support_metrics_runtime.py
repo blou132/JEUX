@@ -48,7 +48,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         ")",
                         "if \"%STUB_WRITE_TRACE%\"==\"1\" (",
                         "  for %%I in (\"%STUB_TRACE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
-                        "  > \"%STUB_TRACE_PATH%\" echo {\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}",
+                        "  > \"%STUB_TRACE_PATH%\" echo {\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_on_quit_requested\":\"no\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"export_trigger\":\"objective_or_manual\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}",
                         ")",
                         "exit /b 0",
                     ]
@@ -71,7 +71,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "fi",
                         "if [ \"${STUB_WRITE_TRACE:-0}\" = \"1\" ]; then",
                         "  mkdir -p \"$(dirname \"${STUB_TRACE_PATH}\")\"",
-                        "  echo '{\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}' > \"${STUB_TRACE_PATH}\"",
+                        "  echo '{\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_on_quit_requested\":\"no\",\"objective_requested\":\"\",\"objective_observed\":\"observe_dominance\",\"objective_id\":\"observe_dominance\",\"support_metrics_forced_objective\":\"\",\"support_metrics_forced_objective_enabled\":\"no\",\"support_metrics_forced_objective_rejected\":\"no\",\"support_metrics_forced_objective_reject_reason\":\"\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"export_trigger\":\"objective_or_manual\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}' > \"${STUB_TRACE_PATH}\"",
                         "fi",
                         "exit 0",
                     ]
@@ -98,6 +98,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertIn("--probe", result.stdout)
         self.assertIn("--trace-export", result.stdout)
         self.assertIn("--objective", result.stdout)
+        self.assertIn("--export-on-quit", result.stdout)
 
     def test_godot_absent_returns_non_zero_and_clear_message(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -197,6 +198,65 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("--support-metrics-trace-export", result.stdout)
         self.assertIn("--support-metrics-trace-output", result.stdout)
+
+    def test_export_on_quit_dry_run_shows_export_on_quit_command_flag(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--export-on-quit",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--support-metrics-export-on-quit", result.stdout)
+
+    def test_export_on_quit_can_be_combined_with_objective(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--objective",
+                "rally_champion",
+                "--export-on-quit",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--support-metrics-objective rally_champion", result.stdout)
+        self.assertIn("--support-metrics-export-on-quit", result.stdout)
+
+    def test_export_on_quit_diagnose_dry_run_mentions_activation(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--diagnose",
+                "--export-on-quit",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("DIAGNOSE dry-run context", result.stdout)
+        self.assertIn("export_on_quit: yes", result.stdout)
 
     def test_objective_dry_run_shows_objective_command_flag(self) -> None:
         result = _run_tool(
@@ -453,6 +513,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertIn("Export trace summary", result.stdout)
             self.assertIn("export_function_reached: yes", result.stdout)
+            self.assertIn("export_trigger: objective_or_manual", result.stdout)
             self.assertIn("history_append_success: yes", result.stdout)
 
     def test_trace_export_warns_when_observed_objective_differs_from_requested(self) -> None:

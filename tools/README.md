@@ -5,7 +5,7 @@ Regrouper les scripts utilitaires d'analyse, de verification CI et d'export.
 
 ## Contenu principal
 - `analyze_run_metrics_history.py`: resume et comparaison des run metrics.
-- `collect_support_metrics_runtime.py`: collecte locale multi-runs Godot vers `outputs/ci/support_metrics_baseline.jsonl` ou `outputs/ci/support_metrics_current.jsonl`, avec mode diagnostic/probe runtime.
+- `collect_support_metrics_runtime.py`: collecte locale multi-runs Godot vers `outputs/ci/support_metrics_baseline.jsonl` ou `outputs/ci/support_metrics_current.jsonl`, avec mode diagnostic/probe runtime et export force sur quit en debug/CI.
 - `validate_support_metrics_runtime_files.py`: validation des fichiers runtime baseline/current avant comparaison (presence, JSONL lisible, lignes exploitables, warnings legacy).
 - `run_support_metrics_runtime_pipeline.py`: pipeline local `collect -> validate -> compare -> decide` pour les metriques runtime support (rapports comparaison + decision heuristique).
 - `decide_support_metrics_runtime_tuning.py`: protocole heuristique local de decision (`keep/revert/collect/investigate`) a partir du resume runtime baseline/current.
@@ -21,3 +21,4 @@ Regrouper les scripts utilitaires d'analyse, de verification CI et d'export.
 - Pour verifier le handshake Godot runtime (probe), voir la section README: `Probe Godot runtime collection`.
 - Pour tracer le chemin d'export runtime reel (latest/history), voir la section README: `Trace runtime export`.
 - Pour forcer l'objectif runtime en debug/CI (ex: `rally_champion`), voir la section README: `Force runtime objective for support metrics`.
+- Pour forcer un export runtime en fin de quit controle (`--export-on-quit`), voir la section README: `Export runtime on quit`.

@@ -82,6 +82,14 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("debug/CI", content)
         self.assertIn("ne modifie pas le gameplay normal", content)
 
+    def test_readme_contains_runtime_export_on_quit_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Export runtime on quit", content)
+        self.assertIn("--export-on-quit", content)
+        self.assertIn("export_trigger", content)
+        self.assertIn("debug_export_on_quit", content)
+        self.assertIn("gameplay_change_allowed", content)
+
 
 if __name__ == "__main__":
     unittest.main()
