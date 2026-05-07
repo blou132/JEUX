@@ -53,6 +53,14 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
             content,
         )
 
+    def test_readme_contains_runtime_collection_probe_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Probe Godot runtime collection", content)
+        self.assertIn("--probe", content)
+        self.assertIn("outputs/ci/support_metrics_runtime_probe.json", content)
+        self.assertIn("probe only", content)
+        self.assertIn("pas une validation gameplay", content)
+
 
 if __name__ == "__main__":
     unittest.main()

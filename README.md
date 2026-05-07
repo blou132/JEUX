@@ -876,6 +876,21 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start
 ```
 - regle de decision: si aucune nouvelle ligne n'est ajoutee au history runtime, la decision gameplay doit rester `collect_more_runs`.
 
+## Probe Godot runtime collection
+- utilite: verifier le handshake minimal Godot pour la collecte runtime (arguments CLI recus, chemins resolves, ecriture possible dans `outputs/ci`), sans valider le gameplay.
+- script: `tools/collect_support_metrics_runtime.py`
+- option principale:
+  - `--probe` (lance Godot en mode probe runtime et attend `outputs/ci/support_metrics_runtime_probe.json`)
+- exemple:
+```bash
+py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe" --probe --diagnose
+```
+- interpretation:
+  - probe OK: Godot recoit les args support metrics et peut ecrire `outputs/ci/support_metrics_runtime_probe.json`.
+  - probe KO: probleme de lancement/projet/scene/propagation args (la collecte runtime ne doit pas etre consideree valide).
+- note: `support_metrics_runtime_probe.json` contient la mention `probe only, not gameplay metrics`.
+- note: le probe est un check technique de handshake runtime, pas une validation gameplay; il ne modifie pas le gameplay.
+
 ## Validate runtime support metrics files
 - utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).
 - script: `tools/validate_support_metrics_runtime_files.py`

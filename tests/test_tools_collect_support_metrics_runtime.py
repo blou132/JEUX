@@ -42,6 +42,10 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "if \"%STUB_APPEND_HISTORY%\"==\"1\" (",
                         "  >> \"%STUB_HISTORY_PATH%\" echo {\"export_id\":\"stub_%SUPPORT_METRICS_SEED%\",\"objective_id\":\"support_gate\",\"run_status\":\"completed\",\"objective_status\":\"completed\",\"support_gate_run_attempts\":1,\"support_gate_run_success\":1,\"support_gate_run_success_rate\":1.0,\"support_gate_run_available_ratio\":1.0}",
                         ")",
+                        "if \"%STUB_WRITE_PROBE%\"==\"1\" (",
+                        "  for %%I in (\"%STUB_PROBE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
+                        "  > \"%STUB_PROBE_PATH%\" echo {\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"%SUPPORT_METRICS_SEED%\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}",
+                        ")",
                         "exit /b 0",
                     ]
                 )
@@ -56,6 +60,10 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "set -euo pipefail",
                         "if [ \"${STUB_APPEND_HISTORY:-0}\" = \"1\" ]; then",
                         "  echo '{\"export_id\":\"stub_'\"${SUPPORT_METRICS_SEED:-0}\"'\",\"objective_id\":\"support_gate\",\"run_status\":\"completed\",\"objective_status\":\"completed\",\"support_gate_run_attempts\":1,\"support_gate_run_success\":1,\"support_gate_run_success_rate\":1.0,\"support_gate_run_available_ratio\":1.0}' >> \"${STUB_HISTORY_PATH}\"",
+                        "fi",
+                        "if [ \"${STUB_WRITE_PROBE:-0}\" = \"1\" ]; then",
+                        "  mkdir -p \"$(dirname \"${STUB_PROBE_PATH}\")\"",
+                        "  echo '{\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"'\"${SUPPORT_METRICS_SEED:-0}\"'\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}' > \"${STUB_PROBE_PATH}\"",
                         "fi",
                         "exit 0",
                     ]
@@ -79,6 +87,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertIn("--history-path", result.stdout)
         self.assertIn("--diagnose", result.stdout)
         self.assertIn("--allow-existing-history", result.stdout)
+        self.assertIn("--probe", result.stdout)
 
     def test_godot_absent_returns_non_zero_and_clear_message(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -140,6 +149,146 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertIn("DIAGNOSE dry-run context", result.stdout)
         self.assertIn("history_path", result.stdout)
         self.assertIn("command[1]", result.stdout)
+
+    def test_probe_dry_run_shows_probe_command(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--probe",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--support-metrics-probe", result.stdout)
+        self.assertIn("--support-metrics-probe-output", result.stdout)
+
+    def test_probe_without_probe_file_returns_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            history_path.write_text(
+                '{"export_id":"old_1","objective_id":"support_gate"}\n',
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            probe_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_probe.json"
+            if probe_path.exists():
+                probe_path.unlink()
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--probe",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "0",
+                    "STUB_WRITE_PROBE": "0",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_OUTPUT_PATH": str(output_path),
+                    "STUB_PROBE_PATH": str(probe_path),
+                },
+            )
+            self.assertNotEqual(result.returncode, 0)
+            combined = result.stdout + "\n" + result.stderr
+            self.assertIn(
+                "Godot launched, but project did not execute support metrics probe.",
+                combined,
+            )
+
+    def test_probe_with_simulated_probe_file_returns_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            history_path.write_text(
+                '{"export_id":"old_1","objective_id":"support_gate"}\n',
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            probe_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_probe.json"
+            if probe_path.exists():
+                probe_path.unlink()
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--probe",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "0",
+                    "STUB_WRITE_PROBE": "1",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_OUTPUT_PATH": str(output_path),
+                    "STUB_PROBE_PATH": str(probe_path),
+                },
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("Probe summary", result.stdout)
+            self.assertIn("game_loop_found: yes", result.stdout)
+            self.assertIn("probe only, not gameplay metrics", result.stdout)
+
+    def test_probe_does_not_modify_history_when_stub_does_not_append(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            original_history = '{"export_id":"old_1","objective_id":"support_gate"}\n'
+            history_path.write_text(original_history, encoding="utf-8")
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            probe_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_probe.json"
+            if probe_path.exists():
+                probe_path.unlink()
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--probe",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "0",
+                    "STUB_WRITE_PROBE": "1",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_OUTPUT_PATH": str(output_path),
+                    "STUB_PROBE_PATH": str(probe_path),
+                },
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertEqual(history_path.read_text(encoding="utf-8"), original_history)
 
     def test_mode_baseline_uses_expected_default_output_path(self) -> None:
         result = _run_tool(

@@ -11,6 +11,8 @@ const WORLD_OBJECTIVE_ID_RALLY_CHAMPION: String = "rally_champion"
 const WORLD_OBJECTIVE_ID_SUPPORT_GATE: String = "support_gate"
 const RUN_METRICS_LATEST_EXPORT_PATH: String = "user://run_metrics_latest.json"
 const RUN_METRICS_HISTORY_EXPORT_PATH: String = "user://run_metrics_history.jsonl"
+const SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH: String = "outputs/ci/support_metrics_runtime_probe.json"
+const SUPPORT_METRICS_PROBE_NOTE: String = "probe only, not gameplay metrics"
 const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
 const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
 const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
@@ -670,8 +672,17 @@ var champion_support_run_success_baseline: int = 0
 
 func _ready() -> void:
 	randomize()
-	run_metrics_last_export_path = RUN_METRICS_LATEST_EXPORT_PATH
-	run_metrics_history_export_path = RUN_METRICS_HISTORY_EXPORT_PATH
+	var support_metrics_cli: Dictionary = _read_support_metrics_cli_options()
+	run_metrics_last_export_path = str(
+		support_metrics_cli.get("output_path", RUN_METRICS_LATEST_EXPORT_PATH)
+	)
+	run_metrics_history_export_path = str(
+		support_metrics_cli.get("history_path", RUN_METRICS_HISTORY_EXPORT_PATH)
+	)
+	if run_metrics_last_export_path == "":
+		run_metrics_last_export_path = RUN_METRICS_LATEST_EXPORT_PATH
+	if run_metrics_history_export_path == "":
+		run_metrics_history_export_path = RUN_METRICS_HISTORY_EXPORT_PATH
 	world_event_modifiers = _default_world_event_modifiers()
 	world_manager.setup_world()
 	_setup_gate_response_state()
@@ -697,6 +708,82 @@ func _ready() -> void:
 	sandbox_systems.spawn_initial_population(actors)
 	_setup_world_objective()
 	record_event("Sandbox boot complete.")
+	if bool(support_metrics_cli.get("probe_requested", false)):
+		_run_support_metrics_probe(support_metrics_cli)
+		get_tree().quit()
+		return
+
+
+func _read_support_metrics_cli_options() -> Dictionary:
+	var options: Dictionary = {
+		"probe_requested": false,
+		"seed": "",
+		"history_path": RUN_METRICS_HISTORY_EXPORT_PATH,
+		"output_path": RUN_METRICS_LATEST_EXPORT_PATH,
+		"probe_output_path": SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH,
+		"user_args": []
+	}
+	var user_args: PackedStringArray = OS.get_cmdline_user_args()
+	var user_args_list: Array[String] = []
+	for raw_arg in user_args:
+		user_args_list.append(str(raw_arg))
+	options["user_args"] = user_args_list
+
+	var index: int = 0
+	while index < user_args.size():
+		var token: String = str(user_args[index])
+		if token == "--support-metrics-probe":
+			options["probe_requested"] = true
+		elif token == "--support-metrics-seed" and index + 1 < user_args.size():
+			index += 1
+			options["seed"] = str(user_args[index])
+		elif token == "--support-metrics-history-path" and index + 1 < user_args.size():
+			index += 1
+			options["history_path"] = str(user_args[index])
+		elif token == "--support-metrics-output-path" and index + 1 < user_args.size():
+			index += 1
+			options["output_path"] = str(user_args[index])
+		elif token == "--support-metrics-probe-output" and index + 1 < user_args.size():
+			index += 1
+			options["probe_output_path"] = str(user_args[index])
+		index += 1
+	return options
+
+
+func _run_support_metrics_probe(options: Dictionary) -> void:
+	var probe_output_path: String = str(
+		options.get("probe_output_path", SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH)
+	)
+	if probe_output_path == "":
+		probe_output_path = SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH
+	var active_scene: String = ""
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null:
+		active_scene = str(current_scene.name)
+	var payload: Dictionary = {
+		"timestamp": str(Time.get_unix_time_from_system()),
+		"user_args": options.get("user_args", []),
+		"project_path": ProjectSettings.globalize_path("res://"),
+		"history_path": str(options.get("history_path", run_metrics_history_export_path)),
+		"output_path": str(options.get("output_path", run_metrics_last_export_path)),
+		"seed": str(options.get("seed", "")),
+		"active_scene": active_scene,
+		"game_loop_found": "yes",
+		"export_runtime_possible": "no",
+		"note": SUPPORT_METRICS_PROBE_NOTE
+	}
+	var file := FileAccess.open(probe_output_path, FileAccess.WRITE)
+	if file == null:
+		record_event(
+			"Support metrics probe FAILED: %s (code=%d)."
+			% [probe_output_path, FileAccess.get_open_error()]
+		)
+		return
+	payload["export_runtime_possible"] = "yes"
+	file.store_string(JSON.stringify(payload, "  "))
+	file.flush()
+	file.close()
+	record_event("Support metrics probe OK: %s." % probe_output_path)
 
 
 func _load_creature_profiles_data() -> void:
@@ -1435,8 +1522,12 @@ func get_run_metrics_export_payload() -> Dictionary:
 
 func export_run_metrics() -> bool:
 	var payload: Dictionary = get_run_metrics_export_payload()
-	var latest_path: String = RUN_METRICS_LATEST_EXPORT_PATH
-	var history_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
+	var latest_path: String = run_metrics_last_export_path
+	var history_path: String = run_metrics_history_export_path
+	if latest_path == "":
+		latest_path = RUN_METRICS_LATEST_EXPORT_PATH
+	if history_path == "":
+		history_path = RUN_METRICS_HISTORY_EXPORT_PATH
 	var file := FileAccess.open(latest_path, FileAccess.WRITE)
 	if file == null:
 		run_metrics_export_label = "error opening %s (code=%d)" % [latest_path, FileAccess.get_open_error()]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -19,6 +20,7 @@ DEFAULT_OUTPUT_BY_MODE: dict[str, Path] = {
 DEFAULT_HISTORY_FILENAME = "run_metrics_history.jsonl"
 DEFAULT_PROJECT_NAME = "Sandbox Fantasy 3D MVP"
 DEFAULT_QUIT_AFTER_FRAMES = 4200
+DEFAULT_PROBE_OUTPUT_PATH = Path("outputs/ci/support_metrics_runtime_probe.json")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -102,6 +104,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Allow reusing existing history lines when no new export line is produced. "
             "Disabled by default to avoid false runtime success."
+        ),
+    )
+    parser.add_argument(
+        "--probe",
+        action="store_true",
+        help=(
+            "Run a Godot runtime probe handshake that validates CLI argument propagation "
+            "and writes outputs/ci/support_metrics_runtime_probe.json."
         ),
     )
     return parser
@@ -202,6 +212,10 @@ def _to_int(value: object) -> int:
 def _to_str(value: object) -> str:
     if isinstance(value, str):
         return value
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
     return ""
 
 
@@ -289,6 +303,28 @@ def _build_no_new_export_error(
     return "\n".join(messages)
 
 
+def _build_probe_missing_error(
+    command: list[str],
+    project_path: Path,
+    history_path: Path,
+    output_path: Path,
+    probe_output_path: Path,
+) -> str:
+    messages: list[str] = []
+    messages.append("Godot launched, but project did not execute support metrics probe.")
+    messages.append("command: %s" % _format_command(command))
+    messages.append("project_path: %s" % project_path)
+    messages.append("history_path: %s" % history_path)
+    messages.append("output_path: %s" % output_path)
+    messages.append("probe_output_path: %s" % probe_output_path)
+    messages.append("possible causes:")
+    messages.append("- mauvais project path")
+    messages.append("- mauvaise scene principale")
+    messages.append("- arguments CLI non propages")
+    messages.append("- code probe non charge")
+    return "\n".join(messages)
+
+
 def _build_output_path(mode: str, output_path: Path | None) -> Path:
     if output_path is not None:
         return output_path
@@ -300,8 +336,12 @@ def _build_run_command(
     project_path: Path,
     seed: int,
     quit_after_frames: int,
+    history_path: Path,
+    output_path: Path,
+    probe_output_path: Path,
+    probe: bool,
 ) -> list[str]:
-    return [
+    command = [
         godot_executable,
         "--headless",
         "--path",
@@ -311,7 +351,20 @@ def _build_run_command(
         "--",
         "--support-metrics-seed",
         str(seed),
+        "--support-metrics-history-path",
+        str(history_path.resolve()),
+        "--support-metrics-output-path",
+        str(output_path.resolve()),
     ]
+    if probe:
+        command.extend(
+            [
+                "--support-metrics-probe",
+                "--support-metrics-probe-output",
+                str(probe_output_path.resolve()),
+            ]
+        )
+    return command
 
 
 def _format_command(command: list[str]) -> str:
@@ -320,27 +373,167 @@ def _format_command(command: list[str]) -> str:
     return shlex.join(command)
 
 
+def _extract_command_arg_value(command: list[str], flag: str) -> str:
+    try:
+        flag_index = command.index(flag)
+    except ValueError:
+        return ""
+    value_index = flag_index + 1
+    if value_index >= len(command):
+        return ""
+    return command[value_index]
+
+
 def _print_configuration(
     mode: str,
     runs: int,
     seed_start: int,
     output_path: Path,
+    probe_output_path: Path,
     project_path: Path,
     history_path: Path,
     dry_run: bool,
     diagnose: bool,
     allow_existing_history: bool,
+    probe: bool,
 ) -> None:
     print("Support metrics runtime collection")
     print("- mode: %s" % mode)
     print("- runs: %d" % runs)
     print("- seed_start: %d" % seed_start)
     print("- output: %s" % output_path)
+    print("- probe_output: %s" % probe_output_path)
     print("- project_path: %s" % project_path)
     print("- history_path: %s" % history_path)
     print("- dry_run: %s" % ("yes" if dry_run else "no"))
     print("- diagnose: %s" % ("yes" if diagnose else "no"))
     print("- allow_existing_history: %s" % ("yes" if allow_existing_history else "no"))
+    print("- probe: %s" % ("yes" if probe else "no"))
+
+
+def _probe_snapshot(path: Path) -> dict[str, object]:
+    snapshot: dict[str, object] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "size_bytes": 0,
+        "mtime_ns": 0,
+    }
+    if not path.exists():
+        return snapshot
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return snapshot
+    snapshot["size_bytes"] = int(stat_result.st_size)
+    snapshot["mtime_ns"] = int(stat_result.st_mtime_ns)
+    return snapshot
+
+
+def _read_probe_payload(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        raw_content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print("Unable to read probe file: %s" % str(exc), file=sys.stderr)
+        return None
+    try:
+        parsed = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        print("Probe file is not valid JSON: %s" % str(exc), file=sys.stderr)
+        return None
+    if not isinstance(parsed, dict):
+        print("Probe file JSON must be an object.", file=sys.stderr)
+        return None
+    return parsed
+
+
+def _print_probe_summary(probe_payload: dict[str, object]) -> None:
+    print("Probe summary")
+    print("- timestamp: %s" % _to_str(probe_payload.get("timestamp")))
+    print("- seed: %s" % _to_str(probe_payload.get("seed")))
+    print("- active_scene: %s" % _to_str(probe_payload.get("active_scene")))
+    print("- game_loop_found: %s" % _to_str(probe_payload.get("game_loop_found")))
+    print("- export_runtime_possible: %s" % _to_str(probe_payload.get("export_runtime_possible")))
+    print("- history_path: %s" % _to_str(probe_payload.get("history_path")))
+    print("- output_path: %s" % _to_str(probe_payload.get("output_path")))
+    print("- note: %s" % _to_str(probe_payload.get("note")))
+
+
+def _collect_runtime_probe(
+    command: list[str],
+    project_path: Path,
+    history_path: Path,
+    output_path: Path,
+    probe_output_path: Path,
+    diagnose: bool,
+) -> int:
+    seed_value = _extract_command_arg_value(command, "--support-metrics-seed")
+    if seed_value == "":
+        seed_value = "unknown"
+    before_snapshot = _probe_snapshot(probe_output_path)
+    if diagnose:
+        print("")
+        print("DIAGNOSE probe")
+        print("- seed: %s" % seed_value)
+        print("- command: %s" % _format_command(command))
+        print("- probe exists before: %s" % ("yes" if _to_bool(before_snapshot.get("exists")) else "no"))
+        print("- probe size before: %d" % _to_int(before_snapshot.get("size_bytes")))
+        print("- probe mtime before: %d" % _to_int(before_snapshot.get("mtime_ns")))
+
+    print("Probe run (seed=%s): %s" % (seed_value, _format_command(command)))
+    env = os.environ.copy()
+    env["SUPPORT_METRICS_SEED"] = seed_value
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+
+    if result.returncode != 0:
+        print(
+            "Godot probe run failed for seed %s with return code %d."
+            % (seed_value, result.returncode),
+            file=sys.stderr,
+        )
+        return 3
+
+    after_snapshot = _probe_snapshot(probe_output_path)
+    if diagnose:
+        print("- probe exists after: %s" % ("yes" if _to_bool(after_snapshot.get("exists")) else "no"))
+        print("- probe size after: %d" % _to_int(after_snapshot.get("size_bytes")))
+        print("- probe mtime after: %d" % _to_int(after_snapshot.get("mtime_ns")))
+
+    before_exists = _to_bool(before_snapshot.get("exists"))
+    after_exists = _to_bool(after_snapshot.get("exists"))
+    before_size = _to_int(before_snapshot.get("size_bytes"))
+    after_size = _to_int(after_snapshot.get("size_bytes"))
+    before_mtime = _to_int(before_snapshot.get("mtime_ns"))
+    after_mtime = _to_int(after_snapshot.get("mtime_ns"))
+    changed = (not before_exists and after_exists) or (before_size != after_size) or (before_mtime != after_mtime)
+    if (not after_exists) or (not changed):
+        print(
+            _build_probe_missing_error(
+                command=command,
+                project_path=project_path,
+                history_path=history_path,
+                output_path=output_path,
+                probe_output_path=probe_output_path,
+            ),
+            file=sys.stderr,
+        )
+        return 6
+
+    probe_payload = _read_probe_payload(probe_output_path)
+    if probe_payload is None:
+        return 6
+    _print_probe_summary(probe_payload)
+    return 0
 
 
 def _collect_runtime_entries(
@@ -352,7 +545,9 @@ def _collect_runtime_entries(
     collected: list[str] = []
 
     for run_index, command in enumerate(commands, start=1):
-        seed_value = command[-1]
+        seed_value = _extract_command_arg_value(command, "--support-metrics-seed")
+        if seed_value == "":
+            seed_value = "unknown"
         before_snapshot = _history_snapshot(history_path)
         before_lines = _to_lines(before_snapshot.get("lines"))
 
@@ -463,6 +658,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     project_path = args.project_path.resolve()
     output_path = _build_output_path(args.mode, args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    probe_output_path = DEFAULT_PROBE_OUTPUT_PATH
+    probe_output_path.parent.mkdir(parents=True, exist_ok=True)
     history_path = _resolve_history_path(project_path, args.history_path)
 
     _print_configuration(
@@ -470,11 +667,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         runs=args.runs,
         seed_start=args.seed_start,
         output_path=output_path,
+        probe_output_path=probe_output_path,
         project_path=project_path,
         history_path=history_path,
         dry_run=bool(args.dry_run),
         diagnose=bool(args.diagnose),
         allow_existing_history=bool(args.allow_existing_history),
+        probe=bool(args.probe),
     )
 
     commands: list[list[str]] = []
@@ -486,6 +685,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 project_path=project_path,
                 seed=seed,
                 quit_after_frames=args.quit_after,
+                history_path=history_path,
+                output_path=output_path,
+                probe_output_path=probe_output_path,
+                probe=bool(args.probe),
             )
         )
 
@@ -500,8 +703,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("- project_path: %s" % project_path)
             print("- history_path: %s" % history_path)
             print("- output_path: %s" % output_path)
+            print("- probe_output_path: %s" % probe_output_path)
             for run_index, command in enumerate(commands, start=1):
-                print("- seed[%d]: %s" % (run_index, command[-1]))
+                print(
+                    "- seed[%d]: %s"
+                    % (run_index, _extract_command_arg_value(command, "--support-metrics-seed"))
+                )
                 print("  command[%d]: %s" % (run_index, _format_command(command)))
             _print_snapshot("- current", _history_snapshot(history_path))
         print("Dry-run completed. No Godot process was started.")
@@ -524,6 +731,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         resolved_command = command.copy()
         resolved_command[0] = resolved_godot
         commands_with_resolved_bin.append(resolved_command)
+
+    if args.probe:
+        return _collect_runtime_probe(
+            command=commands_with_resolved_bin[0],
+            project_path=project_path,
+            history_path=history_path,
+            output_path=output_path,
+            probe_output_path=probe_output_path,
+            diagnose=bool(args.diagnose),
+        )
 
     collect_status, collected_lines = _collect_runtime_entries(
         commands=commands_with_resolved_bin,
@@ -551,3 +768,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
