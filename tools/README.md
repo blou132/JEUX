@@ -19,3 +19,4 @@ Regrouper les scripts utilitaires d'analyse, de verification CI et d'export.
 - Pour l'execution runtime avec Godot (checklist pratique v211), voir la section README: `Runtime Godot validation checklist for v211`.
 - Pour diagnostiquer une collecte runtime sans nouvelles lignes exportees, voir la section README: `Diagnose runtime collection`.
 - Pour verifier le handshake Godot runtime (probe), voir la section README: `Probe Godot runtime collection`.
+- Pour tracer le chemin d'export runtime reel (latest/history), voir la section README: `Trace runtime export`.

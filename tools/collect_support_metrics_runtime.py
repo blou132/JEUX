@@ -21,6 +21,7 @@ DEFAULT_HISTORY_FILENAME = "run_metrics_history.jsonl"
 DEFAULT_PROJECT_NAME = "Sandbox Fantasy 3D MVP"
 DEFAULT_QUIT_AFTER_FRAMES = 4200
 DEFAULT_PROBE_OUTPUT_PATH = Path("outputs/ci/support_metrics_runtime_probe.json")
+DEFAULT_TRACE_OUTPUT_PATH = Path("outputs/ci/support_metrics_runtime_export_trace.json")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -112,6 +113,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Run a Godot runtime probe handshake that validates CLI argument propagation "
             "and writes outputs/ci/support_metrics_runtime_probe.json."
+        ),
+    )
+    parser.add_argument(
+        "--trace-export",
+        action="store_true",
+        help=(
+            "Enable export trace diagnostics and expect "
+            "outputs/ci/support_metrics_runtime_export_trace.json from Godot."
         ),
     )
     return parser
@@ -325,6 +334,28 @@ def _build_probe_missing_error(
     return "\n".join(messages)
 
 
+def _build_trace_missing_error(
+    command: list[str],
+    project_path: Path,
+    history_path: Path,
+    output_path: Path,
+    trace_output_path: Path,
+) -> str:
+    messages: list[str] = []
+    messages.append("Godot launched, probe works, but export trace was not produced.")
+    messages.append("command: %s" % _format_command(command))
+    messages.append("project_path: %s" % project_path)
+    messages.append("history_path: %s" % history_path)
+    messages.append("output_path: %s" % output_path)
+    messages.append("trace_output_path: %s" % trace_output_path)
+    messages.append("possible causes:")
+    messages.append("- mauvais project path")
+    messages.append("- mauvaise scene principale")
+    messages.append("- arguments CLI non propages")
+    messages.append("- code trace export non charge")
+    return "\n".join(messages)
+
+
 def _build_output_path(mode: str, output_path: Path | None) -> Path:
     if output_path is not None:
         return output_path
@@ -339,7 +370,9 @@ def _build_run_command(
     history_path: Path,
     output_path: Path,
     probe_output_path: Path,
+    trace_output_path: Path,
     probe: bool,
+    trace_export: bool,
 ) -> list[str]:
     command = [
         godot_executable,
@@ -351,6 +384,8 @@ def _build_run_command(
         "--",
         "--support-metrics-seed",
         str(seed),
+        "--support-metrics-quit-after",
+        str(quit_after_frames),
         "--support-metrics-history-path",
         str(history_path.resolve()),
         "--support-metrics-output-path",
@@ -362,6 +397,14 @@ def _build_run_command(
                 "--support-metrics-probe",
                 "--support-metrics-probe-output",
                 str(probe_output_path.resolve()),
+            ]
+        )
+    if trace_export:
+        command.extend(
+            [
+                "--support-metrics-trace-export",
+                "--support-metrics-trace-output",
+                str(trace_output_path.resolve()),
             ]
         )
     return command
@@ -390,12 +433,14 @@ def _print_configuration(
     seed_start: int,
     output_path: Path,
     probe_output_path: Path,
+    trace_output_path: Path,
     project_path: Path,
     history_path: Path,
     dry_run: bool,
     diagnose: bool,
     allow_existing_history: bool,
     probe: bool,
+    trace_export: bool,
 ) -> None:
     print("Support metrics runtime collection")
     print("- mode: %s" % mode)
@@ -403,15 +448,35 @@ def _print_configuration(
     print("- seed_start: %d" % seed_start)
     print("- output: %s" % output_path)
     print("- probe_output: %s" % probe_output_path)
+    print("- trace_output: %s" % trace_output_path)
     print("- project_path: %s" % project_path)
     print("- history_path: %s" % history_path)
     print("- dry_run: %s" % ("yes" if dry_run else "no"))
     print("- diagnose: %s" % ("yes" if diagnose else "no"))
     print("- allow_existing_history: %s" % ("yes" if allow_existing_history else "no"))
     print("- probe: %s" % ("yes" if probe else "no"))
+    print("- trace_export: %s" % ("yes" if trace_export else "no"))
 
 
 def _probe_snapshot(path: Path) -> dict[str, object]:
+    snapshot: dict[str, object] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "size_bytes": 0,
+        "mtime_ns": 0,
+    }
+    if not path.exists():
+        return snapshot
+    try:
+        stat_result = path.stat()
+    except OSError:
+        return snapshot
+    snapshot["size_bytes"] = int(stat_result.st_size)
+    snapshot["mtime_ns"] = int(stat_result.st_mtime_ns)
+    return snapshot
+
+
+def _trace_snapshot(path: Path) -> dict[str, object]:
     snapshot: dict[str, object] = {
         "path": str(path),
         "exists": path.exists(),
@@ -448,6 +513,25 @@ def _read_probe_payload(path: Path) -> dict[str, object] | None:
     return parsed
 
 
+def _read_trace_payload(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        raw_content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print("Unable to read trace file: %s" % str(exc), file=sys.stderr)
+        return None
+    try:
+        parsed = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        print("Trace file is not valid JSON: %s" % str(exc), file=sys.stderr)
+        return None
+    if not isinstance(parsed, dict):
+        print("Trace file JSON must be an object.", file=sys.stderr)
+        return None
+    return parsed
+
+
 def _print_probe_summary(probe_payload: dict[str, object]) -> None:
     print("Probe summary")
     print("- timestamp: %s" % _to_str(probe_payload.get("timestamp")))
@@ -460,18 +544,87 @@ def _print_probe_summary(probe_payload: dict[str, object]) -> None:
     print("- note: %s" % _to_str(probe_payload.get("note")))
 
 
+def _print_trace_summary(trace_payload: dict[str, object]) -> None:
+    print("Export trace summary")
+    print("- note: %s" % _to_str(trace_payload.get("note")))
+    print("- active_scene: %s" % _to_str(trace_payload.get("active_scene")))
+    print("- game_loop_found: %s" % _to_str(trace_payload.get("game_loop_found")))
+    print("- objective_id: %s" % _to_str(trace_payload.get("objective_id")))
+    print("- history_path_resolved: %s" % _to_str(trace_payload.get("history_path_resolved")))
+    print("- latest_export_path_resolved: %s" % _to_str(trace_payload.get("latest_export_path_resolved")))
+    print("- export_function_reached: %s" % _to_str(trace_payload.get("export_function_reached")))
+    print("- export_payload_built: %s" % _to_str(trace_payload.get("export_payload_built")))
+    print("- latest_export_write_attempted: %s" % _to_str(trace_payload.get("latest_export_write_attempted")))
+    print("- latest_export_write_success: %s" % _to_str(trace_payload.get("latest_export_write_success")))
+    print("- history_append_attempted: %s" % _to_str(trace_payload.get("history_append_attempted")))
+    print("- history_append_success: %s" % _to_str(trace_payload.get("history_append_success")))
+    print("- reason_export_not_attempted: %s" % _to_str(trace_payload.get("reason_export_not_attempted")))
+    print("- quit_after_received: %s" % _to_str(trace_payload.get("quit_after_received")))
+    print("- tick_observed: %s" % _to_str(trace_payload.get("tick_observed")))
+    print("- run_duration_observed: %s" % _to_str(trace_payload.get("run_duration_observed")))
+
+
+def _trace_file_changed(before_snapshot: dict[str, object], after_snapshot: dict[str, object]) -> bool:
+    before_exists = _to_bool(before_snapshot.get("exists"))
+    after_exists = _to_bool(after_snapshot.get("exists"))
+    before_size = _to_int(before_snapshot.get("size_bytes"))
+    after_size = _to_int(after_snapshot.get("size_bytes"))
+    before_mtime = _to_int(before_snapshot.get("mtime_ns"))
+    after_mtime = _to_int(after_snapshot.get("mtime_ns"))
+    return (not before_exists and after_exists) or (before_size != after_size) or (before_mtime != after_mtime)
+
+
+def _validate_and_print_trace_export(
+    command: list[str],
+    project_path: Path,
+    history_path: Path,
+    output_path: Path,
+    trace_output_path: Path,
+    before_snapshot: dict[str, object],
+    diagnose: bool,
+) -> int:
+    after_snapshot = _trace_snapshot(trace_output_path)
+    if diagnose:
+        print("- trace exists after: %s" % ("yes" if _to_bool(after_snapshot.get("exists")) else "no"))
+        print("- trace size after: %d" % _to_int(after_snapshot.get("size_bytes")))
+        print("- trace mtime after: %d" % _to_int(after_snapshot.get("mtime_ns")))
+
+    if (not _to_bool(after_snapshot.get("exists"))) or (not _trace_file_changed(before_snapshot, after_snapshot)):
+        print(
+            _build_trace_missing_error(
+                command=command,
+                project_path=project_path,
+                history_path=history_path,
+                output_path=output_path,
+                trace_output_path=trace_output_path,
+            ),
+            file=sys.stderr,
+        )
+        return 7
+
+    trace_payload = _read_trace_payload(trace_output_path)
+    if trace_payload is None:
+        return 7
+    _print_trace_summary(trace_payload)
+    return 0
+
 def _collect_runtime_probe(
     command: list[str],
     project_path: Path,
     history_path: Path,
     output_path: Path,
     probe_output_path: Path,
+    trace_output_path: Path,
     diagnose: bool,
+    trace_export: bool,
 ) -> int:
     seed_value = _extract_command_arg_value(command, "--support-metrics-seed")
     if seed_value == "":
         seed_value = "unknown"
     before_snapshot = _probe_snapshot(probe_output_path)
+    trace_before_snapshot: dict[str, object] | None = None
+    if trace_export:
+        trace_before_snapshot = _trace_snapshot(trace_output_path)
     if diagnose:
         print("")
         print("DIAGNOSE probe")
@@ -480,6 +633,10 @@ def _collect_runtime_probe(
         print("- probe exists before: %s" % ("yes" if _to_bool(before_snapshot.get("exists")) else "no"))
         print("- probe size before: %d" % _to_int(before_snapshot.get("size_bytes")))
         print("- probe mtime before: %d" % _to_int(before_snapshot.get("mtime_ns")))
+        if trace_export and trace_before_snapshot is not None:
+            print("- trace exists before: %s" % ("yes" if _to_bool(trace_before_snapshot.get("exists")) else "no"))
+            print("- trace size before: %d" % _to_int(trace_before_snapshot.get("size_bytes")))
+            print("- trace mtime before: %d" % _to_int(trace_before_snapshot.get("mtime_ns")))
 
     print("Probe run (seed=%s): %s" % (seed_value, _format_command(command)))
     env = os.environ.copy()
@@ -533,14 +690,30 @@ def _collect_runtime_probe(
     if probe_payload is None:
         return 6
     _print_probe_summary(probe_payload)
+    if trace_export and trace_before_snapshot is not None:
+        trace_status = _validate_and_print_trace_export(
+            command=command,
+            project_path=project_path,
+            history_path=history_path,
+            output_path=output_path,
+            trace_output_path=trace_output_path,
+            before_snapshot=trace_before_snapshot,
+            diagnose=diagnose,
+        )
+        if trace_status != 0:
+            return trace_status
     return 0
 
 
 def _collect_runtime_entries(
     commands: list[list[str]],
+    project_path: Path,
     history_path: Path,
+    output_path: Path,
+    trace_output_path: Path,
     diagnose: bool,
     allow_existing_history: bool,
+    trace_export: bool,
 ) -> tuple[int, list[str]]:
     collected: list[str] = []
 
@@ -550,6 +723,9 @@ def _collect_runtime_entries(
             seed_value = "unknown"
         before_snapshot = _history_snapshot(history_path)
         before_lines = _to_lines(before_snapshot.get("lines"))
+        trace_before_snapshot: dict[str, object] | None = None
+        if trace_export:
+            trace_before_snapshot = _trace_snapshot(trace_output_path)
 
         if diagnose:
             print("")
@@ -557,6 +733,10 @@ def _collect_runtime_entries(
             print("- seed: %s" % seed_value)
             print("- command: %s" % _format_command(command))
             _print_snapshot("- before", before_snapshot)
+            if trace_export and trace_before_snapshot is not None:
+                print("- trace exists before: %s" % ("yes" if _to_bool(trace_before_snapshot.get("exists")) else "no"))
+                print("- trace size before: %d" % _to_int(trace_before_snapshot.get("size_bytes")))
+                print("- trace mtime before: %d" % _to_int(trace_before_snapshot.get("mtime_ns")))
 
         print("Run %d/%d (seed=%s): %s" % (run_index, len(commands), seed_value, _format_command(command)))
         env = os.environ.copy()
@@ -579,6 +759,19 @@ def _collect_runtime_entries(
                 file=sys.stderr,
             )
             return 3, collected
+
+        if trace_export and trace_before_snapshot is not None:
+            trace_status = _validate_and_print_trace_export(
+                command=command,
+                project_path=project_path,
+                history_path=history_path,
+                output_path=output_path,
+                trace_output_path=trace_output_path,
+                before_snapshot=trace_before_snapshot,
+                diagnose=diagnose,
+            )
+            if trace_status != 0:
+                return trace_status, collected
 
         after_snapshot = _history_snapshot(history_path)
         after_lines = _to_lines(after_snapshot.get("lines"))
@@ -660,6 +853,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     probe_output_path = DEFAULT_PROBE_OUTPUT_PATH
     probe_output_path.parent.mkdir(parents=True, exist_ok=True)
+    trace_output_path = DEFAULT_TRACE_OUTPUT_PATH
+    trace_output_path.parent.mkdir(parents=True, exist_ok=True)
     history_path = _resolve_history_path(project_path, args.history_path)
 
     _print_configuration(
@@ -668,12 +863,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed_start=args.seed_start,
         output_path=output_path,
         probe_output_path=probe_output_path,
+        trace_output_path=trace_output_path,
         project_path=project_path,
         history_path=history_path,
         dry_run=bool(args.dry_run),
         diagnose=bool(args.diagnose),
         allow_existing_history=bool(args.allow_existing_history),
         probe=bool(args.probe),
+        trace_export=bool(args.trace_export),
     )
 
     commands: list[list[str]] = []
@@ -688,7 +885,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 history_path=history_path,
                 output_path=output_path,
                 probe_output_path=probe_output_path,
+                trace_output_path=trace_output_path,
                 probe=bool(args.probe),
+                trace_export=bool(args.trace_export),
             )
         )
 
@@ -704,6 +903,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("- history_path: %s" % history_path)
             print("- output_path: %s" % output_path)
             print("- probe_output_path: %s" % probe_output_path)
+            print("- trace_output_path: %s" % trace_output_path)
             for run_index, command in enumerate(commands, start=1):
                 print(
                     "- seed[%d]: %s"
@@ -739,14 +939,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             history_path=history_path,
             output_path=output_path,
             probe_output_path=probe_output_path,
+            trace_output_path=trace_output_path,
             diagnose=bool(args.diagnose),
+            trace_export=bool(args.trace_export),
         )
 
     collect_status, collected_lines = _collect_runtime_entries(
         commands=commands_with_resolved_bin,
+        project_path=project_path,
         history_path=history_path,
+        output_path=output_path,
+        trace_output_path=trace_output_path,
         diagnose=bool(args.diagnose),
         allow_existing_history=bool(args.allow_existing_history),
+        trace_export=bool(args.trace_export),
     )
     if collect_status != 0:
         if collected_lines:

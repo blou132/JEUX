@@ -13,6 +13,8 @@ const RUN_METRICS_LATEST_EXPORT_PATH: String = "user://run_metrics_latest.json"
 const RUN_METRICS_HISTORY_EXPORT_PATH: String = "user://run_metrics_history.jsonl"
 const SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH: String = "outputs/ci/support_metrics_runtime_probe.json"
 const SUPPORT_METRICS_PROBE_NOTE: String = "probe only, not gameplay metrics"
+const SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH: String = "outputs/ci/support_metrics_runtime_export_trace.json"
+const SUPPORT_METRICS_TRACE_EXPORT_NOTE: String = "debug only, not gameplay metrics"
 const OBJECTIVE_DOMINANCE_REQUIRED_TIME: float = 30.0
 const OBJECTIVE_FAIL_DEATHS_THRESHOLD: int = 90
 const OBJECTIVE_FAIL_SWITCH_THRESHOLD: int = 7
@@ -652,6 +654,9 @@ var run_metrics_export_label: String = "not exported"
 var run_metrics_export_count: int = 0
 var run_metrics_last_export_path: String = ""
 var run_metrics_history_export_path: String = RUN_METRICS_HISTORY_EXPORT_PATH
+var support_metrics_trace_export_enabled: bool = false
+var support_metrics_trace_output_path: String = SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH
+var support_metrics_trace_data: Dictionary = {}
 var run_project_started_baseline: int = 0
 var run_vendetta_started_baseline: int = 0
 var run_vendetta_resolved_baseline: int = 0
@@ -707,6 +712,7 @@ func _ready() -> void:
 	_load_creature_profiles_data()
 	sandbox_systems.spawn_initial_population(actors)
 	_setup_world_objective()
+	_setup_support_metrics_trace_options(support_metrics_cli)
 	record_event("Sandbox boot complete.")
 	if bool(support_metrics_cli.get("probe_requested", false)):
 		_run_support_metrics_probe(support_metrics_cli)
@@ -717,10 +723,13 @@ func _ready() -> void:
 func _read_support_metrics_cli_options() -> Dictionary:
 	var options: Dictionary = {
 		"probe_requested": false,
+		"trace_export_requested": false,
 		"seed": "",
+		"quit_after": "",
 		"history_path": RUN_METRICS_HISTORY_EXPORT_PATH,
 		"output_path": RUN_METRICS_LATEST_EXPORT_PATH,
 		"probe_output_path": SUPPORT_METRICS_PROBE_DEFAULT_OUTPUT_PATH,
+		"trace_output_path": SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH,
 		"user_args": []
 	}
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
@@ -734,9 +743,14 @@ func _read_support_metrics_cli_options() -> Dictionary:
 		var token: String = str(user_args[index])
 		if token == "--support-metrics-probe":
 			options["probe_requested"] = true
+		elif token == "--support-metrics-trace-export":
+			options["trace_export_requested"] = true
 		elif token == "--support-metrics-seed" and index + 1 < user_args.size():
 			index += 1
 			options["seed"] = str(user_args[index])
+		elif token == "--support-metrics-quit-after" and index + 1 < user_args.size():
+			index += 1
+			options["quit_after"] = str(user_args[index])
 		elif token == "--support-metrics-history-path" and index + 1 < user_args.size():
 			index += 1
 			options["history_path"] = str(user_args[index])
@@ -746,6 +760,9 @@ func _read_support_metrics_cli_options() -> Dictionary:
 		elif token == "--support-metrics-probe-output" and index + 1 < user_args.size():
 			index += 1
 			options["probe_output_path"] = str(user_args[index])
+		elif token == "--support-metrics-trace-output" and index + 1 < user_args.size():
+			index += 1
+			options["trace_output_path"] = str(user_args[index])
 		index += 1
 	return options
 
@@ -784,6 +801,100 @@ func _run_support_metrics_probe(options: Dictionary) -> void:
 	file.flush()
 	file.close()
 	record_event("Support metrics probe OK: %s." % probe_output_path)
+
+
+func _resolve_support_metrics_trace_path(path: String) -> String:
+	var trimmed_path: String = path.strip_edges()
+	if trimmed_path == "":
+		return SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH
+	if trimmed_path.begins_with("user://") or trimmed_path.begins_with("res://"):
+		return ProjectSettings.globalize_path(trimmed_path)
+	return trimmed_path
+
+
+func _setup_support_metrics_trace_options(options: Dictionary) -> void:
+	support_metrics_trace_export_enabled = bool(options.get("trace_export_requested", false))
+	support_metrics_trace_output_path = str(
+		options.get("trace_output_path", SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH)
+	)
+	if support_metrics_trace_output_path == "":
+		support_metrics_trace_output_path = SUPPORT_METRICS_TRACE_EXPORT_DEFAULT_OUTPUT_PATH
+
+	if not support_metrics_trace_export_enabled:
+		support_metrics_trace_data.clear()
+		return
+
+	var active_scene: String = ""
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null:
+		active_scene = str(current_scene.name)
+
+	support_metrics_trace_data = {
+		"note": SUPPORT_METRICS_TRACE_EXPORT_NOTE,
+		"args_received": options.get("user_args", []),
+		"active_scene": active_scene,
+		"game_loop_found": "yes",
+		"objective_id": world_objective_id,
+		"history_path_resolved": _resolve_support_metrics_trace_path(run_metrics_history_export_path),
+		"latest_export_path_resolved": _resolve_support_metrics_trace_path(run_metrics_last_export_path),
+		"export_function_reached": "no",
+		"export_payload_built": "no",
+		"history_append_attempted": "no",
+		"history_append_success": "no",
+		"latest_export_write_attempted": "no",
+		"latest_export_write_success": "no",
+		"reason_export_not_attempted": "export function not reached",
+		"quit_after_received": str(options.get("quit_after", "")),
+		"tick_observed": tick_index,
+		"run_duration_observed": elapsed_time,
+		"timestamp": str(Time.get_unix_time_from_system())
+	}
+	_write_support_metrics_export_trace()
+
+
+func _write_support_metrics_export_trace() -> void:
+	if not support_metrics_trace_export_enabled:
+		return
+	if support_metrics_trace_data.is_empty():
+		return
+
+	support_metrics_trace_output_path = _resolve_support_metrics_trace_path(support_metrics_trace_output_path)
+	support_metrics_trace_data["history_path_resolved"] = _resolve_support_metrics_trace_path(
+		run_metrics_history_export_path
+	)
+	support_metrics_trace_data["latest_export_path_resolved"] = _resolve_support_metrics_trace_path(
+		run_metrics_last_export_path
+	)
+	support_metrics_trace_data["objective_id"] = world_objective_id
+	support_metrics_trace_data["tick_observed"] = tick_index
+	support_metrics_trace_data["run_duration_observed"] = elapsed_time
+	support_metrics_trace_data["timestamp"] = str(Time.get_unix_time_from_system())
+
+	var active_scene: String = ""
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null:
+		active_scene = str(current_scene.name)
+	support_metrics_trace_data["active_scene"] = active_scene
+
+	var trace_parent_dir: String = support_metrics_trace_output_path.get_base_dir()
+	if trace_parent_dir != "":
+		DirAccess.make_dir_recursive_absolute(trace_parent_dir)
+
+	var trace_file := FileAccess.open(support_metrics_trace_output_path, FileAccess.WRITE)
+	if trace_file == null:
+		record_event(
+			"Support metrics export trace FAILED: %s (code=%d)."
+			% [support_metrics_trace_output_path, FileAccess.get_open_error()]
+		)
+		return
+	trace_file.store_string(JSON.stringify(support_metrics_trace_data, "  "))
+	trace_file.flush()
+	trace_file.close()
+
+
+func _exit_tree() -> void:
+	if support_metrics_trace_export_enabled:
+		_write_support_metrics_export_trace()
 
 
 func _load_creature_profiles_data() -> void:
@@ -1521,22 +1632,41 @@ func get_run_metrics_export_payload() -> Dictionary:
 
 
 func export_run_metrics() -> bool:
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["export_function_reached"] = "yes"
+		support_metrics_trace_data["objective_id"] = world_objective_id
+		support_metrics_trace_data["reason_export_not_attempted"] = ""
 	var payload: Dictionary = get_run_metrics_export_payload()
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["export_payload_built"] = "yes"
 	var latest_path: String = run_metrics_last_export_path
 	var history_path: String = run_metrics_history_export_path
 	if latest_path == "":
 		latest_path = RUN_METRICS_LATEST_EXPORT_PATH
 	if history_path == "":
 		history_path = RUN_METRICS_HISTORY_EXPORT_PATH
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["latest_export_write_attempted"] = "yes"
+		support_metrics_trace_data["latest_export_write_success"] = "no"
 	var file := FileAccess.open(latest_path, FileAccess.WRITE)
 	if file == null:
+		if support_metrics_trace_export_enabled:
+			support_metrics_trace_data["reason_export_not_attempted"] = (
+				"latest export write open failed (code=%d)" % FileAccess.get_open_error()
+			)
+			_write_support_metrics_export_trace()
 		run_metrics_export_label = "error opening %s (code=%d)" % [latest_path, FileAccess.get_open_error()]
 		record_event("Metrics export FAILED: %s." % run_metrics_export_label)
 		return false
 	file.store_string(JSON.stringify(payload, "  "))
 	file.flush()
 	file.close()
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["latest_export_write_success"] = "yes"
 
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["history_append_attempted"] = "yes"
+		support_metrics_trace_data["history_append_success"] = "no"
 	var history_file: FileAccess = null
 	if FileAccess.file_exists(history_path):
 		history_file = FileAccess.open(history_path, FileAccess.READ_WRITE)
@@ -1546,6 +1676,11 @@ func export_run_metrics() -> bool:
 		history_file = FileAccess.open(history_path, FileAccess.WRITE)
 
 	if history_file == null:
+		if support_metrics_trace_export_enabled:
+			support_metrics_trace_data["reason_export_not_attempted"] = (
+				"history append open failed (code=%d)" % FileAccess.get_open_error()
+			)
+			_write_support_metrics_export_trace()
 		run_metrics_last_export_path = latest_path
 		run_metrics_history_export_path = history_path
 		run_metrics_export_label = (
@@ -1558,6 +1693,10 @@ func export_run_metrics() -> bool:
 	history_file.store_string(JSON.stringify(payload) + "\n")
 	history_file.flush()
 	history_file.close()
+	if support_metrics_trace_export_enabled:
+		support_metrics_trace_data["history_append_success"] = "yes"
+		support_metrics_trace_data["reason_export_not_attempted"] = ""
+		_write_support_metrics_export_trace()
 
 	run_metrics_export_count += 1
 	run_metrics_last_export_path = latest_path

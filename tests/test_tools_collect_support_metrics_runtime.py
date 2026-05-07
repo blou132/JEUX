@@ -46,6 +46,10 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "  for %%I in (\"%STUB_PROBE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
                         "  > \"%STUB_PROBE_PATH%\" echo {\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"%SUPPORT_METRICS_SEED%\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}",
                         ")",
+                        "if \"%STUB_WRITE_TRACE%\"==\"1\" (",
+                        "  for %%I in (\"%STUB_TRACE_PATH%\") do if not exist \"%%~dpI\" mkdir \"%%~dpI\"",
+                        "  > \"%STUB_TRACE_PATH%\" echo {\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_id\":\"observe_dominance\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}",
+                        ")",
                         "exit /b 0",
                     ]
                 )
@@ -64,6 +68,10 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
                         "if [ \"${STUB_WRITE_PROBE:-0}\" = \"1\" ]; then",
                         "  mkdir -p \"$(dirname \"${STUB_PROBE_PATH}\")\"",
                         "  echo '{\"timestamp\":\"stub\",\"user_args\":[\"--support-metrics-probe\"],\"project_path\":\"stub_project\",\"history_path\":\"stub_history\",\"output_path\":\"stub_output\",\"seed\":\"'\"${SUPPORT_METRICS_SEED:-0}\"'\",\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"export_runtime_possible\":\"yes\",\"note\":\"probe only, not gameplay metrics\"}' > \"${STUB_PROBE_PATH}\"",
+                        "fi",
+                        "if [ \"${STUB_WRITE_TRACE:-0}\" = \"1\" ]; then",
+                        "  mkdir -p \"$(dirname \"${STUB_TRACE_PATH}\")\"",
+                        "  echo '{\"note\":\"debug only, not gameplay metrics\",\"args_received\":[\"--support-metrics-trace-export\"],\"active_scene\":\"MainSandbox\",\"game_loop_found\":\"yes\",\"objective_id\":\"observe_dominance\",\"history_path_resolved\":\"stub_history\",\"latest_export_path_resolved\":\"stub_latest\",\"export_function_reached\":\"yes\",\"export_payload_built\":\"yes\",\"history_append_attempted\":\"yes\",\"history_append_success\":\"yes\",\"latest_export_write_attempted\":\"yes\",\"latest_export_write_success\":\"yes\",\"reason_export_not_attempted\":\"\",\"quit_after_received\":\"4200\",\"tick_observed\":42,\"run_duration_observed\":12.5}' > \"${STUB_TRACE_PATH}\"",
                         "fi",
                         "exit 0",
                     ]
@@ -88,6 +96,7 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertIn("--diagnose", result.stdout)
         self.assertIn("--allow-existing-history", result.stdout)
         self.assertIn("--probe", result.stdout)
+        self.assertIn("--trace-export", result.stdout)
 
     def test_godot_absent_returns_non_zero_and_clear_message(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -168,6 +177,25 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
         self.assertIn("--support-metrics-probe", result.stdout)
         self.assertIn("--support-metrics-probe-output", result.stdout)
+
+    def test_trace_export_dry_run_shows_trace_command(self) -> None:
+        result = _run_tool(
+            [
+                "--mode",
+                "current",
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--godot-bin",
+                "__missing_godot_binary_for_collect_runtime_tests__",
+                "--dry-run",
+                "--trace-export",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("--support-metrics-trace-export", result.stdout)
+        self.assertIn("--support-metrics-trace-output", result.stdout)
 
     def test_probe_without_probe_file_returns_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -289,6 +317,127 @@ class CollectSupportMetricsRuntimeToolTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertEqual(history_path.read_text(encoding="utf-8"), original_history)
+
+    def test_trace_export_without_trace_file_returns_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            history_path.write_text(
+                '{"export_id":"old_1","objective_id":"support_gate"}\n',
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            trace_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_export_trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
+
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--trace-export",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "1",
+                    "STUB_WRITE_TRACE": "0",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_TRACE_PATH": str(trace_path),
+                },
+            )
+            self.assertNotEqual(result.returncode, 0)
+            combined = result.stdout + "\n" + result.stderr
+            self.assertIn(
+                "Godot launched, probe works, but export trace was not produced.",
+                combined,
+            )
+
+    def test_trace_export_with_simulated_trace_file_returns_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            trace_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_export_trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
+
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--trace-export",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "1",
+                    "STUB_WRITE_TRACE": "1",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_TRACE_PATH": str(trace_path),
+                },
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("Export trace summary", result.stdout)
+            self.assertIn("export_function_reached: yes", result.stdout)
+            self.assertIn("history_append_success: yes", result.stdout)
+
+    def test_trace_export_does_not_replace_history_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            launcher_path = self._write_stub_godot_launcher(tmpdir)
+            history_path = Path(tmpdir) / "run_metrics_history.jsonl"
+            history_path.write_text(
+                '{"export_id":"old_1","objective_id":"support_gate"}\n',
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "outputs" / "ci" / "support_metrics_current.jsonl"
+            trace_path = ROOT / "outputs" / "ci" / "support_metrics_runtime_export_trace.json"
+            if trace_path.exists():
+                trace_path.unlink()
+
+            result = _run_tool(
+                [
+                    "--mode",
+                    "current",
+                    "--runs",
+                    "1",
+                    "--seed-start",
+                    "1000",
+                    "--output",
+                    str(output_path),
+                    "--godot-bin",
+                    str(launcher_path),
+                    "--history-path",
+                    str(history_path),
+                    "--trace-export",
+                ],
+                env={
+                    "STUB_APPEND_HISTORY": "0",
+                    "STUB_WRITE_TRACE": "1",
+                    "STUB_HISTORY_PATH": str(history_path),
+                    "STUB_TRACE_PATH": str(trace_path),
+                },
+            )
+            self.assertNotEqual(result.returncode, 0)
+            combined = result.stdout + "\n" + result.stderr
+            self.assertIn("Export trace summary", combined)
+            self.assertIn("No new run metrics were exported after seed 1000.", combined)
 
     def test_mode_baseline_uses_expected_default_output_path(self) -> None:
         result = _run_tool(

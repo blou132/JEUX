@@ -61,6 +61,17 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("probe only", content)
         self.assertIn("pas une validation gameplay", content)
 
+    def test_readme_contains_runtime_export_trace_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Trace runtime export", content)
+        self.assertIn("--trace-export", content)
+        self.assertIn("outputs/ci/support_metrics_runtime_export_trace.json", content)
+        self.assertIn("--diagnose --trace-export", content)
+        self.assertIn("export_function_reached=no", content)
+        self.assertIn("history_append_attempted=no", content)
+        self.assertIn("history_append_success=no", content)
+        self.assertIn("debug only, not gameplay metrics", content)
+
 
 if __name__ == "__main__":
     unittest.main()

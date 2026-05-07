@@ -891,6 +891,23 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start
 - note: `support_metrics_runtime_probe.json` contient la mention `probe only, not gameplay metrics`.
 - note: le probe est un check technique de handshake runtime, pas une validation gameplay; il ne modifie pas le gameplay.
 
+## Trace runtime export
+- utilite: tracer le chemin d'export runtime reel (latest/history) pour comprendre pourquoi aucune nouvelle ligne n'apparait dans `run_metrics_history.jsonl`.
+- script: `tools/collect_support_metrics_runtime.py`
+- option principale:
+  - `--trace-export` (active le mode trace export cote Godot et attend `outputs/ci/support_metrics_runtime_export_trace.json`)
+- exemple:
+```bash
+py tools/collect_support_metrics_runtime.py --mode current --runs 1 --seed-start 1000 --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe" --diagnose --trace-export
+```
+- interpretation:
+  - trace absente: mauvais chemin/projet/scene/args, ou code trace non charge.
+  - `export_function_reached=no`: export runtime jamais declenche.
+  - `history_append_attempted=no`: condition d'export non remplie.
+  - `history_append_success=no`: probleme d'ecriture history/path.
+  - `history_append_success=yes` mais history Python inchange: chemin observe cote Python incorrect.
+- note: `support_metrics_runtime_export_trace.json` est un diagnostic technique (`debug only, not gameplay metrics`) et ne modifie pas le gameplay.
+
 ## Validate runtime support metrics files
 - utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).
 - script: `tools/validate_support_metrics_runtime_files.py`
