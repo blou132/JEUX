@@ -863,6 +863,21 @@ py tools/collect_support_metrics_runtime.py --mode current --runs 5
 ```
 - note: ce script sert a observer les metriques runtime (notamment pour le suivi v211), pas a modifier le gameplay.
 
+## Validate runtime support metrics files
+- utilite: verifier les fichiers runtime `baseline/current` avant comparaison (presence, lecture JSONL, lignes JSON valides, lignes exploitables, warnings legacy).
+- script: `tools/validate_support_metrics_runtime_files.py`
+- options principales:
+  - `--baseline outputs/ci/support_metrics_baseline.jsonl`
+  - `--current outputs/ci/support_metrics_current.jsonl`
+  - `--check` (retour non nul seulement en cas d'erreur bloquante)
+  - `--json`
+  - `--verbose`
+- exemple:
+```bash
+py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support_metrics_baseline.jsonl --current outputs/ci/support_metrics_current.jsonl --check
+```
+- note: cette commande valide des fichiers runtime support metrics; elle ne modifie pas le gameplay.
+
 ## Support gate playtest protocol
 - Objectif: comparer proprement un reglable baseline et un reglable candidate pour `support_gate`.
 - Etape 1 (baseline):
