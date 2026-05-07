@@ -909,6 +909,38 @@ py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-outpu
 - note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
 - note: la decision runtime est heuristique et n'applique jamais de changement gameplay automatiquement.
 
+## Runtime Godot validation checklist for v211
+- objectif: lancer une vraie observation runtime sur machine avec Godot pour valider le tuning v211.
+- checklist execution:
+  - verifier Godot installe:
+```bash
+godot --version
+```
+  - verifier le pipeline en dry-run:
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --dry-run --runs 5 --seed-start 1000 --min-runs 5
+```
+  - lancer la collecte/runtime pipeline:
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5
+```
+  - verifier les fichiers generes:
+    - `outputs/ci/support_metrics_baseline.jsonl`
+    - `outputs/ci/support_metrics_current.jsonl`
+    - `outputs/ci/support_metrics_runtime_comparison.md`
+    - `outputs/ci/support_metrics_runtime_decision.md`
+  - lire la decision runtime:
+    - `keep_tuning`
+    - `revert_tuning`
+    - `collect_more_runs`
+    - `investigate_metrics`
+- interpretation operationnelle:
+  - si decision = `collect_more_runs`: ne pas modifier le gameplay, collecter plus de runs.
+  - si decision = `investigate_metrics`: inspecter les warnings et la coherence des metriques avant toute action.
+  - si decision = `keep_tuning`: conserver v211 et eviter un second buff immediat.
+  - si decision = `revert_tuning`: preparer une v219 de revert dediee.
+- note: cette checklist et le pipeline restent observation-only et ne modifient pas le gameplay automatiquement.
+
 ## Runtime gameplay decision protocol
 - objectif: definir une decision gameplay coherente apres le pipeline runtime (`baseline/current`) sans changer le jeu "au feeling".
 - decisions possibles:

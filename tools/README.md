@@ -16,3 +16,4 @@ Regrouper les scripts utilitaires d'analyse, de verification CI et d'export.
 
 ## Notes
 - Outils de maintenance CI/debug uniquement; aucune modification directe du gameplay.
+- Pour l'execution runtime avec Godot (checklist pratique v211), voir la section README: `Runtime Godot validation checklist for v211`.
