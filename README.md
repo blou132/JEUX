@@ -901,6 +901,39 @@ py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-outpu
 ```
 - note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
 
+## Runtime gameplay decision protocol
+- objectif: definir une decision gameplay coherente apres le pipeline runtime (`baseline/current`) sans changer le jeu "au feeling".
+- decisions possibles:
+  - `keep_tuning`
+  - `revert_tuning`
+  - `collect_more_runs`
+  - `investigate_metrics`
+  - `no_decision`
+- regles heuristiques (non statistiques):
+  - runtime absent (`quality_state=no_data` / pas de runs): `collect_more_runs`
+  - `support_metrics_quality.state=warning`: `investigate_metrics`
+  - `support_metrics_regression.regression_state=warning`:
+    - baisse forte des success rates: `revert_tuning`
+    - sinon: `investigate_metrics`
+  - success rate stable ou legerement meilleur sans warning, avec runs suffisantes: `keep_tuning`
+  - runs insuffisantes (`--min-runs` non atteint): `collect_more_runs`
+  - si `support_metrics_final_decision.decision=collect_more_runs_before_deciding`: `collect_more_runs`
+- outil:
+  - `tools/decide_support_metrics_runtime_tuning.py`
+- usage recommande apres le pipeline local:
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000
+py tools/decide_support_metrics_runtime_tuning.py --baseline outputs/ci/support_metrics_baseline.jsonl --current outputs/ci/support_metrics_current.jsonl --min-runs 5 --markdown-output outputs/ci/support_metrics_runtime_decision.md
+```
+- usage depuis un resume JSON existant:
+```bash
+py tools/analyze_run_metrics_history.py --input outputs/ci/support_metrics_baseline.jsonl --compare-input outputs/ci/support_metrics_current.jsonl --format json --output outputs/ci/support_metrics_runtime_summary.json
+py tools/decide_support_metrics_runtime_tuning.py --summary-json outputs/ci/support_metrics_runtime_summary.json --min-runs 5 --json
+```
+- le protocole affiche explicitement les nombres de runs baseline/current.
+- note: c'est une aide heuristique de decision; aucune preuve statistique n'est fournie.
+- note: ce protocole n'applique aucun changement gameplay automatiquement (`gameplay_change_allowed=false`), et la decision finale reste humaine.
+
 ## Support gate playtest protocol
 - Objectif: comparer proprement un reglable baseline et un reglable candidate pour `support_gate`.
 - Etape 1 (baseline):
