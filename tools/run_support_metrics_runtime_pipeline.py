@@ -126,6 +126,17 @@ def _format_command(command: list[str]) -> str:
     return shlex.join(command)
 
 
+def _set_command_option_value(command: list[str], option_name: str, option_value: str) -> None:
+    try:
+        option_index = command.index(option_name)
+    except ValueError:
+        return
+    value_index = option_index + 1
+    if value_index >= len(command):
+        return
+    command[value_index] = option_value
+
+
 def _resolve_godot_executable(godot_bin: str) -> str | None:
     candidate_path = Path(godot_bin)
     if candidate_path.exists():
@@ -482,8 +493,8 @@ def main() -> int:
             )
             return 2
 
-        collect_baseline_command[-1] = resolved_godot
-        collect_current_command[-1] = resolved_godot
+        _set_command_option_value(collect_baseline_command, "--godot-bin", resolved_godot)
+        _set_command_option_value(collect_current_command, "--godot-bin", resolved_godot)
 
         baseline_result = _run_command(collect_baseline_command, "runtime collection (baseline)")
         if baseline_result.returncode != 0:

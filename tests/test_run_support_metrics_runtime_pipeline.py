@@ -242,6 +242,29 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         combined = result.stdout + "\n" + result.stderr
         self.assertIn("Godot binary not found", combined)
 
+    def test_objective_export_on_quit_non_dry_run_keeps_collect_cli_valid(self) -> None:
+        result = _run_tool(
+            [
+                "--runs",
+                "1",
+                "--seed-start",
+                "1000",
+                "--min-runs",
+                "1",
+                "--objective",
+                "rally_champion",
+                "--export-on-quit",
+                "--godot-bin",
+                sys.executable,
+            ]
+        )
+        self.assertNotEqual(result.returncode, 0)
+        combined = result.stdout + "\n" + result.stderr
+        self.assertIn("--support-metrics-objective rally_champion", combined)
+        self.assertIn("--support-metrics-export-on-quit", combined)
+        self.assertIn("Godot run failed for seed 1000", combined)
+        self.assertNotIn("collect_support_metrics_runtime.py: error: unrecognized arguments", combined)
+
 
 if __name__ == "__main__":
     unittest.main()
