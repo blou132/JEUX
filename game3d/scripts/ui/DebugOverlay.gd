@@ -1276,6 +1276,45 @@ func _build_objective_panel_lines(
                 rally_champion_blocked_cooldown_seen
             ]
         )
+    var rally_champion_waiting_for_target: bool = bool(
+        snapshot.get(
+            "rally_champion_waiting_for_target",
+            is_rally_champion_objective
+            and active_objective_status == "active"
+            and active_objective_marker_candidate_count <= 0
+            and active_objective_marker_target_reason == "objective_has_no_actor_target"
+        )
+    )
+    var rally_champion_timer_suspended: bool = bool(
+        snapshot.get("rally_champion_timer_suspended", rally_champion_waiting_for_target)
+    )
+    var rally_champion_start_block_reason: String = str(
+        snapshot.get("rally_champion_start_block_reason", "")
+    ).strip_edges()
+    if rally_champion_start_block_reason == "":
+        if rally_champion_waiting_for_target:
+            rally_champion_start_block_reason = "no_champion_target"
+        elif not is_rally_champion_objective:
+            rally_champion_start_block_reason = "none"
+        elif active_objective_status != "active":
+            rally_champion_start_block_reason = "objective_not_active"
+        else:
+            rally_champion_start_block_reason = "target_available"
+    var rally_champion_availability_summary: String = str(
+        snapshot.get("rally_champion_availability_summary", "")
+    ).strip_edges()
+    if rally_champion_availability_summary == "":
+        var rally_champion_availability_state: String = "target_available"
+        if rally_champion_waiting_for_target:
+            rally_champion_availability_state = "waiting_for_target"
+        rally_champion_availability_summary = (
+            "Rally champion availability: %s reason=%s timer_suspended=%s"
+            % [
+                rally_champion_availability_state,
+                rally_champion_start_block_reason,
+                "yes" if rally_champion_timer_suspended else "no"
+            ]
+        )
     var champion_support_available: bool = bool(snapshot.get("champion_support_available", false))
     var champion_support_candidate_count: int = int(snapshot.get("champion_support_candidate_count", 0))
     var champion_support_target_label: String = str(
@@ -1311,6 +1350,7 @@ func _build_objective_panel_lines(
         if is_rally_champion_objective:
             lines.append(rally_champion_progress_summary)
             lines.append(rally_champion_progress_block_summary)
+            lines.append(rally_champion_availability_summary)
         if active_objective_marker_visible:
             lines.append(active_objective_marker_summary)
         return lines
@@ -1330,6 +1370,7 @@ func _build_objective_panel_lines(
         if is_rally_champion_objective:
             lines.append(rally_champion_progress_summary)
             lines.append(rally_champion_progress_block_summary)
+            lines.append(rally_champion_availability_summary)
         if objective_has_interaction and objective_interaction_label != "":
             if objective_id == "rally_champion":
                 lines.append("Champion: %s" % champion_support_target_label)
@@ -1399,6 +1440,7 @@ func _build_objective_panel_lines(
     if is_rally_champion_objective:
         lines.append(rally_champion_progress_summary)
         lines.append(rally_champion_progress_block_summary)
+        lines.append(rally_champion_availability_summary)
     if objective_available_count > 0 and objective_selected_index >= 0:
         lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
     if not objective_available_ids.is_empty():

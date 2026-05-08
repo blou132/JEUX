@@ -1052,6 +1052,7 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
 - v243 gameplay/debug note: `v243 adds rally_champion progress readability only. Objective rules are unchanged.`
 - v245 gameplay/debug note: `v245 explains rally_champion non-progression only. Objective rules are unchanged.`
 - v247 gameplay/debug note: `v247 clarifies rally_champion progress blocker diagnostics only. Gameplay rules are unchanged.`
+- v249 gameplay/debug note: `v249 adds a controlled rally_champion target availability fallback only. Gameplay rules are unchanged.`
 
 ## Investigate runtime support metrics decision
 - objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.

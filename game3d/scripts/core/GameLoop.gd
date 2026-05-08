@@ -2189,6 +2189,45 @@ func get_run_metrics_export_payload(
 				rally_champion_blocked_cooldown_seen_value
 			]
 		)
+	var rally_champion_waiting_for_target_value: bool = bool(
+		snapshot.get(
+			"rally_champion_waiting_for_target",
+			active_objective_id_value == WORLD_OBJECTIVE_ID_RALLY_CHAMPION
+			and active_objective_status_value == "active"
+			and active_objective_marker_candidate_count_value <= 0
+			and active_objective_marker_target_reason_value == "objective_has_no_actor_target"
+		)
+	)
+	var rally_champion_timer_suspended_value: bool = bool(
+		snapshot.get("rally_champion_timer_suspended", rally_champion_waiting_for_target_value)
+	)
+	var rally_champion_start_block_reason_value: String = str(
+		snapshot.get("rally_champion_start_block_reason", "")
+	).strip_edges()
+	if rally_champion_start_block_reason_value == "":
+		if rally_champion_waiting_for_target_value:
+			rally_champion_start_block_reason_value = "no_champion_target"
+		elif active_objective_id_value != WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+			rally_champion_start_block_reason_value = "none"
+		elif active_objective_status_value != "active":
+			rally_champion_start_block_reason_value = "objective_not_active"
+		else:
+			rally_champion_start_block_reason_value = "target_available"
+	var rally_champion_availability_summary_value: String = str(
+		snapshot.get("rally_champion_availability_summary", "")
+	).strip_edges()
+	if rally_champion_availability_summary_value == "":
+		var rally_champion_availability_state_value: String = "target_available"
+		if rally_champion_waiting_for_target_value:
+			rally_champion_availability_state_value = "waiting_for_target"
+		rally_champion_availability_summary_value = (
+			"Rally champion availability: %s reason=%s timer_suspended=%s"
+			% [
+				rally_champion_availability_state_value,
+				rally_champion_start_block_reason_value,
+				"yes" if rally_champion_timer_suspended_value else "no"
+			]
+		)
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -2223,6 +2262,10 @@ func get_run_metrics_export_payload(
 		"rally_champion_unavailable_seen": rally_champion_unavailable_seen_value,
 		"rally_champion_last_block_reason": rally_champion_last_block_reason_value,
 		"rally_champion_progress_block_summary": rally_champion_progress_block_summary_value,
+		"rally_champion_waiting_for_target": rally_champion_waiting_for_target_value,
+		"rally_champion_timer_suspended": rally_champion_timer_suspended_value,
+		"rally_champion_start_block_reason": rally_champion_start_block_reason_value,
+		"rally_champion_availability_summary": rally_champion_availability_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -3335,7 +3378,7 @@ func _update_objective_gate_support(delta: float) -> void:
 		_set_run_result_from_objective("failed")
 
 func _update_objective_champion_support(delta: float) -> void:
-	world_objective_elapsed += max(delta, 0.0)
+	var objective_delta: float = max(delta, 0.0)
 	var current_poi_runtime_snapshot: Dictionary = world_manager.get_poi_runtime_snapshot()
 	world_objective_dominant_faction = _compute_objective_dominant_faction(current_poi_runtime_snapshot)
 
@@ -3347,6 +3390,9 @@ func _update_objective_champion_support(delta: float) -> void:
 		world_objective_dominant_faction = "human"
 	elif champion_monster_total > champion_human_total:
 		world_objective_dominant_faction = "monster"
+	var waiting_for_target: bool = champion_alive_total <= 0
+	if not waiting_for_target:
+		world_objective_elapsed += objective_delta
 	if champion_alive_total > 0:
 		world_objective_champion_available_seen = true
 
@@ -3357,21 +3403,33 @@ func _update_objective_champion_support(delta: float) -> void:
 		)
 	world_objective_progress = clampf(interaction_ratio, 0.0, 1.0)
 	var progress_percent: int = int(round(world_objective_progress * 100.0))
-	world_objective_progress_label = (
-		"%d/%d supports | %.1fs / %.1fs (%d%%)"
-		% [
-			world_objective_interaction_count,
-			max(1, world_objective_interaction_required),
-			world_objective_elapsed,
-			world_objective_required,
-			progress_percent
-		]
-	)
-	world_objective_interaction_available = (
-		champion_alive_total > 0
-		and world_objective_interaction_count < world_objective_interaction_required
-		and elapsed_time >= world_objective_interaction_next_allowed_time
-	)
+	if waiting_for_target:
+		world_objective_progress_label = (
+			"%d/%d supports | waiting for champion target (%.1fs / %.1fs)"
+			% [
+				world_objective_interaction_count,
+				max(1, world_objective_interaction_required),
+				world_objective_elapsed,
+				world_objective_required
+			]
+		)
+		world_objective_interaction_available = false
+	else:
+		world_objective_progress_label = (
+			"%d/%d supports | %.1fs / %.1fs (%d%%)"
+			% [
+				world_objective_interaction_count,
+				max(1, world_objective_interaction_required),
+				world_objective_elapsed,
+				world_objective_required,
+				progress_percent
+			]
+		)
+		world_objective_interaction_available = (
+			champion_alive_total > 0
+			and world_objective_interaction_count < world_objective_interaction_required
+			and elapsed_time >= world_objective_interaction_next_allowed_time
+		)
 
 	var deaths_since_run: int = max(0, deaths_total - run_deaths_baseline)
 	if deaths_since_run >= world_objective_fail_deaths_threshold:
@@ -11980,6 +12038,12 @@ func _build_snapshot() -> Dictionary:
 		"Rally champion progress block: reason=%s attempts=0 success=0 unavailable=0 cooldown=0"
 		% rally_champion_progress_block_reason
 	)
+	var rally_champion_waiting_for_target: bool = false
+	var rally_champion_timer_suspended: bool = false
+	var rally_champion_start_block_reason: String = "none"
+	var rally_champion_availability_summary: String = (
+		"Rally champion availability: target_available reason=none timer_suspended=no"
+	)
 	if active_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
 		rally_champion_progress_current = max(0, world_objective_interaction_count)
 		rally_champion_progress_required = max(0, world_objective_interaction_required)
@@ -12078,6 +12142,29 @@ func _build_snapshot() -> Dictionary:
 				rally_champion_blocked_cooldown_seen
 			]
 		)
+		rally_champion_waiting_for_target = (
+			active_objective_status == "active"
+			and active_objective_marker_candidate_count <= 0
+			and active_objective_marker_target_reason == "objective_has_no_actor_target"
+		)
+		rally_champion_timer_suspended = rally_champion_waiting_for_target
+		if rally_champion_waiting_for_target:
+			rally_champion_start_block_reason = "no_champion_target"
+		elif active_objective_status != "active":
+			rally_champion_start_block_reason = "objective_not_active"
+		else:
+			rally_champion_start_block_reason = "target_available"
+		var rally_champion_availability_state: String = "target_available"
+		if rally_champion_waiting_for_target:
+			rally_champion_availability_state = "waiting_for_target"
+		rally_champion_availability_summary = (
+			"Rally champion availability: %s reason=%s timer_suspended=%s"
+			% [
+				rally_champion_availability_state,
+				rally_champion_start_block_reason,
+				"yes" if rally_champion_timer_suspended else "no"
+			]
+		)
 
 	return {
 		"tick": tick_index,
@@ -12152,6 +12239,10 @@ func _build_snapshot() -> Dictionary:
 		"rally_champion_unavailable_seen": rally_champion_unavailable_seen,
 		"rally_champion_last_block_reason": rally_champion_last_block_reason,
 		"rally_champion_progress_block_summary": rally_champion_progress_block_summary,
+		"rally_champion_waiting_for_target": rally_champion_waiting_for_target,
+		"rally_champion_timer_suspended": rally_champion_timer_suspended,
+		"rally_champion_start_block_reason": rally_champion_start_block_reason,
+		"rally_champion_availability_summary": rally_champion_availability_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

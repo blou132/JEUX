@@ -124,17 +124,29 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"rally_champion_unavailable_seen": rally_champion_unavailable_seen', content)
         self.assertIn('"rally_champion_last_block_reason": rally_champion_last_block_reason', content)
         self.assertIn('"rally_champion_progress_block_summary": rally_champion_progress_block_summary', content)
+        self.assertIn('"rally_champion_waiting_for_target": rally_champion_waiting_for_target', content)
+        self.assertIn('"rally_champion_timer_suspended": rally_champion_timer_suspended', content)
+        self.assertIn('"rally_champion_start_block_reason": rally_champion_start_block_reason', content)
+        self.assertIn('"rally_champion_availability_summary": rally_champion_availability_summary', content)
         self.assertIn("Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs", content)
         self.assertIn(
             "Rally champion progress block: reason=%s attempts=%d success=%d unavailable=%d cooldown=%d",
             content,
         )
+        self.assertIn(
+            "Rally champion availability: %s reason=%s timer_suspended=%s",
+            content,
+        )
         self.assertIn("rally_champion_last_block_reason = \"no_champion_target\"", content)
         self.assertIn("active_objective_marker_candidate_count <= 0", content)
         self.assertIn("active_objective_marker_target_reason == \"objective_has_no_actor_target\"", content)
+        self.assertIn("rally_champion_availability_state = \"waiting_for_target\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"no_champion_target\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"champion_unavailable\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"no_attempts_seen\"", content)
+        self.assertIn("var waiting_for_target: bool = champion_alive_total <= 0", content)
+        self.assertIn("if not waiting_for_target:", content)
+        self.assertIn("world_objective_elapsed += objective_delta", content)
         self.assertIn("func _resolve_active_objective_marker_state() -> Dictionary:", content)
         self.assertIn("marker_visible = bool(marker_actor.objective_marker_active)", content)
         self.assertIn("marker_target = \"rift_gate\"", content)
@@ -192,12 +204,17 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"rally_champion_unavailable_seen": rally_champion_unavailable_seen_value', content)
         self.assertIn('"rally_champion_last_block_reason": rally_champion_last_block_reason_value', content)
         self.assertIn('"rally_champion_progress_block_summary": rally_champion_progress_block_summary_value', content)
+        self.assertIn('"rally_champion_waiting_for_target": rally_champion_waiting_for_target_value', content)
+        self.assertIn('"rally_champion_timer_suspended": rally_champion_timer_suspended_value', content)
+        self.assertIn('"rally_champion_start_block_reason": rally_champion_start_block_reason_value', content)
+        self.assertIn('"rally_champion_availability_summary": rally_champion_availability_summary_value', content)
         self.assertIn("rally_champion_last_block_reason_value = \"no_champion_target\"", content)
         self.assertIn("active_objective_marker_candidate_count_value <= 0", content)
         self.assertIn(
             "active_objective_marker_target_reason_value == \"objective_has_no_actor_target\"",
             content,
         )
+        self.assertIn("rally_champion_availability_state_value = \"waiting_for_target\"", content)
         self.assertIn("rally_champion_progress_block_reason_value = \"no_champion_target\"", content)
         self.assertIn("rally_champion_progress_block_reason_value = \"champion_unavailable\"", content)
 
@@ -216,6 +233,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
             content,
         )
         self.assertIn("lines.append(rally_champion_progress_block_summary)", content)
+        self.assertIn(
+            "Rally champion availability: %s reason=%s timer_suspended=%s",
+            content,
+        )
+        self.assertIn("lines.append(rally_champion_availability_summary)", content)
         self.assertIn("rally_champion_last_block_reason = \"no_champion_target\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"no_champion_target\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"champion_unavailable\"", content)
@@ -285,6 +307,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v247 clarifies rally_champion progress blocker diagnostics only. Gameplay rules are unchanged.",
+            content,
+        )
+        self.assertIn(
+            "v249 adds a controlled rally_champion target availability fallback only. Gameplay rules are unchanged.",
             content,
         )
 
