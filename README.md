@@ -1040,6 +1040,8 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
   - warnings: `none`
   - note: `no additional rally_champion buff approved`
 - cette decision ne declenche pas automatiquement de nouveau changement gameplay.
+- v232 gameplay/debug note: `v232 improves threat/flee readability only.`
+- flee rules unchanged: `no change to flee decision priority/balancing.`
 
 ## Investigate runtime support metrics decision
 - objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.

@@ -3140,7 +3140,28 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
 	if to_state == "flee":
 		flee_events_total += 1
 
-	if to_state in ["attack", "cast", "cast_nova", "cast_control", "flee", "poi", "reposition", "rally", "raid", "hunt"]:
+	if to_state == "flee":
+		var threat_kind: String = actor.flee_threat_kind if actor.flee_threat_kind != "" else "unknown"
+		var reason_label: String = actor.flee_reason if actor.flee_reason != "" else reason
+		if actor.flee_threat_distance >= 0.0:
+			record_event(
+				"%s %s -> %s (%s, threat=%s, dist=%.1f, urgency=%.2f)."
+				% [
+					_actor_label(actor),
+					from_state,
+					to_state,
+					reason_label,
+					threat_kind,
+					actor.flee_threat_distance,
+					max(0.0, actor.flee_urgency)
+				]
+			)
+		else:
+			record_event(
+				"%s %s -> %s (%s, threat=%s)."
+				% [_actor_label(actor), from_state, to_state, reason_label, threat_kind]
+			)
+	elif to_state in ["attack", "cast", "cast_nova", "cast_control", "poi", "reposition", "rally", "raid", "hunt"]:
 		record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
 
@@ -11021,6 +11042,11 @@ func _build_snapshot() -> Dictionary:
 		"poi": 0,
 		"flee": 0
 	}
+	var flee_feedback_actor: String = "none"
+	var flee_reason: String = ""
+	var flee_threat_kind: String = ""
+	var flee_threat_distance: float = -1.0
+	var flee_urgency: float = -1.0
 
 	for actor in actors:
 		if actor == null or actor.is_dead:
@@ -11116,11 +11142,30 @@ func _build_snapshot() -> Dictionary:
 		else:
 			state_counts[actor.state] = 1
 
+		if actor.state == "flee" and flee_feedback_actor == "none":
+			flee_feedback_actor = _actor_label(actor)
+			flee_reason = actor.flee_reason
+			flee_threat_kind = actor.flee_threat_kind
+			flee_threat_distance = actor.flee_threat_distance
+			flee_urgency = actor.flee_urgency
+
 	var avg_hp: float = hp_total / alive_total if alive_total > 0 else 0.0
 	var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
 	var avg_level: float = level_total / alive_total if alive_total > 0 else 0.0
 	var avg_renown: float = renown_total / alive_total if alive_total > 0 else 0.0
 	var avg_notoriety: float = notoriety_total / alive_total if alive_total > 0 else 0.0
+	var flee_feedback_label: String = ""
+	if flee_feedback_actor != "none":
+		flee_feedback_label = "Flee: %s actor=%s" % [
+			flee_reason if flee_reason != "" else "unspecified",
+			flee_feedback_actor
+		]
+		if flee_threat_kind != "":
+			flee_feedback_label += ", threat=%s" % flee_threat_kind
+		if flee_threat_distance >= 0.0:
+			flee_feedback_label += ", dist=%.1f" % flee_threat_distance
+		if flee_urgency >= 0.0:
+			flee_feedback_label += ", urgency=%.2f" % flee_urgency
 	var poi_population := world_manager.get_poi_population_snapshot(actors)
 	var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
 	var doctrine_runtime_snapshot: Dictionary = world_manager.get_doctrine_runtime_snapshot(active_allegiances)
@@ -11861,6 +11906,12 @@ func _build_snapshot() -> Dictionary:
 		"control_casts_total": control_casts_total,
 		"control_applies_total": control_applies_total,
 		"flee_events_total": flee_events_total,
+		"flee_feedback_label": flee_feedback_label,
+		"flee_feedback_actor": flee_feedback_actor,
+		"flee_reason": flee_reason,
+		"flee_threat_kind": flee_threat_kind,
+		"flee_threat_distance": flee_threat_distance,
+		"flee_urgency": flee_urgency,
 		"engagements_total": engagements_total,
 		"poi_arrivals_total": poi_arrivals_total,
 		"poi_contests_total": poi_contests_total,

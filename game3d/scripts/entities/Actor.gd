@@ -63,6 +63,10 @@ var state: String = "wander"
 var last_reason: String = "spawned"
 var target_actor: Actor = null
 var target_position: Vector3 = Vector3.ZERO
+var flee_reason: String = ""
+var flee_threat_kind: String = ""
+var flee_threat_distance: float = -1.0
+var flee_urgency: float = -1.0
 var allegiance_id: String = ""
 var home_poi: String = ""
 var rally_leader_id: int = 0
@@ -166,6 +170,7 @@ func tick_actor(
 	last_reason = str(decision.get("reason", "none"))
 	target_actor = decision.get("target", null)
 	target_position = decision.get("target_position", global_position)
+	_update_flee_debug_context(decision)
 	_update_rally_context_from_decision(decision)
 
 	if previous_state != state:
@@ -226,6 +231,33 @@ func tick_actor(
 			_wander(delta, world)
 
 	_report_death_if_needed(game_loop)
+
+
+func _update_flee_debug_context(decision: Dictionary) -> void:
+	if state != "flee":
+		flee_reason = ""
+		flee_threat_kind = ""
+		flee_threat_distance = -1.0
+		flee_urgency = -1.0
+		return
+
+	flee_reason = str(decision.get("flee_reason", last_reason)).strip_edges()
+	if flee_reason == "":
+		flee_reason = last_reason
+
+	flee_threat_kind = str(decision.get("threat_kind", "")).strip_edges()
+	if flee_threat_kind == "":
+		flee_threat_kind = "unknown"
+
+	var threat_distance_variant: Variant = decision.get("threat_distance", -1.0)
+	flee_threat_distance = -1.0
+	if typeof(threat_distance_variant) in [TYPE_FLOAT, TYPE_INT]:
+		flee_threat_distance = max(-1.0, float(threat_distance_variant))
+
+	var urgency_variant: Variant = decision.get("flee_urgency", -1.0)
+	flee_urgency = -1.0
+	if typeof(urgency_variant) in [TYPE_FLOAT, TYPE_INT]:
+		flee_urgency = clampf(float(urgency_variant), 0.0, 1.0)
 
 
 func apply_damage(amount: float, source: Actor, damage_type: String) -> void:

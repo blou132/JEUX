@@ -901,6 +901,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
             int(snapshot.get("engagements_total", 0))
         ]
     )
+    var flee_feedback_line: String = _build_flee_feedback_line(snapshot)
+    if flee_feedback_line != "":
+        lines.append(flee_feedback_line)
     lines.append(
         "POI events: arrivals=%d contests=%d domination_shifts=%d"
         % [
@@ -1241,6 +1244,28 @@ func _build_objective_interaction_feedback_line(
     return "Interaction: %s" % feedback_label
 
 
+func _build_flee_feedback_line(snapshot: Dictionary) -> String:
+    var label: String = str(snapshot.get("flee_feedback_label", "")).strip_edges()
+    if label != "":
+        return label
+
+    var reason: String = str(snapshot.get("flee_reason", "")).strip_edges()
+    if reason == "":
+        return ""
+
+    var line: String = "Flee: %s" % reason
+    var threat_kind: String = str(snapshot.get("flee_threat_kind", "")).strip_edges()
+    if threat_kind != "":
+        line += ", threat=%s" % threat_kind
+    var threat_distance: float = float(snapshot.get("flee_threat_distance", -1.0))
+    if threat_distance >= 0.0:
+        line += ", dist=%.1f" % threat_distance
+    var urgency: float = float(snapshot.get("flee_urgency", -1.0))
+    if urgency >= 0.0:
+        line += ", urgency=%.2f" % urgency
+    return line
+
+
 func _build_run_result_panel_lines(
     snapshot: Dictionary,
     max_result_lines: int = 4
@@ -1410,6 +1435,9 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
             champion_support_run_success_rate
         ]
     )
+    var flee_feedback_line: String = _build_flee_feedback_line(snapshot)
+    if flee_feedback_line != "":
+        lines.append(flee_feedback_line)
     lines.append(
         "Metrics export: count=%d latest=%s history=%s"
         % [

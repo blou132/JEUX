@@ -293,7 +293,11 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 			{
 				"state": "flee",
 				"target": enemy,
-				"reason": "notoriety_avoid"
+				"reason": "notoriety_avoid",
+				"flee_reason": "notoriety_avoid",
+				"threat_kind": _resolve_threat_kind(enemy),
+				"threat_distance": distance,
+				"flee_urgency": _compute_flee_urgency(actor, distance)
 			},
 			rally_leader,
 			rally_bonus
@@ -315,7 +319,11 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 			{
 				"state": "flee",
 				"target": enemy,
-				"reason": "pressure_and_threat"
+				"reason": "pressure_and_threat",
+				"flee_reason": "pressure_and_threat",
+				"threat_kind": _resolve_threat_kind(enemy),
+				"threat_distance": distance,
+				"flee_urgency": _compute_flee_urgency(actor, distance)
 			},
 			rally_leader,
 			rally_bonus
@@ -425,6 +433,33 @@ func decide_action(actor: Actor, world: WorldManager, all_actors: Array) -> Dict
 
 func _is_under_pressure(actor: Actor) -> bool:
 	return actor.hp <= actor.max_hp * actor.flee_health_ratio or actor.energy <= actor.max_energy * 0.20
+
+
+func _resolve_threat_kind(enemy: Actor) -> String:
+	if enemy == null:
+		return "unknown"
+	if enemy.is_champion:
+		return "hostile_champion"
+	var kind: String = enemy.actor_kind.strip_edges()
+	if kind != "":
+		return kind
+	var faction: String = enemy.faction.strip_edges()
+	if faction != "":
+		return faction
+	return "unknown"
+
+
+func _compute_flee_urgency(actor: Actor, threat_distance: float) -> float:
+	var hp_pressure: float = 0.0
+	if actor.max_hp > 0.0:
+		hp_pressure = clampf(1.0 - actor.hp / actor.max_hp, 0.0, 1.0)
+	var energy_pressure: float = 0.0
+	if actor.max_energy > 0.0:
+		energy_pressure = clampf(1.0 - actor.energy / actor.max_energy, 0.0, 1.0)
+	var proximity_pressure: float = 0.0
+	if actor.vision_range > 0.0:
+		proximity_pressure = clampf(1.0 - threat_distance / actor.vision_range, 0.0, 1.0)
+	return clampf(hp_pressure * 0.45 + energy_pressure * 0.25 + proximity_pressure * 0.30, 0.0, 1.0)
 
 
 func _with_rally(base_decision: Dictionary, rally_leader: Actor, rally_bonus: bool) -> Dictionary:
