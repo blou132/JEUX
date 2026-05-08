@@ -1453,6 +1453,30 @@ func _update_champion_support_objective_visual_state(delta: float) -> void:
 	_push_champion_support_objective_visual_state()
 
 
+func _resolve_active_objective_marker_state() -> Dictionary:
+	var marker_visible: bool = false
+	var marker_target: String = "none"
+	if world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION and world_objective_status == "active":
+		var marker_actor: Actor = _get_locked_champion_support_actor()
+		if marker_actor == null and champion_support_visual_actor_id > 0:
+			marker_actor = _find_actor_by_id(champion_support_visual_actor_id)
+		if marker_actor != null and not marker_actor.is_dead:
+			marker_visible = bool(marker_actor.objective_marker_active)
+			marker_target = _actor_label(marker_actor)
+	elif world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE and world_objective_status == "active":
+		marker_visible = support_gate_visual_state in ["ready", "flash", "cooldown", "unavailable"]
+		marker_target = "rift_gate"
+	var marker_summary: String = (
+		"Active objective marker: visible=%s target=%s"
+		% ["yes" if marker_visible else "no", marker_target]
+	)
+	return {
+		"active_objective_marker_visible": marker_visible,
+		"active_objective_marker_target": marker_target,
+		"active_objective_marker_summary": marker_summary
+	}
+
+
 func _resolve_support_gate_visual_state() -> Dictionary:
 	var is_support_gate_objective: bool = world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE
 	var is_support_gate_active: bool = (
@@ -1941,6 +1965,25 @@ func get_run_metrics_export_payload(
 			"Active objective: %s status=%s target=%s"
 			% [active_objective_id_value, active_objective_status_value, active_objective_target_value]
 		)
+	var active_objective_marker_visible_value: bool = bool(
+		snapshot.get("active_objective_marker_visible", false)
+	)
+	var active_objective_marker_target_value: String = str(
+		snapshot.get("active_objective_marker_target", "none")
+	).strip_edges()
+	if active_objective_marker_target_value == "":
+		active_objective_marker_target_value = "none"
+	var active_objective_marker_summary_value: String = str(
+		snapshot.get("active_objective_marker_summary", "")
+	).strip_edges()
+	if active_objective_marker_summary_value == "":
+		active_objective_marker_summary_value = (
+			"Active objective marker: visible=%s target=%s"
+			% [
+				"yes" if active_objective_marker_visible_value else "no",
+				active_objective_marker_target_value
+			]
+		)
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -1958,6 +2001,9 @@ func get_run_metrics_export_payload(
 		"active_objective_status": active_objective_status_value,
 		"active_objective_target": active_objective_target_value,
 		"active_objective_summary": active_objective_summary_value,
+		"active_objective_marker_visible": active_objective_marker_visible_value,
+		"active_objective_marker_target": active_objective_marker_target_value,
+		"active_objective_marker_summary": active_objective_marker_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -11665,6 +11711,23 @@ func _build_snapshot() -> Dictionary:
 		"Active objective: %s status=%s target=%s"
 		% [active_objective_id, active_objective_status, active_objective_target]
 	)
+	var active_objective_marker_state: Dictionary = _resolve_active_objective_marker_state()
+	var active_objective_marker_visible: bool = bool(
+		active_objective_marker_state.get("active_objective_marker_visible", false)
+	)
+	var active_objective_marker_target: String = str(
+		active_objective_marker_state.get("active_objective_marker_target", "none")
+	).strip_edges()
+	if active_objective_marker_target == "":
+		active_objective_marker_target = "none"
+	var active_objective_marker_summary: String = str(
+		active_objective_marker_state.get("active_objective_marker_summary", "")
+	).strip_edges()
+	if active_objective_marker_summary == "":
+		active_objective_marker_summary = (
+			"Active objective marker: visible=%s target=%s"
+			% ["yes" if active_objective_marker_visible else "no", active_objective_marker_target]
+		)
 
 	return {
 		"tick": tick_index,
@@ -11722,6 +11785,9 @@ func _build_snapshot() -> Dictionary:
 		"active_objective_status": active_objective_status,
 		"active_objective_target": active_objective_target,
 		"active_objective_summary": active_objective_summary,
+		"active_objective_marker_visible": active_objective_marker_visible,
+		"active_objective_marker_target": active_objective_marker_target,
+		"active_objective_marker_summary": active_objective_marker_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

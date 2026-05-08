@@ -11,6 +11,7 @@ ACTOR_PATH = GAME3D / "scripts" / "entities" / "Actor.gd"
 GAME_LOOP_PATH = GAME3D / "scripts" / "core" / "GameLoop.gd"
 DEBUG_OVERLAY_PATH = GAME3D / "scripts" / "ui" / "DebugOverlay.gd"
 README_PATH = ROOT / "README.md"
+GITIGNORE_PATH = ROOT / ".gitignore"
 
 
 class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
@@ -47,6 +48,12 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
             content,
         )
         self.assertIn("return", content)
+        self.assertIn("var _objective_target_marker_root: Node3D = null", content)
+        self.assertIn("var _objective_target_marker_ring: MeshInstance3D = null", content)
+        self.assertIn("var _objective_target_marker_pulse: MeshInstance3D = null", content)
+        self.assertIn("_build_objective_target_marker_visual(body.position.y)", content)
+        self.assertIn("func _build_objective_target_marker_visual(body_height: float) -> void:", content)
+        self.assertIn("marker_root.name = \"ObjectiveTargetMarker\"", content)
 
     def test_flee_indicator_is_state_driven_and_urgency_aware(self) -> None:
         content = ACTOR_PATH.read_text(encoding="utf-8")
@@ -61,6 +68,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("flee_indicator_pulse_visible = high_urgency", content)
         self.assertIn("_flee_indicator_stem.scale = Vector3.ONE * (1.22 if high_urgency else 0.88)", content)
         self.assertIn("_flee_indicator_dot.scale = Vector3.ONE * (1.30 if high_urgency else 0.98)", content)
+        self.assertIn("func _refresh_objective_target_marker_visual() -> void:", content)
+        self.assertIn("var marker_visible: bool = objective_marker_active and not is_dead", content)
+        self.assertIn("_objective_target_marker_root.visible = marker_visible", content)
+        self.assertIn("if not marker_visible:", content)
+        self.assertIn("var flash_active: bool = objective_marker_flash_timer > 0.0", content)
 
     def test_flee_indicator_debug_line_is_available_in_overlay(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
@@ -95,6 +107,12 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"active_objective_status": active_objective_status', content)
         self.assertIn('"active_objective_target": active_objective_target', content)
         self.assertIn('"active_objective_summary": active_objective_summary', content)
+        self.assertIn('"active_objective_marker_visible": active_objective_marker_visible', content)
+        self.assertIn('"active_objective_marker_target": active_objective_marker_target', content)
+        self.assertIn('"active_objective_marker_summary": active_objective_marker_summary', content)
+        self.assertIn("func _resolve_active_objective_marker_state() -> Dictionary:", content)
+        self.assertIn("marker_visible = bool(marker_actor.objective_marker_active)", content)
+        self.assertIn("marker_target = \"rift_gate\"", content)
 
     def test_export_payload_exposes_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -112,11 +130,16 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"active_objective_status": active_objective_status_value', content)
         self.assertIn('"active_objective_target": active_objective_target_value', content)
         self.assertIn('"active_objective_summary": active_objective_summary_value', content)
+        self.assertIn('"active_objective_marker_visible": active_objective_marker_visible_value', content)
+        self.assertIn('"active_objective_marker_target": active_objective_marker_target_value', content)
+        self.assertIn('"active_objective_marker_summary": active_objective_marker_summary_value', content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
         self.assertIn("func _build_flee_feedback_line(snapshot: Dictionary) -> String:", content)
         self.assertIn("Flee readability: reason=%s threat=%s distance=%s urgency=%s", content)
+        self.assertIn("Active objective marker: visible=%s target=%s", content)
+        self.assertIn("lines.append(active_objective_marker_summary)", content)
 
     def test_transition_log_contains_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -143,6 +166,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"support_gate": support_gate_payload', game_loop)
         self.assertIn('"support_gate_run_success_rate": float(snapshot.get("support_gate_run_success_rate", 0.0))', game_loop)
 
+    def test_outputs_ci_remains_ignored(self) -> None:
+        content = GITIGNORE_PATH.read_text(encoding="utf-8")
+        self.assertIn("outputs/ci/", content)
+
     def test_readme_mentions_v232_readability_only(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")
         self.assertIn("v232 improves threat/flee readability only", content)
@@ -159,6 +186,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v237 improves active objective readability only; objective rules are unchanged.",
+            content,
+        )
+        self.assertIn(
+            "v239 adds an in-world active objective marker. Objective rules are unchanged.",
             content,
         )
 

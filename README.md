@@ -1047,6 +1047,7 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
 - v235 gameplay/debug note: `v235 adds an in-world flee readability indicator. It does not change flee rules or balance.`
 - v236 gameplay/debug note: `v236 validates the in-world flee indicator visibility. No flee logic or balance change.`
 - v237 gameplay/debug note: `v237 improves active objective readability only; objective rules are unchanged.`
+- v239 gameplay/debug note: `v239 adds an in-world active objective marker. Objective rules are unchanged.`
 
 ## Investigate runtime support metrics decision
 - objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.

@@ -121,6 +121,9 @@ var death_reported: bool = false
 var last_attacker: Actor = null
 var _body_visual: MeshInstance3D = null
 var _base_body_color: Color = Color(0.75, 0.75, 0.75)
+var _objective_target_marker_root: Node3D = null
+var _objective_target_marker_ring: MeshInstance3D = null
+var _objective_target_marker_pulse: MeshInstance3D = null
 var _flee_indicator_root: Node3D = null
 var _flee_indicator_stem: MeshInstance3D = null
 var _flee_indicator_dot: MeshInstance3D = null
@@ -855,6 +858,7 @@ func _build_visual() -> void:
 	add_child(body)
 	_body_visual = body
 	_base_body_color = material.albedo_color
+	_build_objective_target_marker_visual(body.position.y)
 	_build_flee_indicator_visual(body.position.y)
 	_refresh_control_visual()
 
@@ -1165,7 +1169,96 @@ func _refresh_control_visual() -> void:
 			else:
 				material.emission_enabled = true
 				material.emission = notoriety_glow * 0.30 * notoriety_signal
+	_refresh_objective_target_marker_visual()
 	_refresh_flee_indicator_visual()
+
+
+func _build_objective_target_marker_visual(body_height: float) -> void:
+	if _objective_target_marker_root != null and is_instance_valid(_objective_target_marker_root):
+		return
+
+	_objective_target_marker_root = null
+	_objective_target_marker_ring = null
+	_objective_target_marker_pulse = null
+
+	var marker_root := Node3D.new()
+	marker_root.name = "ObjectiveTargetMarker"
+	marker_root.position = Vector3(0.0, body_height + 0.90, 0.0)
+	marker_root.visible = false
+
+	var marker_ring := MeshInstance3D.new()
+	marker_ring.name = "Ring"
+	var ring_mesh := CylinderMesh.new()
+	ring_mesh.top_radius = 0.18
+	ring_mesh.bottom_radius = 0.18
+	ring_mesh.height = 0.03
+	marker_ring.mesh = ring_mesh
+	marker_ring.position = Vector3(0.0, 0.0, 0.0)
+
+	var marker_pulse := MeshInstance3D.new()
+	marker_pulse.name = "Pulse"
+	var pulse_mesh := CylinderMesh.new()
+	pulse_mesh.top_radius = 0.28
+	pulse_mesh.bottom_radius = 0.28
+	pulse_mesh.height = 0.03
+	marker_pulse.mesh = pulse_mesh
+	marker_pulse.position = Vector3(0.0, -0.06, 0.0)
+	marker_pulse.visible = false
+
+	marker_root.add_child(marker_ring)
+	marker_root.add_child(marker_pulse)
+	add_child(marker_root)
+
+	_objective_target_marker_root = marker_root
+	_objective_target_marker_ring = marker_ring
+	_objective_target_marker_pulse = marker_pulse
+
+
+func _refresh_objective_target_marker_visual() -> void:
+	if _objective_target_marker_root == null:
+		return
+	if _objective_target_marker_ring == null or _objective_target_marker_pulse == null:
+		return
+
+	var marker_visible: bool = objective_marker_active and not is_dead
+	_objective_target_marker_root.visible = marker_visible
+	if not marker_visible:
+		_objective_target_marker_pulse.visible = false
+		return
+
+	var flash_active: bool = objective_marker_flash_timer > 0.0
+	var objective_color: Color = Color(1.0, 0.92, 0.34)
+	if flash_active:
+		objective_color = Color(1.0, 1.0, 0.58)
+
+	_objective_target_marker_ring.scale = Vector3.ONE * (1.18 if flash_active else 0.92)
+	_objective_target_marker_pulse.visible = flash_active
+	_objective_target_marker_pulse.scale = Vector3.ONE * (
+		1.04 + clampf(objective_marker_flash_timer, 0.0, 1.5) * 0.24
+	)
+	_apply_objective_target_marker_material(_objective_target_marker_ring, objective_color, 0.70)
+	_apply_objective_target_marker_material(
+		_objective_target_marker_pulse,
+		objective_color.lerp(Color(1.0, 1.0, 1.0), 0.26),
+		0.76
+	)
+
+
+func _apply_objective_target_marker_material(
+	mesh_instance: MeshInstance3D,
+	color: Color,
+	emission_strength: float
+) -> void:
+	var material := mesh_instance.material_override as StandardMaterial3D
+	if material == null:
+		material = StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh_instance.material_override = material
+	material.albedo_color = Color(color.r, color.g, color.b, 0.90)
+	material.emission_enabled = true
+	material.emission = color * emission_strength
 
 
 func _build_flee_indicator_visual(body_height: float) -> void:

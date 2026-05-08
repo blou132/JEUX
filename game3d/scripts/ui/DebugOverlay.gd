@@ -1083,6 +1083,25 @@ func _build_objective_panel_lines(
             "Active objective: %s status=%s target=%s"
             % [active_objective_id, active_objective_status, active_objective_target]
         )
+    var active_objective_marker_visible: bool = bool(
+        snapshot.get("active_objective_marker_visible", false)
+    )
+    var active_objective_marker_target: String = str(
+        snapshot.get("active_objective_marker_target", "none")
+    ).strip_edges()
+    if active_objective_marker_target == "":
+        active_objective_marker_target = "none"
+    var active_objective_marker_summary: String = str(
+        snapshot.get("active_objective_marker_summary", "")
+    ).strip_edges()
+    if active_objective_marker_summary == "":
+        active_objective_marker_summary = (
+            "Active objective marker: visible=%s target=%s"
+            % [
+                "yes" if active_objective_marker_visible else "no",
+                active_objective_marker_target
+            ]
+        )
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%")).strip_edges()
     var objective_elapsed: float = float(snapshot.get("objective_elapsed", 0.0))
     var objective_required: float = float(snapshot.get("objective_required", 0.0))
@@ -1127,11 +1146,15 @@ func _build_objective_panel_lines(
             % [objective_title, objective_status if objective_status != "" else "inactive", reduced_progress]
         )
         lines.append(active_objective_summary)
+        if active_objective_marker_visible:
+            lines.append(active_objective_marker_summary)
         return lines
 
     if normalized_mode == OVERLAY_MODE_PLAYER:
         lines.append("------------ Objective Panel ------------")
         lines.append(active_objective_summary)
+        if active_objective_marker_visible:
+            lines.append(active_objective_marker_summary)
         lines.append("Objective: %s" % objective_title)
         if objective_description != "":
             lines.append("Goal: %s" % objective_description)
@@ -1176,6 +1199,7 @@ func _build_objective_panel_lines(
 
     lines.append("------------ Objective Panel ------------")
     lines.append(active_objective_summary)
+    lines.append(active_objective_marker_summary)
     lines.append("Objective: %s" % objective_title)
     lines.append(
         "Objective status: %s | active=%s"
