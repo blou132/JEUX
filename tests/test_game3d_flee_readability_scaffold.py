@@ -39,11 +39,37 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"flee_threat_kind": flee_threat_kind', content)
         self.assertIn('"flee_threat_distance": flee_threat_distance', content)
         self.assertIn('"flee_urgency": flee_urgency', content)
+        self.assertIn('"flee_readability": flee_readability', content)
+        self.assertIn('"flee_readability_summary": flee_readability_summary', content)
+        self.assertIn('"active": flee_feedback_actor != "none"', content)
+        self.assertIn('"threat_distance": flee_threat_distance_value', content)
+
+    def test_export_payload_exposes_flee_readability_fields(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn('"flee_feedback_label": str(snapshot.get("flee_feedback_label", ""))', content)
+        self.assertIn('"flee_reason": str(snapshot.get("flee_reason", ""))', content)
+        self.assertIn('"flee_threat_kind": str(snapshot.get("flee_threat_kind", ""))', content)
+        self.assertIn('"flee_threat_distance": snapshot.get("flee_threat_distance", null)', content)
+        self.assertIn('"flee_urgency": snapshot.get("flee_urgency", null)', content)
+        self.assertIn('"flee_readability": flee_readability_payload', content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
         self.assertIn("func _build_flee_feedback_line(snapshot: Dictionary) -> String:", content)
-        self.assertIn("Flee: %s", content)
+        self.assertIn("Flee readability: reason=%s threat=%s distance=%s urgency=%s", content)
+
+    def test_transition_log_contains_flee_readability_fields(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("threat_distance_label", content)
+        self.assertIn("urgency_label", content)
+        self.assertIn("dist=%s, urgency=%s", content)
+        self.assertIn("threat=%s", content)
+
+    def test_run_summary_can_include_flee_readability_line(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("func _build_flee_readability_summary_line() -> String:", content)
+        self.assertIn("Flee readability: reason=%s threat=%s distance=%s urgency=%s.", content)
+        self.assertIn("run_summary_lines.append(flee_readability_line)", content)
 
     def test_sensitive_gameplay_constants_unchanged(self) -> None:
         game_loop = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -61,6 +87,8 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         content = README_PATH.read_text(encoding="utf-8")
         self.assertIn("v232 improves threat/flee readability only", content)
         self.assertIn("flee rules unchanged", content)
+        self.assertIn("v233 validates flee/threat readability in runtime/debug outputs", content)
+        self.assertIn("runtime readability only, no flee logic change", content)
 
 
 if __name__ == "__main__":

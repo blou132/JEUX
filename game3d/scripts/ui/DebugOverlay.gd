@@ -1245,25 +1245,42 @@ func _build_objective_interaction_feedback_line(
 
 
 func _build_flee_feedback_line(snapshot: Dictionary) -> String:
-    var label: String = str(snapshot.get("flee_feedback_label", "")).strip_edges()
-    if label != "":
-        return label
-
+    var fallback_label: String = str(snapshot.get("flee_feedback_label", "")).strip_edges()
     var reason: String = str(snapshot.get("flee_reason", "")).strip_edges()
+    var threat_kind: String = str(snapshot.get("flee_threat_kind", "")).strip_edges()
+    var threat_distance_value: Variant = snapshot.get("flee_threat_distance", -1.0)
+    var urgency_value: Variant = snapshot.get("flee_urgency", -1.0)
+    var active: bool = reason != "" or threat_kind != ""
+
+    var readability_variant: Variant = snapshot.get("flee_readability", {})
+    if typeof(readability_variant) == TYPE_DICTIONARY:
+        var readability: Dictionary = readability_variant
+        active = bool(readability.get("active", active))
+        reason = str(readability.get("flee_reason", reason)).strip_edges()
+        threat_kind = str(readability.get("threat_kind", threat_kind)).strip_edges()
+        threat_distance_value = readability.get("threat_distance", threat_distance_value)
+        urgency_value = readability.get("flee_urgency", urgency_value)
+
+    var threat_distance_label: String = "n/a"
+    if typeof(threat_distance_value) in [TYPE_FLOAT, TYPE_INT] and float(threat_distance_value) >= 0.0:
+        threat_distance_label = "%.1f" % float(threat_distance_value)
+
+    var urgency_label: String = "n/a"
+    if typeof(urgency_value) in [TYPE_FLOAT, TYPE_INT] and float(urgency_value) >= 0.0:
+        urgency_label = "%.2f" % clampf(float(urgency_value), 0.0, 1.0)
+
     if reason == "":
+        reason = "n/a"
+    if threat_kind == "":
+        threat_kind = "n/a"
+
+    if not active and fallback_label == "" and reason == "n/a" and threat_kind == "n/a":
         return ""
 
-    var line: String = "Flee: %s" % reason
-    var threat_kind: String = str(snapshot.get("flee_threat_kind", "")).strip_edges()
-    if threat_kind != "":
-        line += ", threat=%s" % threat_kind
-    var threat_distance: float = float(snapshot.get("flee_threat_distance", -1.0))
-    if threat_distance >= 0.0:
-        line += ", dist=%.1f" % threat_distance
-    var urgency: float = float(snapshot.get("flee_urgency", -1.0))
-    if urgency >= 0.0:
-        line += ", urgency=%.2f" % urgency
-    return line
+    return (
+        "Flee readability: reason=%s threat=%s distance=%s urgency=%s"
+        % [reason, threat_kind, threat_distance_label, urgency_label]
+    )
 
 
 func _build_run_result_panel_lines(

@@ -1895,6 +1895,18 @@ func get_run_metrics_export_payload(
 	var champion_support_run_unavailable: Variant = null
 	if snapshot.has("champion_support_run_unavailable"):
 		champion_support_run_unavailable = int(snapshot.get("champion_support_run_unavailable", 0))
+	var flee_readability_payload: Dictionary = {}
+	var flee_readability_variant: Variant = snapshot.get("flee_readability", {})
+	if typeof(flee_readability_variant) == TYPE_DICTIONARY:
+		flee_readability_payload = Dictionary(flee_readability_variant).duplicate(true)
+	if flee_readability_payload.is_empty():
+		flee_readability_payload = {
+			"active": false,
+			"flee_reason": "n/a",
+			"threat_kind": "n/a",
+			"threat_distance": null,
+			"flee_urgency": null
+		}
 	var support_gate_payload: Variant = _build_support_gate_export_payload(snapshot)
 	var champion_support_payload: Variant = _build_champion_support_export_payload(snapshot)
 	var champion_resolution_payload: Variant = _build_champion_resolution_export_payload(snapshot)
@@ -1912,6 +1924,13 @@ func get_run_metrics_export_payload(
 		"objective_progress": float(snapshot.get("objective_progress", world_objective_progress)),
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
+		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
+		"flee_reason": str(snapshot.get("flee_reason", "")),
+		"flee_threat_kind": str(snapshot.get("flee_threat_kind", "")),
+		"flee_threat_distance": snapshot.get("flee_threat_distance", null),
+		"flee_urgency": snapshot.get("flee_urgency", null),
+		"flee_readability_summary": str(snapshot.get("flee_readability_summary", "")),
+		"flee_readability": flee_readability_payload,
 		"champion_support_run_attempts": int(snapshot.get("champion_support_run_attempts", 0)),
 		"champion_support_run_success": int(snapshot.get("champion_support_run_success", 0)),
 		"champion_support_run_unavailable": int(snapshot.get("champion_support_run_unavailable", 0)),
@@ -3143,24 +3162,24 @@ func register_state_change(actor: Actor, from_state: String, to_state: String, r
 	if to_state == "flee":
 		var threat_kind: String = actor.flee_threat_kind if actor.flee_threat_kind != "" else "unknown"
 		var reason_label: String = actor.flee_reason if actor.flee_reason != "" else reason
+		var threat_distance_label: String = "n/a"
 		if actor.flee_threat_distance >= 0.0:
-			record_event(
-				"%s %s -> %s (%s, threat=%s, dist=%.1f, urgency=%.2f)."
-				% [
-					_actor_label(actor),
-					from_state,
-					to_state,
-					reason_label,
-					threat_kind,
-					actor.flee_threat_distance,
-					max(0.0, actor.flee_urgency)
-				]
-			)
-		else:
-			record_event(
-				"%s %s -> %s (%s, threat=%s)."
-				% [_actor_label(actor), from_state, to_state, reason_label, threat_kind]
-			)
+			threat_distance_label = "%.1f" % actor.flee_threat_distance
+		var urgency_label: String = "n/a"
+		if actor.flee_urgency >= 0.0:
+			urgency_label = "%.2f" % clampf(actor.flee_urgency, 0.0, 1.0)
+		record_event(
+			"%s %s -> %s (%s, threat=%s, dist=%s, urgency=%s)."
+			% [
+				_actor_label(actor),
+				from_state,
+				to_state,
+				reason_label,
+				threat_kind,
+				threat_distance_label,
+				urgency_label
+			]
+		)
 	elif to_state in ["attack", "cast", "cast_nova", "cast_control", "poi", "reposition", "rally", "raid", "hunt"]:
 		record_event("%s %s -> %s (%s)." % [_actor_label(actor), from_state, to_state, reason])
 
@@ -6511,6 +6530,27 @@ func _trim_major_event_timeline() -> void:
 		major_event_timeline.remove_at(0)
 
 
+func _build_flee_readability_summary_line() -> String:
+	for actor in actors:
+		if actor == null or actor.is_dead or actor.state != "flee":
+			continue
+		var reason_label: String = actor.flee_reason if actor.flee_reason != "" else actor.last_reason
+		if reason_label == "":
+			reason_label = "n/a"
+		var threat_kind_label: String = actor.flee_threat_kind if actor.flee_threat_kind != "" else "n/a"
+		var threat_distance_label: String = "n/a"
+		if actor.flee_threat_distance >= 0.0:
+			threat_distance_label = "%.1f" % actor.flee_threat_distance
+		var urgency_label: String = "n/a"
+		if actor.flee_urgency >= 0.0:
+			urgency_label = "%.2f" % clampf(actor.flee_urgency, 0.0, 1.0)
+		return (
+			"Flee readability: reason=%s threat=%s distance=%s urgency=%s."
+			% [reason_label, threat_kind_label, threat_distance_label, urgency_label]
+		)
+	return ""
+
+
 func get_run_narrative_summary(
 	input_poi_runtime_snapshot: Dictionary,
 	doctrine_runtime_snapshot: Dictionary,
@@ -6634,6 +6674,9 @@ func get_run_narrative_summary(
 		"Figures: champions promoted=%d, relics acquired=%d, successors chosen=%d."
 		% [champion_count, relic_count, legacy_count]
 	)
+	var flee_readability_line: String = _build_flee_readability_summary_line()
+	if flee_readability_line != "":
+		run_summary_lines.append(flee_readability_line)
 	run_summary_lines.append("Major events tracked=%d. Last: %s." % [major_event_count, last_major_event])
 
 	return {
@@ -11166,6 +11209,34 @@ func _build_snapshot() -> Dictionary:
 			flee_feedback_label += ", dist=%.1f" % flee_threat_distance
 		if flee_urgency >= 0.0:
 			flee_feedback_label += ", urgency=%.2f" % flee_urgency
+	var flee_threat_distance_value: Variant = null
+	if flee_threat_distance >= 0.0:
+		flee_threat_distance_value = flee_threat_distance
+	var flee_urgency_value: Variant = null
+	if flee_urgency >= 0.0:
+		flee_urgency_value = clampf(flee_urgency, 0.0, 1.0)
+	var flee_readability: Dictionary = {
+		"active": flee_feedback_actor != "none",
+		"flee_reason": flee_reason if flee_reason != "" else "n/a",
+		"threat_kind": flee_threat_kind if flee_threat_kind != "" else "n/a",
+		"threat_distance": flee_threat_distance_value,
+		"flee_urgency": flee_urgency_value
+	}
+	var flee_distance_summary_label: String = "n/a"
+	if flee_threat_distance_value != null:
+		flee_distance_summary_label = "%.1f" % float(flee_threat_distance_value)
+	var flee_urgency_summary_label: String = "n/a"
+	if flee_urgency_value != null:
+		flee_urgency_summary_label = "%.2f" % float(flee_urgency_value)
+	var flee_readability_summary: String = (
+		"Flee readability: reason=%s, threat=%s, distance=%s, urgency=%s"
+		% [
+			str(flee_readability.get("flee_reason", "n/a")),
+			str(flee_readability.get("threat_kind", "n/a")),
+			flee_distance_summary_label,
+			flee_urgency_summary_label
+		]
+	)
 	var poi_population := world_manager.get_poi_population_snapshot(actors)
 	var active_allegiances: Array[Dictionary] = world_manager.get_active_allegiances(elapsed_time)
 	var doctrine_runtime_snapshot: Dictionary = world_manager.get_doctrine_runtime_snapshot(active_allegiances)
@@ -11912,6 +11983,8 @@ func _build_snapshot() -> Dictionary:
 		"flee_threat_kind": flee_threat_kind,
 		"flee_threat_distance": flee_threat_distance,
 		"flee_urgency": flee_urgency,
+		"flee_readability": flee_readability,
+		"flee_readability_summary": flee_readability_summary,
 		"engagements_total": engagements_total,
 		"poi_arrivals_total": poi_arrivals_total,
 		"poi_contests_total": poi_contests_total,
