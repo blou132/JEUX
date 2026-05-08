@@ -682,6 +682,10 @@ var support_gate_run_available_time_baseline: float = 0.0
 var support_gate_run_unavailable_time_baseline: float = 0.0
 var champion_support_run_attempts_baseline: int = 0
 var champion_support_run_success_baseline: int = 0
+var champion_support_run_unavailable_baseline: int = 0
+var champion_support_run_cooldown_blocked_baseline: int = 0
+var champion_support_run_completed_baseline: int = 0
+var champion_support_run_failed_baseline: int = 0
 
 
 func _ready() -> void:
@@ -909,6 +913,10 @@ func _setup_support_metrics_trace_options(options: Dictionary) -> void:
 		"export_function_reached": "no",
 		"export_payload_built": "no",
 		"export_trigger": "",
+		"payload_has_support_gate": "no",
+		"payload_has_champion_support": "no",
+		"payload_has_champion_resolution": "no",
+		"missing_payload_fields": [],
 		"history_append_attempted": "no",
 		"history_append_success": "no",
 		"latest_export_write_attempted": "no",
@@ -951,6 +959,14 @@ func _write_support_metrics_export_trace() -> void:
 	support_metrics_trace_data["export_on_quit_requested"] = (
 		"yes" if support_metrics_export_on_quit_enabled else "no"
 	)
+	if not support_metrics_trace_data.has("payload_has_support_gate"):
+		support_metrics_trace_data["payload_has_support_gate"] = "no"
+	if not support_metrics_trace_data.has("payload_has_champion_support"):
+		support_metrics_trace_data["payload_has_champion_support"] = "no"
+	if not support_metrics_trace_data.has("payload_has_champion_resolution"):
+		support_metrics_trace_data["payload_has_champion_resolution"] = "no"
+	if not support_metrics_trace_data.has("missing_payload_fields"):
+		support_metrics_trace_data["missing_payload_fields"] = []
 	support_metrics_trace_data["tick_observed"] = tick_index
 	support_metrics_trace_data["run_duration_observed"] = elapsed_time
 	support_metrics_trace_data["timestamp"] = str(Time.get_unix_time_from_system())
@@ -1120,6 +1136,10 @@ func _capture_run_metrics_baseline() -> void:
 	support_gate_run_unavailable_time_baseline = support_gate_unavailable_time_total
 	champion_support_run_attempts_baseline = champion_support_attempts_total
 	champion_support_run_success_baseline = champion_support_success_total
+	champion_support_run_unavailable_baseline = champion_support_unavailable_total
+	champion_support_run_cooldown_blocked_baseline = champion_support_cooldown_blocked_total
+	champion_support_run_completed_baseline = champion_support_completed_total
+	champion_support_run_failed_baseline = champion_support_failed_total
 
 
 func set_world_objective(objective_id: String) -> void:
@@ -1656,6 +1676,13 @@ func _build_champion_support_tuning_metrics() -> Dictionary:
 
 	var run_attempts: int = max(0, attempts_total - champion_support_run_attempts_baseline)
 	var run_success: int = max(0, success_total - champion_support_run_success_baseline)
+	var run_unavailable: int = max(0, unavailable_total - champion_support_run_unavailable_baseline)
+	var run_cooldown_blocked: int = max(
+		0,
+		cooldown_blocked_total - champion_support_run_cooldown_blocked_baseline
+	)
+	var run_completed: int = max(0, completed_total - champion_support_run_completed_baseline)
+	var run_failed: int = max(0, failed_total - champion_support_run_failed_baseline)
 	var run_success_rate: float = 0.0
 	if run_attempts > 0:
 		run_success_rate = float(run_success) / float(run_attempts)
@@ -1678,6 +1705,10 @@ func _build_champion_support_tuning_metrics() -> Dictionary:
 		"champion_support_failed_total": failed_total,
 		"champion_support_run_attempts": run_attempts,
 		"champion_support_run_success": run_success,
+		"champion_support_run_unavailable": run_unavailable,
+		"champion_support_run_cooldown_blocked": run_cooldown_blocked,
+		"champion_support_run_completed": run_completed,
+		"champion_support_run_failed": run_failed,
 		"champion_support_run_success_rate": run_success_rate,
 		"champion_support_tuning_label": tuning_label
 	}
@@ -1693,6 +1724,140 @@ func _is_debug_overlay_mode_active() -> bool:
 
 func _build_run_metrics_export_id(next_count: int, tick_value: int) -> String:
 	return "export_%05d_t%07d" % [max(1, next_count), max(0, tick_value)]
+
+
+func _snapshot_has_any_keys(snapshot: Dictionary, keys: Array[String]) -> bool:
+	for key_name in keys:
+		if snapshot.has(key_name):
+			return true
+	return false
+
+
+func _build_support_gate_export_payload(snapshot: Dictionary) -> Variant:
+	var support_gate_keys: Array[String] = [
+		"support_gate_run_attempts",
+		"support_gate_run_success",
+		"support_gate_run_blocked",
+		"support_gate_run_cooldown_blocked",
+		"support_gate_run_unavailable",
+		"support_gate_run_success_rate",
+		"support_gate_run_available_ratio"
+	]
+	if not _snapshot_has_any_keys(snapshot, support_gate_keys):
+		return null
+	return {
+		"run_attempts": int(snapshot.get("support_gate_run_attempts", 0)),
+		"run_success": int(snapshot.get("support_gate_run_success", 0)),
+		"run_blocked": int(snapshot.get("support_gate_run_blocked", 0)),
+		"run_cooldown_blocked": int(snapshot.get("support_gate_run_cooldown_blocked", 0)),
+		"run_unavailable": int(snapshot.get("support_gate_run_unavailable", 0)),
+		"run_success_rate": float(snapshot.get("support_gate_run_success_rate", 0.0)),
+		"run_available_ratio": float(snapshot.get("support_gate_run_available_ratio", 0.0)),
+		"attempts_total": int(snapshot.get("support_gate_attempts_total", 0)),
+		"success_total": int(snapshot.get("support_gate_success_total", 0)),
+		"blocked_total": int(snapshot.get("support_gate_blocked_total", 0)),
+		"cooldown_blocked_total": int(snapshot.get("support_gate_cooldown_blocked_total", 0)),
+		"unavailable_total": int(snapshot.get("support_gate_unavailable_total", 0)),
+		"completed_total": int(snapshot.get("support_gate_completed_total", 0)),
+		"failed_total": int(snapshot.get("support_gate_failed_total", 0))
+	}
+
+
+func _build_champion_support_export_payload(snapshot: Dictionary) -> Variant:
+	var champion_support_keys: Array[String] = [
+		"champion_support_run_attempts",
+		"champion_support_run_success",
+		"champion_support_run_unavailable",
+		"champion_support_run_cooldown_blocked",
+		"champion_support_run_completed",
+		"champion_support_run_failed",
+		"champion_support_run_success_rate"
+	]
+	if not _snapshot_has_any_keys(snapshot, champion_support_keys):
+		return null
+	return {
+		"run_attempts": int(snapshot.get("champion_support_run_attempts", 0)),
+		"run_success": int(snapshot.get("champion_support_run_success", 0)),
+		"run_success_rate": float(snapshot.get("champion_support_run_success_rate", 0.0)),
+		"run_cooldown_blocked": int(snapshot.get("champion_support_run_cooldown_blocked", 0)),
+		"run_unavailable": int(snapshot.get("champion_support_run_unavailable", 0)),
+		"run_completed": int(snapshot.get("champion_support_run_completed", 0)),
+		"run_failed": int(snapshot.get("champion_support_run_failed", 0)),
+		"attempts_total": int(snapshot.get("champion_support_attempts_total", 0)),
+		"success_total": int(snapshot.get("champion_support_success_total", 0)),
+		"cooldown_blocked_total": int(snapshot.get("champion_support_cooldown_blocked_total", 0)),
+		"unavailable_total": int(snapshot.get("champion_support_unavailable_total", 0)),
+		"completed_total": int(snapshot.get("champion_support_completed_total", 0)),
+		"failed_total": int(snapshot.get("champion_support_failed_total", 0))
+	}
+
+
+func _build_champion_resolution_export_payload(snapshot: Dictionary) -> Variant:
+	var resolution_keys: Array[String] = [
+		"objective_status",
+		"champion_support_run_completed",
+		"champion_support_run_failed",
+		"champion_support_completed_total",
+		"champion_support_failed_total"
+	]
+	if not _snapshot_has_any_keys(snapshot, resolution_keys):
+		return null
+	var run_completed: int = int(snapshot.get("champion_support_run_completed", 0))
+	var run_failed: int = int(snapshot.get("champion_support_run_failed", 0))
+	var completed_total: int = int(snapshot.get("champion_support_completed_total", 0))
+	var failed_total: int = int(snapshot.get("champion_support_failed_total", 0))
+	var objective_status_value: String = str(snapshot.get("objective_status", world_objective_status))
+	var resolved_state: String = "unresolved"
+	if run_completed + run_failed > 0:
+		resolved_state = "resolved"
+	elif objective_status_value == "completed" or objective_status_value == "failed":
+		resolved_state = "resolved"
+	return {
+		"objective_status": objective_status_value,
+		"run_completed": run_completed,
+		"run_failed": run_failed,
+		"run_resolved": run_completed + run_failed,
+		"completed_total": completed_total,
+		"failed_total": failed_total,
+		"resolved_state": resolved_state
+	}
+
+
+func _build_missing_support_metrics_payload_fields(payload: Dictionary) -> Array[String]:
+	var required_fields: Array[String] = [
+		"export_trigger",
+		"debug_export_on_quit",
+		"gameplay_change_allowed",
+		"objective_id",
+		"support_gate",
+		"champion_support",
+		"champion_resolution",
+		"champion_support_run_attempts",
+		"champion_support_run_success",
+		"champion_support_run_success_rate",
+		"champion_support_cooldown",
+		"champion_support_unavailable"
+	]
+	var missing_fields: Array[String] = []
+	for field_name in required_fields:
+		if not payload.has(field_name):
+			missing_fields.append(field_name)
+			continue
+		var value: Variant = payload.get(field_name)
+		if value == null:
+			missing_fields.append(field_name)
+			continue
+		var value_type: int = typeof(value)
+		if value_type == TYPE_STRING and str(value).strip_edges() == "":
+			missing_fields.append(field_name)
+			continue
+		if value_type == TYPE_ARRAY and Array(value).is_empty():
+			missing_fields.append(field_name)
+			continue
+		if value_type == TYPE_DICTIONARY and Dictionary(value).is_empty():
+			missing_fields.append(field_name)
+			continue
+	return missing_fields
 
 
 func get_run_metrics_export_payload(
@@ -1724,6 +1889,15 @@ func get_run_metrics_export_payload(
 	var resolved_export_trigger: String = export_trigger.strip_edges()
 	if resolved_export_trigger == "":
 		resolved_export_trigger = SUPPORT_METRICS_EXPORT_TRIGGER_OBJECTIVE_FLOW
+	var champion_support_run_cooldown: Variant = null
+	if snapshot.has("champion_support_run_cooldown_blocked"):
+		champion_support_run_cooldown = int(snapshot.get("champion_support_run_cooldown_blocked", 0))
+	var champion_support_run_unavailable: Variant = null
+	if snapshot.has("champion_support_run_unavailable"):
+		champion_support_run_unavailable = int(snapshot.get("champion_support_run_unavailable", 0))
+	var support_gate_payload: Variant = _build_support_gate_export_payload(snapshot)
+	var champion_support_payload: Variant = _build_champion_support_export_payload(snapshot)
+	var champion_resolution_payload: Variant = _build_champion_resolution_export_payload(snapshot)
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -1740,7 +1914,13 @@ func get_run_metrics_export_payload(
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"champion_support_run_attempts": int(snapshot.get("champion_support_run_attempts", 0)),
 		"champion_support_run_success": int(snapshot.get("champion_support_run_success", 0)),
+		"champion_support_run_unavailable": int(snapshot.get("champion_support_run_unavailable", 0)),
+		"champion_support_run_cooldown_blocked": int(snapshot.get("champion_support_run_cooldown_blocked", 0)),
+		"champion_support_run_completed": int(snapshot.get("champion_support_run_completed", 0)),
+		"champion_support_run_failed": int(snapshot.get("champion_support_run_failed", 0)),
 		"champion_support_run_success_rate": float(snapshot.get("champion_support_run_success_rate", 0.0)),
+		"champion_support_cooldown": champion_support_run_cooldown,
+		"champion_support_unavailable": champion_support_run_unavailable,
 		"champion_support_attempts_total": int(snapshot.get("champion_support_attempts_total", 0)),
 		"champion_support_success_total": int(snapshot.get("champion_support_success_total", 0)),
 		"champion_support_unavailable_total": int(snapshot.get("champion_support_unavailable_total", 0)),
@@ -1752,16 +1932,28 @@ func get_run_metrics_export_payload(
 		),
 		"support_gate_run_attempts": int(snapshot.get("support_gate_run_attempts", 0)),
 		"support_gate_run_success": int(snapshot.get("support_gate_run_success", 0)),
+		"support_gate_run_blocked": int(snapshot.get("support_gate_run_blocked", 0)),
+		"support_gate_run_cooldown_blocked": int(snapshot.get("support_gate_run_cooldown_blocked", 0)),
+		"support_gate_run_unavailable": int(snapshot.get("support_gate_run_unavailable", 0)),
 		"support_gate_run_success_rate": float(snapshot.get("support_gate_run_success_rate", 0.0)),
 		"support_gate_run_available_ratio": float(snapshot.get("support_gate_run_available_ratio", 0.0)),
 		"support_gate_attempts_total": int(snapshot.get("support_gate_attempts_total", 0)),
 		"support_gate_success_total": int(snapshot.get("support_gate_success_total", 0)),
+		"support_gate_blocked_total": int(snapshot.get("support_gate_blocked_total", 0)),
+		"support_gate_cooldown_blocked_total": int(snapshot.get("support_gate_cooldown_blocked_total", 0)),
+		"support_gate_unavailable_total": int(snapshot.get("support_gate_unavailable_total", 0)),
+		"support_gate_completed_total": int(snapshot.get("support_gate_completed_total", 0)),
+		"support_gate_failed_total": int(snapshot.get("support_gate_failed_total", 0)),
 		"support_gate_success_rate": float(snapshot.get("support_gate_success_rate", 0.0)),
 		"support_gate_available_ratio": float(snapshot.get("support_gate_available_ratio", 0.0)),
+		"support_gate": support_gate_payload,
+		"champion_support": champion_support_payload,
+		"champion_resolution": champion_resolution_payload,
 		"tick": tick_value,
 		"time": elapsed_value,
 		"elapsed_time": elapsed_value
 	}
+	payload["missing_payload_fields"] = _build_missing_support_metrics_payload_fields(payload)
 	return payload
 
 
@@ -1785,6 +1977,16 @@ func export_run_metrics(
 	)
 	if support_metrics_trace_export_enabled:
 		support_metrics_trace_data["export_payload_built"] = "yes"
+		support_metrics_trace_data["payload_has_support_gate"] = (
+			"yes" if payload.get("support_gate", null) != null else "no"
+		)
+		support_metrics_trace_data["payload_has_champion_support"] = (
+			"yes" if payload.get("champion_support", null) != null else "no"
+		)
+		support_metrics_trace_data["payload_has_champion_resolution"] = (
+			"yes" if payload.get("champion_resolution", null) != null else "no"
+		)
+		support_metrics_trace_data["missing_payload_fields"] = payload.get("missing_payload_fields", [])
 	var latest_path: String = run_metrics_last_export_path
 	var history_path: String = run_metrics_history_export_path
 	if latest_path == "":
@@ -11388,6 +11590,18 @@ func _build_snapshot() -> Dictionary:
 		),
 		"champion_support_run_success": int(
 			champion_support_tuning.get("champion_support_run_success", 0)
+		),
+		"champion_support_run_unavailable": int(
+			champion_support_tuning.get("champion_support_run_unavailable", 0)
+		),
+		"champion_support_run_cooldown_blocked": int(
+			champion_support_tuning.get("champion_support_run_cooldown_blocked", 0)
+		),
+		"champion_support_run_completed": int(
+			champion_support_tuning.get("champion_support_run_completed", 0)
+		),
+		"champion_support_run_failed": int(
+			champion_support_tuning.get("champion_support_run_failed", 0)
 		),
 		"champion_support_run_success_rate": float(
 			champion_support_tuning.get("champion_support_run_success_rate", 0.0)

@@ -37,6 +37,24 @@ class Game3DSupportMetricsTraceScaffoldTests(unittest.TestCase):
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
         self.assertIn("debug_export_on_quit", content)
         self.assertIn('"gameplay_change_allowed": false', content)
+        self.assertIn('"champion_support_cooldown": champion_support_run_cooldown', content)
+        self.assertIn('"champion_support_unavailable": champion_support_run_unavailable', content)
+        self.assertIn('"champion_resolution": champion_resolution_payload', content)
+        self.assertIn('"support_gate": support_gate_payload', content)
+
+    def test_game_loop_trace_contains_payload_completeness_markers(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn("payload_has_support_gate", content)
+        self.assertIn("payload_has_champion_support", content)
+        self.assertIn("payload_has_champion_resolution", content)
+        self.assertIn("missing_payload_fields", content)
+
+    def test_game_loop_keeps_champion_support_cooldown_constant(self) -> None:
+        content = GAME_LOOP_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "const OBJECTIVE_CHAMPION_SUPPORT_INTERACTION_COOLDOWN: float = 1.08",
+            content,
+        )
 
 
 if __name__ == "__main__":

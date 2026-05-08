@@ -619,6 +619,7 @@ def _print_trace_summary(trace_payload: dict[str, object], expected_objective: s
     objective_observed = _to_str(trace_payload.get("objective_observed"))
     if objective_observed == "":
         objective_observed = _to_str(trace_payload.get("objective_id"))
+    missing_payload_fields = _to_lines(trace_payload.get("missing_payload_fields"))
     print("Export trace summary")
     print("- note: %s" % _to_str(trace_payload.get("note")))
     print("- active_scene: %s" % _to_str(trace_payload.get("active_scene")))
@@ -648,6 +649,13 @@ def _print_trace_summary(trace_payload: dict[str, object], expected_objective: s
     print("- export_function_reached: %s" % _to_str(trace_payload.get("export_function_reached")))
     print("- export_payload_built: %s" % _to_str(trace_payload.get("export_payload_built")))
     print("- export_trigger: %s" % _to_str(trace_payload.get("export_trigger")))
+    print("- payload_has_support_gate: %s" % _to_str(trace_payload.get("payload_has_support_gate")))
+    print("- payload_has_champion_support: %s" % _to_str(trace_payload.get("payload_has_champion_support")))
+    print("- payload_has_champion_resolution: %s" % _to_str(trace_payload.get("payload_has_champion_resolution")))
+    print(
+        "- missing_payload_fields: %s"
+        % (", ".join(missing_payload_fields) if missing_payload_fields else "none")
+    )
     print("- latest_export_write_attempted: %s" % _to_str(trace_payload.get("latest_export_write_attempted")))
     print("- latest_export_write_success: %s" % _to_str(trace_payload.get("latest_export_write_success")))
     print("- history_append_attempted: %s" % _to_str(trace_payload.get("history_append_attempted")))
