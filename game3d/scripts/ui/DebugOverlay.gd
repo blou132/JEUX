@@ -1133,6 +1133,56 @@ func _build_objective_panel_lines(
     var objective_interaction_label: String = str(snapshot.get("objective_interaction_label", "")).strip_edges()
     var objective_interaction_available: bool = bool(snapshot.get("objective_interaction_available", false))
     var objective_interaction_cooldown: float = float(snapshot.get("objective_interaction_cooldown", 0.0))
+    var is_rally_champion_objective: bool = (
+        objective_id == "rally_champion" or active_objective_id == "rally_champion"
+    )
+    var rally_champion_progress_current: int = max(
+        0,
+        int(snapshot.get("rally_champion_progress_current", objective_interaction_count))
+    )
+    var rally_champion_progress_required: int = max(
+        0,
+        int(snapshot.get("rally_champion_progress_required", objective_interaction_required))
+    )
+    if rally_champion_progress_required > 0:
+        rally_champion_progress_current = min(
+            rally_champion_progress_current,
+            rally_champion_progress_required
+        )
+    var rally_champion_progress_remaining: int = max(
+        0,
+        int(
+            snapshot.get(
+                "rally_champion_progress_remaining",
+                rally_champion_progress_required - rally_champion_progress_current
+            )
+        )
+    )
+    var rally_champion_time_remaining: float = max(
+        0.0,
+        float(
+            snapshot.get(
+                "rally_champion_time_remaining",
+                max(0.0, objective_required - objective_elapsed)
+            )
+        )
+    )
+    var rally_champion_progress_summary: String = str(
+        snapshot.get("rally_champion_progress_summary", "")
+    ).strip_edges()
+    if rally_champion_progress_summary == "":
+        if is_rally_champion_objective:
+            rally_champion_progress_summary = (
+                "Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs"
+                % [
+                    rally_champion_progress_current,
+                    rally_champion_progress_required,
+                    rally_champion_progress_remaining,
+                    rally_champion_time_remaining
+                ]
+            )
+        else:
+            rally_champion_progress_summary = "Rally champion progress: n/a"
     var champion_support_available: bool = bool(snapshot.get("champion_support_available", false))
     var champion_support_candidate_count: int = int(snapshot.get("champion_support_candidate_count", 0))
     var champion_support_target_label: String = str(
@@ -1165,6 +1215,8 @@ func _build_objective_panel_lines(
             % [objective_title, objective_status if objective_status != "" else "inactive", reduced_progress]
         )
         lines.append(active_objective_summary)
+        if is_rally_champion_objective:
+            lines.append(rally_champion_progress_summary)
         if active_objective_marker_visible:
             lines.append(active_objective_marker_summary)
         return lines
@@ -1181,6 +1233,8 @@ func _build_objective_panel_lines(
             lines.append("Target: %s" % objective_completion_target_label)
         lines.append("Progress: %s" % objective_progress_label)
         lines.append("Status: %s" % objective_status)
+        if is_rally_champion_objective:
+            lines.append(rally_champion_progress_summary)
         if objective_has_interaction and objective_interaction_label != "":
             if objective_id == "rally_champion":
                 lines.append("Champion: %s" % champion_support_target_label)
@@ -1247,6 +1301,8 @@ func _build_objective_panel_lines(
         "Objective progress: %s (%.1fs/%.1fs)"
         % [objective_progress_label, objective_elapsed, objective_required]
     )
+    if is_rally_champion_objective:
+        lines.append(rally_champion_progress_summary)
     if objective_available_count > 0 and objective_selected_index >= 0:
         lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
     if not objective_available_ids.is_empty():

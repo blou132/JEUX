@@ -2028,6 +2028,59 @@ func get_run_metrics_export_payload(
 				active_objective_marker_candidate_count_value
 			]
 		)
+	var rally_champion_progress_current_value: int = max(
+		0,
+		int(snapshot.get("rally_champion_progress_current", 0))
+	)
+	var rally_champion_progress_required_value: int = max(
+		0,
+		int(snapshot.get("rally_champion_progress_required", 0))
+	)
+	if rally_champion_progress_required_value > 0:
+		rally_champion_progress_current_value = min(
+			rally_champion_progress_current_value,
+			rally_champion_progress_required_value
+		)
+	var rally_champion_progress_remaining_value: int = max(
+		0,
+		int(
+			snapshot.get(
+				"rally_champion_progress_remaining",
+				rally_champion_progress_required_value - rally_champion_progress_current_value
+			)
+		)
+	)
+	var rally_champion_time_remaining_value: Variant = snapshot.get(
+		"rally_champion_time_remaining",
+		null
+	)
+	if rally_champion_time_remaining_value != null:
+		rally_champion_time_remaining_value = max(
+			0.0,
+			float(rally_champion_time_remaining_value)
+		)
+	var rally_champion_progress_summary_value: String = str(
+		snapshot.get("rally_champion_progress_summary", "")
+	).strip_edges()
+	if rally_champion_progress_summary_value == "":
+		if active_objective_id_value == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+			var fallback_rally_time_remaining: float = (
+				float(snapshot.get("objective_required", world_objective_required))
+				- float(snapshot.get("objective_elapsed", world_objective_elapsed))
+			)
+			if rally_champion_time_remaining_value == null:
+				rally_champion_time_remaining_value = max(0.0, fallback_rally_time_remaining)
+			rally_champion_progress_summary_value = (
+				"Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs"
+				% [
+					rally_champion_progress_current_value,
+					rally_champion_progress_required_value,
+					rally_champion_progress_remaining_value,
+					float(rally_champion_time_remaining_value)
+				]
+			)
+		else:
+			rally_champion_progress_summary_value = "Rally champion progress: n/a"
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -2051,6 +2104,11 @@ func get_run_metrics_export_payload(
 		"active_objective_marker_target_reason": active_objective_marker_target_reason_value,
 		"active_objective_marker_candidate_count": active_objective_marker_candidate_count_value,
 		"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary_value,
+		"rally_champion_progress_current": rally_champion_progress_current_value,
+		"rally_champion_progress_required": rally_champion_progress_required_value,
+		"rally_champion_progress_remaining": rally_champion_progress_remaining_value,
+		"rally_champion_time_remaining": rally_champion_time_remaining_value,
+		"rally_champion_progress_summary": rally_champion_progress_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -11792,6 +11850,33 @@ func _build_snapshot() -> Dictionary:
 			"Active objective marker resolution: reason=%s candidates=%d"
 			% [active_objective_marker_target_reason, active_objective_marker_candidate_count]
 		)
+	var rally_champion_progress_current: int = 0
+	var rally_champion_progress_required: int = 0
+	var rally_champion_progress_remaining: int = 0
+	var rally_champion_time_remaining: Variant = null
+	var rally_champion_progress_summary: String = "Rally champion progress: n/a"
+	if active_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		rally_champion_progress_current = max(0, world_objective_interaction_count)
+		rally_champion_progress_required = max(0, world_objective_interaction_required)
+		if rally_champion_progress_required > 0:
+			rally_champion_progress_current = min(
+				rally_champion_progress_current,
+				rally_champion_progress_required
+			)
+		rally_champion_progress_remaining = max(
+			0,
+			rally_champion_progress_required - rally_champion_progress_current
+		)
+		rally_champion_time_remaining = max(0.0, world_objective_required - world_objective_elapsed)
+		rally_champion_progress_summary = (
+			"Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs"
+			% [
+				rally_champion_progress_current,
+				rally_champion_progress_required,
+				rally_champion_progress_remaining,
+				float(rally_champion_time_remaining)
+			]
+		)
 
 	return {
 		"tick": tick_index,
@@ -11855,6 +11940,11 @@ func _build_snapshot() -> Dictionary:
 		"active_objective_marker_target_reason": active_objective_marker_target_reason,
 		"active_objective_marker_candidate_count": active_objective_marker_candidate_count,
 		"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary,
+		"rally_champion_progress_current": rally_champion_progress_current,
+		"rally_champion_progress_required": rally_champion_progress_required,
+		"rally_champion_progress_remaining": rally_champion_progress_remaining,
+		"rally_champion_time_remaining": rally_champion_time_remaining,
+		"rally_champion_progress_summary": rally_champion_progress_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

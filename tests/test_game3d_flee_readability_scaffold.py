@@ -113,6 +113,12 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"active_objective_marker_target_reason": active_objective_marker_target_reason', content)
         self.assertIn('"active_objective_marker_candidate_count": active_objective_marker_candidate_count', content)
         self.assertIn('"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary', content)
+        self.assertIn('"rally_champion_progress_current": rally_champion_progress_current', content)
+        self.assertIn('"rally_champion_progress_required": rally_champion_progress_required', content)
+        self.assertIn('"rally_champion_progress_remaining": rally_champion_progress_remaining', content)
+        self.assertIn('"rally_champion_time_remaining": rally_champion_time_remaining', content)
+        self.assertIn('"rally_champion_progress_summary": rally_champion_progress_summary', content)
+        self.assertIn("Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs", content)
         self.assertIn("func _resolve_active_objective_marker_state() -> Dictionary:", content)
         self.assertIn("marker_visible = bool(marker_actor.objective_marker_active)", content)
         self.assertIn("marker_target = \"rift_gate\"", content)
@@ -159,6 +165,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
             '"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary_value',
             content,
         )
+        self.assertIn('"rally_champion_progress_current": rally_champion_progress_current_value', content)
+        self.assertIn('"rally_champion_progress_required": rally_champion_progress_required_value', content)
+        self.assertIn('"rally_champion_progress_remaining": rally_champion_progress_remaining_value', content)
+        self.assertIn('"rally_champion_time_remaining": rally_champion_time_remaining_value', content)
+        self.assertIn('"rally_champion_progress_summary": rally_champion_progress_summary_value', content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
@@ -168,6 +179,8 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("lines.append(active_objective_marker_summary)", content)
         self.assertIn("Active objective marker resolution: reason=%s candidates=%d", content)
         self.assertIn("lines.append(active_objective_marker_resolution_summary)", content)
+        self.assertIn("Rally champion progress: %d/%d supports, remaining=%d, time=%.1fs", content)
+        self.assertIn("lines.append(rally_champion_progress_summary)", content)
 
     def test_transition_log_contains_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -222,6 +235,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v241 explains active objective marker target resolution only. It does not force objective targets.",
+            content,
+        )
+        self.assertIn(
+            "v243 adds rally_champion progress readability only. Objective rules are unchanged.",
             content,
         )
 
