@@ -14,6 +14,7 @@ DEFAULT_BASELINE_OUTPUT = Path("outputs/ci/support_metrics_baseline.jsonl")
 DEFAULT_CURRENT_OUTPUT = Path("outputs/ci/support_metrics_current.jsonl")
 DEFAULT_REPORT_OUTPUT = Path("outputs/ci/support_metrics_runtime_comparison.md")
 DEFAULT_DECISION_OUTPUT = Path("outputs/ci/support_metrics_runtime_decision.md")
+DEFAULT_INVESTIGATION_OUTPUT = Path("outputs/ci/support_metrics_runtime_investigation.md")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -64,6 +65,21 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Optional JSON runtime decision output path.",
+    )
+    parser.add_argument(
+        "--investigation-output",
+        type=Path,
+        default=DEFAULT_INVESTIGATION_OUTPUT,
+        help="Investigation Markdown output path when runtime decision is investigate_metrics.",
+    )
+    parser.add_argument(
+        "--investigate-on-warning",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "When enabled, auto-generate investigation report if runtime decision is "
+            "investigate_metrics (default: enabled)."
+        ),
     )
     parser.add_argument(
         "--min-runs",
@@ -161,6 +177,10 @@ def _analyze_script_path() -> Path:
 
 def _decide_script_path() -> Path:
     return Path(__file__).with_name("decide_support_metrics_runtime_tuning.py")
+
+
+def _investigate_script_path() -> Path:
+    return Path(__file__).with_name("investigate_support_metrics_runtime.py")
 
 
 def _build_collect_command(
@@ -274,13 +294,39 @@ def _build_decision_command(
     return command
 
 
+def _build_investigation_command(
+    baseline_output: Path,
+    current_output: Path,
+    report_output: Path,
+    decision_output: Path,
+    investigation_output: Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(_investigate_script_path()),
+        "--baseline",
+        str(baseline_output),
+        "--current",
+        str(current_output),
+        "--comparison",
+        str(report_output),
+        "--decision",
+        str(decision_output),
+        "--markdown-output",
+        str(investigation_output),
+        "--check",
+    ]
+
+
 def _print_planned_commands(
     collect_commands: list[list[str]],
     validate_command: list[str],
     analyze_command: list[str],
     decision_command: list[str],
+    investigation_command: list[str],
     skip_collect: bool,
     skip_decision: bool,
+    investigate_on_warning: bool,
 ) -> None:
     print("Support metrics runtime pipeline")
     print("- dry_run: yes")
@@ -299,8 +345,16 @@ def _print_planned_commands(
     print("- analyze: %s" % _format_command(analyze_command))
     if skip_decision:
         print("- decision: skipped (--skip-decision)")
+        print("- investigation: skipped (decision step skipped)")
     else:
         print("- decision: %s" % _format_command(decision_command))
+        if investigate_on_warning:
+            print(
+                "- investigation (if decision == investigate_metrics): %s"
+                % _format_command(investigation_command)
+            )
+        else:
+            print("- investigation: skipped (--no-investigate-on-warning)")
     print("Dry-run completed. No command was executed.")
 
 
@@ -414,6 +468,23 @@ def _write_decision_json_output(
     return 0
 
 
+def _extract_decision_from_markdown(decision_markdown_path: Path) -> str | None:
+    if not decision_markdown_path.exists():
+        return None
+    try:
+        content = decision_markdown_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line.lower().startswith("- decision:"):
+            continue
+        value = line.split(":", 1)[1].strip().lower()
+        if value != "":
+            return value
+    return None
+
+
 def main() -> int:
     args = _build_parser().parse_args()
 
@@ -428,6 +499,7 @@ def main() -> int:
     current_output = args.current_output
     report_output = args.report_output
     decision_output = args.decision_output
+    investigation_output = args.investigation_output
 
     collect_baseline_command = _build_collect_command(
         mode="baseline",
@@ -461,6 +533,13 @@ def main() -> int:
         min_runs=int(args.min_runs),
         with_json_output=args.decision_json_output is not None,
     )
+    investigation_command = _build_investigation_command(
+        baseline_output=baseline_output,
+        current_output=current_output,
+        report_output=report_output,
+        decision_output=decision_output,
+        investigation_output=investigation_output,
+    )
 
     if args.dry_run:
         _print_planned_commands(
@@ -468,8 +547,10 @@ def main() -> int:
             validate_command=validate_command,
             analyze_command=analyze_command,
             decision_command=decision_command,
+            investigation_command=investigation_command,
             skip_collect=bool(args.skip_collect),
             skip_decision=bool(args.skip_decision),
+            investigate_on_warning=bool(args.investigate_on_warning),
         )
         return 0
 
@@ -534,10 +615,35 @@ def main() -> int:
             if json_write_status != 0:
                 return json_write_status
 
+        decision_code = _extract_decision_from_markdown(decision_output)
+        if decision_code is None:
+            print(
+                "Unable to read runtime decision code from Markdown report.",
+                file=sys.stderr,
+            )
+            return 1
+
+        if bool(args.investigate_on_warning) and decision_code == "investigate_metrics":
+            investigation_output.parent.mkdir(parents=True, exist_ok=True)
+            investigation_result = _run_command(
+                investigation_command,
+                "runtime metrics investigation",
+            )
+            if investigation_result.returncode != 0:
+                print(
+                    "Runtime metrics investigation failed.",
+                    file=sys.stderr,
+                )
+                return investigation_result.returncode
+
     print("Runtime support metrics pipeline completed.")
     print("Report written to: %s" % report_output)
     if not args.skip_decision:
         print("Decision report written to: %s" % decision_output)
+        if bool(args.investigate_on_warning):
+            decision_code = _extract_decision_from_markdown(decision_output)
+            if decision_code == "investigate_metrics":
+                print("Investigation report written to: %s" % investigation_output)
     if args.decision_json_output is not None and not args.skip_decision:
         print("Decision JSON written to: %s" % args.decision_json_output)
     return 0

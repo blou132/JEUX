@@ -53,6 +53,18 @@
         "--verbose",
         "--markdown-output"
       ]
+    },
+    {
+      "path": "tools/investigate_support_metrics_runtime.py",
+      "options": [
+        "--baseline",
+        "--current",
+        "--comparison",
+        "--decision",
+        "--markdown-output",
+        "--json",
+        "--check"
+      ]
     }
   ]
 }

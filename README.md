@@ -969,6 +969,8 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
   - `--report-output outputs/ci/support_metrics_runtime_comparison.md`
   - `--decision-output outputs/ci/support_metrics_runtime_decision.md`
   - `--decision-json-output outputs/ci/support_metrics_runtime_decision.json` (optionnel)
+  - `--investigation-output outputs/ci/support_metrics_runtime_investigation.md`
+  - `--investigate-on-warning` / `--no-investigate-on-warning` (auto-investigation si la decision runtime vaut `investigate_metrics`)
   - `--godot-bin godot`
   - `--dry-run`
   - `--skip-collect`
@@ -977,6 +979,7 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
 - fichiers generes par defaut:
   - `outputs/ci/support_metrics_runtime_comparison.md`
   - `outputs/ci/support_metrics_runtime_decision.md`
+  - `outputs/ci/support_metrics_runtime_investigation.md` (si decision runtime = `investigate_metrics`)
 - exemple (collecte + validation + comparaison + decision):
 ```bash
 py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5
@@ -992,6 +995,7 @@ py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-outpu
 - note: `--export-on-quit` reste reserve au debug/CI et ne modifie pas le gameplay normal.
 - note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
 - note: la decision runtime est heuristique et n'applique jamais de changement gameplay automatiquement.
+- note: l'investigation runtime est observation/debug uniquement (explication des blocages `keep/revert`), aucune decision gameplay automatique.
 
 ## Runtime Godot validation checklist for v211
 - objectif: lancer une vraie observation runtime sur machine avec Godot pour valider le tuning v211.
@@ -1013,6 +1017,7 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
     - `outputs/ci/support_metrics_current.jsonl`
     - `outputs/ci/support_metrics_runtime_comparison.md`
     - `outputs/ci/support_metrics_runtime_decision.md`
+    - `outputs/ci/support_metrics_runtime_investigation.md` (genere si decision=`investigate_metrics`)
   - lire la decision runtime:
     - `keep_tuning`
     - `revert_tuning`
@@ -1020,10 +1025,28 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
     - `investigate_metrics`
 - interpretation operationnelle:
   - si decision = `collect_more_runs`: ne pas modifier le gameplay, collecter plus de runs.
-  - si decision = `investigate_metrics`: inspecter les warnings et la coherence des metriques avant toute action.
+  - si decision = `investigate_metrics`: inspecter les warnings et la coherence des metriques avant toute action (rapport investigation runtime auto-genere si `--investigate-on-warning` est actif).
   - si decision = `keep_tuning`: conserver v211 et eviter un second buff immediat.
   - si decision = `revert_tuning`: preparer une v219 de revert dediee.
 - note: cette checklist et le pipeline restent observation-only et ne modifient pas le gameplay automatiquement.
+
+## Investigate runtime support metrics decision
+- objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.
+- script: `tools/investigate_support_metrics_runtime.py`
+- usage recommande:
+```bash
+py tools/investigate_support_metrics_runtime.py --baseline outputs/ci/support_metrics_baseline.jsonl --current outputs/ci/support_metrics_current.jsonl --comparison outputs/ci/support_metrics_runtime_comparison.md --decision outputs/ci/support_metrics_runtime_decision.md --markdown-output outputs/ci/support_metrics_runtime_investigation.md
+```
+- sortie attendue (observation/debug only):
+  - `# Support metrics runtime investigation`
+  - `- decision: investigate_metrics`
+  - `- regression_state: ...`
+  - `- quality_state: ...`
+  - `- warnings: ...`
+  - `- likely cause: ...`
+  - `- next action: collect_more_runs / inspect warning / keep blocked / revert blocked`
+  - `- gameplay_change_allowed: false`
+- note: ce rapport n'applique aucune decision gameplay automatique; il explique uniquement pourquoi la decision runtime reste bloquee.
 
 ## Runtime gameplay decision protocol
 - objectif: definir une decision gameplay coherente apres le pipeline runtime (`baseline/current`) sans changer le jeu "au feeling".

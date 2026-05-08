@@ -34,6 +34,7 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("outputs/ci/support_metrics_current.jsonl", content)
         self.assertIn("outputs/ci/support_metrics_runtime_comparison.md", content)
         self.assertIn("outputs/ci/support_metrics_runtime_decision.md", content)
+        self.assertIn("outputs/ci/support_metrics_runtime_investigation.md", content)
         self.assertIn("keep_tuning", content)
         self.assertIn("revert_tuning", content)
         self.assertIn("collect_more_runs", content)
@@ -95,6 +96,15 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("export_trigger", content)
         self.assertIn("debug_export_on_quit", content)
         self.assertIn("gameplay_change_allowed", content)
+
+    def test_readme_contains_runtime_investigation_section(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Investigate runtime support metrics decision", content)
+        self.assertIn("tools/investigate_support_metrics_runtime.py", content)
+        self.assertIn("--comparison outputs/ci/support_metrics_runtime_comparison.md", content)
+        self.assertIn("--decision outputs/ci/support_metrics_runtime_decision.md", content)
+        self.assertIn("--markdown-output outputs/ci/support_metrics_runtime_investigation.md", content)
+        self.assertIn("observation/debug only", content)
 
 
 if __name__ == "__main__":
