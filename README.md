@@ -1030,6 +1030,17 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
   - si decision = `revert_tuning`: preparer une v219 de revert dediee.
 - note: cette checklist et le pipeline restent observation-only et ne modifient pas le gameplay automatiquement.
 
+## Runtime decision log
+- v211 rally_champion cooldown tuning
+  - change: `1.20s -> 1.08s`
+  - validation: `v230 runtime investigation`
+  - decision: `keep_tuning`
+  - regression_state: `stable`
+  - quality_state: `valid`
+  - warnings: `none`
+  - note: `no additional rally_champion buff approved`
+- cette decision ne declenche pas automatiquement de nouveau changement gameplay.
+
 ## Investigate runtime support metrics decision
 - objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.
 - script: `tools/investigate_support_metrics_runtime.py`

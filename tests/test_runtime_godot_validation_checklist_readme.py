@@ -106,6 +106,13 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
         self.assertIn("--markdown-output outputs/ci/support_metrics_runtime_investigation.md", content)
         self.assertIn("observation/debug only", content)
 
+    def test_readme_contains_runtime_decision_log_entry_for_v211(self) -> None:
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("Runtime decision log", content)
+        self.assertIn("v211", content)
+        self.assertIn("keep_tuning", content)
+        self.assertIn("no additional rally_champion buff", content)
+
 
 if __name__ == "__main__":
     unittest.main()
