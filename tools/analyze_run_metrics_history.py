@@ -31,6 +31,12 @@ FINAL_DECISION_TEXT_BY_CODE = {
     "review_tradeoff_before_tuning": "Review tradeoff before changing tuning.",
     "no_runtime_data": "No runtime support metrics data available.",
 }
+SUPPORT_GATE_RUNTIME_KEYS: tuple[str, ...] = (
+    "support_gate_run_attempts",
+    "support_gate_run_success",
+    "support_gate_run_success_rate",
+    "support_gate_run_available_ratio",
+)
 
 
 def _as_float(value: Any) -> float | None:
@@ -45,6 +51,78 @@ def _as_int(value: Any) -> int | None:
     if isinstance(value, float):
         return int(value)
     return None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _get_record_metric(
+    record: dict[str, Any],
+    top_level_key: str,
+    nested_block_key: str = "",
+    nested_key: str = "",
+) -> Any:
+    if top_level_key in record:
+        return record.get(top_level_key)
+    if nested_block_key == "":
+        return None
+    nested_block = _as_dict(record.get(nested_block_key))
+    lookup_key = nested_key if nested_key != "" else top_level_key
+    return nested_block.get(lookup_key)
+
+
+def _record_has_support_gate_runtime_metrics(record: dict[str, Any]) -> bool:
+    support_gate_nested = _as_dict(record.get("support_gate"))
+    support_gate_nested_keys = {
+        "run_attempts",
+        "run_success",
+        "run_success_rate",
+        "run_available_ratio",
+    }
+    return any(metric_key in record for metric_key in SUPPORT_GATE_RUNTIME_KEYS) or any(
+        nested_key in support_gate_nested for nested_key in support_gate_nested_keys
+    )
+
+
+def _record_has_champion_resolution_signals(record: dict[str, Any]) -> bool:
+    if "champion_support_run_completed" in record:
+        return True
+    if "champion_support_run_failed" in record:
+        return True
+    if "champion_support_completed_total" in record:
+        return True
+    if "champion_support_failed_total" in record:
+        return True
+    champion_resolution = _as_dict(record.get("champion_resolution"))
+    return any(
+        key_name in champion_resolution
+        for key_name in (
+            "run_completed",
+            "run_failed",
+            "run_resolved",
+            "completed_total",
+            "failed_total",
+            "resolved_state",
+        )
+    )
+
+
+def _record_has_support_gate_resolution_signals(record: dict[str, Any]) -> bool:
+    if "support_gate_completed_total" in record:
+        return True
+    if "support_gate_failed_total" in record:
+        return True
+    support_gate = _as_dict(record.get("support_gate"))
+    return any(
+        key_name in support_gate
+        for key_name in (
+            "completed_total",
+            "failed_total",
+        )
+    )
 
 
 def read_jsonl_records(input_path: Path) -> tuple[list[dict[str, Any]], int]:
@@ -398,6 +476,8 @@ def _build_support_metrics_quality(
     champion_unavailable_values: list[float | None],
     champion_completed: int,
     champion_failed: int,
+    support_gate_has_resolution_signals: bool,
+    champion_has_resolution_signals: bool,
 ) -> dict[str, Any]:
     warnings: list[str] = []
 
@@ -453,13 +533,21 @@ def _build_support_metrics_quality(
         support_gate_resolved = support_gate_completed + support_gate_failed
         if support_gate_resolved > support_gate_count:
             warnings.append("support_gate_resolution_inconsistent")
-        if support_gate_count > 0 and support_gate_resolved == 0:
+        if (
+            support_gate_count > 0
+            and support_gate_resolved == 0
+            and not support_gate_has_resolution_signals
+        ):
             warnings.append("support_gate_resolution_missing")
 
         champion_resolved = champion_completed + champion_failed
         if champion_resolved > champion_count:
             warnings.append("champion_resolution_inconsistent")
-        if champion_count > 0 and champion_resolved == 0:
+        if (
+            champion_count > 0
+            and champion_resolved == 0
+            and not champion_has_resolution_signals
+        ):
             warnings.append("champion_resolution_missing")
 
         champion_metric_keys = (
@@ -592,17 +680,55 @@ def build_summary(
         objective_id = str(record.get("objective_id", "unknown")).strip() or "unknown"
         objective_counts[objective_id] = objective_counts.get(objective_id, 0) + 1
 
-    support_gate_records = [record for record in filtered_records if str(record.get("objective_id", "")) == "support_gate"]
-    attempts_values = [_as_float(record.get("support_gate_run_attempts")) for record in support_gate_records]
-    success_values = [_as_float(record.get("support_gate_run_success")) for record in support_gate_records]
-    success_rate_values = [_as_float(record.get("support_gate_run_success_rate")) for record in support_gate_records]
-    available_rate_values = [_as_float(record.get("support_gate_run_available_ratio")) for record in support_gate_records]
+    support_gate_records = [
+        record for record in filtered_records if str(record.get("objective_id", "")) == "support_gate"
+    ]
+    if not support_gate_records:
+        # Debug/CI runtime exports can carry support_gate metrics under rally_champion objective.
+        support_gate_records = [
+            record for record in filtered_records if _record_has_support_gate_runtime_metrics(record)
+        ]
+
+    attempts_values = [
+        _as_float(_get_record_metric(record, "support_gate_run_attempts", "support_gate", "run_attempts"))
+        for record in support_gate_records
+    ]
+    success_values = [
+        _as_float(_get_record_metric(record, "support_gate_run_success", "support_gate", "run_success"))
+        for record in support_gate_records
+    ]
+    success_rate_values = [
+        _as_float(
+            _get_record_metric(record, "support_gate_run_success_rate", "support_gate", "run_success_rate")
+        )
+        for record in support_gate_records
+    ]
+    available_rate_values = [
+        _as_float(
+            _get_record_metric(record, "support_gate_run_available_ratio", "support_gate", "run_available_ratio")
+        )
+        for record in support_gate_records
+    ]
     support_gate_cooldown_values = [
-        _as_float(record.get("support_gate_run_cooldown_blocked"))
+        _as_float(
+            _get_record_metric(
+                record,
+                "support_gate_run_cooldown_blocked",
+                "support_gate",
+                "run_cooldown_blocked",
+            )
+        )
         for record in support_gate_records
     ]
     support_gate_unavailable_values = [
-        _as_float(record.get("support_gate_run_unavailable"))
+        _as_float(
+            _get_record_metric(
+                record,
+                "support_gate_run_unavailable",
+                "support_gate",
+                "run_unavailable",
+            )
+        )
         for record in support_gate_records
     ]
     success_rate_numeric_values = [value for value in success_rate_values if value is not None]
@@ -624,6 +750,9 @@ def build_summary(
             support_gate_completed += 1
         elif objective_status == "failed":
             support_gate_failed += 1
+    support_gate_has_resolution_signals = any(
+        _record_has_support_gate_resolution_signals(record) for record in support_gate_records
+    )
 
     objective_success_rate: float | None = None
     total_resolved = support_gate_completed + support_gate_failed
@@ -637,15 +766,26 @@ def build_summary(
         record for record in filtered_records if str(record.get("objective_id", "")) == "rally_champion"
     ]
     champion_attempt_values = [
-        _as_float(record.get("champion_support_run_attempts"))
+        _as_float(
+            _get_record_metric(record, "champion_support_run_attempts", "champion_support", "run_attempts")
+        )
         for record in champion_support_records
     ]
     champion_success_values = [
-        _as_float(record.get("champion_support_run_success"))
+        _as_float(
+            _get_record_metric(record, "champion_support_run_success", "champion_support", "run_success")
+        )
         for record in champion_support_records
     ]
     champion_success_rate_values = [
-        _as_float(record.get("champion_support_run_success_rate"))
+        _as_float(
+            _get_record_metric(
+                record,
+                "champion_support_run_success_rate",
+                "champion_support",
+                "run_success_rate",
+            )
+        )
         for record in champion_support_records
     ]
     champion_success_rate_numeric_values = [
@@ -655,27 +795,40 @@ def build_summary(
     champion_success_avg = _average([value for value in champion_success_values if value is not None])
     champion_success_rate_avg = _average(champion_success_rate_numeric_values)
     champion_attempt_total_values = [
-        _as_float(record.get("champion_support_attempts_total"))
+        _as_float(_get_record_metric(record, "champion_support_attempts_total", "champion_support", "attempts_total"))
         for record in champion_support_records
     ]
     champion_success_total_values = [
-        _as_float(record.get("champion_support_success_total"))
+        _as_float(_get_record_metric(record, "champion_support_success_total", "champion_support", "success_total"))
         for record in champion_support_records
     ]
     champion_unavailable_total_values = [
-        _as_float(record.get("champion_support_unavailable_total"))
+        _as_float(
+            _get_record_metric(record, "champion_support_unavailable_total", "champion_support", "unavailable_total")
+        )
         for record in champion_support_records
     ]
     champion_cooldown_total_values = [
-        _as_float(record.get("champion_support_cooldown_blocked_total"))
+        _as_float(
+            _get_record_metric(
+                record,
+                "champion_support_cooldown_blocked_total",
+                "champion_support",
+                "cooldown_blocked_total",
+            )
+        )
         for record in champion_support_records
     ]
     champion_completed_total_values = [
-        _as_float(record.get("champion_support_completed_total"))
+        _as_float(
+            _get_record_metric(record, "champion_support_completed_total", "champion_support", "completed_total")
+        )
         for record in champion_support_records
     ]
     champion_failed_total_values = [
-        _as_float(record.get("champion_support_failed_total"))
+        _as_float(
+            _get_record_metric(record, "champion_support_failed_total", "champion_support", "failed_total")
+        )
         for record in champion_support_records
     ]
     champion_attempt_total_avg = _average(
@@ -701,10 +854,18 @@ def build_summary(
     champion_failed = 0
     for record in champion_support_records:
         objective_status = str(record.get("objective_status", "")).strip().lower()
+        if objective_status == "":
+            champion_resolution_status = str(
+                _as_dict(record.get("champion_resolution")).get("objective_status", "")
+            ).strip().lower()
+            objective_status = champion_resolution_status
         if objective_status == "completed":
             champion_completed += 1
         elif objective_status == "failed":
             champion_failed += 1
+    champion_has_resolution_signals = any(
+        _record_has_champion_resolution_signals(record) for record in champion_support_records
+    )
 
     champion_objective_success_rate: float | None = None
     champion_resolved = champion_completed + champion_failed
@@ -785,6 +946,8 @@ def build_summary(
         champion_unavailable_values=champion_unavailable_total_values,
         champion_completed=champion_completed,
         champion_failed=champion_failed,
+        support_gate_has_resolution_signals=support_gate_has_resolution_signals,
+        champion_has_resolution_signals=champion_has_resolution_signals,
     )
 
     champion_best_run = _pick_best_champion_run(champion_support_records)

@@ -1047,6 +1047,218 @@ class RunMetricsHistoryAnalysisToolTests(unittest.TestCase):
         self.assertEqual(quality["state"], "incomplete")
         self.assertIn("support_gate_missing", quality["warnings"])
 
+    def test_support_metrics_quality_support_gate_nested_metrics_are_counted(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_nested_gate",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "support_gate": {
+                            "run_attempts": 2,
+                            "run_success": 1,
+                            "run_success_rate": 0.50,
+                            "run_available_ratio": 0.40,
+                            "completed_total": 0,
+                            "failed_total": 0,
+                        },
+                        "champion_support_run_attempts": 3,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.33,
+                        "champion_support_run_completed": 0,
+                        "champion_support_run_failed": 0,
+                    }
+                )
+            ]
+        )
+        self.assertEqual(summary["support_gate"]["records"], 1)
+        quality = summary["support_metrics_quality"]
+        self.assertNotIn("support_gate_missing", quality["warnings"])
+
+    def test_support_metrics_quality_top_level_support_gate_metrics_are_counted(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_top_gate",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "support_gate_run_attempts": 2,
+                        "support_gate_run_success": 1,
+                        "support_gate_run_success_rate": 0.50,
+                        "support_gate_run_available_ratio": 0.40,
+                        "support_gate_completed_total": 0,
+                        "support_gate_failed_total": 0,
+                        "champion_support_run_attempts": 3,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.33,
+                        "champion_support_run_completed": 0,
+                        "champion_support_run_failed": 0,
+                    }
+                )
+            ]
+        )
+        self.assertEqual(summary["support_gate"]["records"], 1)
+        quality = summary["support_metrics_quality"]
+        self.assertNotIn("support_gate_missing", quality["warnings"])
+
+    def test_support_metrics_quality_champion_resolution_top_level_is_not_missing(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_top_resolution",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "support_gate_run_attempts": 1,
+                        "support_gate_run_success": 0,
+                        "support_gate_run_success_rate": 0.0,
+                        "support_gate_run_available_ratio": 0.30,
+                        "support_gate_completed_total": 0,
+                        "support_gate_failed_total": 0,
+                        "champion_support_run_attempts": 3,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.33,
+                        "champion_support_run_completed": 0,
+                        "champion_support_run_failed": 0,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertNotIn("champion_resolution_missing", quality["warnings"])
+
+    def test_support_metrics_quality_champion_resolution_nested_is_not_missing(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_nested_resolution",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "support_gate_run_attempts": 1,
+                        "support_gate_run_success": 0,
+                        "support_gate_run_success_rate": 0.0,
+                        "support_gate_run_available_ratio": 0.30,
+                        "support_gate_completed_total": 0,
+                        "support_gate_failed_total": 0,
+                        "champion_support_run_attempts": 3,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.33,
+                        "champion_resolution": {
+                            "objective_status": "active",
+                            "run_completed": 0,
+                            "run_failed": 0,
+                            "run_resolved": 0,
+                            "resolved_state": "unresolved",
+                        },
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertNotIn("champion_resolution_missing", quality["warnings"])
+
+    def test_support_metrics_quality_old_export_without_resolution_keeps_warning(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_legacy_warning",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "champion_support_run_attempts": 3,
+                        "champion_support_run_success": 1,
+                        "champion_support_run_success_rate": 0.33,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertIn("support_gate_missing", quality["warnings"])
+        self.assertIn("champion_resolution_missing", quality["warnings"])
+
+    def test_support_metrics_quality_debug_export_enriched_has_no_false_missing(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_debug_enriched",
+                        "export_trigger": "debug_export_on_quit",
+                        "debug_export_on_quit": True,
+                        "gameplay_change_allowed": False,
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "support_gate_run_attempts": 0,
+                        "support_gate_run_success": 0,
+                        "support_gate_run_success_rate": 0.0,
+                        "support_gate_run_available_ratio": 0.0,
+                        "support_gate_completed_total": 0,
+                        "support_gate_failed_total": 0,
+                        "support_gate": {
+                            "run_attempts": 0,
+                            "run_success": 0,
+                            "run_success_rate": 0.0,
+                            "run_available_ratio": 0.0,
+                            "completed_total": 0,
+                            "failed_total": 0,
+                        },
+                        "champion_support_run_attempts": 0,
+                        "champion_support_run_success": 0,
+                        "champion_support_run_success_rate": 0.0,
+                        "champion_support_run_completed": 0,
+                        "champion_support_run_failed": 0,
+                        "champion_support": {
+                            "run_attempts": 0,
+                            "run_success": 0,
+                            "run_success_rate": 0.0,
+                            "run_completed": 0,
+                            "run_failed": 0,
+                        },
+                        "champion_resolution": {
+                            "objective_status": "active",
+                            "run_completed": 0,
+                            "run_failed": 0,
+                            "run_resolved": 0,
+                            "resolved_state": "unresolved",
+                        },
+                        "missing_payload_fields": [],
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertNotIn("support_gate_missing", quality["warnings"])
+        self.assertNotIn("champion_resolution_missing", quality["warnings"])
+
+    def test_support_metrics_quality_debug_export_missing_payload_fields_stays_reliable(self) -> None:
+        summary = _run_summary_from_rows(
+            [
+                json.dumps(
+                    {
+                        "export_id": "quality_missing_payload_fields",
+                        "objective_id": "rally_champion",
+                        "run_status": "running",
+                        "objective_status": "active",
+                        "missing_payload_fields": ["support_gate", "champion_resolution"],
+                        "champion_support_run_attempts": 1,
+                        "champion_support_run_success": 0,
+                        "champion_support_run_success_rate": 0.0,
+                    }
+                )
+            ]
+        )
+        quality = summary["support_metrics_quality"]
+        self.assertIn("support_gate_missing", quality["warnings"])
+        self.assertIn("champion_resolution_missing", quality["warnings"])
+
     def test_support_metrics_quality_partial_legacy_export(self) -> None:
         summary = _run_summary_from_rows(
             [

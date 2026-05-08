@@ -1048,6 +1048,21 @@ py tools/investigate_support_metrics_runtime.py --baseline outputs/ci/support_me
   - `- gameplay_change_allowed: false`
 - note: ce rapport n'applique aucune decision gameplay automatique; il explique uniquement pourquoi la decision runtime reste bloquee.
 
+## Inspect runtime support metrics entries
+- objectif: verifier rapidement la structure de la derniere entree JSONL baseline/current et confirmer ou se trouvent les champs (`support_gate`, `champion_support`, `champion_resolution`) quand l'analyse signale un warning de schema.
+- script: `tools/inspect_support_metrics_runtime_entry.py`
+- usage recommande:
+```bash
+py tools/inspect_support_metrics_runtime_entry.py --baseline outputs/ci/support_metrics_baseline.jsonl --current outputs/ci/support_metrics_current.jsonl --check
+```
+- sortie:
+  - cles top-level de la derniere entree;
+  - presence + chemin des champs `support_gate`, `champion_support`, `champion_resolution`;
+  - `export_trigger`, `debug_export_on_quit`, `gameplay_change_allowed`;
+  - `missing_payload_fields`;
+  - `payload_has_support_gate`, `payload_has_champion_support`, `payload_has_champion_resolution` si presents.
+- note: inspection/debug uniquement; aucun changement gameplay n'est applique.
+
 ## Runtime gameplay decision protocol
 - objectif: definir une decision gameplay coherente apres le pipeline runtime (`baseline/current`) sans changer le jeu "au feeling".
 - decisions possibles:
