@@ -1217,6 +1217,16 @@ func _build_objective_panel_lines(
             rally_champion_last_block_reason = "attempts_blocked_by_cooldown"
         elif rally_champion_unavailable_seen > 0:
             rally_champion_last_block_reason = "champion_unavailable"
+    if (
+        rally_champion_last_block_reason == ""
+        and rally_champion_attempts_seen <= 0
+        and rally_champion_success_seen <= 0
+        and rally_champion_unavailable_seen <= 0
+        and rally_champion_blocked_cooldown_seen <= 0
+        and active_objective_marker_candidate_count <= 0
+        and active_objective_marker_target_reason == "objective_has_no_actor_target"
+    ):
+        rally_champion_last_block_reason = "no_champion_target"
     var rally_champion_progress_block_reason: String = "objective_not_active"
     if is_rally_champion_objective:
         if rally_champion_success_seen > 0 or rally_champion_progress_current > 0:
@@ -1224,7 +1234,15 @@ func _build_objective_panel_lines(
         elif active_objective_status != "active":
             rally_champion_progress_block_reason = "objective_not_active"
         elif rally_champion_attempts_seen <= 0:
-            if active_objective_marker_target_reason == "no_locked_champion":
+            if (
+                active_objective_marker_target_reason == "objective_has_no_actor_target"
+                and active_objective_marker_candidate_count <= 0
+                and rally_champion_success_seen <= 0
+                and rally_champion_unavailable_seen <= 0
+                and rally_champion_blocked_cooldown_seen <= 0
+            ):
+                rally_champion_progress_block_reason = "no_champion_target"
+            elif active_objective_marker_target_reason == "no_locked_champion":
                 rally_champion_progress_block_reason = "no_locked_champion"
             elif active_objective_marker_target_reason == "no_visual_champion":
                 rally_champion_progress_block_reason = "no_visual_champion"
@@ -1232,6 +1250,8 @@ func _build_objective_panel_lines(
                 rally_champion_progress_block_reason = "champion_unavailable"
             elif active_objective_marker_target_reason == "objective_inactive":
                 rally_champion_progress_block_reason = "objective_not_active"
+            elif rally_champion_last_block_reason != "":
+                rally_champion_progress_block_reason = rally_champion_last_block_reason
             else:
                 rally_champion_progress_block_reason = "no_attempts_seen"
         elif rally_champion_blocked_cooldown_seen > 0 and rally_champion_unavailable_seen <= 0:

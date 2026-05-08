@@ -129,6 +129,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
             "Rally champion progress block: reason=%s attempts=%d success=%d unavailable=%d cooldown=%d",
             content,
         )
+        self.assertIn("rally_champion_last_block_reason = \"no_champion_target\"", content)
+        self.assertIn("active_objective_marker_candidate_count <= 0", content)
+        self.assertIn("active_objective_marker_target_reason == \"objective_has_no_actor_target\"", content)
+        self.assertIn("rally_champion_progress_block_reason = \"no_champion_target\"", content)
+        self.assertIn("rally_champion_progress_block_reason = \"champion_unavailable\"", content)
         self.assertIn("rally_champion_progress_block_reason = \"no_attempts_seen\"", content)
         self.assertIn("func _resolve_active_objective_marker_state() -> Dictionary:", content)
         self.assertIn("marker_visible = bool(marker_actor.objective_marker_active)", content)
@@ -187,6 +192,14 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"rally_champion_unavailable_seen": rally_champion_unavailable_seen_value', content)
         self.assertIn('"rally_champion_last_block_reason": rally_champion_last_block_reason_value', content)
         self.assertIn('"rally_champion_progress_block_summary": rally_champion_progress_block_summary_value', content)
+        self.assertIn("rally_champion_last_block_reason_value = \"no_champion_target\"", content)
+        self.assertIn("active_objective_marker_candidate_count_value <= 0", content)
+        self.assertIn(
+            "active_objective_marker_target_reason_value == \"objective_has_no_actor_target\"",
+            content,
+        )
+        self.assertIn("rally_champion_progress_block_reason_value = \"no_champion_target\"", content)
+        self.assertIn("rally_champion_progress_block_reason_value = \"champion_unavailable\"", content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
@@ -203,6 +216,9 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
             content,
         )
         self.assertIn("lines.append(rally_champion_progress_block_summary)", content)
+        self.assertIn("rally_champion_last_block_reason = \"no_champion_target\"", content)
+        self.assertIn("rally_champion_progress_block_reason = \"no_champion_target\"", content)
+        self.assertIn("rally_champion_progress_block_reason = \"champion_unavailable\"", content)
 
     def test_transition_log_contains_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -265,6 +281,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v245 explains rally_champion non-progression only. Objective rules are unchanged.",
+            content,
+        )
+        self.assertIn(
+            "v247 clarifies rally_champion progress blocker diagnostics only. Gameplay rules are unchanged.",
             content,
         )
 

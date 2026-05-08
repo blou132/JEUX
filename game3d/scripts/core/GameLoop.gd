@@ -2130,6 +2130,16 @@ func get_run_metrics_export_payload(
 			rally_champion_last_block_reason_value = "attempts_blocked_by_cooldown"
 		elif rally_champion_unavailable_seen_value > 0:
 			rally_champion_last_block_reason_value = "champion_unavailable"
+	if (
+		rally_champion_last_block_reason_value == ""
+		and rally_champion_attempts_seen_value <= 0
+		and rally_champion_success_seen_value <= 0
+		and rally_champion_unavailable_seen_value <= 0
+		and rally_champion_blocked_cooldown_seen_value <= 0
+		and active_objective_marker_candidate_count_value <= 0
+		and active_objective_marker_target_reason_value == "objective_has_no_actor_target"
+	):
+		rally_champion_last_block_reason_value = "no_champion_target"
 	var rally_champion_progress_block_reason_value: String = "objective_not_active"
 	if active_objective_id_value == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
 		if rally_champion_success_seen_value > 0 or rally_champion_progress_current_value > 0:
@@ -2137,7 +2147,15 @@ func get_run_metrics_export_payload(
 		elif active_objective_status_value != "active":
 			rally_champion_progress_block_reason_value = "objective_not_active"
 		elif rally_champion_attempts_seen_value <= 0:
-			if active_objective_marker_target_reason_value == "no_locked_champion":
+			if (
+				active_objective_marker_target_reason_value == "objective_has_no_actor_target"
+				and active_objective_marker_candidate_count_value <= 0
+				and rally_champion_success_seen_value <= 0
+				and rally_champion_unavailable_seen_value <= 0
+				and rally_champion_blocked_cooldown_seen_value <= 0
+			):
+				rally_champion_progress_block_reason_value = "no_champion_target"
+			elif active_objective_marker_target_reason_value == "no_locked_champion":
 				rally_champion_progress_block_reason_value = "no_locked_champion"
 			elif active_objective_marker_target_reason_value == "no_visual_champion":
 				rally_champion_progress_block_reason_value = "no_visual_champion"
@@ -2145,6 +2163,8 @@ func get_run_metrics_export_payload(
 				rally_champion_progress_block_reason_value = "champion_unavailable"
 			elif active_objective_marker_target_reason_value == "objective_inactive":
 				rally_champion_progress_block_reason_value = "objective_not_active"
+			elif rally_champion_last_block_reason_value != "":
+				rally_champion_progress_block_reason_value = rally_champion_last_block_reason_value
 			else:
 				rally_champion_progress_block_reason_value = "no_attempts_seen"
 		elif rally_champion_blocked_cooldown_seen_value > 0 and rally_champion_unavailable_seen_value <= 0:
@@ -12003,13 +12023,31 @@ func _build_snapshot() -> Dictionary:
 				rally_champion_last_block_reason = "attempts_blocked_by_cooldown"
 			elif rally_champion_unavailable_seen > 0:
 				rally_champion_last_block_reason = "champion_unavailable"
+		if (
+			rally_champion_last_block_reason == ""
+			and rally_champion_attempts_seen <= 0
+			and rally_champion_success_seen <= 0
+			and rally_champion_unavailable_seen <= 0
+			and rally_champion_blocked_cooldown_seen <= 0
+			and active_objective_marker_candidate_count <= 0
+			and active_objective_marker_target_reason == "objective_has_no_actor_target"
+		):
+			rally_champion_last_block_reason = "no_champion_target"
 
 		if rally_champion_success_seen > 0 or rally_champion_progress_current > 0:
 			rally_champion_progress_block_reason = "support_success_seen"
 		elif active_objective_status != "active":
 			rally_champion_progress_block_reason = "objective_not_active"
 		elif rally_champion_attempts_seen <= 0:
-			if active_objective_marker_target_reason == "no_locked_champion":
+			if (
+				active_objective_marker_target_reason == "objective_has_no_actor_target"
+				and active_objective_marker_candidate_count <= 0
+				and rally_champion_success_seen <= 0
+				and rally_champion_unavailable_seen <= 0
+				and rally_champion_blocked_cooldown_seen <= 0
+			):
+				rally_champion_progress_block_reason = "no_champion_target"
+			elif active_objective_marker_target_reason == "no_locked_champion":
 				rally_champion_progress_block_reason = "no_locked_champion"
 			elif active_objective_marker_target_reason == "no_visual_champion":
 				rally_champion_progress_block_reason = "no_visual_champion"
@@ -12017,6 +12055,8 @@ func _build_snapshot() -> Dictionary:
 				rally_champion_progress_block_reason = "champion_unavailable"
 			elif active_objective_marker_target_reason == "objective_inactive":
 				rally_champion_progress_block_reason = "objective_not_active"
+			elif rally_champion_last_block_reason != "":
+				rally_champion_progress_block_reason = rally_champion_last_block_reason
 			else:
 				rally_champion_progress_block_reason = "no_attempts_seen"
 		elif rally_champion_blocked_cooldown_seen > 0 and rally_champion_unavailable_seen <= 0:
