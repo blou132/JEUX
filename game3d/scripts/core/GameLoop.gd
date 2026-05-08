@@ -1910,6 +1910,37 @@ func get_run_metrics_export_payload(
 	var support_gate_payload: Variant = _build_support_gate_export_payload(snapshot)
 	var champion_support_payload: Variant = _build_champion_support_export_payload(snapshot)
 	var champion_resolution_payload: Variant = _build_champion_resolution_export_payload(snapshot)
+	var active_objective_id_value: String = str(
+		snapshot.get("active_objective_id", snapshot.get("objective_id", world_objective_id))
+	).strip_edges()
+	if active_objective_id_value == "":
+		active_objective_id_value = "none"
+	var active_objective_label_value: String = str(
+		snapshot.get("active_objective_label", snapshot.get("objective_title", world_objective_title))
+	).strip_edges()
+	if active_objective_label_value == "":
+		active_objective_label_value = active_objective_id_value
+	var active_objective_status_value: String = str(
+		snapshot.get("active_objective_status", snapshot.get("objective_status", world_objective_status))
+	).strip_edges()
+	if active_objective_status_value == "":
+		active_objective_status_value = "inactive"
+	var active_objective_target_value: String = str(
+		snapshot.get(
+			"active_objective_target",
+			snapshot.get("objective_completion_target_label", world_objective_completion_target_label)
+		)
+	).strip_edges()
+	if active_objective_target_value == "":
+		active_objective_target_value = "n/a"
+	var active_objective_summary_value: String = str(
+		snapshot.get("active_objective_summary", "")
+	).strip_edges()
+	if active_objective_summary_value == "":
+		active_objective_summary_value = (
+			"Active objective: %s status=%s target=%s"
+			% [active_objective_id_value, active_objective_status_value, active_objective_target_value]
+		)
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -1922,6 +1953,11 @@ func get_run_metrics_export_payload(
 		"objective_result_label": str(snapshot.get("objective_result_label", world_objective_result_label)),
 		"objective_elapsed": float(snapshot.get("objective_elapsed", world_objective_elapsed)),
 		"objective_progress": float(snapshot.get("objective_progress", world_objective_progress)),
+		"active_objective_id": active_objective_id_value,
+		"active_objective_label": active_objective_label_value,
+		"active_objective_status": active_objective_status_value,
+		"active_objective_target": active_objective_target_value,
+		"active_objective_summary": active_objective_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -11613,6 +11649,22 @@ func _build_snapshot() -> Dictionary:
 	var champion_support_lock_label: String = _get_champion_support_lock_label()
 	var objective_selected_index: int = world_objective_available_ids.find(world_objective_id)
 	var objective_available_count: int = world_objective_available_ids.size()
+	var active_objective_id: String = world_objective_id.strip_edges()
+	if active_objective_id == "":
+		active_objective_id = "none"
+	var active_objective_label: String = world_objective_title.strip_edges()
+	if active_objective_label == "":
+		active_objective_label = active_objective_id
+	var active_objective_status: String = world_objective_status.strip_edges()
+	if active_objective_status == "":
+		active_objective_status = "inactive"
+	var active_objective_target: String = world_objective_completion_target_label.strip_edges()
+	if active_objective_target == "":
+		active_objective_target = "n/a"
+	var active_objective_summary: String = (
+		"Active objective: %s status=%s target=%s"
+		% [active_objective_id, active_objective_status, active_objective_target]
+	)
 
 	return {
 		"tick": tick_index,
@@ -11665,6 +11717,11 @@ func _build_snapshot() -> Dictionary:
 		"objective_available_ids": world_objective_available_ids,
 		"objective_selected_index": objective_selected_index,
 		"objective_available_count": objective_available_count,
+		"active_objective_id": active_objective_id,
+		"active_objective_label": active_objective_label,
+		"active_objective_status": active_objective_status,
+		"active_objective_target": active_objective_target,
+		"active_objective_summary": active_objective_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

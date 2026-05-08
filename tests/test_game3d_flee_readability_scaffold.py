@@ -67,6 +67,8 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("func _build_flee_indicator_line(snapshot: Dictionary) -> String:", content)
         self.assertIn("Flee indicator: visible=%s urgency=%s pulse=%s", content)
         self.assertIn("var flee_indicator_line: String = _build_flee_indicator_line(snapshot)", content)
+        self.assertIn("Active objective: %s status=%s target=%s", content)
+        self.assertIn("lines.append(active_objective_summary)", content)
 
     def test_flee_indicator_reads_reason_and_threat_kind(self) -> None:
         content = ACTOR_PATH.read_text(encoding="utf-8")
@@ -88,6 +90,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"flee_readability_summary": flee_readability_summary', content)
         self.assertIn('"active": flee_feedback_actor != "none"', content)
         self.assertIn('"threat_distance": flee_threat_distance_value', content)
+        self.assertIn('"active_objective_id": active_objective_id', content)
+        self.assertIn('"active_objective_label": active_objective_label', content)
+        self.assertIn('"active_objective_status": active_objective_status', content)
+        self.assertIn('"active_objective_target": active_objective_target', content)
+        self.assertIn('"active_objective_summary": active_objective_summary', content)
 
     def test_export_payload_exposes_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -100,6 +107,11 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"flee_indicator_pulse": bool(snapshot.get("flee_indicator_pulse", false))', content)
         self.assertIn('"flee_indicator_summary": str(snapshot.get("flee_indicator_summary", ""))', content)
         self.assertIn('"flee_readability": flee_readability_payload', content)
+        self.assertIn('"active_objective_id": active_objective_id_value', content)
+        self.assertIn('"active_objective_label": active_objective_label_value', content)
+        self.assertIn('"active_objective_status": active_objective_status_value', content)
+        self.assertIn('"active_objective_target": active_objective_target_value', content)
+        self.assertIn('"active_objective_summary": active_objective_summary_value', content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
@@ -143,6 +155,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v236 validates the in-world flee indicator visibility. No flee logic or balance change.",
+            content,
+        )
+        self.assertIn(
+            "v237 improves active objective readability only; objective rules are unchanged.",
             content,
         )
 
