@@ -1929,6 +1929,9 @@ func get_run_metrics_export_payload(
 		"flee_threat_kind": str(snapshot.get("flee_threat_kind", "")),
 		"flee_threat_distance": snapshot.get("flee_threat_distance", null),
 		"flee_urgency": snapshot.get("flee_urgency", null),
+		"flee_indicator_visible": bool(snapshot.get("flee_indicator_visible", false)),
+		"flee_indicator_pulse": bool(snapshot.get("flee_indicator_pulse", false)),
+		"flee_indicator_summary": str(snapshot.get("flee_indicator_summary", "")),
 		"flee_readability_summary": str(snapshot.get("flee_readability_summary", "")),
 		"flee_readability": flee_readability_payload,
 		"champion_support_run_attempts": int(snapshot.get("champion_support_run_attempts", 0)),
@@ -11090,6 +11093,8 @@ func _build_snapshot() -> Dictionary:
 	var flee_threat_kind: String = ""
 	var flee_threat_distance: float = -1.0
 	var flee_urgency: float = -1.0
+	var flee_indicator_visible: bool = false
+	var flee_indicator_pulse: bool = false
 
 	for actor in actors:
 		if actor == null or actor.is_dead:
@@ -11191,6 +11196,8 @@ func _build_snapshot() -> Dictionary:
 			flee_threat_kind = actor.flee_threat_kind
 			flee_threat_distance = actor.flee_threat_distance
 			flee_urgency = actor.flee_urgency
+			flee_indicator_visible = actor.flee_indicator_visible
+			flee_indicator_pulse = actor.flee_indicator_pulse_visible
 
 	var avg_hp: float = hp_total / alive_total if alive_total > 0 else 0.0
 	var avg_energy: float = energy_total / alive_total if alive_total > 0 else 0.0
@@ -11235,6 +11242,14 @@ func _build_snapshot() -> Dictionary:
 			str(flee_readability.get("threat_kind", "n/a")),
 			flee_distance_summary_label,
 			flee_urgency_summary_label
+		]
+	)
+	var flee_indicator_summary: String = (
+		"Flee indicator: visible=%s urgency=%s pulse=%s"
+		% [
+			"yes" if flee_indicator_visible else "no",
+			flee_urgency_summary_label,
+			"yes" if flee_indicator_pulse else "no"
 		]
 	)
 	var poi_population := world_manager.get_poi_population_snapshot(actors)
@@ -11983,6 +11998,9 @@ func _build_snapshot() -> Dictionary:
 		"flee_threat_kind": flee_threat_kind,
 		"flee_threat_distance": flee_threat_distance,
 		"flee_urgency": flee_urgency,
+		"flee_indicator_visible": flee_indicator_visible,
+		"flee_indicator_pulse": flee_indicator_pulse,
+		"flee_indicator_summary": flee_indicator_summary,
 		"flee_readability": flee_readability,
 		"flee_readability_summary": flee_readability_summary,
 		"engagements_total": engagements_total,

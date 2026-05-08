@@ -1045,6 +1045,7 @@ py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --mi
 - v233 gameplay/debug note: `v233 validates flee/threat readability in runtime/debug outputs.`
 - flee rules still unchanged: `runtime readability only, no flee logic change.`
 - v235 gameplay/debug note: `v235 adds an in-world flee readability indicator. It does not change flee rules or balance.`
+- v236 gameplay/debug note: `v236 validates the in-world flee indicator visibility. No flee logic or balance change.`
 
 ## Investigate runtime support metrics decision
 - objectif: produire un rapport local d'investigation quand la decision runtime vaut `investigate_metrics`, pour expliquer les warnings/donnees incoherentes qui bloquent une decision `keep/revert`.

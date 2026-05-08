@@ -904,6 +904,9 @@ func update_overlay(snapshot: Dictionary, events: Array[String]) -> void:
     var flee_feedback_line: String = _build_flee_feedback_line(snapshot)
     if flee_feedback_line != "":
         lines.append(flee_feedback_line)
+    var flee_indicator_line: String = _build_flee_indicator_line(snapshot)
+    if flee_indicator_line != "":
+        lines.append(flee_indicator_line)
     lines.append(
         "POI events: arrivals=%d contests=%d domination_shifts=%d"
         % [
@@ -1283,6 +1286,25 @@ func _build_flee_feedback_line(snapshot: Dictionary) -> String:
     )
 
 
+func _build_flee_indicator_line(snapshot: Dictionary) -> String:
+    var summary: String = str(snapshot.get("flee_indicator_summary", "")).strip_edges()
+    if summary != "":
+        return summary
+    var visible: bool = bool(snapshot.get("flee_indicator_visible", false))
+    var urgency_value: Variant = snapshot.get("flee_urgency", -1.0)
+    var urgency_label: String = "n/a"
+    if typeof(urgency_value) in [TYPE_FLOAT, TYPE_INT] and float(urgency_value) >= 0.0:
+        urgency_label = "%.2f" % clampf(float(urgency_value), 0.0, 1.0)
+    return (
+        "Flee indicator: visible=%s urgency=%s pulse=%s"
+        % [
+            "yes" if visible else "no",
+            urgency_label,
+            "yes" if bool(snapshot.get("flee_indicator_pulse", false)) else "no"
+        ]
+    )
+
+
 func _build_run_result_panel_lines(
     snapshot: Dictionary,
     max_result_lines: int = 4
@@ -1455,6 +1477,9 @@ func _build_debug_compact_overlay_lines(snapshot: Dictionary) -> Array[String]:
     var flee_feedback_line: String = _build_flee_feedback_line(snapshot)
     if flee_feedback_line != "":
         lines.append(flee_feedback_line)
+    var flee_indicator_line: String = _build_flee_indicator_line(snapshot)
+    if flee_indicator_line != "":
+        lines.append(flee_indicator_line)
     lines.append(
         "Metrics export: count=%d latest=%s history=%s"
         % [

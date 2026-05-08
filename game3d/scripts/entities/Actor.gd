@@ -67,6 +67,8 @@ var flee_reason: String = ""
 var flee_threat_kind: String = ""
 var flee_threat_distance: float = -1.0
 var flee_urgency: float = -1.0
+var flee_indicator_visible: bool = false
+var flee_indicator_pulse_visible: bool = false
 var allegiance_id: String = ""
 var home_poi: String = ""
 var rally_leader_id: int = 0
@@ -277,6 +279,7 @@ func apply_damage(amount: float, source: Actor, damage_type: String) -> void:
 		is_dead = true
 		state = "dead"
 		death_reason = damage_type
+		_refresh_control_visual()
 
 
 func can_cast_magic() -> bool:
@@ -1166,6 +1169,14 @@ func _refresh_control_visual() -> void:
 
 
 func _build_flee_indicator_visual(body_height: float) -> void:
+	if _flee_indicator_root != null and is_instance_valid(_flee_indicator_root):
+		return
+
+	_flee_indicator_root = null
+	_flee_indicator_stem = null
+	_flee_indicator_dot = null
+	_flee_indicator_pulse = null
+
 	var indicator_root := Node3D.new()
 	indicator_root.name = "FleeIndicator"
 	indicator_root.position = Vector3(0.0, body_height + 0.72, 0.0)
@@ -1215,8 +1226,10 @@ func _refresh_flee_indicator_visual() -> void:
 
 	var is_fleeing: bool = state == "flee" and not is_dead
 	_flee_indicator_root.visible = is_fleeing
+	flee_indicator_visible = is_fleeing
 	if not is_fleeing:
 		_flee_indicator_pulse.visible = false
+		flee_indicator_pulse_visible = false
 		return
 
 	var urgency: float = 0.35
@@ -1238,6 +1251,7 @@ func _refresh_flee_indicator_visual() -> void:
 	_flee_indicator_stem.scale = Vector3.ONE * (1.22 if high_urgency else 0.88)
 	_flee_indicator_dot.scale = Vector3.ONE * (1.30 if high_urgency else 0.98)
 	_flee_indicator_pulse.visible = high_urgency
+	flee_indicator_pulse_visible = high_urgency
 	_flee_indicator_pulse.scale = Vector3.ONE * (1.08 + urgency * 0.52)
 
 	_apply_flee_indicator_material(_flee_indicator_stem, indicator_color, 0.48 + urgency * 0.42)

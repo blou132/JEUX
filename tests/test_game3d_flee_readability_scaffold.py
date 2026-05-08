@@ -34,21 +34,39 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
 
     def test_actor_builds_in_world_flee_indicator(self) -> None:
         content = ACTOR_PATH.read_text(encoding="utf-8")
+        self.assertIn("var flee_indicator_visible: bool = false", content)
+        self.assertIn("var flee_indicator_pulse_visible: bool = false", content)
         self.assertIn("var _flee_indicator_root: Node3D = null", content)
         self.assertIn("var _flee_indicator_stem: MeshInstance3D = null", content)
         self.assertIn("var _flee_indicator_dot: MeshInstance3D = null", content)
         self.assertIn("var _flee_indicator_pulse: MeshInstance3D = null", content)
         self.assertIn("_build_flee_indicator_visual(body.position.y)", content)
         self.assertIn("func _build_flee_indicator_visual(body_height: float) -> void:", content)
+        self.assertIn(
+            "if _flee_indicator_root != null and is_instance_valid(_flee_indicator_root):",
+            content,
+        )
+        self.assertIn("return", content)
 
     def test_flee_indicator_is_state_driven_and_urgency_aware(self) -> None:
         content = ACTOR_PATH.read_text(encoding="utf-8")
         self.assertIn("var is_fleeing: bool = state == \"flee\" and not is_dead", content)
         self.assertIn("_flee_indicator_root.visible = is_fleeing", content)
+        self.assertIn("flee_indicator_visible = is_fleeing", content)
         self.assertIn("if not is_fleeing:", content)
+        self.assertIn("flee_indicator_pulse_visible = false", content)
         self.assertIn("if flee_urgency >= 0.0:", content)
         self.assertIn("var high_urgency: bool = urgency >= 0.65", content)
         self.assertIn("_flee_indicator_pulse.visible = high_urgency", content)
+        self.assertIn("flee_indicator_pulse_visible = high_urgency", content)
+        self.assertIn("_flee_indicator_stem.scale = Vector3.ONE * (1.22 if high_urgency else 0.88)", content)
+        self.assertIn("_flee_indicator_dot.scale = Vector3.ONE * (1.30 if high_urgency else 0.98)", content)
+
+    def test_flee_indicator_debug_line_is_available_in_overlay(self) -> None:
+        content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
+        self.assertIn("func _build_flee_indicator_line(snapshot: Dictionary) -> String:", content)
+        self.assertIn("Flee indicator: visible=%s urgency=%s pulse=%s", content)
+        self.assertIn("var flee_indicator_line: String = _build_flee_indicator_line(snapshot)", content)
 
     def test_flee_indicator_reads_reason_and_threat_kind(self) -> None:
         content = ACTOR_PATH.read_text(encoding="utf-8")
@@ -63,6 +81,9 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"flee_threat_kind": flee_threat_kind', content)
         self.assertIn('"flee_threat_distance": flee_threat_distance', content)
         self.assertIn('"flee_urgency": flee_urgency', content)
+        self.assertIn('"flee_indicator_visible": flee_indicator_visible', content)
+        self.assertIn('"flee_indicator_pulse": flee_indicator_pulse', content)
+        self.assertIn('"flee_indicator_summary": flee_indicator_summary', content)
         self.assertIn('"flee_readability": flee_readability', content)
         self.assertIn('"flee_readability_summary": flee_readability_summary', content)
         self.assertIn('"active": flee_feedback_actor != "none"', content)
@@ -75,6 +96,9 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"flee_threat_kind": str(snapshot.get("flee_threat_kind", ""))', content)
         self.assertIn('"flee_threat_distance": snapshot.get("flee_threat_distance", null)', content)
         self.assertIn('"flee_urgency": snapshot.get("flee_urgency", null)', content)
+        self.assertIn('"flee_indicator_visible": bool(snapshot.get("flee_indicator_visible", false))', content)
+        self.assertIn('"flee_indicator_pulse": bool(snapshot.get("flee_indicator_pulse", false))', content)
+        self.assertIn('"flee_indicator_summary": str(snapshot.get("flee_indicator_summary", ""))', content)
         self.assertIn('"flee_readability": flee_readability_payload', content)
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
@@ -115,6 +139,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("runtime readability only, no flee logic change", content)
         self.assertIn(
             "v235 adds an in-world flee readability indicator. It does not change flee rules or balance.",
+            content,
+        )
+        self.assertIn(
+            "v236 validates the in-world flee indicator visibility. No flee logic or balance change.",
             content,
         )
 
