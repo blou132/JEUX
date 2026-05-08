@@ -1091,6 +1091,14 @@ func _build_objective_panel_lines(
     ).strip_edges()
     if active_objective_marker_target == "":
         active_objective_marker_target = "none"
+    var active_objective_marker_target_reason: String = str(
+        snapshot.get("active_objective_marker_target_reason", "unsupported_objective_target")
+    ).strip_edges()
+    if active_objective_marker_target_reason == "":
+        active_objective_marker_target_reason = "unsupported_objective_target"
+    var active_objective_marker_candidate_count: int = int(
+        snapshot.get("active_objective_marker_candidate_count", 0)
+    )
     var active_objective_marker_summary: String = str(
         snapshot.get("active_objective_marker_summary", "")
     ).strip_edges()
@@ -1100,6 +1108,17 @@ func _build_objective_panel_lines(
             % [
                 "yes" if active_objective_marker_visible else "no",
                 active_objective_marker_target
+            ]
+        )
+    var active_objective_marker_resolution_summary: String = str(
+        snapshot.get("active_objective_marker_resolution_summary", "")
+    ).strip_edges()
+    if active_objective_marker_resolution_summary == "":
+        active_objective_marker_resolution_summary = (
+            "Active objective marker resolution: reason=%s candidates=%d"
+            % [
+                active_objective_marker_target_reason,
+                active_objective_marker_candidate_count
             ]
         )
     var objective_progress_label: String = str(snapshot.get("objective_progress_label", "0%")).strip_edges()
@@ -1200,6 +1219,7 @@ func _build_objective_panel_lines(
     lines.append("------------ Objective Panel ------------")
     lines.append(active_objective_summary)
     lines.append(active_objective_marker_summary)
+    lines.append(active_objective_marker_resolution_summary)
     lines.append("Objective: %s" % objective_title)
     lines.append(
         "Objective status: %s | active=%s"

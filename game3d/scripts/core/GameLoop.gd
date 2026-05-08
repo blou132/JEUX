@@ -1456,24 +1456,48 @@ func _update_champion_support_objective_visual_state(delta: float) -> void:
 func _resolve_active_objective_marker_state() -> Dictionary:
 	var marker_visible: bool = false
 	var marker_target: String = "none"
-	if world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION and world_objective_status == "active":
-		var marker_actor: Actor = _get_locked_champion_support_actor()
-		if marker_actor == null and champion_support_visual_actor_id > 0:
-			marker_actor = _find_actor_by_id(champion_support_visual_actor_id)
-		if marker_actor != null and not marker_actor.is_dead:
-			marker_visible = bool(marker_actor.objective_marker_active)
-			marker_target = _actor_label(marker_actor)
-	elif world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE and world_objective_status == "active":
+	var marker_reason: String = "unsupported_objective_target"
+	var marker_candidate_count: int = 0
+	if world_objective_status != "active":
+		marker_reason = "objective_inactive"
+	elif world_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		var candidates: Dictionary = _resolve_champion_support_candidates()
+		marker_candidate_count = max(0, int(candidates.get("candidate_count", 0)))
+		if marker_candidate_count <= 0:
+			marker_reason = "objective_has_no_actor_target"
+		else:
+			var marker_actor: Actor = _get_locked_champion_support_actor()
+			if marker_actor == null:
+				marker_reason = "no_locked_champion"
+				if champion_support_visual_actor_id > 0:
+					marker_actor = _find_actor_by_id(champion_support_visual_actor_id)
+				if marker_actor == null or marker_actor.is_dead:
+					marker_reason = "no_visual_champion"
+			if marker_actor != null and not marker_actor.is_dead:
+				marker_visible = bool(marker_actor.objective_marker_active)
+				marker_target = _actor_label(marker_actor)
+				marker_reason = "marker_target_resolved"
+	elif world_objective_id == WORLD_OBJECTIVE_ID_SUPPORT_GATE:
 		marker_visible = support_gate_visual_state in ["ready", "flash", "cooldown", "unavailable"]
 		marker_target = "rift_gate"
+		marker_reason = "marker_target_resolved"
+	if marker_target == "none" and marker_reason == "":
+		marker_reason = "unsupported_objective_target"
 	var marker_summary: String = (
 		"Active objective marker: visible=%s target=%s"
 		% ["yes" if marker_visible else "no", marker_target]
 	)
+	var marker_resolution_summary: String = (
+		"Active objective marker resolution: reason=%s candidates=%d"
+		% [marker_reason, marker_candidate_count]
+	)
 	return {
 		"active_objective_marker_visible": marker_visible,
 		"active_objective_marker_target": marker_target,
-		"active_objective_marker_summary": marker_summary
+		"active_objective_marker_summary": marker_summary,
+		"active_objective_marker_target_reason": marker_reason,
+		"active_objective_marker_candidate_count": marker_candidate_count,
+		"active_objective_marker_resolution_summary": marker_resolution_summary
 	}
 
 
@@ -1973,6 +1997,15 @@ func get_run_metrics_export_payload(
 	).strip_edges()
 	if active_objective_marker_target_value == "":
 		active_objective_marker_target_value = "none"
+	var active_objective_marker_target_reason_value: String = str(
+		snapshot.get("active_objective_marker_target_reason", "unsupported_objective_target")
+	).strip_edges()
+	if active_objective_marker_target_reason_value == "":
+		active_objective_marker_target_reason_value = "unsupported_objective_target"
+	var active_objective_marker_candidate_count_value: int = max(
+		0,
+		int(snapshot.get("active_objective_marker_candidate_count", 0))
+	)
 	var active_objective_marker_summary_value: String = str(
 		snapshot.get("active_objective_marker_summary", "")
 	).strip_edges()
@@ -1982,6 +2015,17 @@ func get_run_metrics_export_payload(
 			% [
 				"yes" if active_objective_marker_visible_value else "no",
 				active_objective_marker_target_value
+			]
+		)
+	var active_objective_marker_resolution_summary_value: String = str(
+		snapshot.get("active_objective_marker_resolution_summary", "")
+	).strip_edges()
+	if active_objective_marker_resolution_summary_value == "":
+		active_objective_marker_resolution_summary_value = (
+			"Active objective marker resolution: reason=%s candidates=%d"
+			% [
+				active_objective_marker_target_reason_value,
+				active_objective_marker_candidate_count_value
 			]
 		)
 	var payload: Dictionary = {
@@ -2004,6 +2048,9 @@ func get_run_metrics_export_payload(
 		"active_objective_marker_visible": active_objective_marker_visible_value,
 		"active_objective_marker_target": active_objective_marker_target_value,
 		"active_objective_marker_summary": active_objective_marker_summary_value,
+		"active_objective_marker_target_reason": active_objective_marker_target_reason_value,
+		"active_objective_marker_candidate_count": active_objective_marker_candidate_count_value,
+		"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -11720,6 +11767,15 @@ func _build_snapshot() -> Dictionary:
 	).strip_edges()
 	if active_objective_marker_target == "":
 		active_objective_marker_target = "none"
+	var active_objective_marker_target_reason: String = str(
+		active_objective_marker_state.get("active_objective_marker_target_reason", "unsupported_objective_target")
+	).strip_edges()
+	if active_objective_marker_target_reason == "":
+		active_objective_marker_target_reason = "unsupported_objective_target"
+	var active_objective_marker_candidate_count: int = max(
+		0,
+		int(active_objective_marker_state.get("active_objective_marker_candidate_count", 0))
+	)
 	var active_objective_marker_summary: String = str(
 		active_objective_marker_state.get("active_objective_marker_summary", "")
 	).strip_edges()
@@ -11727,6 +11783,14 @@ func _build_snapshot() -> Dictionary:
 		active_objective_marker_summary = (
 			"Active objective marker: visible=%s target=%s"
 			% ["yes" if active_objective_marker_visible else "no", active_objective_marker_target]
+		)
+	var active_objective_marker_resolution_summary: String = str(
+		active_objective_marker_state.get("active_objective_marker_resolution_summary", "")
+	).strip_edges()
+	if active_objective_marker_resolution_summary == "":
+		active_objective_marker_resolution_summary = (
+			"Active objective marker resolution: reason=%s candidates=%d"
+			% [active_objective_marker_target_reason, active_objective_marker_candidate_count]
 		)
 
 	return {
@@ -11788,6 +11852,9 @@ func _build_snapshot() -> Dictionary:
 		"active_objective_marker_visible": active_objective_marker_visible,
 		"active_objective_marker_target": active_objective_marker_target,
 		"active_objective_marker_summary": active_objective_marker_summary,
+		"active_objective_marker_target_reason": active_objective_marker_target_reason,
+		"active_objective_marker_candidate_count": active_objective_marker_candidate_count,
+		"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

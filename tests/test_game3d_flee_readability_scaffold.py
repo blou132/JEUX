@@ -110,9 +110,23 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"active_objective_marker_visible": active_objective_marker_visible', content)
         self.assertIn('"active_objective_marker_target": active_objective_marker_target', content)
         self.assertIn('"active_objective_marker_summary": active_objective_marker_summary', content)
+        self.assertIn('"active_objective_marker_target_reason": active_objective_marker_target_reason', content)
+        self.assertIn('"active_objective_marker_candidate_count": active_objective_marker_candidate_count', content)
+        self.assertIn('"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary', content)
         self.assertIn("func _resolve_active_objective_marker_state() -> Dictionary:", content)
         self.assertIn("marker_visible = bool(marker_actor.objective_marker_active)", content)
         self.assertIn("marker_target = \"rift_gate\"", content)
+        self.assertIn("var marker_reason: String = \"unsupported_objective_target\"", content)
+        self.assertIn("var marker_candidate_count: int = 0", content)
+        self.assertIn("marker_reason = \"no_locked_champion\"", content)
+        self.assertIn("marker_reason = \"no_visual_champion\"", content)
+        self.assertIn("marker_reason = \"objective_has_no_actor_target\"", content)
+        self.assertIn("marker_reason = \"marker_target_resolved\"", content)
+        self.assertIn("if marker_target == \"none\" and marker_reason == \"\":", content)
+        self.assertIn(
+            "\"Active objective marker resolution: reason=%s candidates=%d\"",
+            content,
+        )
 
     def test_export_payload_exposes_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -133,6 +147,18 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn('"active_objective_marker_visible": active_objective_marker_visible_value', content)
         self.assertIn('"active_objective_marker_target": active_objective_marker_target_value', content)
         self.assertIn('"active_objective_marker_summary": active_objective_marker_summary_value', content)
+        self.assertIn(
+            '"active_objective_marker_target_reason": active_objective_marker_target_reason_value',
+            content,
+        )
+        self.assertIn(
+            '"active_objective_marker_candidate_count": active_objective_marker_candidate_count_value',
+            content,
+        )
+        self.assertIn(
+            '"active_objective_marker_resolution_summary": active_objective_marker_resolution_summary_value',
+            content,
+        )
 
     def test_debug_overlay_renders_flee_feedback(self) -> None:
         content = DEBUG_OVERLAY_PATH.read_text(encoding="utf-8")
@@ -140,6 +166,8 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("Flee readability: reason=%s threat=%s distance=%s urgency=%s", content)
         self.assertIn("Active objective marker: visible=%s target=%s", content)
         self.assertIn("lines.append(active_objective_marker_summary)", content)
+        self.assertIn("Active objective marker resolution: reason=%s candidates=%d", content)
+        self.assertIn("lines.append(active_objective_marker_resolution_summary)", content)
 
     def test_transition_log_contains_flee_readability_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
@@ -190,6 +218,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         )
         self.assertIn(
             "v239 adds an in-world active objective marker. Objective rules are unchanged.",
+            content,
+        )
+        self.assertIn(
+            "v241 explains active objective marker target resolution only. It does not force objective targets.",
             content,
         )
 
