@@ -635,6 +635,7 @@ var champion_support_unavailable_total: int = 0
 var champion_support_cooldown_blocked_total: int = 0
 var champion_support_completed_total: int = 0
 var champion_support_failed_total: int = 0
+var champion_support_last_block_reason: String = ""
 var support_gate_first_success_time: float = -1.0
 var support_gate_last_success_time: float = -1.0
 var support_gate_available_time_total: float = 0.0
@@ -1578,8 +1579,12 @@ func _register_champion_support_interaction_blocked(feedback_type: String) -> vo
 	var normalized_type: String = feedback_type.strip_edges().to_lower()
 	if normalized_type == "cooldown":
 		champion_support_cooldown_blocked_total += 1
+		champion_support_last_block_reason = "attempts_blocked_by_cooldown"
 	elif normalized_type == "unavailable":
 		champion_support_unavailable_total += 1
+		champion_support_last_block_reason = "champion_unavailable"
+	elif normalized_type != "":
+		champion_support_last_block_reason = normalized_type
 
 
 func _register_champion_support_interaction_success() -> void:
@@ -2081,6 +2086,89 @@ func get_run_metrics_export_payload(
 			)
 		else:
 			rally_champion_progress_summary_value = "Rally champion progress: n/a"
+	var rally_champion_attempts_seen_value: int = max(
+		0,
+		int(
+			snapshot.get(
+				"rally_champion_attempts_seen",
+				snapshot.get("champion_support_run_attempts", 0)
+			)
+		)
+	)
+	var rally_champion_success_seen_value: int = max(
+		0,
+		int(
+			snapshot.get(
+				"rally_champion_success_seen",
+				snapshot.get("champion_support_run_success", 0)
+			)
+		)
+	)
+	var rally_champion_blocked_cooldown_seen_value: int = max(
+		0,
+		int(
+			snapshot.get(
+				"rally_champion_blocked_cooldown_seen",
+				snapshot.get("champion_support_run_cooldown_blocked", 0)
+			)
+		)
+	)
+	var rally_champion_unavailable_seen_value: int = max(
+		0,
+		int(
+			snapshot.get(
+				"rally_champion_unavailable_seen",
+				snapshot.get("champion_support_run_unavailable", 0)
+			)
+		)
+	)
+	var rally_champion_last_block_reason_value: String = str(
+		snapshot.get("rally_champion_last_block_reason", champion_support_last_block_reason)
+	).strip_edges()
+	if rally_champion_last_block_reason_value == "":
+		if rally_champion_blocked_cooldown_seen_value > 0:
+			rally_champion_last_block_reason_value = "attempts_blocked_by_cooldown"
+		elif rally_champion_unavailable_seen_value > 0:
+			rally_champion_last_block_reason_value = "champion_unavailable"
+	var rally_champion_progress_block_reason_value: String = "objective_not_active"
+	if active_objective_id_value == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
+		if rally_champion_success_seen_value > 0 or rally_champion_progress_current_value > 0:
+			rally_champion_progress_block_reason_value = "support_success_seen"
+		elif active_objective_status_value != "active":
+			rally_champion_progress_block_reason_value = "objective_not_active"
+		elif rally_champion_attempts_seen_value <= 0:
+			if active_objective_marker_target_reason_value == "no_locked_champion":
+				rally_champion_progress_block_reason_value = "no_locked_champion"
+			elif active_objective_marker_target_reason_value == "no_visual_champion":
+				rally_champion_progress_block_reason_value = "no_visual_champion"
+			elif active_objective_marker_target_reason_value == "objective_has_no_actor_target":
+				rally_champion_progress_block_reason_value = "champion_unavailable"
+			elif active_objective_marker_target_reason_value == "objective_inactive":
+				rally_champion_progress_block_reason_value = "objective_not_active"
+			else:
+				rally_champion_progress_block_reason_value = "no_attempts_seen"
+		elif rally_champion_blocked_cooldown_seen_value > 0 and rally_champion_unavailable_seen_value <= 0:
+			rally_champion_progress_block_reason_value = "attempts_blocked_by_cooldown"
+		elif rally_champion_unavailable_seen_value > 0:
+			rally_champion_progress_block_reason_value = "champion_unavailable"
+		elif rally_champion_last_block_reason_value != "":
+			rally_champion_progress_block_reason_value = rally_champion_last_block_reason_value
+		else:
+			rally_champion_progress_block_reason_value = "no_attempts_seen"
+	var rally_champion_progress_block_summary_value: String = str(
+		snapshot.get("rally_champion_progress_block_summary", "")
+	).strip_edges()
+	if rally_champion_progress_block_summary_value == "":
+		rally_champion_progress_block_summary_value = (
+			"Rally champion progress block: reason=%s attempts=%d success=%d unavailable=%d cooldown=%d"
+			% [
+				rally_champion_progress_block_reason_value,
+				rally_champion_attempts_seen_value,
+				rally_champion_success_seen_value,
+				rally_champion_unavailable_seen_value,
+				rally_champion_blocked_cooldown_seen_value
+			]
+		)
 	var payload: Dictionary = {
 		"export_id": export_id,
 		"export_trigger": resolved_export_trigger,
@@ -2109,6 +2197,12 @@ func get_run_metrics_export_payload(
 		"rally_champion_progress_remaining": rally_champion_progress_remaining_value,
 		"rally_champion_time_remaining": rally_champion_time_remaining_value,
 		"rally_champion_progress_summary": rally_champion_progress_summary_value,
+		"rally_champion_attempts_seen": rally_champion_attempts_seen_value,
+		"rally_champion_success_seen": rally_champion_success_seen_value,
+		"rally_champion_blocked_cooldown_seen": rally_champion_blocked_cooldown_seen_value,
+		"rally_champion_unavailable_seen": rally_champion_unavailable_seen_value,
+		"rally_champion_last_block_reason": rally_champion_last_block_reason_value,
+		"rally_champion_progress_block_summary": rally_champion_progress_block_summary_value,
 		"run_summary_lines": snapshot.get("run_summary_lines", []),
 		"last_major_event_label": str(snapshot.get("last_major_event_label", "(none)")),
 		"flee_feedback_label": str(snapshot.get("flee_feedback_label", "")),
@@ -2666,6 +2760,7 @@ func _setup_world_objective(objective_id: String = WORLD_OBJECTIVE_ID_OBSERVE_DO
 	champion_support_success_flash_timer = 0.0
 	champion_support_locked_actor_id = 0
 	champion_support_lock_timer = 0.0
+	champion_support_last_block_reason = ""
 	world_objective_gate_bad_state_elapsed = 0.0
 	world_objective_gate_bad_state_threshold = max(
 		0.1,
@@ -11855,6 +11950,16 @@ func _build_snapshot() -> Dictionary:
 	var rally_champion_progress_remaining: int = 0
 	var rally_champion_time_remaining: Variant = null
 	var rally_champion_progress_summary: String = "Rally champion progress: n/a"
+	var rally_champion_attempts_seen: int = 0
+	var rally_champion_success_seen: int = 0
+	var rally_champion_blocked_cooldown_seen: int = 0
+	var rally_champion_unavailable_seen: int = 0
+	var rally_champion_last_block_reason: String = champion_support_last_block_reason.strip_edges()
+	var rally_champion_progress_block_reason: String = "objective_not_active"
+	var rally_champion_progress_block_summary: String = (
+		"Rally champion progress block: reason=%s attempts=0 success=0 unavailable=0 cooldown=0"
+		% rally_champion_progress_block_reason
+	)
 	if active_objective_id == WORLD_OBJECTIVE_ID_RALLY_CHAMPION:
 		rally_champion_progress_current = max(0, world_objective_interaction_count)
 		rally_champion_progress_required = max(0, world_objective_interaction_required)
@@ -11875,6 +11980,62 @@ func _build_snapshot() -> Dictionary:
 				rally_champion_progress_required,
 				rally_champion_progress_remaining,
 				float(rally_champion_time_remaining)
+			]
+		)
+		rally_champion_attempts_seen = max(
+			0,
+			int(champion_support_tuning.get("champion_support_run_attempts", 0))
+		)
+		rally_champion_success_seen = max(
+			0,
+			int(champion_support_tuning.get("champion_support_run_success", 0))
+		)
+		rally_champion_blocked_cooldown_seen = max(
+			0,
+			int(champion_support_tuning.get("champion_support_run_cooldown_blocked", 0))
+		)
+		rally_champion_unavailable_seen = max(
+			0,
+			int(champion_support_tuning.get("champion_support_run_unavailable", 0))
+		)
+		if rally_champion_last_block_reason == "":
+			if rally_champion_blocked_cooldown_seen > 0:
+				rally_champion_last_block_reason = "attempts_blocked_by_cooldown"
+			elif rally_champion_unavailable_seen > 0:
+				rally_champion_last_block_reason = "champion_unavailable"
+
+		if rally_champion_success_seen > 0 or rally_champion_progress_current > 0:
+			rally_champion_progress_block_reason = "support_success_seen"
+		elif active_objective_status != "active":
+			rally_champion_progress_block_reason = "objective_not_active"
+		elif rally_champion_attempts_seen <= 0:
+			if active_objective_marker_target_reason == "no_locked_champion":
+				rally_champion_progress_block_reason = "no_locked_champion"
+			elif active_objective_marker_target_reason == "no_visual_champion":
+				rally_champion_progress_block_reason = "no_visual_champion"
+			elif active_objective_marker_target_reason == "objective_has_no_actor_target":
+				rally_champion_progress_block_reason = "champion_unavailable"
+			elif active_objective_marker_target_reason == "objective_inactive":
+				rally_champion_progress_block_reason = "objective_not_active"
+			else:
+				rally_champion_progress_block_reason = "no_attempts_seen"
+		elif rally_champion_blocked_cooldown_seen > 0 and rally_champion_unavailable_seen <= 0:
+			rally_champion_progress_block_reason = "attempts_blocked_by_cooldown"
+		elif rally_champion_unavailable_seen > 0:
+			rally_champion_progress_block_reason = "champion_unavailable"
+		elif rally_champion_last_block_reason != "":
+			rally_champion_progress_block_reason = rally_champion_last_block_reason
+		else:
+			rally_champion_progress_block_reason = "no_attempts_seen"
+
+		rally_champion_progress_block_summary = (
+			"Rally champion progress block: reason=%s attempts=%d success=%d unavailable=%d cooldown=%d"
+			% [
+				rally_champion_progress_block_reason,
+				rally_champion_attempts_seen,
+				rally_champion_success_seen,
+				rally_champion_unavailable_seen,
+				rally_champion_blocked_cooldown_seen
 			]
 		)
 
@@ -11945,6 +12106,12 @@ func _build_snapshot() -> Dictionary:
 		"rally_champion_progress_remaining": rally_champion_progress_remaining,
 		"rally_champion_time_remaining": rally_champion_time_remaining,
 		"rally_champion_progress_summary": rally_champion_progress_summary,
+		"rally_champion_attempts_seen": rally_champion_attempts_seen,
+		"rally_champion_success_seen": rally_champion_success_seen,
+		"rally_champion_blocked_cooldown_seen": rally_champion_blocked_cooldown_seen,
+		"rally_champion_unavailable_seen": rally_champion_unavailable_seen,
+		"rally_champion_last_block_reason": rally_champion_last_block_reason,
+		"rally_champion_progress_block_summary": rally_champion_progress_block_summary,
 		"objective_completion_target_label": world_objective_completion_target_label,
 		"objective_status": world_objective_status,
 		"objective_progress": world_objective_progress,

@@ -1183,6 +1183,79 @@ func _build_objective_panel_lines(
             )
         else:
             rally_champion_progress_summary = "Rally champion progress: n/a"
+    var rally_champion_attempts_seen: int = max(
+        0,
+        int(snapshot.get("rally_champion_attempts_seen", snapshot.get("champion_support_run_attempts", 0)))
+    )
+    var rally_champion_success_seen: int = max(
+        0,
+        int(snapshot.get("rally_champion_success_seen", snapshot.get("champion_support_run_success", 0)))
+    )
+    var rally_champion_blocked_cooldown_seen: int = max(
+        0,
+        int(
+            snapshot.get(
+                "rally_champion_blocked_cooldown_seen",
+                snapshot.get("champion_support_run_cooldown_blocked", 0)
+            )
+        )
+    )
+    var rally_champion_unavailable_seen: int = max(
+        0,
+        int(
+            snapshot.get(
+                "rally_champion_unavailable_seen",
+                snapshot.get("champion_support_run_unavailable", 0)
+            )
+        )
+    )
+    var rally_champion_last_block_reason: String = str(
+        snapshot.get("rally_champion_last_block_reason", "")
+    ).strip_edges()
+    if rally_champion_last_block_reason == "":
+        if rally_champion_blocked_cooldown_seen > 0:
+            rally_champion_last_block_reason = "attempts_blocked_by_cooldown"
+        elif rally_champion_unavailable_seen > 0:
+            rally_champion_last_block_reason = "champion_unavailable"
+    var rally_champion_progress_block_reason: String = "objective_not_active"
+    if is_rally_champion_objective:
+        if rally_champion_success_seen > 0 or rally_champion_progress_current > 0:
+            rally_champion_progress_block_reason = "support_success_seen"
+        elif active_objective_status != "active":
+            rally_champion_progress_block_reason = "objective_not_active"
+        elif rally_champion_attempts_seen <= 0:
+            if active_objective_marker_target_reason == "no_locked_champion":
+                rally_champion_progress_block_reason = "no_locked_champion"
+            elif active_objective_marker_target_reason == "no_visual_champion":
+                rally_champion_progress_block_reason = "no_visual_champion"
+            elif active_objective_marker_target_reason == "objective_has_no_actor_target":
+                rally_champion_progress_block_reason = "champion_unavailable"
+            elif active_objective_marker_target_reason == "objective_inactive":
+                rally_champion_progress_block_reason = "objective_not_active"
+            else:
+                rally_champion_progress_block_reason = "no_attempts_seen"
+        elif rally_champion_blocked_cooldown_seen > 0 and rally_champion_unavailable_seen <= 0:
+            rally_champion_progress_block_reason = "attempts_blocked_by_cooldown"
+        elif rally_champion_unavailable_seen > 0:
+            rally_champion_progress_block_reason = "champion_unavailable"
+        elif rally_champion_last_block_reason != "":
+            rally_champion_progress_block_reason = rally_champion_last_block_reason
+        else:
+            rally_champion_progress_block_reason = "no_attempts_seen"
+    var rally_champion_progress_block_summary: String = str(
+        snapshot.get("rally_champion_progress_block_summary", "")
+    ).strip_edges()
+    if rally_champion_progress_block_summary == "":
+        rally_champion_progress_block_summary = (
+            "Rally champion progress block: reason=%s attempts=%d success=%d unavailable=%d cooldown=%d"
+            % [
+                rally_champion_progress_block_reason,
+                rally_champion_attempts_seen,
+                rally_champion_success_seen,
+                rally_champion_unavailable_seen,
+                rally_champion_blocked_cooldown_seen
+            ]
+        )
     var champion_support_available: bool = bool(snapshot.get("champion_support_available", false))
     var champion_support_candidate_count: int = int(snapshot.get("champion_support_candidate_count", 0))
     var champion_support_target_label: String = str(
@@ -1217,6 +1290,7 @@ func _build_objective_panel_lines(
         lines.append(active_objective_summary)
         if is_rally_champion_objective:
             lines.append(rally_champion_progress_summary)
+            lines.append(rally_champion_progress_block_summary)
         if active_objective_marker_visible:
             lines.append(active_objective_marker_summary)
         return lines
@@ -1235,6 +1309,7 @@ func _build_objective_panel_lines(
         lines.append("Status: %s" % objective_status)
         if is_rally_champion_objective:
             lines.append(rally_champion_progress_summary)
+            lines.append(rally_champion_progress_block_summary)
         if objective_has_interaction and objective_interaction_label != "":
             if objective_id == "rally_champion":
                 lines.append("Champion: %s" % champion_support_target_label)
@@ -1303,6 +1378,7 @@ func _build_objective_panel_lines(
     )
     if is_rally_champion_objective:
         lines.append(rally_champion_progress_summary)
+        lines.append(rally_champion_progress_block_summary)
     if objective_available_count > 0 and objective_selected_index >= 0:
         lines.append("Objective selection: %d/%d" % [objective_selected_index + 1, objective_available_count])
     if not objective_available_ids.is_empty():
