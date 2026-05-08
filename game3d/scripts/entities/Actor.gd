@@ -119,6 +119,10 @@ var death_reported: bool = false
 var last_attacker: Actor = null
 var _body_visual: MeshInstance3D = null
 var _base_body_color: Color = Color(0.75, 0.75, 0.75)
+var _flee_indicator_root: Node3D = null
+var _flee_indicator_stem: MeshInstance3D = null
+var _flee_indicator_dot: MeshInstance3D = null
+var _flee_indicator_pulse: MeshInstance3D = null
 
 
 func _ready() -> void:
@@ -848,6 +852,7 @@ func _build_visual() -> void:
 	add_child(body)
 	_body_visual = body
 	_base_body_color = material.albedo_color
+	_build_flee_indicator_visual(body.position.y)
 	_refresh_control_visual()
 
 
@@ -1157,6 +1162,104 @@ func _refresh_control_visual() -> void:
 			else:
 				material.emission_enabled = true
 				material.emission = notoriety_glow * 0.30 * notoriety_signal
+	_refresh_flee_indicator_visual()
+
+
+func _build_flee_indicator_visual(body_height: float) -> void:
+	var indicator_root := Node3D.new()
+	indicator_root.name = "FleeIndicator"
+	indicator_root.position = Vector3(0.0, body_height + 0.72, 0.0)
+	indicator_root.visible = false
+
+	var stem := MeshInstance3D.new()
+	stem.name = "Stem"
+	var stem_mesh := BoxMesh.new()
+	stem_mesh.size = Vector3(0.08, 0.30, 0.08)
+	stem.mesh = stem_mesh
+	stem.position = Vector3(0.0, 0.24, 0.0)
+
+	var dot := MeshInstance3D.new()
+	dot.name = "Dot"
+	var dot_mesh := SphereMesh.new()
+	dot_mesh.radius = 0.055
+	dot_mesh.height = 0.11
+	dot.mesh = dot_mesh
+	dot.position = Vector3(0.0, 0.03, 0.0)
+
+	var pulse := MeshInstance3D.new()
+	pulse.name = "Pulse"
+	var pulse_mesh := CylinderMesh.new()
+	pulse_mesh.top_radius = 0.22
+	pulse_mesh.bottom_radius = 0.22
+	pulse_mesh.height = 0.04
+	pulse.mesh = pulse_mesh
+	pulse.position = Vector3(0.0, -0.02, 0.0)
+	pulse.visible = false
+
+	indicator_root.add_child(stem)
+	indicator_root.add_child(dot)
+	indicator_root.add_child(pulse)
+	add_child(indicator_root)
+
+	_flee_indicator_root = indicator_root
+	_flee_indicator_stem = stem
+	_flee_indicator_dot = dot
+	_flee_indicator_pulse = pulse
+
+
+func _refresh_flee_indicator_visual() -> void:
+	if _flee_indicator_root == null:
+		return
+	if _flee_indicator_stem == null or _flee_indicator_dot == null or _flee_indicator_pulse == null:
+		return
+
+	var is_fleeing: bool = state == "flee" and not is_dead
+	_flee_indicator_root.visible = is_fleeing
+	if not is_fleeing:
+		_flee_indicator_pulse.visible = false
+		return
+
+	var urgency: float = 0.35
+	if flee_urgency >= 0.0:
+		urgency = clampf(flee_urgency, 0.0, 1.0)
+
+	var indicator_color: Color = Color(1.0, 0.76, 0.30)
+	match flee_threat_kind:
+		"hostile_champion":
+			indicator_color = Color(1.0, 0.36, 0.34)
+		"brute_monster":
+			indicator_color = Color(1.0, 0.52, 0.34)
+		"ranged_monster":
+			indicator_color = Color(1.0, 0.78, 0.34)
+	if flee_reason == "notoriety_avoid":
+		indicator_color = indicator_color.lerp(Color(0.82, 0.58, 1.0), 0.45)
+
+	var high_urgency: bool = urgency >= 0.65
+	_flee_indicator_stem.scale = Vector3.ONE * (1.22 if high_urgency else 0.88)
+	_flee_indicator_dot.scale = Vector3.ONE * (1.30 if high_urgency else 0.98)
+	_flee_indicator_pulse.visible = high_urgency
+	_flee_indicator_pulse.scale = Vector3.ONE * (1.08 + urgency * 0.52)
+
+	_apply_flee_indicator_material(_flee_indicator_stem, indicator_color, 0.48 + urgency * 0.42)
+	_apply_flee_indicator_material(_flee_indicator_dot, indicator_color, 0.56 + urgency * 0.52)
+	_apply_flee_indicator_material(
+		_flee_indicator_pulse,
+		indicator_color.lerp(Color(1.0, 1.0, 1.0), 0.20),
+		0.40 + urgency * 0.54
+	)
+
+
+func _apply_flee_indicator_material(mesh_instance: MeshInstance3D, color: Color, emission_strength: float) -> void:
+	var material := mesh_instance.material_override as StandardMaterial3D
+	if material == null:
+		material = StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh_instance.material_override = material
+	material.albedo_color = Color(color.r, color.g, color.b, 0.90)
+	material.emission_enabled = true
+	material.emission = color * emission_strength
 
 
 func _spawn_level_up_signal() -> void:

@@ -32,6 +32,30 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("var flee_urgency: float = -1.0", content)
         self.assertIn("_update_flee_debug_context(decision)", content)
 
+    def test_actor_builds_in_world_flee_indicator(self) -> None:
+        content = ACTOR_PATH.read_text(encoding="utf-8")
+        self.assertIn("var _flee_indicator_root: Node3D = null", content)
+        self.assertIn("var _flee_indicator_stem: MeshInstance3D = null", content)
+        self.assertIn("var _flee_indicator_dot: MeshInstance3D = null", content)
+        self.assertIn("var _flee_indicator_pulse: MeshInstance3D = null", content)
+        self.assertIn("_build_flee_indicator_visual(body.position.y)", content)
+        self.assertIn("func _build_flee_indicator_visual(body_height: float) -> void:", content)
+
+    def test_flee_indicator_is_state_driven_and_urgency_aware(self) -> None:
+        content = ACTOR_PATH.read_text(encoding="utf-8")
+        self.assertIn("var is_fleeing: bool = state == \"flee\" and not is_dead", content)
+        self.assertIn("_flee_indicator_root.visible = is_fleeing", content)
+        self.assertIn("if not is_fleeing:", content)
+        self.assertIn("if flee_urgency >= 0.0:", content)
+        self.assertIn("var high_urgency: bool = urgency >= 0.65", content)
+        self.assertIn("_flee_indicator_pulse.visible = high_urgency", content)
+
+    def test_flee_indicator_reads_reason_and_threat_kind(self) -> None:
+        content = ACTOR_PATH.read_text(encoding="utf-8")
+        self.assertIn("match flee_threat_kind:", content)
+        self.assertIn("if flee_reason == \"notoriety_avoid\":", content)
+        self.assertIn("_apply_flee_indicator_material(_flee_indicator_stem, indicator_color", content)
+
     def test_snapshot_exposes_flee_debug_fields(self) -> None:
         content = GAME_LOOP_PATH.read_text(encoding="utf-8")
         self.assertIn('"flee_feedback_label": flee_feedback_label', content)
@@ -89,6 +113,10 @@ class Game3DFleeReadabilityScaffoldTests(unittest.TestCase):
         self.assertIn("flee rules unchanged", content)
         self.assertIn("v233 validates flee/threat readability in runtime/debug outputs", content)
         self.assertIn("runtime readability only, no flee logic change", content)
+        self.assertIn(
+            "v235 adds an in-world flee readability indicator. It does not change flee rules or balance.",
+            content,
+        )
 
 
 if __name__ == "__main__":
