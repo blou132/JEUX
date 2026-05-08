@@ -78,6 +78,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Godot executable path or command name (default: godot).",
     )
     parser.add_argument(
+        "--objective",
+        type=str,
+        default="",
+        help=(
+            "Optional runtime objective override forwarded to runtime collection "
+            "(example: rally_champion)."
+        ),
+    )
+    parser.add_argument(
+        "--export-on-quit",
+        action="store_true",
+        help=(
+            "Debug/CI only: forward export-on-quit mode to runtime collection so Godot "
+            "forces runtime export at controlled quit."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print planned commands only and exit with code 0.",
@@ -141,8 +158,10 @@ def _build_collect_command(
     runs: int,
     seed_start: int,
     godot_bin: str,
+    objective: str,
+    export_on_quit: bool,
 ) -> list[str]:
-    return [
+    command = [
         sys.executable,
         str(_collect_script_path()),
         "--mode",
@@ -156,6 +175,26 @@ def _build_collect_command(
         "--godot-bin",
         godot_bin,
     ]
+    objective_value = objective.strip()
+    if objective_value != "":
+        command.extend(["--objective", objective_value])
+    if export_on_quit:
+        command.append("--export-on-quit")
+    return command
+
+
+def _collect_forwarded_godot_flags(command: list[str]) -> list[str]:
+    forwarded: list[str] = []
+    if "--objective" in command:
+        objective_index = command.index("--objective")
+        objective_value_index = objective_index + 1
+        if objective_value_index < len(command):
+            forwarded.extend(
+                ["--support-metrics-objective", str(command[objective_value_index])]
+            )
+    if "--export-on-quit" in command:
+        forwarded.append("--support-metrics-export-on-quit")
+    return forwarded
 
 
 def _build_validate_command(
@@ -242,6 +281,9 @@ def _print_planned_commands(
     else:
         for index, command in enumerate(collect_commands, start=1):
             print("- collect %d: %s" % (index, _format_command(command)))
+            forwarded_flags = _collect_forwarded_godot_flags(command)
+            if forwarded_flags:
+                print("- collect %d forwarded Godot flags: %s" % (index, " ".join(forwarded_flags)))
     print("- validate: %s" % _format_command(validate_command))
     print("- analyze: %s" % _format_command(analyze_command))
     if skip_decision:
@@ -382,6 +424,8 @@ def main() -> int:
         runs=args.runs,
         seed_start=args.seed_start,
         godot_bin=args.godot_bin,
+        objective=str(args.objective),
+        export_on_quit=bool(args.export_on_quit),
     )
     collect_current_command = _build_collect_command(
         mode="current",
@@ -389,6 +433,8 @@ def main() -> int:
         runs=args.runs,
         seed_start=args.seed_start,
         godot_bin=args.godot_bin,
+        objective=str(args.objective),
+        export_on_quit=bool(args.export_on_quit),
     )
     validate_command = _build_validate_command(baseline_output, current_output)
     analyze_command = _build_analyze_command(

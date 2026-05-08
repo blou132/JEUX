@@ -21,6 +21,12 @@ class RuntimeGodotValidationChecklistReadmeTests(unittest.TestCase):
             "py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5",
             content,
         )
+        self.assertIn(
+            'py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5 --objective rally_champion --export-on-quit --godot-bin "C:\\Users\\blouc\\OneDrive\\Bureau\\Godot_v4.6.2-stable_win64.exe"',
+            content,
+        )
+        self.assertIn("--export-on-quit", content)
+        self.assertIn("debug/CI only", content)
 
     def test_readme_checklist_contains_expected_outputs_and_decisions(self) -> None:
         content = README_PATH.read_text(encoding="utf-8")

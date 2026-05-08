@@ -962,6 +962,8 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
   - `--runs 5`
   - `--seed-start 1000`
   - `--min-runs 5`
+  - `--objective rally_champion` (objectif runtime force pour collecte debug/CI)
+  - `--export-on-quit` (debug/CI only, force un export runtime a la fin du quit controle)
   - `--baseline-output outputs/ci/support_metrics_baseline.jsonl`
   - `--current-output outputs/ci/support_metrics_current.jsonl`
   - `--report-output outputs/ci/support_metrics_runtime_comparison.md`
@@ -979,10 +981,15 @@ py tools/validate_support_metrics_runtime_files.py --baseline outputs/ci/support
 ```bash
 py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5
 ```
+- exemple recommande post-v225 (objectif force + export debug/CI sur quit):
+```bash
+py tools/run_support_metrics_runtime_pipeline.py --runs 5 --seed-start 1000 --min-runs 5 --objective rally_champion --export-on-quit --godot-bin "C:\Users\blouc\OneDrive\Bureau\Godot_v4.6.2-stable_win64.exe"
+```
 - exemple sans Godot (fichiers deja collectes):
 ```bash
 py tools/run_support_metrics_runtime_pipeline.py --skip-collect --baseline-output outputs/ci/support_metrics_baseline.jsonl --current-output outputs/ci/support_metrics_current.jsonl --report-output outputs/ci/support_metrics_runtime_comparison.md --decision-output outputs/ci/support_metrics_runtime_decision.md --min-runs 5
 ```
+- note: `--export-on-quit` reste reserve au debug/CI et ne modifie pas le gameplay normal.
 - note: ce pipeline sert a observer les metriques runtime pour le suivi du tuning v211; il ne modifie pas le gameplay.
 - note: la decision runtime est heuristique et n'applique jamais de changement gameplay automatiquement.
 

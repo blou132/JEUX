@@ -40,6 +40,8 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         self.assertIn("--decision-json-output", result.stdout)
         self.assertIn("--min-runs", result.stdout)
         self.assertIn("--godot-bin", result.stdout)
+        self.assertIn("--objective", result.stdout)
+        self.assertIn("--export-on-quit", result.stdout)
         self.assertIn("--dry-run", result.stdout)
         self.assertIn("--skip-collect", result.stdout)
         self.assertIn("--skip-decision", result.stdout)
@@ -59,8 +61,82 @@ class RunSupportMetricsRuntimePipelineToolTests(unittest.TestCase):
         self.assertIn("collect 2:", normalized_output)
         self.assertIn("--mode current", normalized_output)
         self.assertIn("collect_support_metrics_runtime.py", normalized_output)
+        self.assertIn("- validate:", normalized_output)
+        self.assertIn("- analyze:", normalized_output)
+        self.assertIn("- decision:", normalized_output)
         self.assertIn("decide_support_metrics_runtime_tuning.py", normalized_output)
         self.assertIn("--min-runs 5", normalized_output)
+
+    def test_dry_run_objective_shows_collect_and_forwarded_runtime_flags(self) -> None:
+        result = _run_tool(
+            ["--dry-run", "--runs", "2", "--seed-start", "1000", "--objective", "rally_champion"]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        normalized_output = result.stdout.replace("\\", "/")
+        self.assertIn("collect 1:", normalized_output)
+        self.assertIn("--mode baseline", normalized_output)
+        self.assertIn("collect 2:", normalized_output)
+        self.assertIn("--mode current", normalized_output)
+        self.assertIn("--objective rally_champion", normalized_output)
+        self.assertIn("--support-metrics-objective rally_champion", normalized_output)
+
+    def test_dry_run_export_on_quit_shows_collect_and_forwarded_runtime_flags(self) -> None:
+        result = _run_tool(
+            ["--dry-run", "--runs", "2", "--seed-start", "1000", "--export-on-quit"]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        normalized_output = result.stdout.replace("\\", "/")
+        self.assertIn("collect 1:", normalized_output)
+        self.assertIn("--mode baseline", normalized_output)
+        self.assertIn("collect 2:", normalized_output)
+        self.assertIn("--mode current", normalized_output)
+        self.assertIn("--export-on-quit", normalized_output)
+        self.assertIn("--support-metrics-export-on-quit", normalized_output)
+
+    def test_dry_run_objective_and_export_on_quit_are_forwarded_to_both_collects(self) -> None:
+        result = _run_tool(
+            [
+                "--dry-run",
+                "--runs",
+                "2",
+                "--seed-start",
+                "1000",
+                "--objective",
+                "rally_champion",
+                "--export-on-quit",
+            ]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        normalized_output = result.stdout.replace("\\", "/")
+        self.assertGreaterEqual(
+            normalized_output.count("--support-metrics-objective rally_champion"),
+            2,
+        )
+        self.assertGreaterEqual(
+            normalized_output.count("--support-metrics-export-on-quit"),
+            2,
+        )
+
+    def test_dry_run_skip_collect_remains_compatible_with_objective_export_on_quit(self) -> None:
+        result = _run_tool(
+            ["--dry-run", "--skip-collect", "--objective", "rally_champion", "--export-on-quit"]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        normalized_output = result.stdout.replace("\\", "/")
+        self.assertIn("collect: skipped (--skip-collect)", normalized_output)
+        self.assertIn("- validate:", normalized_output)
+        self.assertIn("- analyze:", normalized_output)
+        self.assertIn("- decision:", normalized_output)
+
+    def test_dry_run_skip_decision_remains_compatible_with_objective_export_on_quit(self) -> None:
+        result = _run_tool(
+            ["--dry-run", "--skip-decision", "--objective", "rally_champion", "--export-on-quit"]
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        normalized_output = result.stdout.replace("\\", "/")
+        self.assertIn("--support-metrics-objective rally_champion", normalized_output)
+        self.assertIn("--support-metrics-export-on-quit", normalized_output)
+        self.assertIn("decision: skipped (--skip-decision)", normalized_output)
 
     def test_skip_collect_with_missing_files_returns_non_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
